@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Isso aqui ajuda a garantir que as cores customizadas funcionem */
+@theme {
+  --color-iluminus-terracota: #D98E73;
+  --color-iluminus-verde: #8A9A5B;
+  --color-iluminus-fundo: #FDF8F5;
+  --color-iluminus-texto: #2D2D2D;
+}

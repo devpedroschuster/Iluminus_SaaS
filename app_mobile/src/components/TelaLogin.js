@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -15,10 +14,13 @@ export default function TelaLogin({ onLogado }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [erroMsg, setErroMsg] = useState(""); // Novo estado para controlar a mensagem de erro
 
   async function handleLogin() {
+    setErroMsg(""); // Limpa os erros anteriores ao tentar novamente
+
     if (!email || !senha) {
-      Alert.alert("Atenção", "Preencha e-mail e senha.");
+      setErroMsg("Preencha e-mail e senha.");
       return;
     }
 
@@ -44,17 +46,14 @@ export default function TelaLogin({ onLogado }) {
       if (perfilError) throw perfilError;
 
       if (!perfil) {
-        Alert.alert("Erro", "Perfil de aluno não encontrado.");
+        setErroMsg("Perfil de aluno não encontrado no banco de dados.");
         setCarregando(false);
         return;
       }
 
       // 3. Trava de Primeiro Acesso (Segurança)
       if (perfil.primeiro_acesso) {
-        Alert.alert(
-          "Bem-vindo!",
-          "Para sua segurança, seu primeiro acesso deve ser feito pelo nosso Portal Web para definir uma nova senha, ou solicite a alteração ao seu professor.",
-        );
+        setErroMsg("Seu primeiro acesso deve ser feito pelo nosso Portal Web para definir uma nova senha.");
         await supabase.auth.signOut(); // Desloga
         setCarregando(false);
         return;
@@ -66,7 +65,8 @@ export default function TelaLogin({ onLogado }) {
 
       onLogado(perfil);
     } catch (err) {
-      Alert.alert("Falha no Login", "E-mail ou senha incorretos.");
+      console.error("🚨 ERRO REAL DO SUPABASE:", err);
+      setErroMsg(err.message || "Erro desconhecido ao tentar logar.");
     } finally {
       setCarregando(false);
     }
@@ -96,6 +96,9 @@ export default function TelaLogin({ onLogado }) {
           secureTextEntry={true}
           placeholderTextColor="#aaa"
         />
+
+        {/* Exibe a mensagem de erro se ela existir */}
+        {erroMsg ? <Text style={styles.erroTexto}>{erroMsg}</Text> : null}
 
         <TouchableOpacity
           style={styles.botao}
@@ -141,6 +144,13 @@ const styles = StyleSheet.create({
     borderColor: "#F0E5DE",
     fontSize: 16,
     color: "#2D2D2D",
+  },
+  erroTexto: {
+    color: "#E53E3E", // Vermelho
+    fontSize: 14,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginTop: 5,
   },
   botao: {
     backgroundColor: "#D98E73",

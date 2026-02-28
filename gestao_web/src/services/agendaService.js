@@ -13,7 +13,6 @@ export const agendaService = {
   },
 
   async salvarAula(aula) {
-    // Se tiver ID, é atualização
     if (aula.id) {
       const { error } = await supabase
         .from('agenda')
@@ -21,7 +20,6 @@ export const agendaService = {
         .eq('id', aula.id);
       if (error) throw error;
     } else {
-      // Se não, é inserção
       const { error } = await supabase
         .from('agenda')
         .insert([aula]);
@@ -39,7 +37,42 @@ export const agendaService = {
     return true;
   },
 
-  // --- FERIADOS ---
+  // AGENDAMENTO MANUAL PELA RECEPÇÃO
+  async agendarAulaAdmin({ aluno_id, aula_id, data_aula }) {
+    const { data, error } = await supabase.rpc('agendar_aula', {
+      p_aluno_id: aluno_id,
+      p_aula_id: aula_id,
+      p_data: data_aula
+    });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // LISTAR PRESENÇAS DE UMA AULA ESPECÍFICA
+  async listarPresencas(aulaId, dataAula) {
+    
+    const { data, error } = await supabase
+      .from('presencas')
+      .select(`
+        id,
+        data_aula,
+        alunos (
+          id,
+          nome_completo
+        )
+      `)
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataAula);
+
+    if (error) {
+        throw error;
+    }
+    
+    return data;
+  },
+
+  // FERIADOS
   async listarFeriados() {
     const { data, error } = await supabase
       .from('feriados')

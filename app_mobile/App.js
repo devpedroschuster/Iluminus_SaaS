@@ -52,6 +52,27 @@ export default function App() {
     verificarSessao();
   }, []);
 
+  // MUDANÇAS EM TEMPO REAL
+  useEffect(() => {
+    if (!alunoId || telaAtual !== "agenda") return;
+
+    const channel = supabase
+      .channel('mudancas-globais-presencas')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'presencas'
+      }, (payload) => {
+        console.log("🔄 Mudança detectada nas vagas! Atualizando tela...", payload);
+        buscarAulas(false); 
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [alunoId, telaAtual, dataSelecionada]);
+
   useEffect(() => {
     if (alunoId && telaAtual === "agenda") buscarAulas(true);
   }, [dataSelecionada, alunoId, telaAtual]);

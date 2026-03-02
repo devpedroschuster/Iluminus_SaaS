@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, Clock, Plus, Star, Ban, Trash2, Edit2, Filter, 
-  RefreshCw, MapPin, Dumbbell, Music, UserCheck, Users 
+  RefreshCw, MapPin, Dumbbell, Music, UserCheck, Users, XCircle 
 } from 'lucide-react';
 
 // Hooks e Serviços
@@ -20,7 +20,6 @@ import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/shared/EmptyState';
 
 export default function Agenda() {
-  // Estado Inicial dos Formulários
   const initialFormState = { 
     id: null, atividade: '', professor_id: '', dia_semana: 'Segunda-feira', 
     horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional' 
@@ -44,9 +43,10 @@ export default function Agenda() {
 
   // --- NOVOS ESTADOS: LISTA DE PRESENÇA ---
   const [aulaParaLista, setAulaParaLista] = useState(null);
-  const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]); // Hoje por padrão
+  const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
   const [listaPresenca, setListaPresenca] = useState([]);
   const [loadingLista, setLoadingLista] = useState(false);
+  const [removendoId, setRemovendoId] = useState(null);
 
   // Hooks de Dados
   const { aulas, feriados, loading, refetch } = useAgenda();
@@ -57,9 +57,9 @@ export default function Agenda() {
   const modalNovaAula = useModal();
   const modalFeriados = useModal();
   const modalAgendamento = useModal();
-  const modalLista = useModal(); // Novo modal
+  const modalLista = useModal();
 
-  // --- EFEITO: BUSCAR LISTA DE PRESENÇA QUANDO MUDAR A DATA OU A AULA ---
+  // --- EFEITO: BUSCAR LISTA DE PRESENÇA ---
   useEffect(() => {
     async function buscarLista() {
       if (modalLista.isOpen && aulaParaLista && dataLista) {
@@ -76,7 +76,6 @@ export default function Agenda() {
     }
     buscarLista();
   }, [modalLista.isOpen, aulaParaLista, dataLista]);
-
 
   // --- ORGANIZAÇÃO DOS DADOS ---
   const gradeOrganizada = useMemo(() => {
@@ -135,7 +134,6 @@ export default function Agenda() {
     modalNovaAula.abrir();
   }
 
-  // CALCULA A PRÓXIMA DATA BASEADA NO DIA DA SEMANA
   function getProximaDataDoDia(diaSemanaTexto) {
     const dias = {
       'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3,
@@ -149,9 +147,7 @@ export default function Agenda() {
     const diaAtual = hoje.getDay();
     let diferenca = diaAlvo - diaAtual;
 
-    if (diferenca < 0) {
-      diferenca += 7;
-    }
+    if (diferenca < 0) diferenca += 7;
 
     const proximaData = new Date(hoje);
     proximaData.setDate(hoje.getDate() + diferenca);
@@ -161,13 +157,11 @@ export default function Agenda() {
 
   function handleAbrirLista(aula) {
     setAulaParaLista(aula);
-    
     if (!aula.eh_recorrente && aula.data_especifica) {
       setDataLista(aula.data_especifica);
     } else {
       setDataLista(getProximaDataDoDia(aula.dia_semana)); 
     }
-    
     setListaPresenca([]);
     modalLista.abrir();
   }
@@ -267,6 +261,27 @@ export default function Agenda() {
     }
   }
 
+  async function handleRemoverPresenca(presenca) {
+    if (!confirm(`Tem certeza que deseja remover ${presenca.alunos?.nome_completo} desta aula?`)) return;
+
+    setRemovendoId(presenca.id);
+    try {
+      await agendaService.cancelarAgendamento({
+        aluno_id: presenca.alunos.id,
+        aula_id: aulaParaLista.id,
+        data_aula: dataLista
+      });
+      
+      showToast.success("Aluno removido da aula!");
+      setListaPresenca(prev => prev.filter(p => p.id !== presenca.id));
+      refetch(); 
+    } catch (err) {
+      showToast.error("Erro ao remover: " + err.message);
+    } finally {
+      setRemovendoId(null);
+    }
+  }
+
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500 h-full flex flex-col">
       {/* Header e Ações */}
@@ -288,7 +303,7 @@ export default function Agenda() {
         </div>
       </div>
 
-      {/* Barra de Controle (Abas de Espaço + Filtro Prof) */}
+      {/* Barra de Controle */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-2 rounded-[24px] border border-gray-100 shadow-sm shrink-0">
         <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto">
           <button onClick={() => setFiltroEspaco('todos')} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${filtroEspaco === 'todos' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Todos</button>
@@ -381,9 +396,25 @@ export default function Agenda() {
               ) : (
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                   {listaPresenca.map(presenca => (
-                    <li key={presenca.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm flex items-center justify-between">
+                    <li key={presenca.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm flex items-center justify-between hover:border-red-100 transition-colors">
                       <span className="font-bold text-gray-700 text-sm">{presenca.alunos?.nome_completo}</span>
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-md font-bold">Confirmado</span>
+                      
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-green-600 bg-green-50 px-2 py-1 rounded-md font-bold uppercase tracking-wider">Confirmado</span>
+                        
+                        <button
+                          onClick={() => handleRemoverPresenca(presenca)}
+                          disabled={removendoId === presenca.id}
+                          className="text-gray-400 hover:text-red-500 p-1.5 bg-gray-50 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remover aluno"
+                        >
+                          {removendoId === presenca.id ? (
+                            <RefreshCw size={16} className="animate-spin text-red-500" />
+                          ) : (
+                            <XCircle size={16} />
+                          )}
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -485,12 +516,10 @@ export default function Agenda() {
           </button>
         </form>
       </Modal>
-
     </div>
   );
 }
 
-// Subcomponente de Card
 function CardAula({ aula, onEdit, onDelete, onVerLista, isEvento = false }) {
   const isFuncional = (aula.espaco || 'funcional') === 'funcional';
 

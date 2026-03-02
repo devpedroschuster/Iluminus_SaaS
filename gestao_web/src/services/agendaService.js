@@ -5,7 +5,7 @@ export const agendaService = {
   async listarGrade() {
     const { data, error } = await supabase
       .from('agenda')
-      .select('*, alunos(nome_completo)') // Faz o join para trazer o nome do professor
+      .select('*, alunos(nome_completo)') 
       .order('horario', { ascending: true });
       
     if (error) throw error;
@@ -49,9 +49,20 @@ export const agendaService = {
     return data;
   },
 
+  // CANCELAR AGENDAMENTTO
+  async cancelarAgendamento({ aluno_id, aula_id, data_aula }) {
+    const { data, error } = await supabase.rpc('cancelar_agendamento', {
+      p_aluno_id: aluno_id,
+      p_aula_id: aula_id,
+      p_data: data_aula
+    });
+    
+    if (error) throw error;
+    return data;
+  },
+
   // LISTAR PRESENÇAS DE UMA AULA ESPECÍFICA
   async listarPresencas(aulaId, dataAula) {
-    
     const { data, error } = await supabase
       .from('presencas')
       .select(`
@@ -77,7 +88,7 @@ export const agendaService = {
     const { data, error } = await supabase
       .from('feriados')
       .select('*')
-      .gte('data', new Date().toISOString().split('T')[0]) // Apenas feriados futuros ou hoje
+      .gte('data', new Date().toISOString().split('T')[0]) 
       .order('data', { ascending: true });
 
     if (error) throw error;

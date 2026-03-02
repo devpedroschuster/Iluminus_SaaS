@@ -19,7 +19,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import CardAula from "./src/components/CardAula";
 import TelaLogin from "./src/components/TelaLogin";
 import TelaPerfil from "./src/components/TelaPerfil";
-import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet"; // Novo componente importado
+import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
 import { supabase } from "./src/services/supabase";
 
 const cores = {
@@ -36,15 +36,11 @@ const cores = {
 export default function App() {
   const [alunoId, setAlunoId] = useState(null);
   const [nomeAluno, setNomeAluno] = useState("");
-
-  // Estados de Loading e Controle de Tela
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [telaAtual, setTelaAtual] = useState("agenda");
-  
-  // Estado do Bottom Sheet de Agendamento Rápido
+  const [feriadoMsg, setFeriadoMsg] = useState(null);
   const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
-
   const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
   const [aulas, setAulas] = useState([]);
 
@@ -54,24 +50,24 @@ export default function App() {
 
   // MUDANÇAS EM TEMPO REAL
   useEffect(() => {
-    if (!alunoId || telaAtual !== "agenda") return;
+    if (!alunoId) return;
 
     const channel = supabase
       .channel('mudancas-globais-presencas')
       .on('postgres_changes', {
-        event: '*',
+        event: '*', 
         schema: 'public',
         table: 'presencas'
       }, (payload) => {
-        console.log("🔄 Mudança detectada nas vagas! Atualizando tela...", payload);
-        buscarAulas(false); 
+        console.log("🔄 Mudança detectada nas vagas!", payload);
+        buscarAulas(false);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [alunoId, telaAtual, dataSelecionada]);
+  }, [alunoId]);
 
   useEffect(() => {
     if (alunoId && telaAtual === "agenda") buscarAulas(true);
@@ -102,23 +98,56 @@ export default function App() {
     }
   }
 
-  async function buscarAulas(loadingTelaCheia = true) {
+  async function buscarAulas(mostrarLoading = true) {
+    if (mostrarLoading) setCarregando(true);
+    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+
     try {
-      if (loadingTelaCheia) setCarregando(true);
+      // 1. PRIMEIRO VERIFICA SE É FERIADO
+      const { data: feriados, error: errFeriado } = await supabase
+        .from("feriados")
+        .select("descricao")
+        .eq("data", dataIso);
 
-      let diaNome = format(dataSelecionada, "eeee", { locale: ptBR });
-      diaNome = diaNome.charAt(0).toUpperCase() + diaNome.slice(1);
-      const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+      if (errFeriado) throw errFeriado;
 
+      if (feriados && feriados.length > 0) {
+        setFeriadoMsg(feriados[0].descricao);
+        setAulas([]); 
+        setCarregando(false);
+        return; 
+      } else {
+        setFeriadoMsg(null); 
+      }
+
+      // 2. SE NÃO É FERIADO, BUSCA AS AULAS NORMALMENTE
       const { data, error } = await supabase
         .from("agenda")
-        .select(`*, presencas(aluno_id, data_checkin)`)
+        .select(`*, presencas(*)`)
         .eq("ativa", true)
-        .or(`dia_semana.eq.${diaNome},data_especifica.eq.${dataIso}`)
         .order("horario", { ascending: true });
 
       if (error) throw error;
-      setAulas(data || []);
+
+      // 3. FILTRA AS AULAS DO DIA ESPECÍFICO
+      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
+      const diasTraduzidos = {
+        "domingo": "Domingo",
+        "segunda-feira": "Segunda-feira",
+        "terça-feira": "Terça-feira",
+        "quarta-feira": "Quarta-feira",
+        "quinta-feira": "Quinta-feira",
+        "sexta-feira": "Sexta-feira",
+        "sábado": "Sábado",
+      };
+      const diaCorreto = diasTraduzidos[diaSemanaAtual];
+
+      const aulasDoDia = (data || []).filter((aula) => {
+        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
+        return aula.dia_semana === diaCorreto;
+      });
+
+      setAulas(aulasDoDia);
     } catch (err) {
       console.error("Erro ao buscar aulas:", err);
       if (err.message.includes("Network")) {
@@ -204,8 +233,18 @@ export default function App() {
                 </ScrollView>
               </View>
 
+              {/* RENDERIZAÇÃO CONDICIONAL: LOADING, FERIADO OU LISTA */}
               {carregando ? (
                 <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
+              ) : feriadoMsg ? (
+                <View style={styles.containerFeriado}>
+                  <Text style={styles.emojiFeriado}>🏖️</Text>
+                  <Text style={styles.tituloFeriado}>Feriado</Text>
+                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
+                  <Text style={styles.avisoFeriado}>
+                    O estúdio estará fechado neste dia. Bom descanso!
+                  </Text>
+                </View>
               ) : (
                 <FlatList
                   data={aulas}
@@ -218,13 +257,13 @@ export default function App() {
                       onAgendamentoSucesso={() => buscarAulas(false)}
                     />
                   )}
-                  contentContainerStyle={{ paddingBottom: 80 }} // Aumentado para não ficar atrás do FAB
+                  contentContainerStyle={{ paddingBottom: 80 }}
                   refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
                   }
                   ListEmptyComponent={
                     <View style={styles.containerVazio}>
-                      <Text style={styles.vazio}>Nenhuma aula disponível.</Text>
+                      <Text style={styles.vazio}>Nenhuma aula disponível para este dia.</Text>
                     </View>
                   }
                 />
@@ -244,7 +283,7 @@ export default function App() {
                 isVisible={modalAgendamentoVisivel}
                 onClose={() => {
                   setModalAgendamentoVisivel(false);
-                  buscarAulas(false); // Atualiza a lista por baixo dos panos ao fechar
+                  buscarAulas(false); 
                 }}
                 aulasDisponiveis={aulas}
                 alunoId={alunoId}
@@ -290,19 +329,26 @@ const styles = StyleSheet.create({
   containerVazio: { marginTop: 50, alignItems: "center" },
   vazio: { color: cores.textoSuave, fontSize: 16 },
 
+  // Estilos do Feriado
+  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
+  emojiFeriado: { fontSize: 48, marginBottom: 10 },
+  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
+  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
+  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
+
   // Estilos do FAB
   fab: {
     position: "absolute",
     right: 20,
-    bottom: 20, // Posicionado logo acima da barra inferior
+    bottom: 20,
     backgroundColor: cores.primaria,
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5, // Android
-    shadowColor: "#000", // iOS
+    elevation: 5,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

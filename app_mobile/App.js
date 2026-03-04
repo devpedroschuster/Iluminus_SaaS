@@ -14,6 +14,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 // Componentes
 import CardAula from "./src/components/CardAula";
@@ -21,6 +24,14 @@ import TelaLogin from "./src/components/TelaLogin";
 import TelaPerfil from "./src/components/TelaPerfil";
 import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
 import { supabase } from "./src/services/supabase";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const cores = {
   fundo: "#FDF8F5",
@@ -74,11 +85,18 @@ export default function App() {
   }, [dataSelecionada, alunoId, telaAtual]);
 
   async function verificarSessao() {
+    console.log("🔍 [1] Iniciando verificação de sessão...");
     try {
       setCarregando(true);
+      
+      console.log("🔍 [2] Consultando sessão salva no Supabase...");
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) throw new Error("Sessão expirada");
+      
+      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
 
+      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
+
+      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
       const { data: aluno, error: alunoError } = await supabase
         .from("alunos")
         .select("id, nome_completo")
@@ -87,14 +105,62 @@ export default function App() {
 
       if (alunoError || !aluno) throw new Error("Perfil não encontrado");
 
+      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
       setAlunoId(aluno.id);
       setNomeAluno(aluno.nome_completo);
       await AsyncStorage.setItem("@aluno_id", String(aluno.id));
       await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
+
+      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
+      registrarTokenPush(aluno.id); // <-- Sem "await" aqui para não travar!
+
+      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
     } catch (e) {
+      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
       await handleLogout();
     } finally {
+      console.log("🏁 [Final] Desativando o ícone de carregamento.");
       setCarregando(false);
+    }
+  }
+
+  async function registrarTokenPush(idAluno) {
+    if (!Device.isDevice) {
+      console.log('Push Notifications só funcionam em dispositivos físicos');
+      return;
+    }
+
+    if (Constants.appOwnership === 'expo') {
+      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
+      return;
+    }
+
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permissão para notificações negada!');
+        return;
+      }
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      
+      console.log("Push Token gerado:", token);
+
+      await supabase
+        .from('alunos')
+        .update({ push_token: token })
+        .eq('id', idAluno);
+        
+    } catch (error) {
+      console.error("Erro ao gerar/salvar push token:", error);
     }
   }
 
@@ -103,7 +169,6 @@ export default function App() {
     const dataIso = format(dataSelecionada, "yyyy-MM-dd");
 
     try {
-      // 1. PRIMEIRO VERIFICA SE É FERIADO
       const { data: feriados, error: errFeriado } = await supabase
         .from("feriados")
         .select("descricao")
@@ -120,7 +185,6 @@ export default function App() {
         setFeriadoMsg(null); 
       }
 
-      // 2. SE NÃO É FERIADO, BUSCA AS AULAS NORMALMENTE
       const { data, error } = await supabase
         .from("agenda")
         .select(`*, presencas(*)`)
@@ -129,7 +193,7 @@ export default function App() {
 
       if (error) throw error;
 
-      // 3. FILTRA AS AULAS DO DIA ESPECÍFICO
+      // FILTRA AS AULAS DO DIA ESPECÍFICO
       const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
       const diasTraduzidos = {
         "domingo": "Domingo",
@@ -192,6 +256,7 @@ export default function App() {
         onLogado={(perfil) => {
           setAlunoId(perfil.id);
           setNomeAluno(perfil.nome_completo);
+          registrarTokenPush(perfil.id);
         }}
       />
     );

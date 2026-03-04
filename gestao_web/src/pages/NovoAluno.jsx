@@ -22,7 +22,7 @@ export default function NovoAluno() {
   const [dadosCriados, setDadosCriados] = useState(null);
 
   // SENHA PADRÃO PROVISÓRIA
-  const SENHA_PADRAO = "Iluminus576";
+  const SENHA_PADRAO = "mudar123";
 
   const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: yupResolver(alunoSchema),

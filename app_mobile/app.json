@@ -12,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "GestaoStudioApp.com",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,7 +28,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-            [
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -42,6 +44,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "32ede90a-2246-43b1-905a-f273ca02ec56"
+      }
     }
   }
 }

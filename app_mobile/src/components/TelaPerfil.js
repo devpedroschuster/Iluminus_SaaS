@@ -37,30 +37,28 @@ export default function TelaPerfil({ alunoId, onLogout }) {
       // 1. Busca Dados do Aluno + Plano
       const { data: dadosAluno, error: errAluno } = await supabase
         .from("alunos")
-        .select(
-          `
-          *,
-          planos (nome, preco, frequencia_semanal)
-        `,
-        )
+        .select(`*, planos (nome, preco, frequencia_semanal)`)
         .eq("id", alunoId)
         .single();
 
       if (errAluno) throw errAluno;
       setPerfil(dadosAluno);
 
-      // 2. Busca Histórico Financeiro
+      // 2. Busca Histórico Financeiro (se a tabela existir)
       const { data: dadosFin, error: errFin } = await supabase
         .from("mensalidades")
         .select("*")
         .eq("aluno_id", alunoId)
-        .order("data_vencimento", { ascending: false }); // Mais recentes primeiro
+        .order("data_vencimento", { ascending: false });
 
-      if (errFin) throw errFin;
+      if (errFin && errFin.code !== '42P01') { // Ignora se a tabela não existir ainda
+          throw errFin;
+      }
       setMensalidades(dadosFin || []);
+      
     } catch (error) {
-      Alert.alert("Erro", "Não foi possível carregar seu perfil.");
-      console.log(error);
+      Alert.alert("Aviso", "Algumas informações podem não ter sido carregadas.");
+      console.log("Erro ao carregar perfil:", error);
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -78,14 +76,13 @@ export default function TelaPerfil({ alunoId, onLogout }) {
 
   const getStatusCor = (status, dataVencimento) => {
     if (status === "pago") return cores.verde;
-    // Se não pago e data já passou
-    if (new Date(dataVencimento) < new Date()) return cores.vermelho;
+    if (dataVencimento && new Date(dataVencimento) < new Date()) return cores.vermelho;
     return cores.amarelo;
   };
 
   const getStatusTexto = (status, dataVencimento) => {
     if (status === "pago") return "PAGO";
-    if (new Date(dataVencimento) < new Date()) return "ATRASADO";
+    if (dataVencimento && new Date(dataVencimento) < new Date()) return "ATRASADO";
     return "ABERTO";
   };
 
@@ -100,15 +97,13 @@ export default function TelaPerfil({ alunoId, onLogout }) {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Cabeçalho do Perfil */}
       <View style={styles.header}>
         <View style={styles.avatar}>
           <Text style={styles.avatarTexto}>
-            {perfil?.nome_completo?.charAt(0).toUpperCase()}
+            {perfil?.nome_completo?.charAt(0).toUpperCase() || "A"}
           </Text>
         </View>
         <Text style={styles.nome}>{perfil?.nome_completo}</Text>
@@ -133,7 +128,7 @@ export default function TelaPerfil({ alunoId, onLogout }) {
             <View style={styles.row}>
               <Text style={styles.label}>Valor:</Text>
               <Text style={styles.valor}>
-                {Number(perfil.planos.preco).toLocaleString("pt-BR", {
+                {Number(perfil.planos.preco || 0).toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
                 })}
@@ -144,11 +139,7 @@ export default function TelaPerfil({ alunoId, onLogout }) {
               <View
                 style={[
                   styles.badge,
-                  {
-                    backgroundColor: perfil.ativo
-                      ? cores.verde
-                      : cores.vermelho,
-                  },
+                  { backgroundColor: perfil.ativo ? cores.verde : cores.vermelho },
                 ]}
               >
                 <Text style={styles.badgeTexto}>
@@ -173,7 +164,7 @@ export default function TelaPerfil({ alunoId, onLogout }) {
               <View>
                 <Text style={styles.mesRef}>Vencimento</Text>
                 <Text style={styles.dataVenc}>
-                  {format(new Date(item.data_vencimento), "dd/MM/yyyy")}
+                  {item.data_vencimento ? format(new Date(item.data_vencimento), "dd/MM/yyyy") : "--/--/----"}
                 </Text>
               </View>
 

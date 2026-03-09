@@ -19,7 +19,8 @@ import Agenda from './pages/Agenda';
 import Financeiro from './pages/Financeiro'; 
 import Despesas from './pages/Despesas';   
 import Planos from './pages/Planos';     
-import Presenca from './pages/Presenca';   
+import Presenca from './pages/Presenca';
+import Comissoes from './pages/Comissoes';  
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,7 @@ export default function App() {
                 <Route path="/despesas" element={<Despesas />} />
                 <Route path="/planos" element={<Planos />} />
                 <Route path="/presenca" element={<Presenca />} />
+                <Route path="/comissoes" element={<Comissoes />} />
 
               </Route>
             </Route>

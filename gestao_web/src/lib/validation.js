@@ -1,21 +1,16 @@
+// Dentro do seu arquivo validation.js
 import * as yup from 'yup';
 
-export const alunoSchema = yup.object({
-  nome_completo: yup.string()
-    .required('O nome completo é obrigatório')
-    .min(3, 'O nome deve ter pelo menos 3 caracteres'),
-  
-  email: yup.string()
-    .required('O e-mail é obrigatório')
-    .email('Digite um e-mail válido'),
-  
-  role: yup.string()
-    .required('Selecione um cargo'),
-  
-  plano_id: yup.string()
-    .when('role', {
-      is: 'aluno',
-      then: (schema) => schema.required('Alunos precisam de um plano vinculado'),
-      otherwise: (schema) => schema.nullable()
-    })
+export const alunoSchema = yup.object().shape({
+  nome_completo: yup.string().required('Nome é obrigatório'),
+  email: yup.string().email('E-mail inválido').required('E-mail é obrigatório'),
+  role: yup.string().required('Cargo é obrigatório'),
+  plano_id: yup.string().nullable(),
+  cpf: yup.string().required('CPF é obrigatório'),
+  data_nascimento: yup.string().nullable(),
+  telefone: yup.string().nullable(),
+  cep: yup.string().nullable(),
+  rua: yup.string().nullable(),
+  numero: yup.string().nullable(),
+  bairro: yup.string().nullable(),
 });

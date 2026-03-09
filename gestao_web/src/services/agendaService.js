@@ -1,11 +1,24 @@
 import { supabase } from '../lib/supabase';
 
 export const agendaService = {
+  // --- PROFESSORES ---
+  async listarProfessores() {
+    const { data, error } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
+      
+    if (error) throw error;
+    return data;
+  },
+
   // --- AULAS ---
   async listarGrade() {
     const { data, error } = await supabase
       .from('agenda')
-      .select('*, alunos(nome_completo)') 
+      // Atualizamos de alunos(nome_completo) para professores(nome)
+      .select('*, professores(nome)') 
       .order('horario', { ascending: true });
       
     if (error) throw error;

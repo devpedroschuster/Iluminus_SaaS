@@ -5,24 +5,22 @@ import { RefreshCw } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
-// Componentes Compartilhados
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 
-// PÁGINAS (Todas devem ser importadas aqui)
 import Login from './pages/Login';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import NovoAluno from './pages/NovoAluno';
-import Agenda from './pages/Agenda';     // Faltava
-import Financeiro from './pages/Financeiro'; // Faltava
-import Despesas from './pages/Despesas';   // Faltava
-import Planos from './pages/Planos';     // Faltava
-import Presenca from './pages/Presenca';   // Faltava
+import Professores from './pages/Professores';
+import Agenda from './pages/Agenda';     
+import Financeiro from './pages/Financeiro'; 
+import Despesas from './pages/Despesas';   
+import Planos from './pages/Planos';     
+import Presenca from './pages/Presenca';   
 
-// Configuração do React Query
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -34,13 +32,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// Componente de Rota Privada
 const RotaPrivada = ({ sessao }) => {
   if (!sessao) return <Navigate to="/login" replace />;
   return <Outlet />;
 };
 
-// Layout com a Barra Lateral
 const LayoutComSidebar = () => (
   <div className="flex bg-[#FDF8F5] min-h-screen">
     <Sidebar />
@@ -55,13 +51,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Verifica sessão atual
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSessao(session);
       setLoading(false);
     });
 
-    // 2. Escuta mudanças (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSessao(session);
     });
@@ -83,22 +77,18 @@ export default function App() {
         <BrowserRouter>
           <ToastProvider /> 
           <Routes>
-            {/* Rotas Públicas */}
             <Route path="/login" element={!sessao ? <Login /> : <Navigate to="/dashboard" replace />} />
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
             
-            {/* Rotas Privadas (Protegidas) */}
             <Route element={<RotaPrivada sessao={sessao} />}>
               <Route element={<LayoutComSidebar />}>
                 
-                {/* AQUI ESTÃO AS ROTAS QUE FALTAVAM */}
                 <Route path="/dashboard" element={<Dashboard />} />
                 
-                {/* Alunos */}
                 <Route path="/alunos" element={<Alunos />} />
                 <Route path="/alunos/novo" element={<NovoAluno />} />
+                <Route path="/professores" element={<Professores />} />
                 
-                {/* Funcionalidades */}
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/despesas" element={<Despesas />} />
@@ -108,13 +98,11 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Redirecionamento Padrão */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
       </ErrorBoundary>
-      {/* Ferramenta de desenvolvimento (opcional, aparece uma florzinha no canto) */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

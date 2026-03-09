@@ -22,7 +22,8 @@ import EmptyState from '../components/shared/EmptyState';
 export default function Agenda() {
   const initialFormState = { 
     id: null, atividade: '', professor_id: '', dia_semana: 'Segunda-feira', 
-    horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional' 
+    horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional',
+    valor_por_aluno: '' // NOVO CAMPO
   };
 
   const initialAgendamentoState = { aluno_id: '', aula_id: '', data_aula: '' };
@@ -48,9 +49,11 @@ export default function Agenda() {
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
 
+  // --- NOVO: BUSCA DE PROFESSORES ---
+  const [professores, setProfessores] = useState([]);
+
   // Hooks de Dados
   const { aulas, feriados, loading, refetch } = useAgenda();
-  const { alunos: professores } = useAlunos({ role: 'professor' });
   const { alunos: listaAlunos } = useAlunos({ role: 'aluno' }); 
 
   // Modais
@@ -59,7 +62,19 @@ export default function Agenda() {
   const modalAgendamento = useModal();
   const modalLista = useModal();
 
-  // --- EFEITO: BUSCAR LISTA DE PRESENÇA ---
+  // --- EFEITOS DE BUSCA INICIAL ---
+  useEffect(() => {
+    async function carregarProfessores() {
+      try {
+        const dados = await agendaService.listarProfessores();
+        setProfessores(dados || []);
+      } catch (error) {
+        showToast.error("Erro ao buscar a lista de professores.");
+      }
+    }
+    carregarProfessores();
+  }, []);
+
   useEffect(() => {
     async function buscarLista() {
       if (modalLista.isOpen && aulaParaLista && dataLista) {
@@ -129,7 +144,8 @@ export default function Agenda() {
       id: aula.id, atividade: aula.atividade, professor_id: aula.professor_id,
       dia_semana: aula.dia_semana || 'Segunda-feira', horario: aula.horario, 
       capacidade: aula.capacidade, eh_recorrente: aula.eh_recorrente,
-      data_especifica: aula.data_especifica || '', espaco: aula.espaco || 'funcional'
+      data_especifica: aula.data_especifica || '', espaco: aula.espaco || 'funcional',
+      valor_por_aluno: aula.valor_por_aluno || '' // NOVO CAMPO MAPEADO
     });
     modalNovaAula.abrir();
   }
@@ -175,7 +191,8 @@ export default function Agenda() {
       const payload = {
         atividade: novaAula.atividade, professor_id: novaAula.professor_id,
         horario: novaAula.horario, capacidade: Number(novaAula.capacidade),
-        eh_recorrente: novaAula.eh_recorrente, espaco: novaAula.espaco, ativa: true
+        eh_recorrente: novaAula.eh_recorrente, espaco: novaAula.espaco, ativa: true,
+        valor_por_aluno: Number(novaAula.valor_por_aluno) || 0 // NOVO CAMPO ENVIADO
       };
 
       if (novaAula.id) payload.id = novaAula.id;
@@ -315,7 +332,7 @@ export default function Agenda() {
           <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap px-2">Professor:</span>
           <select className="bg-gray-50 px-4 py-2 rounded-xl font-bold text-sm outline-none cursor-pointer w-full" value={filtroProf} onChange={e => setFiltroProf(e.target.value)}>
             <option value="todos">Todos</option>
-            {professores.map(p => <option key={p.id} value={p.id}>{p.nome_completo}</option>)}
+            {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
         </div>
       </div>
@@ -442,6 +459,18 @@ export default function Agenda() {
               </label>
             </div>
             <input placeholder="Nome da Atividade" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.atividade} onChange={e => setNovaAula({...novaAula, atividade: e.target.value})} />
+            
+            {/* NOVO CAMPO: Aparece apenas se for Dança */}
+            {novaAula.espaco === 'danca' && (
+              <input 
+                type="number" 
+                placeholder="Valor base por aluno (R$) - Para cálculo de comissão" 
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" 
+                value={novaAula.valor_por_aluno} 
+                onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} 
+              />
+            )}
+
             <div className="grid grid-cols-2 gap-4">
                 {novaAula.eh_recorrente ? (
                     <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={novaAula.dia_semana} onChange={e => setNovaAula({...novaAula, dia_semana: e.target.value})}>
@@ -454,7 +483,7 @@ export default function Agenda() {
             </div>
             <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
                 <option value="">Selecione o Professor</option>
-                {professores.map(p => <option key={p.id} value={p.id}>{p.nome_completo}</option>)}
+                {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
             <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
                 {savingAula ? <RefreshCw className="animate-spin" size={20}/> : null}
@@ -463,7 +492,7 @@ export default function Agenda() {
         </form>
       </Modal>
 
-      {/* Modal Feriados */}
+      {/* Modal Feriados e Modal Agendar Aluno permanecem inalterados */}
       <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios">
         <div className="space-y-6 pt-2">
             <form onSubmit={cadastrarFeriado} className="flex gap-2">
@@ -485,7 +514,6 @@ export default function Agenda() {
         </div>
       </Modal>
 
-      {/* Modal Agendar Aluno */}
       <Modal isOpen={modalAgendamento.isOpen} onClose={modalAgendamento.fechar} titulo="Agendar Aluno Manualmente">
         <form onSubmit={handleAgendarAluno} className="space-y-4 pt-2">
           <div>
@@ -520,6 +548,7 @@ export default function Agenda() {
   );
 }
 
+// Alterado para ler da nova estrutura (aula.professores)
 function CardAula({ aula, onEdit, onDelete, onVerLista, isEvento = false }) {
   const isFuncional = (aula.espaco || 'funcional') === 'funcional';
 
@@ -544,7 +573,7 @@ function CardAula({ aula, onEdit, onDelete, onVerLista, isEvento = false }) {
 
       <h4 className="font-bold text-gray-800 leading-tight text-sm mb-1">{aula.atividade}</h4>
       <p className="text-[10px] text-gray-400 font-medium truncate flex items-center gap-1">
-        Prof. {aula.alunos?.nome_completo?.split(' ')[0]}
+        Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
       </p>
 
       {/* Ações Hover */}

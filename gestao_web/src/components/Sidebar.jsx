@@ -22,6 +22,7 @@ function Sidebar() {
 
   const menu = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Professores', path: '/professores', icon: Users },
     { name: 'Alunos', path: '/alunos', icon: Users },
     { name: 'Agenda', path: '/agenda', icon: Calendar },
     { name: 'Financeiro', path: '/financeiro', icon: LayoutDashboard },

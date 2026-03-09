@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, Search, UserPlus, MoreVertical 
-} from 'lucide-react';
+import { Users, Search, UserPlus, MoreVertical } from 'lucide-react';
 
 // Serviços e Hooks
 import { alunosService } from '../services/alunosService';
@@ -24,13 +22,12 @@ export default function Alunos() {
   const buscaDebounced = useDebounce(busca, 400);
   const modalStatus = useModal();
 
-  // Hook de dados (React Query)
+  // Hook de dados (React Query ou custom hook)
   const { alunos, loading, refetch } = useAlunos({ 
     role: filtroRole, 
     busca: buscaDebounced 
   });
 
-  // Função otimizada com useCallback
   const alternarStatus = useCallback(async () => {
     if (!alunoSelecionado) return;
 
@@ -51,14 +48,14 @@ export default function Alunos() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Comunidade</h1>
-          <p className="text-gray-500 font-medium text-sm">Gerencie alunos e colaboradores do Espaço Iluminus.</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Alunos</h1>
+          <p className="text-gray-500 font-medium text-sm">Gerencie os alunos matriculados no Espaço Iluminus.</p>
         </div>
         <button 
           onClick={() => navigate('/alunos/novo')}
           className="bg-iluminus-terracota text-white px-6 py-4 rounded-[22px] font-black shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all flex items-center gap-2"
         >
-          <UserPlus size={20} /> Novo Membro
+          <UserPlus size={20} /> Novo Aluno
         </button>
       </div>
 
@@ -80,9 +77,8 @@ export default function Alunos() {
           value={filtroRole}
           onChange={(e) => setFiltroRole(e.target.value)}
         >
-          <option value="todos">Todos os Cargos</option>
+          <option value="todos">Todos</option>
           <option value="aluno">Alunos</option>
-          <option value="professor">Professores</option>
           <option value="admin">Administradores</option>
         </select>
       </div>

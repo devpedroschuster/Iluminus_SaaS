@@ -202,6 +202,9 @@ export default function CardAula({
           {aula.atividade}
         </Text>
         <Text style={styles.professor}>
+          Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
+        </Text>
+        <Text style={styles.professor}>
           Vagas: {vagasOcupadas}/{aula.capacidade}
         </Text>
       </View>

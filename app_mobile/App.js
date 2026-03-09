@@ -187,7 +187,7 @@ export default function App() {
 
       const { data, error } = await supabase
         .from("agenda")
-        .select(`*, presencas(*)`)
+        .select(`*, presencas(*), professores(nome)`)
         .eq("ativa", true)
         .order("horario", { ascending: true });
 

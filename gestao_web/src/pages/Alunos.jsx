@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, Search, UserPlus, MoreVertical 
+  Users, Search, UserPlus, Edit2, ShieldAlert, Trash2 
 } from 'lucide-react';
 
 // Serviços e Hooks
@@ -22,22 +22,22 @@ export default function Alunos() {
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   
   const buscaDebounced = useDebounce(busca, 400);
+  
+  // Modais
   const modalStatus = useModal();
+  const modalExcluir = useModal();
 
-  // Hook de dados (React Query)
+  // Hook de dados
   const { alunos, loading, refetch } = useAlunos({ 
     role: filtroRole, 
     busca: buscaDebounced 
   });
 
-  // Função otimizada com useCallback
   const alternarStatus = useCallback(async () => {
     if (!alunoSelecionado) return;
-
     try {
       const novoStatus = !alunoSelecionado.ativo;
       await alunosService.alterarStatus(alunoSelecionado.id, novoStatus);
-      
       showToast.success(`Membro ${novoStatus ? 'reativado' : 'desativado'} com sucesso!`);
       modalStatus.fechar();
       refetch(); 
@@ -46,19 +46,41 @@ export default function Alunos() {
     }
   }, [alunoSelecionado, modalStatus, refetch]);
 
+  const excluirAluno = useCallback(async () => {
+    if (!alunoSelecionado) return;
+    try {
+      await alunosService.excluir(alunoSelecionado.id);
+      showToast.success("Membro excluído permanentemente!");
+      modalExcluir.fechar();
+      refetch();
+    } catch (err) {
+      // Verifica se é erro de chave estrangeira (histórico financeiro/presenças)
+      if (err.message?.includes('violates foreign key constraint')) {
+        showToast.error("Não é possível excluir: este aluno já possui histórico financeiro ou presenças. Utilize a opção de Desativar.");
+      } else {
+        showToast.error("Erro ao excluir aluno.");
+      }
+    }
+  }, [alunoSelecionado, modalExcluir, refetch]);
+
+  const handleEditar = (aluno) => {
+    // Redireciona para a tela de Novo Aluno passando os dados dele no estado da rota
+    navigate('/alunos/novo', { state: { alunoParaEditar: aluno } });
+  };
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Comunidade</h1>
-          <p className="text-gray-500 font-medium text-sm">Gerencie alunos e colaboradores do Espaço Iluminus.</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Alunos</h1>
+          <p className="text-gray-500 font-medium text-sm">Gerencie os alunos matriculados no Espaço Iluminus.</p>
         </div>
         <button 
           onClick={() => navigate('/alunos/novo')}
           className="bg-iluminus-terracota text-white px-6 py-4 rounded-[22px] font-black shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all flex items-center gap-2"
         >
-          <UserPlus size={20} /> Novo Membro
+          <UserPlus size={20} /> Novo Aluno
         </button>
       </div>
 
@@ -80,9 +102,8 @@ export default function Alunos() {
           value={filtroRole}
           onChange={(e) => setFiltroRole(e.target.value)}
         >
-          <option value="todos">Todos os Cargos</option>
+          <option value="todos">Todos (Alunos e Admins)</option>
           <option value="aluno">Alunos</option>
-          <option value="professor">Professores</option>
           <option value="admin">Administradores</option>
         </select>
       </div>
@@ -126,12 +147,29 @@ export default function Alunos() {
                     </div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <button 
-                      onClick={() => { setAlunoSelecionado(aluno); modalStatus.abrir(); }}
-                      className="p-2 text-gray-300 hover:text-gray-700 transition-colors"
-                    >
-                      <MoreVertical size={20} />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleEditar(aluno)} 
+                        className="p-2 text-gray-300 hover:text-blue-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-blue-200" 
+                        title="Editar"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => { setAlunoSelecionado(aluno); modalStatus.abrir(); }} 
+                        className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-200" 
+                        title="Ativar/Desativar"
+                      >
+                        <ShieldAlert size={16} />
+                      </button>
+                      <button 
+                        onClick={() => { setAlunoSelecionado(aluno); modalExcluir.abrir(); }} 
+                        className="p-2 text-gray-300 hover:text-red-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-red-200" 
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -145,13 +183,24 @@ export default function Alunos() {
         )}
       </div>
 
+      {/* Modal Status */}
       <ModalConfirmacao 
         isOpen={modalStatus.isOpen}
         onClose={modalStatus.fechar}
         onConfirm={alternarStatus}
         titulo={alunoSelecionado?.ativo ? "Desativar Membro?" : "Reativar Membro?"}
-        mensagem={`Confirmar alteração para ${alunoSelecionado?.nome_completo}?`}
+        mensagem={`Confirmar alteração para ${alunoSelecionado?.nome_completo}? O histórico dele será mantido.`}
         tipo={alunoSelecionado?.ativo ? "danger" : "primary"}
+      />
+
+      {/* Modal Excluir */}
+      <ModalConfirmacao 
+        isOpen={modalExcluir.isOpen}
+        onClose={modalExcluir.fechar}
+        onConfirm={excluirAluno}
+        titulo="Excluir Permanentemente?"
+        mensagem={`Tem certeza que deseja apagar o registro de ${alunoSelecionado?.nome_completo}? Esta ação não pode ser desfeita.`}
+        tipo="danger"
       />
     </div>
   );

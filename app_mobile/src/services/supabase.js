@@ -1,13 +1,8 @@
+import 'react-native-url-polyfill/auto';
 import { createClient } from "@supabase/supabase-js";
-import "react-native-url-polyfill/auto";
-// Importamos as variáveis do módulo virtual @env
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@env";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Fallback de segurança para debug (opcional, ajuda a saber se o .env carregou)
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error(
-    "ERRO: Variáveis de ambiente do Supabase não carregadas. Verifique o arquivo .env",
-  );
-}
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

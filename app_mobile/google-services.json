@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1093765959372",
+    "project_id": "app-iluminus",
+    "storage_bucket": "app-iluminus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093765959372:android:fe60d3ab5462dab473fc69",
+        "android_client_info": {
+          "package_name": "GestaoStudioApp.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0GlecynwpO9Fk76-roEIjb4HO6I2se6k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

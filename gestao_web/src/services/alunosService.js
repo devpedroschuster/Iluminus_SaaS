@@ -48,6 +48,41 @@ export const alunosService = {
     }
   },
 
+  async atualizar(id, dados) {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .update(dados)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('[alunosService.atualizar]', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Exclui um aluno permanentemente do banco de dados
+   */
+  async excluir(id) {
+    try {
+      const { error } = await supabase
+        .from('alunos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[alunosService.excluir]', error);
+      throw error;
+    }
+  },
+
   /**
    * Altera status de atividade (Ativo/Inativo)
    */

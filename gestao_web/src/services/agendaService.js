@@ -1,11 +1,24 @@
 import { supabase } from '../lib/supabase';
 
 export const agendaService = {
+  // --- PROFESSORES ---
+  async listarProfessores() {
+    const { data, error } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
+      
+    if (error) throw error;
+    return data;
+  },
+
   // --- AULAS ---
   async listarGrade() {
     const { data, error } = await supabase
       .from('agenda')
-      .select('*, alunos(nome_completo)') // Faz o join para trazer o nome do professor
+      // Atualizamos de alunos(nome_completo) para professores(nome)
+      .select('*, professores(nome)') 
       .order('horario', { ascending: true });
       
     if (error) throw error;
@@ -13,7 +26,6 @@ export const agendaService = {
   },
 
   async salvarAula(aula) {
-    // Se tiver ID, é atualização
     if (aula.id) {
       const { error } = await supabase
         .from('agenda')
@@ -21,7 +33,6 @@ export const agendaService = {
         .eq('id', aula.id);
       if (error) throw error;
     } else {
-      // Se não, é inserção
       const { error } = await supabase
         .from('agenda')
         .insert([aula]);
@@ -39,12 +50,58 @@ export const agendaService = {
     return true;
   },
 
-  // --- FERIADOS ---
+  // AGENDAMENTO MANUAL PELA RECEPÇÃO
+  async agendarAulaAdmin({ aluno_id, aula_id, data_aula }) {
+    const { data, error } = await supabase.rpc('agendar_aula', {
+      p_aluno_id: aluno_id,
+      p_aula_id: aula_id,
+      p_data: data_aula
+    });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // CANCELAR AGENDAMENTTO
+  async cancelarAgendamento({ aluno_id, aula_id, data_aula }) {
+    const { data, error } = await supabase.rpc('cancelar_agendamento', {
+      p_aluno_id: aluno_id,
+      p_aula_id: aula_id,
+      p_data: data_aula
+    });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // LISTAR PRESENÇAS DE UMA AULA ESPECÍFICA
+  async listarPresencas(aulaId, dataAula) {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select(`
+        id,
+        data_aula,
+        alunos (
+          id,
+          nome_completo
+        )
+      `)
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataAula);
+
+    if (error) {
+        throw error;
+    }
+    
+    return data;
+  },
+
+  // FERIADOS
   async listarFeriados() {
     const { data, error } = await supabase
       .from('feriados')
       .select('*')
-      .gte('data', new Date().toISOString().split('T')[0]) // Apenas feriados futuros ou hoje
+      .gte('data', new Date().toISOString().split('T')[0]) 
       .order('data', { ascending: true });
 
     if (error) throw error;

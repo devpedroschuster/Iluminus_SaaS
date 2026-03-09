@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
-  Package, TrendingDown, UserCheck 
+  Package, TrendingDown, UserCheck, 
+  Calculator
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -22,9 +23,11 @@ function Sidebar() {
 
   const menu = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Professores', path: '/professores', icon: Users },
     { name: 'Alunos', path: '/alunos', icon: Users },
     { name: 'Agenda', path: '/agenda', icon: Calendar },
     { name: 'Financeiro', path: '/financeiro', icon: LayoutDashboard },
+    { name: 'Comissões', path: '/comissoes', icon: Calculator },
     { name: 'Planos', path: '/planos', icon: Package },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
     { name: 'Presença', path: '/presenca', icon: UserCheck },

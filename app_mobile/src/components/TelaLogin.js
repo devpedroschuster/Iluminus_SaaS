@@ -1,8 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -18,141 +19,115 @@ export default function TelaLogin({ onLogado }) {
 
   async function handleLogin() {
     if (!email || !senha) {
-      Alert.alert("Atenção", "Preencha e-mail e senha.");
+      Alert.alert("Aviso", "Por favor, preencha seu e-mail e senha.");
       return;
     }
 
     try {
       setCarregando(true);
-
-      // 1. Autentica no Supabase
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: senha,
-        });
+      
+      // 1. Faz o login no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: senha,
+      });
 
       if (authError) throw authError;
 
-      // 2. Busca o perfil do aluno
-      const { data: perfil, error: perfilError } = await supabase
+      // 2. Busca os dados do aluno na nossa tabela 'alunos'
+      const { data: aluno, error: alunoError } = await supabase
         .from("alunos")
-        .select("id, nome_completo, primeiro_acesso")
+        .select("id, nome_completo")
         .eq("auth_id", authData.user.id)
-        .maybeSingle();
+        .single();
 
-      if (perfilError) throw perfilError;
-
-      if (!perfil) {
-        Alert.alert("Erro", "Perfil de aluno não encontrado.");
-        setCarregando(false);
-        return;
+      if (alunoError || !aluno) {
+        throw new Error("Perfil de aluno não encontrado.");
       }
 
-      // 3. Trava de Primeiro Acesso (Segurança)
-      if (perfil.primeiro_acesso) {
-        Alert.alert(
-          "Bem-vindo!",
-          "Para sua segurança, seu primeiro acesso deve ser feito pelo nosso Portal Web para definir uma nova senha, ou solicite a alteração ao seu professor.",
-        );
-        await supabase.auth.signOut(); // Desloga
-        setCarregando(false);
-        return;
-      }
+      // 3. Devolve os dados para o App.js destravar o aplicativo
+      onLogado(aluno);
 
-      // 4. Salva a sessão localmente
-      await AsyncStorage.setItem("@aluno_id", String(perfil.id));
-      await AsyncStorage.setItem("@aluno_nome", perfil.nome_completo);
-
-      onLogado(perfil);
-    } catch (err) {
-      Alert.alert("Falha no Login", "E-mail ou senha incorretos.");
+    } catch (error) {
+      console.error("Erro no login:", error);
+      Alert.alert(
+        "Falha no Login", 
+        error.message === "Invalid login credentials" 
+          ? "E-mail ou senha incorretos." 
+          : "Não foi possível conectar. Verifique sua internet."
+      );
     } finally {
       setCarregando(false);
     }
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>Espaço Iluminus</Text>
-      <Text style={styles.subtitulo}>App do Aluno</Text>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.content}>
+        
+        {/* Cabeçalho */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>ILUMINUS</Text>
+          <Text style={styles.subtitle}>Espaço de Movimento</Text>
+        </View>
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          placeholder="Seu e-mail"
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor="#aaa"
-        />
+        {/* Formulário */}
+        <View style={styles.form}>
+          <Text style={styles.label}>E-mail</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Digite seu e-mail"
+            placeholderTextColor="#A0A0A0"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
 
-        <TextInput
-          placeholder="Sua senha"
-          style={styles.input}
-          value={senha}
-          onChangeText={setSenha}
-          secureTextEntry={true}
-          placeholderTextColor="#aaa"
-        />
+          <Text style={styles.label}>Senha</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Digite sua senha"
+            placeholderTextColor="#A0A0A0"
+            secureTextEntry
+            value={senha}
+            onChangeText={setSenha}
+          />
 
-        <TouchableOpacity
-          style={styles.botao}
-          onPress={handleLogin}
-          disabled={carregando}
-        >
-          {carregando ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.botaoTexto}>Entrar</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.button, carregando && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={carregando}
+          >
+            {carregando ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Acessar Agenda</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FDF8F5",
-    justifyContent: "center",
-    padding: 30,
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#D98E73",
-    textAlign: "center",
-  },
-  subtitulo: {
-    fontSize: 16,
-    color: "#8E8E8E",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  inputContainer: { gap: 15 },
-  input: {
-    backgroundColor: "#FFF",
-    padding: 18,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#F0E5DE",
-    fontSize: 16,
-    color: "#2D2D2D",
-  },
-  botao: {
-    backgroundColor: "#D98E73",
-    padding: 18,
-    borderRadius: 15,
-    alignItems: "center",
-    marginTop: 10,
-    shadowColor: "#D98E73",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  botaoTexto: { color: "#FFF", fontWeight: "bold", fontSize: 18 },
+  container: { flex: 1, backgroundColor: "#FDF8F5" },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30 },
+  
+  logoContainer: { alignItems: "center", marginBottom: 50 },
+  logoText: { fontSize: 36, fontWeight: "900", color: "#D98E73", letterSpacing: 2 },
+  subtitle: { fontSize: 14, color: "#8E8E8E", marginTop: 5, textTransform: "uppercase", letterSpacing: 1, fontWeight: "600" },
+  
+  form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
+  label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
+  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
+  
+  button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
 });

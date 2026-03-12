@@ -59,7 +59,6 @@ export default function App() {
     verificarSessao();
   }, []);
 
-  // MUDANÇAS EM TEMPO REAL
   useEffect(() => {
     if (!alunoId) return;
 
@@ -112,7 +111,7 @@ export default function App() {
       await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
 
       console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
-      registrarTokenPush(aluno.id); // <-- Sem "await" aqui para não travar!
+      registrarTokenPush(aluno.id);
 
       console.log("✅ TUDO PRONTO! Fechando tela de loading.");
     } catch (e) {
@@ -193,7 +192,6 @@ export default function App() {
 
       if (error) throw error;
 
-      // FILTRA AS AULAS DO DIA ESPECÍFICO
       const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
       const diasTraduzidos = {
         "domingo": "Domingo",
@@ -242,6 +240,7 @@ export default function App() {
     }
   }
 
+  // TELA DE CARREGAMENTO INICIAL
   if (carregando && !alunoId) {
     return (
       <View style={styles.loadingScreen}>
@@ -250,6 +249,7 @@ export default function App() {
     );
   }
 
+  // TELA DE LOGIN
   if (!alunoId) {
     return (
       <TelaLogin
@@ -262,6 +262,7 @@ export default function App() {
     );
   }
 
+  // APLICATIVO PRINCIPAL
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
@@ -298,7 +299,6 @@ export default function App() {
                 </ScrollView>
               </View>
 
-              {/* RENDERIZAÇÃO CONDICIONAL: LOADING, FERIADO OU LISTA */}
               {carregando ? (
                 <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
               ) : feriadoMsg ? (
@@ -328,7 +328,19 @@ export default function App() {
                   }
                   ListEmptyComponent={
                     <View style={styles.containerVazio}>
-                      <Text style={styles.vazio}>Nenhuma aula disponível para este dia.</Text>
+                      <View style={styles.circuloIconeVazio}>
+                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
+                      </View>
+                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
+                      <Text style={styles.textoVazio}>
+                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.botaoVazio}
+                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
+                      >
+                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
+                      </TouchableOpacity>
                     </View>
                   }
                 />
@@ -343,15 +355,14 @@ export default function App() {
                 <Text style={styles.fabText}>+</Text>
               </TouchableOpacity>
 
-              {/* Bottom Sheet de Agendamento Rápido */}
               <AgendamentoBottomSheet 
-                isVisible={modalAgendamentoVisivel}
-                onClose={() => {
-                  setModalAgendamentoVisivel(false);
-                  buscarAulas(false); 
-                }}
-                aulasDisponiveis={aulas}
-                alunoId={alunoId}
+                isVisible={modalAgendamentoVisivel} 
+                onClose={() => setModalAgendamentoVisivel(false)}
+                aulasDisponiveis={aulas} 
+                alunoId={alunoId} 
+                isLoading={carregando} 
+                isError={false}
+                onRefresh={() => buscarAulas(true)} 
               />
             </>
           ) : (
@@ -391,9 +402,6 @@ const styles = StyleSheet.create({
   diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
   textoAtivo: { color: cores.branco },
 
-  containerVazio: { marginTop: 50, alignItems: "center" },
-  vazio: { color: cores.textoSuave, fontSize: 16 },
-
   // Estilos do Feriado
   containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
   emojiFeriado: { fontSize: 48, marginBottom: 10 },
@@ -429,4 +437,57 @@ const styles = StyleSheet.create({
   tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
   tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
   tabTextAtivo: { color: cores.ativo },
+
+  // ESTILOS DO ESTADO VAZIO
+  containerVazio: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    marginTop: 60,
+  },
+  circuloIconeVazio: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F0E0D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  iconeVazio: {
+    fontSize: 50,
+  },
+  tituloVazio: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textoVazio: {
+    fontSize: 15,
+    color: cores.textoSuave,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  botaoVazio: {
+    backgroundColor: cores.branco,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    elevation: 1,
+    shadowColor: cores.primaria,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  botaoVazioTexto: {
+    color: cores.primaria,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
 });

@@ -16,14 +16,13 @@ export default function Login() {
   const navigate = useNavigate();
   const modalRecuperar = useModal();
 
-  // --- LÓGICA DE LOGIN ---
+  // LÓGICA DE LOGIN
   async function handleLogin(e) {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
 
     try {
-      // 1. Tenta autenticar no Supabase Auth
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
@@ -31,25 +30,35 @@ export default function Login() {
 
       if (error) throw error;
 
-      // 2. VERIFICAÇÃO DE PRIMEIRO ACESSO
-      // Buscamos na tabela 'alunos' se este usuário tem a flag 'primeiro_acesso'
-      const { data: alunoData, error: alunoError } = await supabase
+      const { data: alunoData } = await supabase
         .from('alunos')
-        .select('primeiro_acesso, nome_completo')
+        .select('primeiro_acesso, nome_completo, role')
         .eq('auth_id', authData.user.id)
-        .single();
+        .maybeSingle();
 
-      // Se der erro ao buscar aluno (ex: é um admin que não tá na tabela alunos), deixamos passar pro dashboard
       if (alunoData?.primeiro_acesso) {
         showToast.info(`Olá, ${alunoData.nome_completo.split(' ')[0]}! Defina sua senha pessoal.`);
-        navigate('/redefinir-senha'); // Redireciona para troca obrigatória
+        navigate('/redefinir-senha'); 
+        return;
+      } 
+
+      const { data: profData } = await supabase
+        .from('professores')
+        .select('id')
+        .eq('email', email.trim())
+        .maybeSingle();
+
+      showToast.success("Login realizado com sucesso!");
+      
+      if (profData) {
+        navigate('/agenda');
+      } else if (alunoData?.role === 'aluno') {
+        navigate('/area-aluno');
       } else {
-        showToast.success("Login realizado com sucesso!");
         navigate('/dashboard');
       }
 
     } catch (err) {
-      // Tratamento de erros comuns
       if (err.message.includes("Invalid login")) {
         showToast.error("E-mail ou senha incorretos.");
       } else {
@@ -60,7 +69,7 @@ export default function Login() {
     }
   }
 
-  // --- LÓGICA DE RECUPERAR SENHA (ESQUECI SENHA) ---
+  // RECUPERAR SENHA
   async function handleRecuperarSenha(emailRecuperacao) {
     if (!emailRecuperacao) return;
     setLoadingRecuperar(true);
@@ -143,7 +152,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Modal de Recuperação */}
       <Modal 
         isOpen={modalRecuperar.isOpen} 
         onClose={modalRecuperar.fechar}
@@ -158,7 +166,6 @@ export default function Login() {
   );
 }
 
-// Subcomponente do Formulário de Recuperação
 function RecuperarFormInterno({ onSubmit, loading }) {
   const [emailRecup, setEmailRecup] = useState('');
 

@@ -2,12 +2,11 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
-  Package, TrendingDown, UserCheck, 
-  Calculator
+  Package, TrendingDown, UserCheck, Calculator
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-function Sidebar() {
+function Sidebar({ perfil }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -21,7 +20,7 @@ function Sidebar() {
     }
   }
 
-  const menu = [
+  const menuAdmin = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Professores', path: '/professores', icon: Users },
     { name: 'Alunos', path: '/alunos', icon: Users },
@@ -29,9 +28,16 @@ function Sidebar() {
     { name: 'Financeiro', path: '/financeiro', icon: LayoutDashboard },
     { name: 'Comissões', path: '/comissoes', icon: Calculator },
     { name: 'Planos', path: '/planos', icon: Package },
+    { name: 'Modalidades', path: '/modalidades', icon: Package },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
     { name: 'Presença', path: '/presenca', icon: UserCheck },
   ];
+
+  const menuProfessor = [
+    { name: 'Agenda', path: '/agenda', icon: Calendar },
+  ];
+
+  const menu = perfil === 'professor' ? menuProfessor : menuAdmin;
 
   return (
     <div className="w-64 bg-white h-screen border-r border-orange-100 p-6 flex flex-col">
@@ -71,5 +77,4 @@ function Sidebar() {
   );
 }
 
-// Otimização para evitar re-render desnecessário
 export default React.memo(Sidebar);

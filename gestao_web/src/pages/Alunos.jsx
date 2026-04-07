@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, Search, UserPlus, Edit2, ShieldAlert, Trash2 
+  Users, Search, UserPlus, Edit2, ShieldAlert, Trash2, Package 
 } from 'lucide-react';
 
 // Serviços e Hooks
@@ -14,12 +14,16 @@ import { showToast } from '../components/shared/Toast';
 import { ModalConfirmacao, useModal } from '../components/shared/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/shared/EmptyState';
+import ModalMatricula from '../components/ModalMatricula';
 
 export default function Alunos() {
   const navigate = useNavigate();
   const [busca, setBusca] = useState('');
   const [filtroRole, setFiltroRole] = useState('todos');
+  
+  // Estados para controle de seleção e modais
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
+  const [modalMatriculaAberto, setModalMatriculaAberto] = useState(false);
   
   const buscaDebounced = useDebounce(busca, 400);
   
@@ -54,7 +58,6 @@ export default function Alunos() {
       modalExcluir.fechar();
       refetch();
     } catch (err) {
-      // Verifica se é erro de chave estrangeira (histórico financeiro/presenças)
       if (err.message?.includes('violates foreign key constraint')) {
         showToast.error("Não é possível excluir: este aluno já possui histórico financeiro ou presenças. Utilize a opção de Desativar.");
       } else {
@@ -64,7 +67,6 @@ export default function Alunos() {
   }, [alunoSelecionado, modalExcluir, refetch]);
 
   const handleEditar = (aluno) => {
-    // Redireciona para a tela de Novo Aluno passando os dados dele no estado da rota
     navigate('/alunos/novo', { state: { alunoParaEditar: aluno } });
   };
 
@@ -127,9 +129,17 @@ export default function Alunos() {
                 <tr key={aluno.id} className="group hover:bg-gray-50/50 transition-colors">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-black text-iluminus-terracota">
-                        {aluno.nome_completo?.charAt(0)}
-                      </div>
+                      {aluno.foto_url ? (
+                        <img 
+                          src={aluno.foto_url} 
+                          alt={aluno.nome_completo} 
+                          className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-black text-iluminus-terracota">
+                          {aluno.nome_completo?.charAt(0)}
+                        </div>
+                      )}
                       <div>
                         <p className="font-bold text-gray-800">{aluno.nome_completo}</p>
                         <p className="text-xs text-gray-400 font-medium">{aluno.email}</p>
@@ -148,6 +158,16 @@ export default function Alunos() {
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex justify-end gap-2">
+                      
+                      {/* BOTÃO DE MATRÍCULA */}
+                      <button 
+                        onClick={() => { setAlunoSelecionado(aluno); setModalMatriculaAberto(true); }} 
+                        className="p-2 text-gray-300 hover:text-green-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-green-200" 
+                        title="Matricular/Alterar Plano"
+                      >
+                        <Package size={16} />
+                      </button>
+
                       <button 
                         onClick={() => handleEditar(aluno)} 
                         className="p-2 text-gray-300 hover:text-blue-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-blue-200" 
@@ -183,7 +203,14 @@ export default function Alunos() {
         )}
       </div>
 
-      {/* Modal Status */}
+      {modalMatriculaAberto && (
+        <ModalMatricula 
+          aluno={alunoSelecionado} 
+          onClose={() => setModalMatriculaAberto(false)} 
+          onMatriculaSucesso={refetch} 
+        />
+      )}
+
       <ModalConfirmacao 
         isOpen={modalStatus.isOpen}
         onClose={modalStatus.fechar}
@@ -193,7 +220,6 @@ export default function Alunos() {
         tipo={alunoSelecionado?.ativo ? "danger" : "primary"}
       />
 
-      {/* Modal Excluir */}
       <ModalConfirmacao 
         isOpen={modalExcluir.isOpen}
         onClose={modalExcluir.fechar}

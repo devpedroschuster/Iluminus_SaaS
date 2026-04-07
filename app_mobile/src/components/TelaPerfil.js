@@ -9,6 +9,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Linking
 } from "react-native";
 import { supabase } from "../services/supabase";
 
@@ -22,19 +23,24 @@ const cores = {
   verde: "#10B981",
   vermelho: "#EF4444",
   amarelo: "#F59E0B",
+  whatsApp: "#25D366",
+  alertaFundo: "#FEF2F2",
+  alertaBorda: "#FCA5A5"
 };
 
 export default function TelaPerfil({ alunoId, onLogout }) {
   const [perfil, setPerfil] = useState(null);
   const [mensalidades, setMensalidades] = useState([]);
+  const [frequenciaMes, setFrequenciaMes] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const numeroWhatsApp = "5551994424348"; 
 
   async function carregarDados() {
     try {
       setCarregando(true);
 
-      // 1. Busca Dados do Aluno + Plano
       const { data: dadosAluno, error: errAluno } = await supabase
         .from("alunos")
         .select(`*, planos (nome, preco, frequencia_semanal)`)
@@ -44,17 +50,38 @@ export default function TelaPerfil({ alunoId, onLogout }) {
       if (errAluno) throw errAluno;
       setPerfil(dadosAluno);
 
-      // 2. Busca Histórico Financeiro (se a tabela existir)
       const { data: dadosFin, error: errFin } = await supabase
         .from("mensalidades")
         .select("*")
         .eq("aluno_id", alunoId)
         .order("data_vencimento", { ascending: false });
 
-      if (errFin && errFin.code !== '42P01') { // Ignora se a tabela não existir ainda
+      if (errFin && errFin.code !== '42P01') { 
           throw errFin;
       }
       setMensalidades(dadosFin || []);
+
+      const { data: minhasPresencas } = await supabase
+        .from("presencas")
+        .select("*")
+        .eq("aluno_id", alunoId);
+
+      let countMes = 0;
+      if (minhasPresencas) {
+        const mesAtual = new Date().getMonth();
+        const anoAtual = new Date().getFullYear();
+        
+        minhasPresencas.forEach(p => {
+            const dataRaw = p.data_aula || p.data_checkin || p.created_at;
+            if (dataRaw) {
+                const dataAula = new Date(dataRaw);
+                if (dataAula.getMonth() === mesAtual && dataAula.getFullYear() === anoAtual) {
+                    countMes++;
+                }
+            }
+        });
+      }
+      setFrequenciaMes(countMes);
       
     } catch (error) {
       Alert.alert("Aviso", "Algumas informações podem não ter sido carregadas.");
@@ -74,6 +101,7 @@ export default function TelaPerfil({ alunoId, onLogout }) {
     carregarDados();
   };
 
+  // Funções de Status e Cores
   const getStatusCor = (status, dataVencimento) => {
     if (status === "pago") return cores.verde;
     if (dataVencimento && new Date(dataVencimento) < new Date()) return cores.vermelho;
@@ -84,6 +112,21 @@ export default function TelaPerfil({ alunoId, onLogout }) {
     if (status === "pago") return "PAGO";
     if (dataVencimento && new Date(dataVencimento) < new Date()) return "ATRASADO";
     return "ABERTO";
+  };
+
+  const temMensalidadeAtrasada = mensalidades.some(m => {
+      if (m.status === "pago" || !m.data_vencimento) return false;
+      const hoje = new Date();
+      hoje.setHours(0,0,0,0);
+      return new Date(m.data_vencimento) < hoje;
+  });
+
+  // Função para abrir o WhatsApp
+  const abrirWhatsApp = (mensagem) => {
+      const url = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+      Linking.openURL(url).catch(() => {
+          Alert.alert("Erro", "Não foi possível abrir o WhatsApp. Verifique se o aplicativo está instalado.");
+      });
   };
 
   if (carregando && !refreshing) {
@@ -110,6 +153,22 @@ export default function TelaPerfil({ alunoId, onLogout }) {
         <Text style={styles.email}>{perfil?.email}</Text>
       </View>
 
+      {/* Alerta de Inadimplência */}
+      {temMensalidadeAtrasada && (
+        <View style={styles.alertaAtraso}>
+          <Text style={styles.alertaTitulo}>⚠️ Mensalidade Pendente</Text>
+          <Text style={styles.alertaTexto}>
+            Identificamos uma mensalidade em aberto. Para continuar agendando suas aulas sem interrupções, por favor, regularize sua situação.
+          </Text>
+          <TouchableOpacity 
+            style={styles.btnAlerta} 
+            onPress={() => abrirWhatsApp("Olá! Vi no aplicativo que tenho uma pendência. Como faço para regularizar minha mensalidade?")}
+          >
+            <Text style={styles.btnAlertaTexto}>Falar com a Recepção</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Card do Plano */}
       <View style={styles.card}>
         <Text style={styles.cardTitulo}>Meu Plano</Text>
@@ -125,6 +184,13 @@ export default function TelaPerfil({ alunoId, onLogout }) {
                 {perfil.planos.frequencia_semanal}x na semana
               </Text>
             </View>
+            
+            {/* Exibição da Frequência do Mês */}
+            <View style={styles.row}>
+              <Text style={styles.label}>Aulas neste mês:</Text>
+              <Text style={styles.valorDestaque}>{frequenciaMes} presenças</Text>
+            </View>
+
             <View style={styles.row}>
               <Text style={styles.label}>Valor:</Text>
               <Text style={styles.valor}>
@@ -160,7 +226,7 @@ export default function TelaPerfil({ alunoId, onLogout }) {
           <Text style={styles.semDados}>Nenhuma cobrança registrada.</Text>
         ) : (
           mensalidades.map((item) => (
-            <View key={item.id} style={styles.itemFinanceiro}>
+            <View key={item.id} style={[styles.itemFinanceiro, getStatusTexto(item.status, item.data_vencimento) === "ATRASADO" && styles.itemAtrasado]}>
               <View>
                 <Text style={styles.mesRef}>Vencimento</Text>
                 <Text style={styles.dataVenc}>
@@ -192,6 +258,16 @@ export default function TelaPerfil({ alunoId, onLogout }) {
         )}
       </View>
 
+      {/* Botão de Suporte WhatsApp */}
+      <TouchableOpacity 
+        style={styles.botaoWhatsApp} 
+        onPress={() => abrirWhatsApp("Olá, Espaço Iluminus! Preciso de ajuda com o meu aplicativo/plano.")}
+      >
+        <Text style={styles.iconeWhatsApp}>💬</Text>
+        <Text style={styles.textoWhatsApp}>Suporte via WhatsApp</Text>
+      </TouchableOpacity>
+
+      {/* Botão de Sair */}
       <TouchableOpacity style={styles.botaoSair} onPress={onLogout}>
         <Text style={styles.textoSair}>Sair do Aplicativo</Text>
       </TouchableOpacity>
@@ -217,6 +293,21 @@ const styles = StyleSheet.create({
   avatarTexto: { fontSize: 32, fontWeight: "bold", color: cores.branco },
   nome: { fontSize: 22, fontWeight: "bold", color: cores.texto },
   email: { fontSize: 14, color: cores.textoSuave },
+
+  // Estilos do Alerta de Atraso
+  alertaAtraso: {
+    backgroundColor: cores.alertaFundo,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.alertaBorda,
+  },
+  alertaTitulo: { color: cores.vermelho, fontWeight: "bold", fontSize: 16, marginBottom: 5 },
+  alertaTexto: { color: "#7F1D1D", fontSize: 13, marginBottom: 15, lineHeight: 18 },
+  btnAlerta: { backgroundColor: cores.vermelho, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
+  btnAlertaTexto: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
 
   card: {
     backgroundColor: cores.branco,
@@ -245,6 +336,7 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 14, color: cores.textoSuave },
   valor: { fontSize: 15, fontWeight: "600", color: cores.texto },
+  valorDestaque: { fontSize: 15, fontWeight: "bold", color: cores.secundaria },
   semPlano: { fontStyle: "italic", color: cores.textoSuave },
 
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
@@ -270,15 +362,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F0E0D6",
   },
+  itemAtrasado: {
+      backgroundColor: cores.alertaFundo,
+      borderColor: cores.alertaBorda,
+  },
   mesRef: { fontSize: 10, color: cores.textoSuave, textTransform: "uppercase" },
   dataVenc: { fontSize: 16, fontWeight: "bold", color: cores.texto },
   direitaItem: { alignItems: "flex-end" },
   statusTexto: { fontWeight: "bold", fontSize: 12 },
   valorPago: { fontSize: 10, color: cores.textoSuave, marginTop: 2 },
 
+  // Estilos do Botão WhatsApp
+  botaoWhatsApp: {
+    marginHorizontal: 20,
+    marginTop: 25,
+    marginBottom: 5,
+    padding: 16,
+    backgroundColor: cores.whatsApp,
+    borderRadius: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  iconeWhatsApp: { fontSize: 18, marginRight: 8 },
+  textoWhatsApp: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+
   botaoSair: {
-    margin: 20,
-    padding: 18,
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 16,
     backgroundColor: "#FFF",
     borderWidth: 1,
     borderColor: "#E5E5E5",

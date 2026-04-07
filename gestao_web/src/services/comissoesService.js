@@ -1,10 +1,16 @@
 import { supabase } from '../lib/supabase';
 
+const TAXAS = {
+  professor: 0.50,
+  espaco: 0.35,
+  diretor: 0.15
+};
+
 export const comissoesService = {
   async listarProfessores() {
     const { data, error } = await supabase
       .from('professores')
-      .select('id, nome, pix_comissao')
+      .select('*')
       .eq('ativo', true)
       .order('nome');
     if (error) throw error;
@@ -22,63 +28,123 @@ export const comissoesService = {
       .eq('mes_referencia', dataInicio)
       .single();
 
-    const { data: presencas, error } = await supabase
+    let totalComissaoFixo = 0;
+    let totalComissaoLivre = 0;
+    let totalAlunosLivre = 0;
+    
+    const { data: profMods } = await supabase
+      .from('modalidades')
+      .select('nome')
+      .eq('professor_id', professorId);
+    
+    const nomesModalidadesProf = profMods?.map(m => m.nome) || [];
+    const detalhesMensalidades = [];
+
+    if (nomesModalidadesProf.length > 0) {
+      const { data: mensalidades } = await supabase
+        .from('mensalidades')
+        .select(`
+          id,
+          data_vencimento,
+          status,
+          alunos ( id, nome_completo, modalidades_selecionadas ),
+          planos ( nome, preco )
+        `)
+        .gte('data_vencimento', dataInicio)
+        .lte('data_vencimento', dataFim);
+
+      if (mensalidades) {
+        mensalidades.forEach(mensalidade => {
+          const plano = mensalidade.planos;
+          const aluno = mensalidade.alunos;
+          
+          if (!plano || !aluno || plano.nome.toLowerCase().includes('livre')) return;
+
+          const modsAluno = aluno.modalidades_selecionadas || [];
+          const modsDesseProf = modsAluno.filter(mod => nomesModalidadesProf.includes(mod));
+          
+          if (modsDesseProf.length > 0) {
+            const qtdModalidadesTotais = modsAluno.length;
+            const valorPlano = Number(plano.preco) || 0;
+            
+            const valorPoteProfessores = valorPlano * TAXAS.professor;
+            
+            const valorPorModalidade = valorPoteProfessores / qtdModalidadesTotais;
+            
+            const valorFinalProf = valorPorModalidade * modsDesseProf.length;
+
+            detalhesMensalidades.push({
+              aluno: aluno.nome_completo,
+              plano: plano.nome,
+              valor_comissao: valorFinalProf
+            });
+
+            totalComissaoFixo += valorFinalProf;
+          }
+        });
+      }
+    }
+
+    // PRESENÇAS (PLANO LIVRE x AVULSO)
+    const aulasMap = new Map();
+
+    const { data: presencas } = await supabase
       .from('presencas')
       .select(`
         id,
         data_aula,
-        agenda!inner (
-          id,
-          atividade,
-          valor_por_aluno,
-          espaco
-        )
+        data_checkin,
+        agenda!inner ( id, atividade, valor_por_aluno ),
+        alunos ( id, nome_completo, planos ( nome ) )
       `)
-      .eq('agenda.professor_id', professorId)
-      .eq('agenda.espaco', 'danca')
-      .gte('data_aula', dataInicio)
-      .lte('data_aula', dataFim);
+      .eq('agenda.professor_id', professorId);
 
-    if (error) throw error;
+    if (presencas) {
+      presencas.forEach(p => {
+        const dataPresenca = p.data_aula || p.data_checkin?.split('T')[0];
+        
+        if (!dataPresenca || dataPresenca < dataInicio || dataPresenca > dataFim) return;
 
-    const aulasAgrupadas = {};
-    let totalAlunos = 0;
-    let totalComissao = 0;
+        const planoNome = p.alunos?.planos?.nome?.toLowerCase() || '';
+        
+        if (planoNome.includes('livre') || !p.alunos?.planos) {
+          const aulaChave = `${p.agenda.id}-${dataPresenca}`;
+          const valorBase = Number(p.agenda.valor_por_aluno) || 0;
+          const comissaoAluno = valorBase * TAXAS.professor;
+          
+          if (!aulasMap.has(aulaChave)) {
+            aulasMap.set(aulaChave, {
+              chave: aulaChave,
+              data_aula: dataPresenca,
+              atividade: p.agenda.atividade,
+              qtd_alunos: 0,
+              valor_base: valorBase,
+              total_comissao: 0
+            });
+          }
 
-    presencas?.forEach(p => {
-      const chave = `${p.agenda.id}-${p.data_aula}`;
-      const valorBase = Number(p.agenda.valor_por_aluno) || 0;
-      const comissaoPorAluno = valorBase * 0.5; // 50%
+          const aulaObj = aulasMap.get(aulaChave);
+          aulaObj.qtd_alunos += 1;
+          aulaObj.total_comissao += comissaoAluno;
+          
+          totalComissaoLivre += comissaoAluno;
+          totalAlunosLivre += 1;
+        }
+      });
+    }
 
-      if (!aulasAgrupadas[chave]) {
-        aulasAgrupadas[chave] = {
-          chave,
-          data_aula: p.data_aula,
-          atividade: p.agenda.atividade,
-          valor_base: valorBase,
-          qtd_alunos: 0,
-          total_comissao: 0
-        };
-      }
-      
-      aulasAgrupadas[chave].qtd_alunos += 1;
-      aulasAgrupadas[chave].total_comissao += comissaoPorAluno;
-      
-      totalAlunos += 1;
-      totalComissao += comissaoPorAluno;
-    });
-
-    const listaAulas = Object.values(aulasAgrupadas).sort((a, b) => 
-      new Date(a.data_aula) - new Date(b.data_aula)
-    );
+    const aulas = Array.from(aulasMap.values()).sort((a, b) => new Date(a.data_aula) - new Date(b.data_aula));
 
     return {
       fechamento,
-      aulas: listaAulas,
+      mensalidades: detalhesMensalidades,
+      aulas,
       resumo: {
-        total_aulas: listaAulas.length,
-        total_alunos: totalAlunos,
-        total_comissao: totalComissao
+        total_comissao_fixo: totalComissaoFixo,
+        total_comissao_livre: totalComissaoLivre,
+        total_comissao: totalComissaoFixo + totalComissaoLivre,
+        total_aulas: aulas.length,
+        total_alunos: totalAlunosLivre
       }
     };
   },

@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabase';
 
 export const agendaService = {
-  // --- PROFESSORES ---
   async listarProfessores() {
     const { data, error } = await supabase
       .from('professores')
@@ -13,86 +12,143 @@ export const agendaService = {
     return data;
   },
 
-  // --- AULAS ---
+  // AULAS
   async listarGrade() {
-    const { data, error } = await supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const email = session?.user?.email;
+
+    let professorId = null;
+
+    if (email) {
+      const { data: prof } = await supabase
+        .from('professores')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (prof) professorId = prof.id;
+    }
+
+    const { data: aulas, error } = await supabase
       .from('agenda')
-      // Atualizamos de alunos(nome_completo) para professores(nome)
       .select('*, professores(nome)') 
       .order('horario', { ascending: true });
-      
+
     if (error) throw error;
-    return data;
+
+    if (!professorId) return aulas;
+
+    const { data: modalidadesDoProf } = await supabase
+      .from('modalidades')
+      .select('nome')
+      .eq('professor_id', professorId);
+
+    const nomesMods = modalidadesDoProf ? modalidadesDoProf.map(m => m.nome.toLowerCase().trim()) : [];
+
+    const aulasDoProfessor = aulas.filter(aula => {
+      if (aula.professor_id === professorId) return true;
+
+      if (!aula.professor_id && aula.atividade) {
+        const nomeAtividade = aula.atividade.toLowerCase().trim();
+        return nomesMods.includes(nomeAtividade);
+      }
+
+      return false;
+    });
+
+    return aulasDoProfessor;
   },
 
   async salvarAula(aula) {
     if (aula.id) {
-      const { error } = await supabase
-        .from('agenda')
-        .update(aula)
-        .eq('id', aula.id);
+      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
       if (error) throw error;
     } else {
-      const { error } = await supabase
-        .from('agenda')
-        .insert([aula]);
+      const { error } = await supabase.from('agenda').insert([aula]);
       if (error) throw error;
     }
     return true;
   },
 
   async excluirAula(id) {
-    const { error } = await supabase
-      .from('agenda')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('agenda').delete().eq('id', id);
     if (error) throw error;
     return true;
   },
 
-  // AGENDAMENTO MANUAL PELA RECEPÇÃO
+  // AGENDAMENTO MANUAL
   async agendarAulaAdmin({ aluno_id, aula_id, data_aula }) {
-    const { data, error } = await supabase.rpc('agendar_aula', {
-      p_aluno_id: aluno_id,
-      p_aula_id: aula_id,
-      p_data: data_aula
-    });
+    const inicioDia = `${data_aula}T00:00:00`;
+    const fimDia = `${data_aula}T23:59:59`;
+
+    const { data: existente } = await supabase
+      .from('presencas')
+      .select('id')
+      .eq('aluno_id', aluno_id)
+      .eq('aula_id', aula_id)
+      .gte('data_checkin', inicioDia)
+      .lte('data_checkin', fimDia)
+      .maybeSingle();
+
+    if (existente) {
+      throw new Error("Este aluno já está agendado nesta aula para esta data.");
+    }
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .insert([{
+        aluno_id: aluno_id,
+        aula_id: aula_id,
+        tipo: 'aula',
+        data_checkin: `${data_aula}T12:00:00`,
+        data_aula: data_aula
+      }]);
     
     if (error) throw error;
     return data;
   },
 
-  // CANCELAR AGENDAMENTTO
-  async cancelarAgendamento({ aluno_id, aula_id, data_aula }) {
-    const { data, error } = await supabase.rpc('cancelar_agendamento', {
-      p_aluno_id: aluno_id,
-      p_aula_id: aula_id,
-      p_data: data_aula
-    });
+  // CANCELAR AGENDAMENTO
+  async cancelarAgendamento(id) {
+    if (!id) {
+      throw new Error("ID do agendamento não identificado pelo sistema.");
+    }
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .delete()
+      .eq('id', id)
+      .select();
     
     if (error) throw error;
+
+    if (!data || data.length === 0) {
+      throw new Error("O agendamento não foi encontrado no banco de dados para ser removido.");
+    }
+
     return data;
   },
 
-  // LISTAR PRESENÇAS DE UMA AULA ESPECÍFICA
+ // LISTAR PRESENÇAS AULA
   async listarPresencas(aulaId, dataAula) {
+    const inicioDia = `${dataAula}T00:00:00`;
+    const fimDia = `${dataAula}T23:59:59`;
+
     const { data, error } = await supabase
       .from('presencas')
       .select(`
         id,
-        data_aula,
+        data_checkin, 
         alunos (
           id,
           nome_completo
         )
       `)
       .eq('aula_id', aulaId)
-      .eq('data_aula', dataAula);
+      .gte('data_checkin', inicioDia)
+      .lte('data_checkin', fimDia);
 
-    if (error) {
-        throw error;
-    }
-    
+    if (error) throw error;
     return data;
   },
 
@@ -109,18 +165,13 @@ export const agendaService = {
   },
 
   async cadastrarFeriado(feriado) {
-    const { error } = await supabase
-      .from('feriados')
-      .insert([feriado]);
+    const { error } = await supabase.from('feriados').insert([feriado]);
     if (error) throw error;
     return true;
   },
 
   async excluirFeriado(id) {
-    const { error } = await supabase
-      .from('feriados')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('feriados').delete().eq('id', id);
     if (error) throw error;
     return true;
   }

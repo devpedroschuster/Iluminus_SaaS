@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { RefreshCw } from 'lucide-react';
@@ -9,6 +9,7 @@ import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 
+// Páginas do Painel Administrativo
 import Login from './pages/Login';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/Dashboard';
@@ -18,14 +19,18 @@ import Professores from './pages/Professores';
 import Agenda from './pages/Agenda';     
 import Financeiro from './pages/Financeiro'; 
 import Despesas from './pages/Despesas';   
-import Planos from './pages/Planos';     
+import Planos from './pages/Planos';
+import Modalidades from './pages/Modalidades';
 import Presenca from './pages/Presenca';
 import Comissoes from './pages/Comissoes';  
+
+import Landing from './pages/Landing';
+import AreaAluno from './pages/AreaAluno';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutos
+      staleTime: 1000 * 60 * 5,
       cacheTime: 1000 * 60 * 10,
       refetchOnWindowFocus: false,
       retry: 1,
@@ -33,32 +38,94 @@ const queryClient = new QueryClient({
   },
 });
 
-const RotaPrivada = ({ sessao }) => {
-  if (!sessao) return <Navigate to="/login" replace />;
-  return <Outlet />;
-};
-
-const LayoutComSidebar = () => (
+const LayoutComSidebar = ({ perfil }) => (
   <div className="flex bg-[#FDF8F5] min-h-screen">
-    <Sidebar />
+    <Sidebar perfil={perfil} />
     <div className="flex-1 overflow-y-auto max-h-screen">
-      <Outlet />
+      <Outlet context={{ perfil }} />
     </div>
   </div>
 );
 
+const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
+  if (!sessao) return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(perfil)) {
+    if (perfil === 'aluno') return <Navigate to="/area-aluno" replace />;
+    if (perfil === 'professor') return <Navigate to="/agenda" replace />;
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Outlet />;
+};
+
 export default function App() {
   const [sessao, setSessao] = useState(null);
+  const [perfil, setPerfil] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const perfilJaCarregado = useRef(false);
+
   useEffect(() => {
+    const carregarPerfilUsuario = async (session) => {
+      if (!session) {
+        setSessao(null);
+        setPerfil(null);
+        setLoading(false);
+        return;
+      }
+
+      setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
+
+      if (perfilJaCarregado.current) {
+        setLoading(false);
+        return;
+      }
+
+      const email = session.user.email;
+
+      try {
+        const { data: usuario, error: errAluno } = await supabase.from('alunos').select('id, role').eq('email', email).maybeSingle();
+        if (errAluno && errAluno.code !== 'PGRST116') console.error("Erro ao verificar aluno:", errAluno);
+        
+        if (usuario) {
+          perfilJaCarregado.current = true;
+          setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
+          setLoading(false);
+          return;
+        }
+
+        const { data: professor, error: errProf } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
+        if (errProf && errProf.code !== 'PGRST116') console.error("Erro ao verificar professor:", errProf);
+        
+        if (professor) {
+          perfilJaCarregado.current = true;
+          setPerfil('professor');
+          setLoading(false);
+          return;
+        }
+
+        perfilJaCarregado.current = true;
+        setPerfil('admin');
+      } catch (error) {
+        console.error("Erro fatal ao carregar perfil:", error);
+        perfilJaCarregado.current = true;
+        setPerfil('admin'); 
+      } finally {
+        setLoading(false);
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSessao(session);
-      setLoading(false);
+      carregarPerfilUsuario(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessao(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        perfilJaCarregado.current = false;
+        setSessao(null);
+        setPerfil(null);
+      } else {
+        carregarPerfilUsuario(session);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -78,30 +145,52 @@ export default function App() {
         <BrowserRouter>
           <ToastProvider /> 
           <Routes>
-            <Route path="/login" element={!sessao ? <Login /> : <Navigate to="/dashboard" replace />} />
+            <Route path="/" element={
+              !sessao 
+                ? <Landing /> 
+                : (perfil === 'aluno' 
+                    ? <Navigate to="/area-aluno" replace /> 
+                    : (perfil === 'professor' 
+                        ? <Navigate to="/agenda" replace /> 
+                        : <Navigate to="/dashboard" replace />))
+            } />
+            <Route path="/login" element={
+              !sessao 
+                ? <Login /> 
+                : (perfil === 'aluno' 
+                    ? <Navigate to="/area-aluno" replace /> 
+                    : (perfil === 'professor' 
+                        ? <Navigate to="/agenda" replace /> 
+                        : <Navigate to="/dashboard" replace />))
+            } />
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-            
-            <Route element={<RotaPrivada sessao={sessao} />}>
-              <Route element={<LayoutComSidebar />}>
-                
-                <Route path="/dashboard" element={<Dashboard />} />
-                
-                <Route path="/alunos" element={<Alunos />} />
-                <Route path="/alunos/novo" element={<NovoAluno />} />
-                <Route path="/professores" element={<Professores />} />
-                
-                <Route path="/agenda" element={<Agenda />} />
-                <Route path="/financeiro" element={<Financeiro />} />
-                <Route path="/despesas" element={<Despesas />} />
-                <Route path="/planos" element={<Planos />} />
-                <Route path="/presenca" element={<Presenca />} />
-                <Route path="/comissoes" element={<Comissoes />} />
 
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['aluno']} />}>
+               <Route path="/area-aluno" element={<AreaAluno />} />
+            </Route>
+            
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin', 'professor']} />}>
+              <Route element={<LayoutComSidebar perfil={perfil} />}>
+                <Route path="/agenda" element={<Agenda />} />
               </Route>
             </Route>
 
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin']} />}>
+              <Route element={<LayoutComSidebar perfil={perfil} />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/alunos" element={<Alunos />} />
+                <Route path="/alunos/novo" element={<NovoAluno />} />
+                <Route path="/professores" element={<Professores />} />
+                <Route path="/financeiro" element={<Financeiro />} />
+                <Route path="/despesas" element={<Despesas />} />
+                <Route path="/planos" element={<Planos />} />
+                <Route path="/modalidades" element={<Modalidades />} />
+                <Route path="/presenca" element={<Presenca />} />
+                <Route path="/comissoes" element={<Comissoes />} />
+              </Route>
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ErrorBoundary>

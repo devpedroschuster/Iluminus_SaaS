@@ -16,6 +16,31 @@ export default function TelaLogin({ onLogado }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+  
+  // Estados para feedback visual imediato
+  const [erroEmail, setErroEmail] = useState("");
+  const [erroSenha, setErroSenha] = useState("");
+
+  // Validador de E-mail usando Regex
+  const validarEmail = (texto) => {
+    setEmail(texto);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (texto.length > 0 && !emailRegex.test(texto)) {
+      setErroEmail("Por favor, insira um e-mail válido.");
+    } else {
+      setErroEmail("");
+    }
+  };
+
+  // Validador de Senha
+  const validarSenha = (texto) => {
+    setSenha(texto);
+    if (texto.length > 0 && texto.length < 6) {
+      setErroSenha("A senha deve ter no mínimo 6 caracteres.");
+    } else {
+      setErroSenha("");
+    }
+  };
 
   async function handleLogin() {
     if (!email || !senha) {
@@ -23,10 +48,14 @@ export default function TelaLogin({ onLogado }) {
       return;
     }
 
+    if (erroEmail || erroSenha) {
+      Alert.alert("Aviso", "Por favor, corrija os erros nos campos antes de continuar.");
+      return;
+    }
+
     try {
       setCarregando(true);
       
-      // 1. Faz o login no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
@@ -34,7 +63,6 @@ export default function TelaLogin({ onLogado }) {
 
       if (authError) throw authError;
 
-      // 2. Busca os dados do aluno na nossa tabela 'alunos'
       const { data: aluno, error: alunoError } = await supabase
         .from("alunos")
         .select("id, nome_completo")
@@ -45,7 +73,6 @@ export default function TelaLogin({ onLogado }) {
         throw new Error("Perfil de aluno não encontrado.");
       }
 
-      // 3. Devolve os dados para o App.js destravar o aplicativo
       onLogado(aluno);
 
     } catch (error) {
@@ -78,29 +105,36 @@ export default function TelaLogin({ onLogado }) {
         <View style={styles.form}>
           <Text style={styles.label}>E-mail</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, erroEmail ? styles.inputErro : null]}
             placeholder="Digite seu e-mail"
             placeholderTextColor="#A0A0A0"
             keyboardType="email-address"
             autoCapitalize="none"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={validarEmail}
           />
+          {/* Mensagem de Erro do E-mail */}
+          {erroEmail ? <Text style={styles.textoErro}>{erroEmail}</Text> : null}
 
-          <Text style={styles.label}>Senha</Text>
+          <Text style={[styles.label, { marginTop: erroEmail ? 5 : 0 }]}>Senha</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, erroSenha ? styles.inputErro : null]}
             placeholder="Digite sua senha"
             placeholderTextColor="#A0A0A0"
             secureTextEntry
             value={senha}
-            onChangeText={setSenha}
+            onChangeText={validarSenha}
           />
+          {/* Mensagem de Erro da Senha */}
+          {erroSenha ? <Text style={styles.textoErro}>{erroSenha}</Text> : null}
 
           <TouchableOpacity 
-            style={[styles.button, carregando && styles.buttonDisabled]} 
+            style={[
+              styles.button, 
+              (carregando || erroEmail || erroSenha) && styles.buttonDisabled
+            ]} 
             onPress={handleLogin}
-            disabled={carregando}
+            disabled={carregando || !!erroEmail || !!erroSenha}
           >
             {carregando ? (
               <ActivityIndicator color="#FFF" />
@@ -125,9 +159,15 @@ const styles = StyleSheet.create({
   
   form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
   label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
-  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
   
+  // Estilos de Input
+  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
+  inputErro: { borderColor: "#E07A5F", backgroundColor: "#FFF5F2", marginBottom: 5 },
+  
+  // Texto de Feedback
+  textoErro: { color: "#E07A5F", fontSize: 12, marginLeft: 5, marginBottom: 15, fontWeight: "600" },
+
   button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
-  buttonDisabled: { opacity: 0.7 },
+  buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
 });

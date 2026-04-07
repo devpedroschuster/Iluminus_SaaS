@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,7 @@ const cores = {
   erro: "#E07A5F",
   desabilitado: "#E5E5E5",
   textoDesabilitado: "#A0A0A0",
+  alertaVaga: "#E9C46A", 
 };
 
 export default function CardAula({
@@ -29,20 +30,18 @@ export default function CardAula({
   onAgendamentoSucesso,
 }) {
   const [processando, setProcessando] = useState(false);
+  const travaClique = useRef(false);
 
   if (!aula) return null;
 
-  // Monta dados
   const dataIso = format(dataSelecionada, "yyyy-MM-dd");
   const dataAulaCompleta = `${dataIso}T${aula.horario}`;
   const dataAulaObj = new Date(dataAulaCompleta);
-  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000);
+  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000); 
   const aulaJaPassou = new Date() > dataLimite;
 
-  // Verificações locais
   const jaAgendado = aula.presencas?.some((p) => {
     if (!p.aluno_id || !alunoId) return false;
-
     const dataRaw = p.data_aula || p.data_checkin;
     const dataPresenca = dataRaw ? dataRaw.split("T")[0] : null;
     return String(p.aluno_id) === String(alunoId) && dataPresenca === dataIso;
@@ -55,52 +54,54 @@ export default function CardAula({
       return dataP === dataIso;
     }).length || 0;
     
-  const lotado = vagasOcupadas >= (aula.capacidade || 15);
-  const horarioFormatado = aula.horario
-    ? aula.horario.substring(0, 5)
-    : "--:--";
+  const capacidadeReal = aula.capacidade || 15;
+  const lotado = vagasOcupadas >= capacidadeReal;
+  const vagasRestantes = capacidadeReal - vagasOcupadas;
+  const horarioFormatado = aula.horario ? aula.horario.substring(0, 5) : "--:--";
 
-  const tratarErro = (erro, titulo = "Erro") => {
+  // BARRA DE PROGRESSO
+  const ocupacaoPercentual = Math.min((vagasOcupadas / capacidadeReal) * 100, 100);
+  
+  const getCorVagas = () => {
+    if (ocupacaoPercentual < 60) return cores.secundaria;
+    if (ocupacaoPercentual <= 85) return cores.alertaVaga;
+    return cores.erro;
+  };
+  // ------------------------------------
+
+  const tratarErro = (erro, titulo = "Atenção") => {
     console.error(erro);
-    let mensagem = "Ocorreu uma falha inesperada. Tente novamente.";
-
-    if (erro.message) {
-      if (erro.message.includes("Network request failed"))
-        mensagem = "Verifique sua conexão com a internet.";
-      else if (erro.message.includes("JWT"))
-        mensagem = "Sua sessão expirou. Saia e entre novamente.";
-      else if (erro.message.includes("acabou de ser preenchida"))
-        mensagem = "A última vaga foi preenchida agora mesmo.";
-      else if (erro.message.includes("já está agendado"))
-        mensagem = "Você já está na lista desta aula.";
-      else if (erro.message.includes("policy"))
-        mensagem = "Operação não permitida pelas regras de segurança.";
-      else mensagem = erro.message;
+    let mensagem = erro.message || "Ocorreu uma falha inesperada. Tente novamente.";
+    if (mensagem.includes(":")) {
+        mensagem = mensagem.split(":").pop().trim();
     }
-
-    Alert.alert(titulo, mensagem);
+    if (Platform.OS === "web") window.alert(`${titulo}: ${mensagem}`);
+    else Alert.alert(titulo, mensagem);
   };
 
   async function executarCancelamento() {
+    if (travaClique.current) return;
+    travaClique.current = true;
+
     try {
       setProcessando(true);
       const { error } = await supabase.rpc("cancelar_agendamento", {
         p_aluno_id: alunoId,
-        p_aula_id: aula.id,
-        p_data: dataIso,
+        p_agenda_id: aula.id, 
       });
 
       if (error) throw error;
       onAgendamentoSucesso();
     } catch (err) {
-      tratarErro(err, "Falha ao Cancelar");
+      tratarErro(err, "Não foi possível cancelar");
     } finally {
+      travaClique.current = false;
       setProcessando(false);
     }
   }
 
   async function handleAcao() {
-    if (processando) return;
+    if (processando || travaClique.current) return;
 
     if (aulaJaPassou && !jaAgendado) {
       if (Platform.OS === "web") window.alert("O horário desta aula já passou.");
@@ -109,18 +110,6 @@ export default function CardAula({
     }
 
     if (jaAgendado) {
-      // JANELA DE CANCELAMENTO
-      const horasAteAula = (dataAulaObj.getTime() - new Date().getTime()) / (1000 * 60 * 60);
-      const JANELA_CANCELAMENTO_HORAS = 2;
-
-      if (horasAteAula > 0 && horasAteAula < JANELA_CANCELAMENTO_HORAS) {
-        const msg = `Cancelamentos devem ser feitos com no mínimo ${JANELA_CANCELAMENTO_HORAS}h de antecedência. Entre em contato com a recepção.`;
-        if (Platform.OS === "web") window.alert(msg);
-        else Alert.alert("Cancelamento Bloqueado", msg);
-        return;
-      }
-
-      // FLUXO DE CANCELAR
       if (Platform.OS === "web") {
         const confirmou = window.confirm("Deseja liberar sua vaga?");
         if (confirmou) executarCancelamento();
@@ -131,13 +120,12 @@ export default function CardAula({
         ]);
       }
     } else {
-      // FLUXO DE AGENDAR
+      travaClique.current = true;
       try {
         setProcessando(true);
         const { error } = await supabase.rpc("agendar_aula", {
           p_aluno_id: alunoId,
-          p_aula_id: aula.id,
-          p_data: dataIso,
+          p_agenda_id: aula.id, 
         });
 
         if (error) throw error;
@@ -149,12 +137,12 @@ export default function CardAula({
       } catch (err) {
         tratarErro(err, "Não foi possível agendar");
       } finally {
+        travaClique.current = false;
         setProcessando(false);
       }
     }
   }
 
-  // ESTILOS DO BOTÃO
   const getEstiloBotao = () => {
     if (jaAgendado) return styles.botaoCancelar;
     if (aulaJaPassou) return styles.botaoPassou;
@@ -204,9 +192,32 @@ export default function CardAula({
         <Text style={styles.professor}>
           Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
         </Text>
-        <Text style={styles.professor}>
-          Vagas: {vagasOcupadas}/{aula.capacidade}
-        </Text>
+        
+        <View style={styles.containerVagas}>
+          <View style={styles.headerVagas}>
+            {vagasRestantes === 1 && !aulaJaPassou ? (
+              <Text style={styles.textoUltimaVaga}>🔥 Última vaga!</Text>
+            ) : lotado ? (
+              <Text style={styles.textoLotado}>Lotado</Text>
+            ) : (
+              <Text style={styles.textoVagas}>
+                {vagasOcupadas}/{capacidadeReal} vagas ocupadas
+              </Text>
+            )}
+          </View>
+          <View style={styles.barraFundo}>
+            <View
+              style={[
+                styles.barraPreenchimento,
+                { 
+                  width: `${ocupacaoPercentual}%`, 
+                  backgroundColor: aulaJaPassou && !jaAgendado ? "#E5E5E5" : getCorVagas() 
+                },
+              ]}
+            />
+          </View>
+        </View>
+
       </View>
 
       <TouchableOpacity
@@ -268,14 +279,30 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   textoPassou: { color: cores.textoSuave },
-  info: { flex: 1, paddingLeft: 15 },
+  info: { flex: 1, paddingLeft: 15, paddingRight: 10 },
   atividade: {
     fontSize: 16,
     fontWeight: "bold",
     color: cores.texto,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   professor: { fontSize: 12, color: cores.textoSuave },
+
+  containerVagas: { marginTop: 8 },
+  headerVagas: { flexDirection: "row", marginBottom: 4 },
+  textoVagas: { fontSize: 11, color: cores.textoSuave, fontWeight: "500" },
+  textoUltimaVaga: { fontSize: 11, color: cores.erro, fontWeight: "bold" },
+  textoLotado: { fontSize: 11, color: cores.textoSuave, fontWeight: "bold" },
+  barraFundo: { 
+    height: 6, 
+    backgroundColor: "#F0F0F0", 
+    borderRadius: 3, 
+    overflow: "hidden" 
+  },
+  barraPreenchimento: { 
+    height: "100%", 
+    borderRadius: 3 
+  },
 
   botao: {
     paddingVertical: 10,

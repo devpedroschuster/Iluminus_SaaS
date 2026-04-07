@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home } from 'lucide-react';
+import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home, CheckCircle2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Serviços e Libs
 import { alunosService } from '../services/alunosService';
+import { createClient } from '@supabase/supabase-js';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/Toast';
@@ -20,6 +21,9 @@ export default function NovoAluno() {
   const alunoParaEditar = location.state?.alunoParaEditar;
 
   const [planos, setPlanos] = useState([]);
+  const [modalidades, setModalidades] = useState([]);
+  const [modalidadesSelecionadas, setModalidadesSelecionadas] = useState([]);
+  
   const [modalOpen, setModalOpen] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [dadosCriados, setDadosCriados] = useState(null);
@@ -33,15 +37,22 @@ export default function NovoAluno() {
   });
 
   const roleAtual = watch('role');
+  const planoSelecionado = watch('plano_id');
 
   useEffect(() => {
-    async function fetchPlanos() {
-      const { data } = await supabase.from('planos').select('*').order('nome');
-      setPlanos(data || []);
-    }
-    fetchPlanos();
+    async function carregarDados() {
+      const { data: planosData } = await supabase.from('planos').select('*').order('nome');
+      setPlanos(planosData || []);
 
-    // Preenche TODOS os campos se for edição
+      const { data: modData } = await supabase.from('modalidades').select('nome').order('nome');
+      if (modData && modData.length > 0) {
+        setModalidades(modData.map(m => m.nome));
+      } else {
+        setModalidades(['Funcional', 'Dança Criativa', 'Free Funk', 'Ballet', 'Jazz', 'Yoga']);
+      }
+    }
+    carregarDados();
+
     if (alunoParaEditar) {
       reset({
         nome_completo: alunoParaEditar.nome_completo || '',
@@ -56,6 +67,7 @@ export default function NovoAluno() {
         numero: alunoParaEditar.numero || '',
         bairro: alunoParaEditar.bairro || '',
       });
+      setModalidadesSelecionadas(alunoParaEditar.modalidades_selecionadas || []);
     }
   }, [alunoParaEditar, reset]);
 
@@ -82,12 +94,19 @@ export default function NovoAluno() {
     }
   };
 
+  const toggleModalidade = (mod) => {
+    setModalidadesSelecionadas(prev => 
+      prev.includes(mod) 
+        ? prev.filter(item => item !== mod)
+        : [...prev, mod]
+    );
+  };
+
   async function onSubmit(data) {
     try {
       const payloadBase = {
-        nome_completo: data.nome_completo,
-        role: data.role,
         plano_id: data.role === 'aluno' ? data.plano_id : null,
+        modalidades_selecionadas: data.role === 'aluno' ? modalidadesSelecionadas : [],
         cpf: data.cpf || null,
         data_nascimento: data.data_nascimento || null,
         telefone: data.telefone || null,
@@ -98,29 +117,46 @@ export default function NovoAluno() {
       };
 
       if (alunoParaEditar) {
-        // FLUXO DE EDIÇÃO
-        await alunosService.atualizar(alunoParaEditar.id, payloadBase);
+        await alunosService.atualizar(alunoParaEditar.id, {
+          ...payloadBase,
+          nome_completo: data.nome_completo 
+        });
         showToast.success("Cadastro atualizado com sucesso!");
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
         navigate('/alunos');
 
       } else {
-        // FLUXO DE CRIAÇÃO
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+
+        const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
           email: data.email,
           password: SENHA_PADRAO,
+          options: {
+            data: {
+              role: data.role || 'aluno',
+              nome_completo: data.nome_completo
+            }
+          }
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          throw new Error(authError.message === 'User already registered' 
+            ? 'Este e-mail já está cadastrado no sistema.' 
+            : authError.message);
+        }
 
-        await alunosService.criar({
-          ...payloadBase,
-          auth_id: authData.user.id,
-          email: data.email,
-          primeiro_acesso: true 
-        });
+        const { error: updateError } = await supabase
+          .from(data.role === 'professor' ? 'professores' : 'alunos')
+          .update(payloadBase)
+          .eq('auth_id', authData.user.id);
 
-        await queryClient.invalidateQueries({ queryKey: ['alunos'] });
+        if (updateError) {
+          showToast.warning("Acesso criado, mas houve erro ao salvar endereço e plano. Edite depois.");
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores'] });
         setDadosCriados({ nome: data.nome_completo, email: data.email });
         setModalOpen(true);
       }
@@ -165,7 +201,8 @@ export default function NovoAluno() {
 
               <div className="relative">
                 <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('cpf')} placeholder="CPF" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                <input {...register('cpf')} placeholder="CPF *" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                {errors.cpf && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.cpf.message}</p>}
               </div>
 
               <div className="relative">
@@ -247,6 +284,36 @@ export default function NovoAluno() {
                     {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                   </select>
               </div>
+
+              {planoSelecionado && roleAtual === 'aluno' && (
+                <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">Modalidades do Aluno</label>
+                  <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {modalidades.map(mod => {
+                        const isChecked = modalidadesSelecionadas.includes(mod);
+                        return (
+                          <label key={mod} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-white shadow-sm border border-orange-100' : 'hover:bg-gray-100 border border-transparent'}`}>
+                            <input 
+                              type="checkbox" 
+                              className="hidden"
+                              checked={isChecked}
+                              onChange={() => toggleModalidade(mod)}
+                            />
+                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-iluminus-terracota border-iluminus-terracota' : 'bg-white border-gray-300'}`}>
+                              {isChecked && <CheckCircle2 className="text-white w-4 h-4" />}
+                            </div>
+                            <span className={`text-sm font-bold ${isChecked ? 'text-gray-800' : 'text-gray-500'}`}>
+                              {mod}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-2 font-medium">Marque as modalidades inclusas no pacote contratado por este aluno.</p>
+                </div>
+              )}
             </div>
           </div>
           

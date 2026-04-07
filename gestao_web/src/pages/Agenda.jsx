@@ -23,7 +23,7 @@ export default function Agenda() {
   const initialFormState = { 
     id: null, atividade: '', professor_id: '', dia_semana: 'Segunda-feira', 
     horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional',
-    valor_por_aluno: '' // NOVO CAMPO
+    valor_por_aluno: ''
   };
 
   const initialAgendamentoState = { aluno_id: '', aula_id: '', data_aula: '' };
@@ -42,14 +42,14 @@ export default function Agenda() {
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
-  // --- NOVOS ESTADOS: LISTA DE PRESENÇA ---
+  // LISTA DE PRESENÇA
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
   const [listaPresenca, setListaPresenca] = useState([]);
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
 
-  // --- NOVO: BUSCA DE PROFESSORES ---
+  // BUSCA DE PROFESSORES
   const [professores, setProfessores] = useState([]);
 
   // Hooks de Dados
@@ -62,7 +62,7 @@ export default function Agenda() {
   const modalAgendamento = useModal();
   const modalLista = useModal();
 
-  // --- EFEITOS DE BUSCA INICIAL ---
+  // EFEITOS DE BUSCA INICIAL
   useEffect(() => {
     async function carregarProfessores() {
       try {
@@ -83,7 +83,9 @@ export default function Agenda() {
           const presencas = await agendaService.listarPresencas(aulaParaLista.id, dataLista);
           setListaPresenca(presencas || []);
         } catch (error) {
-          showToast.error("Erro ao carregar lista de presença.");
+          console.error("ERRO REAL DO SUPABASE:", error);
+          // 👇 O ALERTA MÁGICO 👇
+          alert(`Ops! O banco recusou a lista: ${error.message || error.details}`);
         } finally {
           setLoadingLista(false);
         }
@@ -92,7 +94,7 @@ export default function Agenda() {
     buscarLista();
   }, [modalLista.isOpen, aulaParaLista, dataLista]);
 
-  // --- ORGANIZAÇÃO DOS DADOS ---
+  // ORGANIZAÇÃO DOS DADOS
   const gradeOrganizada = useMemo(() => {
     if (!aulas) return {};
 
@@ -133,7 +135,7 @@ export default function Agenda() {
     return grupos;
   }, [aulas, filtroProf, filtroEspaco]);
 
-  // --- FUNÇÕES DE AÇÃO ---
+  // FUNÇÕES DE AÇÃO
   function handleAbrirCriar() {
     setNovaAula({ ...initialFormState, espaco: filtroEspaco === 'todos' ? 'funcional' : filtroEspaco });
     modalNovaAula.abrir();
@@ -145,7 +147,7 @@ export default function Agenda() {
       dia_semana: aula.dia_semana || 'Segunda-feira', horario: aula.horario, 
       capacidade: aula.capacidade, eh_recorrente: aula.eh_recorrente,
       data_especifica: aula.data_especifica || '', espaco: aula.espaco || 'funcional',
-      valor_por_aluno: aula.valor_por_aluno || '' // NOVO CAMPO MAPEADO
+      valor_por_aluno: aula.valor_por_aluno || ''
     });
     modalNovaAula.abrir();
   }
@@ -192,7 +194,7 @@ export default function Agenda() {
         atividade: novaAula.atividade, professor_id: novaAula.professor_id,
         horario: novaAula.horario, capacidade: Number(novaAula.capacidade),
         eh_recorrente: novaAula.eh_recorrente, espaco: novaAula.espaco, ativa: true,
-        valor_por_aluno: Number(novaAula.valor_por_aluno) || 0 // NOVO CAMPO ENVIADO
+        valor_por_aluno: Number(novaAula.valor_por_aluno) || 0
       };
 
       if (novaAula.id) payload.id = novaAula.id;
@@ -283,11 +285,7 @@ export default function Agenda() {
 
     setRemovendoId(presenca.id);
     try {
-      await agendaService.cancelarAgendamento({
-        aluno_id: presenca.alunos.id,
-        aula_id: aulaParaLista.id,
-        data_aula: dataLista
-      });
+      await agendaService.cancelarAgendamento(presenca.id);
       
       showToast.success("Aluno removido da aula!");
       setListaPresenca(prev => prev.filter(p => p.id !== presenca.id));
@@ -378,7 +376,7 @@ export default function Agenda() {
         )}
       </div>
 
-      {/* --- MODAIS --- */}
+      {/* MODAIS */}
       
       {/* Modal Lista de Presença */}
       <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Lista de Presença">
@@ -460,7 +458,6 @@ export default function Agenda() {
             </div>
             <input placeholder="Nome da Atividade" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.atividade} onChange={e => setNovaAula({...novaAula, atividade: e.target.value})} />
             
-            {/* NOVO CAMPO: Aparece apenas se for Dança */}
             {novaAula.espaco === 'danca' && (
               <input 
                 type="number" 
@@ -492,7 +489,6 @@ export default function Agenda() {
         </form>
       </Modal>
 
-      {/* Modal Feriados e Modal Agendar Aluno permanecem inalterados */}
       <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios">
         <div className="space-y-6 pt-2">
             <form onSubmit={cadastrarFeriado} className="flex gap-2">
@@ -548,7 +544,6 @@ export default function Agenda() {
   );
 }
 
-// Alterado para ler da nova estrutura (aula.professores)
 function CardAula({ aula, onEdit, onDelete, onVerLista, isEvento = false }) {
   const isFuncional = (aula.espaco || 'funcional') === 'funcional';
 

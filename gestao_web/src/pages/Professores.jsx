@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Edit2, ShieldAlert, RefreshCw } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 // Serviços
 import { professoresService } from '../services/professoresService';
@@ -62,15 +64,48 @@ export default function Professores() {
     setSaving(true);
 
     try {
+      let isNovoAcesso = false;
+
+      if (!formProfessor.id && formProfessor.email) {
+        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+
+        const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
+          email: formProfessor.email,
+          password: "Iluminus576",
+          options: { 
+            data: { 
+              role: 'aluno',
+              nome_completo: formProfessor.nome
+            } 
+          }
+        });
+
+        if (authError) {
+          throw new Error(authError.message === 'User already registered' 
+            ? 'Este e-mail já está cadastrado no sistema.' 
+            : authError.message);
+        }
+
+        await supabase.from('alunos').delete().eq('email', formProfessor.email);
+        
+        isNovoAcesso = true;
+      }
+
       await professoresService.salvar(formProfessor);
-      showToast.success(formProfessor.id ? "Professor atualizado!" : "Professor cadastrado com sucesso!");
+      
+      showToast.success(isNovoAcesso 
+        ? "Professor cadastrado! Senha padrão: Iluminus576" 
+        : "Professor atualizado!");
+        
       modalForm.fechar();
       carregarProfessores();
     } catch (error) {
-      if (error.message?.includes('unique')) {
+      if (error.message?.includes('unique') || error.message?.includes('cadastrado')) {
         showToast.error("Já existe um professor com este e-mail.");
       } else {
-        showToast.error("Erro ao salvar professor.");
+        showToast.error("Erro ao salvar professor: " + error.message);
       }
     } finally {
       setSaving(false);

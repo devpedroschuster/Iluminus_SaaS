@@ -12,7 +12,16 @@ export const agendaService = {
     return data;
   },
 
-  // AULAS
+  async listarModalidades() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*')
+      .order('nome');
+      
+    if (error) throw error;
+    return data;
+  },
+
   async listarGrade() {
     const { data: { session } } = await supabase.auth.getSession();
     const email = session?.user?.email;
@@ -76,7 +85,6 @@ export const agendaService = {
     return true;
   },
 
-  // AGENDAMENTO MANUAL
   async agendarAulaAdmin({ aluno_id, aula_id, data_aula }) {
     const inicioDia = `${data_aula}T00:00:00`;
     const fimDia = `${data_aula}T23:59:59`;
@@ -108,7 +116,6 @@ export const agendaService = {
     return data;
   },
 
-  // CANCELAR AGENDAMENTO
   async cancelarAgendamento(id) {
     if (!id) {
       throw new Error("ID do agendamento não identificado pelo sistema.");
@@ -129,7 +136,25 @@ export const agendaService = {
     return data;
   },
 
- // LISTAR PRESENÇAS AULA
+  async listarPresencasPeriodo(dataInicio, dataFim) {
+    const inicioDia = `${dataInicio}T00:00:00`;
+    const fimDia = `${dataFim}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .select(`
+        id,
+        data_checkin,
+        aula_id,
+        alunos (nome_completo)
+      `)
+      .gte('data_checkin', inicioDia)
+      .lte('data_checkin', fimDia);
+
+    if (error) throw error;
+    return data;
+  },
+
   async listarPresencas(aulaId, dataAula) {
     const inicioDia = `${dataAula}T00:00:00`;
     const fimDia = `${dataAula}T23:59:59`;
@@ -152,7 +177,6 @@ export const agendaService = {
     return data;
   },
 
-  // FERIADOS
   async listarFeriados() {
     const { data, error } = await supabase
       .from('feriados')

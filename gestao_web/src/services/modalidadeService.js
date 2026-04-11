@@ -36,7 +36,9 @@ export const modalidadeService = {
     const payload = {
       nome: modalidade.nome,
       professor_id: modalidade.professor_id || null,
-      percentual_comissao: modalidade.percentual_comissao || 50
+      taxa_professor: Number(modalidade.taxa_professor) || 0,
+      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
+      taxa_direcao: Number(modalidade.taxa_direcao) || 0
     };
 
     if (modalidade.id) {

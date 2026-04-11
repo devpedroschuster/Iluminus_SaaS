@@ -12,6 +12,7 @@ import { ptBR } from 'date-fns/locale';
 import { agendaService } from '../services/agendaService';
 import { useAgenda } from '../hooks/useAgenda';
 import { useAlunos } from '../hooks/useAlunos';
+import { supabase } from '../lib/supabase'; // Import para buscar as exceções
 
 import { DIAS_SEMANA } from '../lib/constants';
 import { showToast } from '../components/shared/Toast';
@@ -58,7 +59,10 @@ export default function Agenda() {
   const [currentView, setCurrentView] = useState('week');
   
   const [atualizarPresencas, setAtualizarPresencas] = useState(0);
-  const [presencasCalendario, setPresencasCalendario] = useState([]);
+  
+  const [presencasCalendario, setPresencasCalendario] = useState([]); // Avulsos
+  const [matriculasFixas, setMatriculasFixas] = useState([]); // Agenda Fixa
+  const [excecoesCalendario, setExcecoesCalendario] = useState([]); // Faltas (NOVO)
 
   const [filtroProf, setFiltroProf] = useState('todos');
   const [filtroEspaco, setFiltroEspaco] = useState('todos'); 
@@ -70,7 +74,7 @@ export default function Agenda() {
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
-  const [listaPresenca, setListaPresenca] = useState([]);
+  const [listaPresenca, setListaPresenca] = useState([]); // Lista Unificada
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
   
@@ -89,37 +93,47 @@ export default function Agenda() {
   useEffect(() => {
     async function carregarDadosIniciais() {
       try {
-        const [profData, modData] = await Promise.all([
+        const [profData, modData, fixasData] = await Promise.all([
           agendaService.listarProfessores(),
-          agendaService.listarModalidades()
+          agendaService.listarModalidades(),
+          agendaService.listarMatriculasFixas() 
         ]);
         setProfessores(profData || []);
         setModalidades(modData || []);
+        setMatriculasFixas(fixasData || []);
       } catch (error) {}
     }
     carregarDadosIniciais();
   }, []);
 
+  // CARREGA AVULSOS E FALTAS DA TELA ATUAL
   useEffect(() => {
     let isMounted = true;
-    async function carregarPresencasDoMes() {
+    async function carregarDadosDoMes() {
       const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
       const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
       try {
-        const dados = await agendaService.listarPresencasPeriodo(inicio, fim);
-        if (isMounted) setPresencasCalendario(dados || []);
+        const [dadosAvulsos, dadosExcecoes] = await Promise.all([
+           agendaService.listarPresencasPeriodo(inicio, fim),
+           supabase.from('agenda_excecoes').select('*').gte('data_especifica', inicio).lte('data_especifica', fim)
+        ]);
+        if (isMounted) {
+            setPresencasCalendario(dadosAvulsos || []);
+            setExcecoesCalendario(dadosExcecoes.data || []);
+        }
       } catch (error) {}
     }
-    carregarPresencasDoMes();
+    carregarDadosDoMes();
     return () => { isMounted = false; };
   }, [currentDate.getMonth(), currentDate.getFullYear(), atualizarPresencas]);
 
+  // A MÁGICA DA FASE 3: Busca a Lista Unificada para o Modal
   useEffect(() => {
     async function buscarLista() {
       if (modalLista.isOpen && aulaParaLista && dataLista) {
         setLoadingLista(true);
         try {
-          const presencas = await agendaService.listarPresencas(aulaParaLista.id, dataLista);
+          const presencas = await agendaService.listarChamadaCompleta(aulaParaLista.id, dataLista);
           setListaPresenca(presencas || []);
         } finally {
           setLoadingLista(false);
@@ -132,6 +146,7 @@ export default function Agenda() {
   const eventosCalendario = useMemo(() => {
     if (!aulas) return [];
 
+    // 1. Mapa de Presenças Avulsas (Por Data)
     const presencasMap = {};
     presencasCalendario.forEach(p => {
       const dataStr = p.data_checkin.split('T')[0];
@@ -142,14 +157,34 @@ export default function Agenda() {
       }
     });
 
+    // 2. Mapa de Alunos da Agenda Fixa
+    const fixasMap = {};
+    matriculasFixas.forEach(m => {
+       if (!fixasMap[m.aula_id]) fixasMap[m.aula_id] = [];
+       if (m.alunos?.nome_completo) {
+           fixasMap[m.aula_id].push({ 
+               id: m.alunos.id, 
+               nome: m.alunos.nome_completo,
+               inicio: m.alunos.data_inicio_plano, // Traz a data de início
+               fim: m.alunos.data_fim_plano        // Traz a data de fim
+           });
+       }
+    });
+
+    // 3. Mapa de Faltas (Exceções)
+    const excecoesMap = {};
+    excecoesCalendario.forEach(e => {
+        excecoesMap[`${e.aluno_id}-${e.aula_id}-${e.data_especifica}`] = true;
+    });
+
     const diasMapa = {
       'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3,
       'Quinta-feira': 4, 'Sexta-feira': 5, 'Sábado': 6
     };
 
     let eventosGerados = [];
-    
     let inicioVisivel, fimVisivel;
+
     if (currentView === 'day') {
       inicioVisivel = currentDate;
       fimVisivel = currentDate;
@@ -170,6 +205,7 @@ export default function Agenda() {
 
     aulasFiltradas.forEach(aula => {
       const [hora, minuto] = aula.horario.split(':').map(Number);
+      const todosFixosDaTurma = fixasMap[aula.id] || []; 
 
       if (aula.eh_recorrente) {
         const diaAlvo = diasMapa[aula.dia_semana];
@@ -188,7 +224,24 @@ export default function Agenda() {
             fim.setHours(hora + 1, minuto, 0); 
             
             const dataStr = format(inicio, 'yyyy-MM-dd');
-            const alunosAgendados = presencasMap[`${aula.id}-${dataStr}`] || [];
+            
+            // O CÉREBRO VISUAL: Tira da lista quem informou falta E quem está com plano vencido!
+            const fixosPresentesHoje = todosFixosDaTurma
+                .filter(aluno => {
+                    // 1. O aluno avisou que vai faltar hoje?
+                    if (excecoesMap[`${aluno.id}-${aula.id}-${dataStr}`]) return false;
+                    
+                    // 2. O plano do aluno é válido para a data de hoje?
+                    // Se não tiver data preenchida, deixamos aparecer por segurança.
+                    if (aluno.inicio && dataStr < aluno.inicio) return false;
+                    if (aluno.fim && dataStr > aluno.fim) return false;
+
+                    return true;
+                })
+                .map(a => a.nome);
+
+            const alunosAvulsos = presencasMap[`${aula.id}-${dataStr}`] || [];
+            const todosAlunos = [...new Set([...fixosPresentesHoje, ...alunosAvulsos])];
 
             eventosGerados.push({
               idUnico: `${aula.id}-${dataStr}`,
@@ -196,7 +249,7 @@ export default function Agenda() {
               start: inicio, end: fim,
               dadosOriginais: aula,
               isEventoLivre: false,
-              alunosAgendados
+              alunosAgendados: todosAlunos
             });
           }
           iterador = addDays(iterador, 1);
@@ -208,7 +261,12 @@ export default function Agenda() {
         const fim = new Date(inicio);
         fim.setHours(hora + 1, minuto, 0);
 
-        const alunosAgendados = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
+        const fixosPresentesHoje = todosFixosDaTurma
+                .filter(aluno => !excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`])
+                .map(a => a.nome);
+
+        const alunosAvulsos = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
+        const todosAlunos = [...new Set([...fixosPresentesHoje, ...alunosAvulsos])];
 
         eventosGerados.push({
           idUnico: `${aula.id}-unico`,
@@ -216,13 +274,13 @@ export default function Agenda() {
           start: inicio, end: fim,
           dadosOriginais: aula,
           isEventoLivre: true,
-          alunosAgendados
+          alunosAgendados: todosAlunos
         });
       }
     });
 
     return eventosGerados;
-  }, [aulas, filtroProf, filtroEspaco, currentDate, currentView, presencasCalendario]);
+  }, [aulas, filtroProf, filtroEspaco, currentDate, currentView, presencasCalendario, matriculasFixas, excecoesCalendario]);
 
   function handleSelectSlot({ start }) {
     const diaSemanaTexto = format(start, 'eeee', { locale: ptBR });
@@ -310,7 +368,7 @@ export default function Agenda() {
     try {
       const payload = {
         atividade: novaAula.atividade, 
-        modalidade_id: novaAula.modalidade_id || null,
+        modalidade_id: novaAula.modalidade_id || null, 
         professor_id: novaAula.professor_id,
         horario: novaAula.horario, 
         capacidade: Number(novaAula.capacidade),
@@ -362,29 +420,50 @@ export default function Agenda() {
     setSavingAgendamento(true);
     try {
       await agendaService.agendarAulaAdmin(agendamentoForm);
-      showToast.success("Aluno agendado com sucesso!");
+      showToast.success("Aluno avulso agendado com sucesso!");
       setAgendamentoForm({ aluno_id: '', aula_id: '', data_aula: '' });
       modalAgendamento.fechar();
       setAtualizarPresencas(prev => prev + 1);
     } catch (err) {
-      showToast.error("Erro ao agendar: " + (err.message || "Vagas esgotadas ou aluno já inscrito."));
+      showToast.error("Erro ao agendar avulso.");
     } finally {
       setSavingAgendamento(false);
     }
   }
 
-  async function handleRemoverPresenca(presenca) {
-    if (!confirm(`Tem certeza que deseja remover ${presenca.alunos?.nome_completo} desta aula?`)) return;
-    setRemovendoId(presenca.id);
+  // --- AÇÕES DA LISTA UNIFICADA (FASE 3) ---
+
+  async function handleRemoverPresenca(idRelacao) {
+    if (!confirm(`Tem certeza que deseja remover este aluno avulso?`)) return;
+    setRemovendoId(idRelacao);
     try {
-      await agendaService.cancelarAgendamento(presenca.id);
-      showToast.success("Aluno removido da aula!");
-      setListaPresenca(prev => prev.filter(p => p.id !== presenca.id));
+      await agendaService.cancelarAgendamento(idRelacao); // Usa o id da presença
+      showToast.success("Aluno avulso removido!");
       setAtualizarPresencas(prev => prev + 1);
     } catch (err) {
       showToast.error("Erro ao remover: " + err.message);
     } finally {
       setRemovendoId(null);
+    }
+  }
+
+  async function handleRegistrarFalta(aluno) {
+    try {
+      await agendaService.registrarFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
+      showToast.success("Falta informada. Aluno removido do card.");
+      setAtualizarPresencas(prev => prev + 1);
+    } catch (err) {
+      showToast.error("Erro ao registrar falta.");
+    }
+  }
+
+  async function handleDesfazerFalta(aluno) {
+    try {
+      await agendaService.removerFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
+      showToast.success("Falta removida.");
+      setAtualizarPresencas(prev => prev + 1);
+    } catch (err) {
+      showToast.error("Erro ao remover falta.");
     }
   }
 
@@ -427,7 +506,7 @@ export default function Agenda() {
             <Ban size={20} /> Bloqueios ({feriados.length})
           </button>
           <button onClick={modalAgendamento.abrir} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:scale-[1.02] transition-all">
-            <UserCheck size={20} /> Agendar Aluno
+            <UserCheck size={20} /> Agendar Aluno Avulso
           </button>
           <button onClick={() => { setNovaAula(initialFormState); modalNovaAula.abrir(); }} className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-200 flex items-center gap-2 hover:scale-[1.02] transition-all">
             <Plus size={20} /> Nova Aula
@@ -482,7 +561,9 @@ export default function Agenda() {
                 event: CustomEventCard
               }}
               step={30} timeslots={2}
-              min={new Date(0, 0, 0, 6, 0, 0)} max={new Date(0, 0, 0, 23, 0, 0)}
+              min={new Date(0, 0, 0, 6, 0, 0)} 
+              max={new Date(0, 0, 0, 23, 0, 0)}
+              scrollToTime={new Date(0, 0, 0, 6, 0, 0)}
             />
           </div>
         )}
@@ -510,7 +591,7 @@ export default function Agenda() {
 
             <div className="grid grid-cols-1 gap-3 mt-4">
               <button onClick={() => { modalAcoesEvento.fechar(); setAulaParaLista(eventoSelecionado.dadosOriginais); setDataLista(format(eventoSelecionado.start, 'yyyy-MM-dd')); setListaPresenca([]); modalLista.abrir(); }} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">
-                <Users size={20} /> Ver Lista de Alunos Agendados
+                <Users size={20} /> Fazer Chamada / Lista de Alunos
               </button>
               <div className="flex gap-3">
                 <button onClick={() => { 
@@ -561,7 +642,6 @@ export default function Agenda() {
               </label>
             </div>
 
-            {/* Select Modalidades Recorrentes vs Input Eventos Únicos */}
             {novaAula.eh_recorrente ? (
                 <select 
                     className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 font-bold text-gray-700" 
@@ -637,7 +717,8 @@ export default function Agenda() {
         </form>
       </Modal>
 
-      <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Lista de Presença">
+      {/* A LISTA DE CHAMADA UNIFICADA */}
+      <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Lista de Presença / Chamada">
         {aulaParaLista && (
           <div className="space-y-4 pt-2 min-h-[300px]">
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-2">
@@ -656,33 +737,48 @@ export default function Agenda() {
 
             <div>
               <div className="flex justify-between items-center mb-3">
-                <h5 className="font-bold text-sm text-gray-700">Alunos Agendados ({listaPresenca.length})</h5>
+                <h5 className="font-bold text-sm text-gray-700">Membros da Turma</h5>
               </div>
 
               {loadingLista ? (
                 <div className="flex justify-center p-6"><RefreshCw className="animate-spin text-gray-300" size={24} /></div>
               ) : listaPresenca.length === 0 ? (
                 <div className="text-center p-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-400 font-medium">Nenhum aluno agendado para esta data.</p>
+                  <p className="text-sm text-gray-400 font-medium">Ninguém matriculado ou agendado ainda.</p>
                 </div>
               ) : (
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                  {listaPresenca.map(presenca => (
-                    <li key={presenca.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm flex items-center justify-between hover:border-red-100 transition-colors">
-                      <span className="font-bold text-gray-700 text-sm">{presenca.alunos?.nome_completo}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[10px] text-green-600 bg-green-50 px-2 py-1 rounded-md font-bold uppercase tracking-wider">Confirmado</span>
-                        <button
-                          onClick={() => handleRemoverPresenca(presenca)}
-                          disabled={removendoId === presenca.id}
-                          className="text-gray-400 hover:text-red-500 p-1.5 bg-gray-50 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          {removendoId === presenca.id ? (
-                            <RefreshCw size={16} className="animate-spin text-red-500" />
+                  {listaPresenca.map(aluno => (
+                    <li key={`${aluno.tipo}-${aluno.aluno_id}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${aluno.status === 'ausencia' ? 'bg-red-50/40 border-red-100 opacity-60' : 'bg-white border-gray-100 shadow-sm'}`}>
+                      <div>
+                          <span className={`font-bold text-sm ${aluno.status === 'ausencia' ? 'text-red-800 line-through' : 'text-gray-700'}`}>
+                             {aluno.nome}
+                          </span>
+                          <div className="flex gap-2 mt-1">
+                             {aluno.tipo === 'fixo' ? (
+                                <span className="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Fixo</span>
+                             ) : (
+                                <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>
+                             )}
+                             {aluno.status === 'ausencia' && (
+                                <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta Informada</span>
+                             )}
+                          </div>
+                      </div>
+                      
+                      {/* BOTÕES DE AÇÃO: Falta (para Fixos) ou Remover (para Avulsos) */}
+                      <div>
+                          {aluno.tipo === 'fixo' ? (
+                              aluno.status === 'ausencia' ? (
+                                 <button onClick={() => handleDesfazerFalta(aluno)} className="text-[11px] font-bold text-gray-500 hover:text-green-600 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 transition-colors">Desfazer Falta</button>
+                              ) : (
+                                 <button onClick={() => handleRegistrarFalta(aluno)} className="text-[11px] font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors">Informar Falta</button>
+                              )
                           ) : (
-                            <XCircle size={16} />
+                              <button onClick={() => handleRemoverPresenca(aluno.id_relacao)} className="text-[11px] font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                                {removendoId === aluno.id_relacao ? <RefreshCw className="animate-spin" size={14}/> : "Remover"}
+                              </button>
                           )}
-                        </button>
                       </div>
                     </li>
                   ))}
@@ -726,7 +822,7 @@ export default function Agenda() {
         </div>
       </Modal>
 
-      <Modal isOpen={modalAgendamento.isOpen} onClose={modalAgendamento.fechar} titulo="Agendar Aluno Manualmente">
+      <Modal isOpen={modalAgendamento.isOpen} onClose={modalAgendamento.fechar} titulo="Agendar Aluno Avulso">
         <form onSubmit={handleAgendarAluno} className="space-y-4 pt-2">
           <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.aluno_id} onChange={e => setAgendamentoForm({...agendamentoForm, aluno_id: e.target.value})}>
             <option value="">Selecione o aluno...</option>

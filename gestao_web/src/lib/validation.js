@@ -3,7 +3,7 @@ import * as yup from 'yup';
 export const alunoSchema = yup.object().shape({
   nome_completo: yup.string().required('O nome completo é obrigatório.'),
   email: yup.string().email('Insira um e-mail válido.').required('O e-mail é obrigatório.'),
-  cpf: yup.string().required('O CPF é obrigatório.'),
+  cpf: yup.string().optional().nullable(),
   role: yup.string().default('aluno'),
   plano_id: yup.string().nullable().optional(),
   data_nascimento: yup.string().nullable().optional(),

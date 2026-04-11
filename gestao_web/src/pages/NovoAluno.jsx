@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home, CheckCircle2, CalendarDays, AlertTriangle, Trash2, Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Serviços e Libs
@@ -20,10 +20,16 @@ export default function NovoAluno() {
   
   const alunoParaEditar = location.state?.alunoParaEditar;
 
+  const [abaAtiva, setAbaAtiva] = useState('dados'); // 'dados' ou 'agenda'
   const [planos, setPlanos] = useState([]);
   const [modalidades, setModalidades] = useState([]);
   const [modalidadesSelecionadas, setModalidadesSelecionadas] = useState([]);
   
+  // Estados da Agenda Fixa
+  const [aulasGrade, setAulasGrade] = useState([]);
+  const [matriculasAluno, setMatriculasAluno] = useState([]);
+  const [loadingAgenda, setLoadingAgenda] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [dadosCriados, setDadosCriados] = useState(null);
@@ -38,6 +44,8 @@ export default function NovoAluno() {
 
   const roleAtual = watch('role');
   const planoSelecionado = watch('plano_id');
+  const planoSelecionadoObj = planos.find(p => p.id === Number(planoSelecionado));
+  const isPlanoLivre = planoSelecionadoObj?.nome?.toLowerCase().includes('livre') || planoSelecionadoObj?.nome?.toLowerCase().includes('avulso');
 
   useEffect(() => {
     async function carregarDados() {
@@ -62,6 +70,8 @@ export default function NovoAluno() {
         cpf: alunoParaEditar.cpf || '',
         data_nascimento: alunoParaEditar.data_nascimento || '',
         telefone: alunoParaEditar.telefone || '',
+        data_inicio_plano: alunoParaEditar.data_inicio_plano || '',
+        data_fim_plano: alunoParaEditar.data_fim_plano || '', 
         cep: alunoParaEditar.cep || '',
         rua: alunoParaEditar.rua || '',
         numero: alunoParaEditar.numero || '',
@@ -70,6 +80,48 @@ export default function NovoAluno() {
       setModalidadesSelecionadas(alunoParaEditar.modalidades_selecionadas || []);
     }
   }, [alunoParaEditar, reset]);
+
+  // CARREGA OS DADOS DA ABA DE AGENDA FIXA
+  useEffect(() => {
+    if (abaAtiva === 'agenda' && alunoParaEditar) {
+      carregarAgendaFixa();
+    }
+  }, [abaAtiva, alunoParaEditar]);
+
+  async function carregarAgendaFixa() {
+    setLoadingAgenda(true);
+    try {
+      // 1. Busca todas as aulas recorrentes
+      const { data: aulas } = await supabase
+        .from('agenda')
+        .select('*, modalidades(nome)')
+        .eq('eh_recorrente', true);
+      
+      // Mapa de pesos para ordenar os dias da semana!
+      const diasOrdem = { 'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3, 'Quinta-feira': 4, 'Sexta-feira': 5, 'Sábado': 6 };
+      
+      const aulasOrdenadas = (aulas || []).sort((a, b) => {
+        if (diasOrdem[a.dia_semana] !== diasOrdem[b.dia_semana]) {
+          return diasOrdem[a.dia_semana] - diasOrdem[b.dia_semana];
+        }
+        return a.horario.localeCompare(b.horario);
+      });
+
+      setAulasGrade(aulasOrdenadas);
+
+      // 2. Busca em quais turmas este aluno já está matriculado
+      const { data: matriculas } = await supabase
+        .from('agenda_fixa')
+        .select('aula_id')
+        .eq('aluno_id', alunoParaEditar.id);
+      
+      setMatriculasAluno(matriculas?.map(m => m.aula_id) || []);
+    } catch (error) {
+      showToast.error("Erro ao carregar grade fixa.");
+    } finally {
+      setLoadingAgenda(false);
+    }
+  }
 
   const buscarCep = async (cep) => {
     const cepLimpo = cep.replace(/\D/g, '');
@@ -94,19 +146,70 @@ export default function NovoAluno() {
     }
   };
 
-  const toggleModalidade = (mod) => {
-    setModalidadesSelecionadas(prev => 
-      prev.includes(mod) 
-        ? prev.filter(item => item !== mod)
-        : [...prev, mod]
-    );
+  const getCountMod = (mod) => modalidadesSelecionadas.filter(m => m === mod).length;
+
+  const countUsoMod = (modNome) => {
+    return matriculasAluno.filter(aulaId => {
+       const aula = aulasGrade.find(a => a.id === aulaId);
+       return aula?.modalidades?.nome === modNome;
+    }).length;
   };
+
+  const addModalidade = (mod) => {
+    setModalidadesSelecionadas([...modalidadesSelecionadas, mod]);
+  };
+
+  const removeModalidade = (mod) => {
+    const index = modalidadesSelecionadas.lastIndexOf(mod);
+    if (index > -1) {
+      const novaLista = [...modalidadesSelecionadas];
+      novaLista.splice(index, 1);
+      setModalidadesSelecionadas(novaLista);
+    }
+  };
+
+  // MATRICULAR OU REMOVER DA AGENDA FIXA
+  async function toggleMatriculaFixa(aula) {
+    const isMatriculado = matriculasAluno.includes(aula.id);
+    const modNome = aula.modalidades?.nome;
+    
+    if (!isMatriculado) {
+        const limite = getCountMod(modNome);
+        const usado = countUsoMod(modNome);
+
+        if (usado >= limite) {
+            const ok = window.confirm(`ATENÇÃO: O plano do aluno permite apenas ${limite}x de ${modNome} por semana.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª aula?`);
+            if (!ok) return;
+        }
+
+        try {
+            const { error } = await supabase.from('agenda_fixa').insert({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+            if (error) throw error;
+            showToast.success("Aluno matriculado na turma!");
+            carregarAgendaFixa();
+        } catch (err) {
+            showToast.error("Erro ao matricular na turma.");
+        }
+    } else {
+        if (!window.confirm(`Deseja remover o aluno definitivamente da turma de ${aula.dia_semana} às ${aula.horario}?`)) return;
+        try {
+            const { error } = await supabase.from('agenda_fixa').delete().match({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+            if (error) throw error;
+            showToast.success("Aluno removido da turma.");
+            carregarAgendaFixa();
+        } catch (err) {
+            showToast.error("Erro ao remover da turma.");
+        }
+    }
+  }
 
   async function onSubmit(data) {
     try {
       const payloadBase = {
         plano_id: data.role === 'aluno' ? data.plano_id : null,
         modalidades_selecionadas: data.role === 'aluno' ? modalidadesSelecionadas : [],
+        data_inicio_plano: data.data_inicio_plano || null,
+        data_fim_plano: data.data_fim_plano || null,
         cpf: data.cpf || null,
         data_nascimento: data.data_nascimento || null,
         telefone: data.telefone || null,
@@ -174,6 +277,8 @@ export default function NovoAluno() {
     showToast.success("Instruções copiadas!");
   };
 
+  const modalidadesUnicas = [...new Set(modalidadesSelecionadas)];
+
   return (
     <div className="p-8 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <button onClick={() => navigate('/alunos')} className="flex items-center gap-2 text-gray-400 hover:text-iluminus-terracota font-bold mb-6 transition-colors">
@@ -181,148 +286,282 @@ export default function NovoAluno() {
       </button>
 
       <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 p-10">
-        <h1 className="text-3xl font-black text-gray-800 mb-8 pb-4 border-b border-gray-50">
-          {alunoParaEditar ? "Editar Membro" : "Novo Cadastro"}
+        <h1 className="text-3xl font-black text-gray-800 mb-6">
+          {alunoParaEditar ? "Perfil do Membro" : "Novo Cadastro"}
         </h1>
-        
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-          
-          <div className="space-y-4">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <User size={16} /> Informações Pessoais
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative md:col-span-2">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('nome_completo')} placeholder="Nome Completo *" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-                {errors.nome_completo && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.nome_completo.message}</p>}
-              </div>
 
-              <div className="relative">
-                <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('cpf')} placeholder="CPF *" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-                {errors.cpf && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.cpf.message}</p>}
-              </div>
-
-              <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('data_nascimento')} type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-500" />
-              </div>
-
-              <div className="relative md:col-span-2">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('telefone')} placeholder="Telefone / WhatsApp" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t border-gray-50">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <MapPin size={16} /> Endereço Residencial
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input 
-                  {...register('cep')} 
-                  onBlur={(e) => buscarCep(e.target.value)}
-                  placeholder="CEP" 
-                  maxLength={9}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" 
-                />
-                {buscandoCep && <RefreshCw size={14} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-orange-400" />}
-              </div>
-
-              <div className="relative md:col-span-2">
-                <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input {...register('rua')} placeholder="Rua / Logradouro" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-              </div>
-
-              <div className="relative">
-                <input id="input-numero" {...register('numero')} placeholder="Número" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-              </div>
-
-              <div className="relative md:col-span-2">
-                <input {...register('bairro')} placeholder="Bairro" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t border-gray-50">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <ShieldCheck size={16} /> Acesso e Plano
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative md:col-span-2">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input 
-                  {...register('email')} 
-                  type="email" 
-                  placeholder="E-mail de acesso *" 
-                  disabled={!!alunoParaEditar}
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" 
-                />
-                {errors.email && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.email.message}</p>}
-                {alunoParaEditar && <p className="text-gray-400 text-[10px] uppercase ml-4 mt-1">O e-mail de acesso não pode ser alterado por aqui.</p>}
-              </div>
-
-              <div className="relative">
-                  <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                  <select {...register('role')} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none cursor-pointer">
-                    <option value="aluno">Aluno</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-              </div>
-
-              <div className="relative">
-                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                  <select {...register('plano_id')} disabled={roleAtual !== 'aluno'} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none disabled:opacity-50 cursor-pointer border border-transparent focus:border-orange-200">
-                    <option value="">Vincular Plano...</option>
-                    {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
-              </div>
-
-              {planoSelecionado && roleAtual === 'aluno' && (
-                <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">Modalidades do Aluno</label>
-                  <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {modalidades.map(mod => {
-                        const isChecked = modalidadesSelecionadas.includes(mod);
-                        return (
-                          <label key={mod} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-white shadow-sm border border-orange-100' : 'hover:bg-gray-100 border border-transparent'}`}>
-                            <input 
-                              type="checkbox" 
-                              className="hidden"
-                              checked={isChecked}
-                              onChange={() => toggleModalidade(mod)}
-                            />
-                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-iluminus-terracota border-iluminus-terracota' : 'bg-white border-gray-300'}`}>
-                              {isChecked && <CheckCircle2 className="text-white w-4 h-4" />}
-                            </div>
-                            <span className={`text-sm font-bold ${isChecked ? 'text-gray-800' : 'text-gray-500'}`}>
-                              {mod}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-2 font-medium">Marque as modalidades inclusas no pacote contratado por este aluno.</p>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <button type="submit" disabled={isSubmitting} className="w-full bg-iluminus-terracota text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-orange-100 hover:scale-[1.01] flex items-center justify-center gap-3 mt-8 transition-all">
-            {isSubmitting ? <RefreshCw className="animate-spin" size={24} /> : (alunoParaEditar ? "Salvar Alterações" : "Concluir Cadastro")}
+        {/* NAVEGAÇÃO POR ABAS */}
+        <div className="flex gap-6 border-b border-gray-100 mb-8">
+          <button 
+            onClick={() => setAbaAtiva('dados')} 
+            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          >
+            Dados Cadastrais
           </button>
-        </form>
+          
+          <button 
+            onClick={() => setAbaAtiva('agenda')} 
+            disabled={!alunoParaEditar || isPlanoLivre}
+            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+            title={!alunoParaEditar ? "Salve o aluno primeiro" : isPlanoLivre ? "Planos Livres não possuem Agenda Fixa" : ""}
+          >
+            <CalendarDays size={18} /> Agenda Fixa (Turmas)
+          </button>
+        </div>
+        
+        {/* =========================================
+            ABA 1: DADOS CADASTRAIS (FORMULÁRIO)
+            ========================================= */}
+        {abaAtiva === 'dados' && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in">
+            
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <User size={16} /> Informações Pessoais
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative md:col-span-2">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input {...register('nome_completo')} placeholder="Nome Completo *" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                  {errors.nome_completo && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.nome_completo.message}</p>}
+                </div>
+
+                <div className="relative">
+                  <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input {...register('cpf')} placeholder="CPF (Opcional)" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                  {errors.cpf && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.cpf.message}</p>}
+                </div>
+
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input {...register('data_nascimento')} type="date" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-500" />
+                </div>
+
+                <div className="relative md:col-span-2">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input {...register('telefone')} placeholder="Telefone / WhatsApp" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-50">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <MapPin size={16} /> Endereço Residencial
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input 
+                    {...register('cep')} 
+                    onBlur={(e) => buscarCep(e.target.value)}
+                    placeholder="CEP" 
+                    maxLength={9}
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" 
+                  />
+                  {buscandoCep && <RefreshCw size={14} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-orange-400" />}
+                </div>
+
+                <div className="relative md:col-span-2">
+                  <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input {...register('rua')} placeholder="Rua / Logradouro" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                </div>
+
+                <div className="relative">
+                  <input id="input-numero" {...register('numero')} placeholder="Número" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                </div>
+
+                <div className="relative md:col-span-2">
+                  <input {...register('bairro')} placeholder="Bairro" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-50">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <ShieldCheck size={16} /> Acesso e Plano
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative md:col-span-2">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                  <input 
+                    {...register('email')} 
+                    type="email" 
+                    placeholder="E-mail de acesso *" 
+                    disabled={!!alunoParaEditar}
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" 
+                  />
+                  {errors.email && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.email.message}</p>}
+                  {alunoParaEditar && <p className="text-gray-400 text-[10px] uppercase ml-4 mt-1">O e-mail de acesso não pode ser alterado por aqui.</p>}
+                </div>
+
+                <div className="relative">
+                    <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                    <select {...register('role')} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none cursor-pointer">
+                      <option value="aluno">Aluno</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                </div>
+
+                <div className="relative">
+                    <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                    <select {...register('plano_id')} disabled={roleAtual !== 'aluno'} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none disabled:opacity-50 cursor-pointer border border-transparent focus:border-orange-200">
+                      <option value="">Vincular Plano...</option>
+                      {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
+                </div>
+
+                {planoSelecionado && roleAtual === 'aluno' && (
+                  <>
+                    <div className="relative animate-in fade-in">
+                      <label className="text-[10px] font-black text-gray-400 uppercase absolute -top-2 left-4 bg-white px-1">Início do Contrato</label>
+                      <input {...register('data_inicio_plano')} type="date" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-bold text-gray-600" />
+                    </div>
+                    
+                    <div className="relative animate-in fade-in">
+                      <label className="text-[10px] font-black text-gray-400 uppercase absolute -top-2 left-4 bg-white px-1">Fim do Contrato</label>
+                      <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-bold text-gray-600" />
+                    </div>
+
+                    <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">Modalidades do Aluno</label>
+                      
+                      {isPlanoLivre ? (
+                         <div className="bg-green-50 p-6 rounded-2xl border border-green-100 flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                              <CheckCircle2 size={24} />
+                            </div>
+                            <h4 className="font-black text-green-800">Acesso Total Liberado</h4>
+                            <p className="text-sm text-green-700 mt-1 font-medium">Este é um plano livre. O aluno pode agendar qualquer aula. O repasse aos professores será gerado automaticamente a cada presença.</p>
+                         </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {modalidades.map(mod => {
+                              const count = getCountMod(mod);
+                              const isAtivo = count > 0;
+                              
+                              return (
+                                <div key={mod} className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isAtivo ? 'bg-white border-orange-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}>
+                                  <span className={`text-sm font-bold ${isAtivo ? 'text-gray-800' : 'text-gray-400'}`}>
+                                    {mod}
+                                  </span>
+                                  <div className="flex items-center gap-3 bg-white px-2 py-1 rounded-xl shadow-sm border border-gray-100">
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeModalidade(mod)} 
+                                      disabled={!isAtivo}
+                                      className="w-6 h-6 flex items-center justify-center rounded-md bg-gray-50 text-gray-500 font-black hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="font-black text-iluminus-terracota w-4 text-center">{count}x</span>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => addModalidade(mod)} 
+                                      className="w-6 h-6 flex items-center justify-center rounded-md bg-orange-50 text-orange-600 font-black hover:bg-orange-100 transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-2 font-medium">Use os botões + e - para definir quantas vezes na semana o aluno fará cada modalidade no combo contratado.</p>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <button type="submit" disabled={isSubmitting} className="w-full bg-iluminus-terracota text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-orange-100 hover:scale-[1.01] flex items-center justify-center gap-3 mt-8 transition-all">
+              {isSubmitting ? <RefreshCw className="animate-spin" size={24} /> : (alunoParaEditar ? "Salvar Alterações" : "Concluir Cadastro")}
+            </button>
+          </form>
+        )}
+
+        {/* =========================================
+            ABA 2: AGENDA FIXA (TURMAS DO ALUNO)
+            ========================================= */}
+        {abaAtiva === 'agenda' && (
+          <div className="space-y-6 animate-in fade-in">
+             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 flex items-start gap-4">
+               <AlertTriangle className="text-orange-500 shrink-0 mt-1" size={24} />
+               <div>
+                  <h4 className="font-black text-orange-900">Gerenciamento de Turmas Regulares</h4>
+                  <p className="text-sm text-orange-800 font-medium mt-1">
+                    Matricule o aluno em turmas específicas. O sistema exibirá as aulas que pertencem ao pacote dele. Ele aparecerá automaticamente na lista de chamada do calendário toda semana.
+                  </p>
+               </div>
+             </div>
+
+             {loadingAgenda ? (
+               <div className="flex justify-center p-12"><RefreshCw className="animate-spin text-gray-300" size={32} /></div>
+             ) : (
+               <div className="space-y-8">
+                 {modalidadesUnicas.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">O aluno não possui modalidades vinculadas ao plano.</p>
+                 ) : (
+                    modalidadesUnicas.map(modNome => {
+                       const limite = getCountMod(modNome);
+                       const usado = countUsoMod(modNome);
+                       const isFull = usado >= limite;
+                       
+                       // Filtra as aulas na grade que são dessa modalidade
+                       const turmasDessaMod = aulasGrade.filter(a => a.modalidades?.nome === modNome);
+
+                       return (
+                         <div key={modNome} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
+                            <div className="bg-gray-50 border-b border-gray-100 p-4 flex justify-between items-center">
+                               <h3 className="font-black text-gray-800 text-lg">{modNome}</h3>
+                               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isFull ? 'bg-orange-100 text-iluminus-terracota' : 'bg-green-100 text-green-700'}`}>
+                                 Vagas: {usado} de {limite}
+                               </div>
+                            </div>
+                            
+                            <div className="p-4">
+                              {turmasDessaMod.length === 0 ? (
+                                <p className="text-xs text-gray-400 font-medium">Não há horários recorrentes cadastrados para {modNome} no sistema.</p>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {turmasDessaMod.map(aula => {
+                                    const isMatriculado = matriculasAluno.includes(aula.id);
+                                    
+                                    return (
+                                      <div key={aula.id} className={`p-4 rounded-2xl border-2 flex justify-between items-center transition-all ${isMatriculado ? 'border-green-200 bg-green-50/30' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                                         <div>
+                                            <p className="font-black text-gray-800">{aula.dia_semana}</p>
+                                            <p className="text-sm font-medium text-gray-500">{aula.horario.slice(0, 5)} - {aula.atividade}</p>
+                                         </div>
+                                         <button 
+                                           onClick={() => toggleMatriculaFixa(aula)}
+                                           className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isMatriculado ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
+                                           title={isMatriculado ? "Remover da turma" : "Matricular na turma"}
+                                         >
+                                           {isMatriculado ? <Trash2 size={18} /> : <Plus size={18} />}
+                                         </button>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                         </div>
+                       )
+                    })
+                 )}
+               </div>
+             )}
+          </div>
+        )}
       </div>
 
+      {/* MODAL DE SUCESSO (Criação de Aluno) */}
       <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); navigate('/alunos'); }} titulo="Cadastro Realizado!">
         <div className="space-y-4 pt-2">
            <div className="bg-green-50 p-4 rounded-2xl border border-green-100 text-center">

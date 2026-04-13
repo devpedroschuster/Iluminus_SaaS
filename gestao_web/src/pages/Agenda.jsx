@@ -830,7 +830,11 @@ export default function Agenda() {
           </select>
           <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.aula_id} onChange={e => setAgendamentoForm({...agendamentoForm, aula_id: e.target.value})}>
             <option value="">Selecione a aula da grade...</option>
-            {aulas.map(aula => <option key={aula.id} value={aula.id}>{aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'}</option>)}
+            {aulas.map(aula => (
+              <option key={aula.id} value={aula.id}>
+                {aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'} às {aula.horario?.slice(0, 5)}
+              </option>
+            ))}
           </select>
           <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
           <button disabled={savingAgendamento} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2">Confirmar Agendamento</button>

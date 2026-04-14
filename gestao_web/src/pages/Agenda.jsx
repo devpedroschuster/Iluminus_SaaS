@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Plus, Ban, Trash2, Edit2, RefreshCw, 
+  Plus, Ban, Trash2, Edit2, RefreshCw, UserPlus,
   Dumbbell, Music, UserCheck, Users, XCircle, ChevronLeft, ChevronRight, Palette
 } from 'lucide-react';
 
@@ -12,7 +12,7 @@ import { ptBR } from 'date-fns/locale';
 import { agendaService } from '../services/agendaService';
 import { useAgenda } from '../hooks/useAgenda';
 import { useAlunos } from '../hooks/useAlunos';
-import { supabase } from '../lib/supabase'; // Import para buscar as exceções
+import { supabase } from '../lib/supabase';
 
 import { DIAS_SEMANA } from '../lib/constants';
 import { showToast } from '../components/shared/Toast';
@@ -52,7 +52,9 @@ export default function Agenda() {
   };
 
   const [novaAula, setNovaAula] = useState(initialFormState);
-  const [agendamentoForm, setAgendamentoForm] = useState({ aluno_id: '', aula_id: '', data_aula: '' });
+  
+  const [agendamentoForm, setAgendamentoForm] = useState({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
+  
   const [novoFeriado, setNovoFeriado] = useState({ data: '', descricao: '' });
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -60,9 +62,9 @@ export default function Agenda() {
   
   const [atualizarPresencas, setAtualizarPresencas] = useState(0);
   
-  const [presencasCalendario, setPresencasCalendario] = useState([]); // Avulsos
-  const [matriculasFixas, setMatriculasFixas] = useState([]); // Agenda Fixa
-  const [excecoesCalendario, setExcecoesCalendario] = useState([]); // Faltas (NOVO)
+  const [presencasCalendario, setPresencasCalendario] = useState([]); 
+  const [matriculasFixas, setMatriculasFixas] = useState([]); 
+  const [excecoesCalendario, setExcecoesCalendario] = useState([]); 
 
   const [filtroProf, setFiltroProf] = useState('todos');
   const [filtroEspaco, setFiltroEspaco] = useState('todos'); 
@@ -74,7 +76,7 @@ export default function Agenda() {
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
-  const [listaPresenca, setListaPresenca] = useState([]); // Lista Unificada
+  const [listaPresenca, setListaPresenca] = useState([]); 
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
   
@@ -106,7 +108,6 @@ export default function Agenda() {
     carregarDadosIniciais();
   }, []);
 
-  // CARREGA AVULSOS E FALTAS DA TELA ATUAL
   useEffect(() => {
     let isMounted = true;
     async function carregarDadosDoMes() {
@@ -127,7 +128,6 @@ export default function Agenda() {
     return () => { isMounted = false; };
   }, [currentDate.getMonth(), currentDate.getFullYear(), atualizarPresencas]);
 
-  // A MÁGICA DA FASE 3: Busca a Lista Unificada para o Modal
   useEffect(() => {
     async function buscarLista() {
       if (modalLista.isOpen && aulaParaLista && dataLista) {
@@ -146,18 +146,18 @@ export default function Agenda() {
   const eventosCalendario = useMemo(() => {
     if (!aulas) return [];
 
-    // 1. Mapa de Presenças Avulsas (Por Data)
     const presencasMap = {};
     presencasCalendario.forEach(p => {
       const dataStr = p.data_checkin.split('T')[0];
       const key = `${p.aula_id}-${dataStr}`;
       if (!presencasMap[key]) presencasMap[key] = [];
-      if (p.alunos?.nome_completo) {
-        presencasMap[key].push(p.alunos.nome_completo);
+      
+      const nomeExibicao = p.nome_visitante || p.alunos?.nome_completo;
+      if (nomeExibicao) {
+        presencasMap[key].push(nomeExibicao);
       }
     });
 
-    // 2. Mapa de Alunos da Agenda Fixa
     const fixasMap = {};
     matriculasFixas.forEach(m => {
        if (!fixasMap[m.aula_id]) fixasMap[m.aula_id] = [];
@@ -165,13 +165,12 @@ export default function Agenda() {
            fixasMap[m.aula_id].push({ 
                id: m.alunos.id, 
                nome: m.alunos.nome_completo,
-               inicio: m.alunos.data_inicio_plano, // Traz a data de início
-               fim: m.alunos.data_fim_plano        // Traz a data de fim
+               inicio: m.alunos.data_inicio_plano, 
+               fim: m.alunos.data_fim_plano        
            });
        }
     });
 
-    // 3. Mapa de Faltas (Exceções)
     const excecoesMap = {};
     excecoesCalendario.forEach(e => {
         excecoesMap[`${e.aluno_id}-${e.aula_id}-${e.data_especifica}`] = true;
@@ -225,17 +224,11 @@ export default function Agenda() {
             
             const dataStr = format(inicio, 'yyyy-MM-dd');
             
-            // O CÉREBRO VISUAL: Tira da lista quem informou falta E quem está com plano vencido!
             const fixosPresentesHoje = todosFixosDaTurma
                 .filter(aluno => {
-                    // 1. O aluno avisou que vai faltar hoje?
                     if (excecoesMap[`${aluno.id}-${aula.id}-${dataStr}`]) return false;
-                    
-                    // 2. O plano do aluno é válido para a data de hoje?
-                    // Se não tiver data preenchida, deixamos aparecer por segurança.
                     if (aluno.inicio && dataStr < aluno.inicio) return false;
                     if (aluno.fim && dataStr > aluno.fim) return false;
-
                     return true;
                 })
                 .map(a => a.nome);
@@ -262,7 +255,12 @@ export default function Agenda() {
         fim.setHours(hora + 1, minuto, 0);
 
         const fixosPresentesHoje = todosFixosDaTurma
-                .filter(aluno => !excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`])
+                .filter(aluno => {
+                    if (excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`]) return false;
+                    if (aluno.inicio && aula.data_especifica < aluno.inicio) return false;
+                    if (aluno.fim && aula.data_especifica > aluno.fim) return false;
+                    return true;
+                })
                 .map(a => a.nome);
 
         const alunosAvulsos = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
@@ -341,18 +339,18 @@ export default function Agenda() {
 
   const CustomEventCard = ({ event }) => (
     <div className="h-full flex flex-col overflow-hidden relative pointer-events-none">
-      <div className="font-bold text-[11px] leading-tight mb-1 truncate">{event.title}</div>
+      <div className="font-bold text-[11px] leading-tight mb-1 shrink-0">{event.title}</div>
       {event.alunosAgendados && event.alunosAgendados.length > 0 && (
-        <div className="flex flex-col gap-[2px] mt-1">
-          {event.alunosAgendados.slice(0, 6).map((aluno, idx) => (
+        <div className="flex flex-col gap-[2px] mt-1 overflow-hidden">
+          {event.alunosAgendados.slice(0, 3).map((aluno, idx) => (
             <div key={idx} className="text-[9px] bg-white/50 px-1 rounded truncate flex items-center gap-1 font-medium">
               <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>
               {aluno.split(' ')[0]}
             </div>
           ))}
-          {event.alunosAgendados.length > 6 && (
-            <div className="text-[9px] bg-white/70 font-bold px-1 rounded text-center mt-[2px]">
-              + {event.alunosAgendados.length - 6}
+          {event.alunosAgendados.length > 3 && (
+            <div className="text-[9px] bg-white/70 font-bold px-1 rounded text-center mt-[2px] shrink-0">
+              + {event.alunosAgendados.length - 3} alunos
             </div>
           )}
         </div>
@@ -420,25 +418,23 @@ export default function Agenda() {
     setSavingAgendamento(true);
     try {
       await agendaService.agendarAulaAdmin(agendamentoForm);
-      showToast.success("Aluno avulso agendado com sucesso!");
-      setAgendamentoForm({ aluno_id: '', aula_id: '', data_aula: '' });
+      showToast.success("Agendamento realizado com sucesso!");
+      setAgendamentoForm({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
       modalAgendamento.fechar();
       setAtualizarPresencas(prev => prev + 1);
     } catch (err) {
-      showToast.error("Erro ao agendar avulso.");
+      showToast.error("Erro ao agendar: Verifique se o aluno já está na lista.");
     } finally {
       setSavingAgendamento(false);
     }
   }
 
-  // --- AÇÕES DA LISTA UNIFICADA (FASE 3) ---
-
   async function handleRemoverPresenca(idRelacao) {
-    if (!confirm(`Tem certeza que deseja remover este aluno avulso?`)) return;
+    if (!confirm(`Tem certeza que deseja remover este aluno?`)) return;
     setRemovendoId(idRelacao);
     try {
-      await agendaService.cancelarAgendamento(idRelacao); // Usa o id da presença
-      showToast.success("Aluno avulso removido!");
+      await agendaService.cancelarAgendamento(idRelacao); 
+      showToast.success("Aluno removido da lista!");
       setAtualizarPresencas(prev => prev + 1);
     } catch (err) {
       showToast.error("Erro ao remover: " + err.message);
@@ -505,8 +501,8 @@ export default function Agenda() {
           <button onClick={modalFeriados.abrir} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors">
             <Ban size={20} /> Bloqueios ({feriados.length})
           </button>
-          <button onClick={modalAgendamento.abrir} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:scale-[1.02] transition-all">
-            <UserCheck size={20} /> Agendar Aluno Avulso
+          <button onClick={() => { setAgendamentoForm({...agendamentoForm, aula_id: '', data_aula: ''}); modalAgendamento.abrir(); }} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:scale-[1.02] transition-all">
+            <UserCheck size={20} /> Agendar na Turma
           </button>
           <button onClick={() => { setNovaAula(initialFormState); modalNovaAula.abrir(); }} className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-200 flex items-center gap-2 hover:scale-[1.02] transition-all">
             <Plus size={20} /> Nova Aula
@@ -541,6 +537,15 @@ export default function Agenda() {
                 .rbc-timeslot-group { border-color: #f3f4f6; min-height: 60px; }
                 .rbc-time-content { border-top: 2px solid #f3f4f6; }
                 .rbc-time-gutter .rbc-timeslot-group { font-size: 11px; font-weight: bold; color: #9ca3af; }
+
+                @media (max-width: 768px) {
+                  .rbc-calendar { min-width: 600px; } 
+                  .style-calendar-wrapper { overflow-x: auto; padding-bottom: 20px; } 
+                  .rbc-time-header-content { font-size: 10px; }
+                  .rbc-event { padding: 1px 2px !important; }
+                  .rbc-toolbar { flex-direction: column; gap: 1rem; align-items: stretch !important; }
+                  .rbc-toolbar h2 { text-align: center; font-size: 1.1rem; }
+                }
              `}} />
             
             <Calendar
@@ -590,10 +595,25 @@ export default function Agenda() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 mt-4">
+              <button onClick={() => { 
+                    modalAcoesEvento.fechar();
+                    setAgendamentoForm({
+                        tipo: 'cadastrado',
+                        aluno_id: '',
+                        nome_visitante: '',
+                        aula_id: eventoSelecionado.dadosOriginais.id,
+                        data_aula: format(eventoSelecionado.start, 'yyyy-MM-dd')
+                    });
+                    modalAgendamento.abrir();
+              }} className="w-full bg-green-600 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-colors shadow-sm mb-2">
+                <UserPlus size={20} /> Agendar Aluno Neste Horário
+              </button>
+
               <button onClick={() => { modalAcoesEvento.fechar(); setAulaParaLista(eventoSelecionado.dadosOriginais); setDataLista(format(eventoSelecionado.start, 'yyyy-MM-dd')); setListaPresenca([]); modalLista.abrir(); }} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">
                 <Users size={20} /> Fazer Chamada / Lista de Alunos
               </button>
-              <div className="flex gap-3">
+              
+              <div className="flex gap-3 mt-2">
                 <button onClick={() => { 
                     modalAcoesEvento.fechar(); 
                     setNovaAula({ 
@@ -612,10 +632,10 @@ export default function Agenda() {
                     }); 
                     modalNovaAula.abrir(); 
                 }} className="flex-1 bg-gray-100 text-gray-700 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
-                  <Edit2 size={18} /> Editar
+                  <Edit2 size={18} /> Editar Grade
                 </button>
                 <button onClick={() => excluirAula(eventoSelecionado.dadosOriginais.id)} className="flex-1 bg-red-50 text-red-600 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100">
-                  <Trash2 size={18} /> Excluir
+                  <Trash2 size={18} /> Excluir Grade
                 </button>
               </div>
             </div>
@@ -623,14 +643,12 @@ export default function Agenda() {
         )})()}
       </Modal>
 
-      <Modal isOpen={modalNovaAula.isOpen} onClose={modalNovaAula.fechar} titulo={novaAula.id ? "Editar Atividade" : "Agendar Atividade"}>
+      <Modal isOpen={modalNovaAula.isOpen} onClose={modalNovaAula.fechar} titulo={novaAula.id ? "Editar Atividade" : "Criar Nova Grade"}>
         <form onSubmit={salvarAula} className="space-y-4 pt-2">
-            
             <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
                 <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: true, data_especifica: ''})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Aula Recorrente</button>
                 <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: false})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Evento Único</button>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <label className={`border-2 p-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${novaAula.espaco === 'funcional' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-100 text-gray-400'}`}>
                 <input type="radio" name="espaco" value="funcional" className="hidden" checked={novaAula.espaco === 'funcional'} onChange={() => setNovaAula({...novaAula, espaco: 'funcional'})} />
@@ -649,40 +667,20 @@ export default function Agenda() {
                     value={novaAula.modalidade_id || ''} 
                     onChange={e => {
                         const val = e.target.value;
-                        if (!val) {
-                            setNovaAula({...novaAula, modalidade_id: '', atividade: '', professor_id: ''});
-                            return;
-                        }
+                        if (!val) { setNovaAula({...novaAula, modalidade_id: '', atividade: '', professor_id: ''}); return; }
                         const modSelecionada = modalidades.find(m => m.id === val);
-                        setNovaAula({
-                            ...novaAula, 
-                            modalidade_id: modSelecionada.id, 
-                            atividade: modSelecionada.nome,
-                            professor_id: modSelecionada.professor_id || '' 
-                        });
+                        setNovaAula({ ...novaAula, modalidade_id: modSelecionada.id, atividade: modSelecionada.nome, professor_id: modSelecionada.professor_id || '' });
                     }}
                 >
                     <option value="">Selecione a Modalidade Base...</option>
                     {modalidades.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </select>
             ) : (
-                <input 
-                    placeholder="Nome do Evento Especial (Texto Livre)" 
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700" 
-                    required 
-                    value={novaAula.atividade} 
-                    onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} 
-                />
+                <input placeholder="Nome do Evento Especial (Texto Livre)" className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700" required value={novaAula.atividade} onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} />
             )}
             
             {novaAula.espaco === 'danca' && (
-              <input 
-                type="number" 
-                placeholder="Valor base por aluno (R$) - Opcional" 
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" 
-                value={novaAula.valor_por_aluno} 
-                onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} 
-              />
+              <input type="number" placeholder="Valor base por aluno (R$) - Opcional" className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" value={novaAula.valor_por_aluno} onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} />
             )}
 
             <div>
@@ -717,21 +715,14 @@ export default function Agenda() {
         </form>
       </Modal>
 
-      {/* A LISTA DE CHAMADA UNIFICADA */}
       <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Lista de Presença / Chamada">
         {aulaParaLista && (
           <div className="space-y-4 pt-2 min-h-[300px]">
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-2">
               <h4 className="font-black text-gray-800">{aulaParaLista.atividade}</h4>
-              <p className="text-xs text-gray-500 font-medium">Capacidade: {aulaParaLista.capacidade} vagas</p>
               <div className="mt-2">
                 <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Data da Aula</label>
-                <input 
-                  type="date" 
-                  className="w-full p-2 bg-white rounded-lg outline-none border border-gray-200 focus:border-blue-500 font-bold text-gray-700"
-                  value={dataLista} 
-                  onChange={e => setDataLista(e.target.value)} 
-                />
+                <input type="date" className="w-full p-2 bg-white rounded-lg outline-none border border-gray-200 focus:border-blue-500 font-bold text-gray-700" value={dataLista} onChange={e => setDataLista(e.target.value)} />
               </div>
             </div>
 
@@ -749,24 +740,20 @@ export default function Agenda() {
               ) : (
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                   {listaPresenca.map(aluno => (
-                    <li key={`${aluno.tipo}-${aluno.aluno_id}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${aluno.status === 'ausencia' ? 'bg-red-50/40 border-red-100 opacity-60' : 'bg-white border-gray-100 shadow-sm'}`}>
+                    <li key={`${aluno.tipo}-${aluno.aluno_id || aluno.nome}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${aluno.status === 'ausencia' ? 'bg-red-50/40 border-red-100 opacity-60' : 'bg-white border-gray-100 shadow-sm'}`}>
                       <div>
                           <span className={`font-bold text-sm ${aluno.status === 'ausencia' ? 'text-red-800 line-through' : 'text-gray-700'}`}>
                              {aluno.nome}
                           </span>
                           <div className="flex gap-2 mt-1">
-                             {aluno.tipo === 'fixo' ? (
-                                <span className="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Fixo</span>
-                             ) : (
-                                <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>
-                             )}
-                             {aluno.status === 'ausencia' && (
-                                <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta Informada</span>
-                             )}
+                             {aluno.tipo === 'fixo' && <span className="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Fixo</span>}
+                             {aluno.tipo === 'avulso' && <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>}
+                             {aluno.tipo === 'experimental' && <span className="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Experimental</span>}
+                             
+                             {aluno.status === 'ausencia' && <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta Informada</span>}
                           </div>
                       </div>
                       
-                      {/* BOTÕES DE AÇÃO: Falta (para Fixos) ou Remover (para Avulsos) */}
                       <div>
                           {aluno.tipo === 'fixo' ? (
                               aluno.status === 'ausencia' ? (
@@ -787,6 +774,44 @@ export default function Agenda() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal isOpen={modalAgendamento.isOpen} onClose={modalAgendamento.fechar} titulo="Agendamento de Aula">
+        <form onSubmit={handleAgendarAluno} className="space-y-4 pt-2">
+          
+          <div className="flex bg-gray-100 p-1 rounded-2xl mb-4">
+              <button type="button" onClick={() => setAgendamentoForm({...agendamentoForm, tipo: 'cadastrado'})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'cadastrado' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'}`}>Aluno da Casa</button>
+              <button type="button" onClick={() => setAgendamentoForm({...agendamentoForm, tipo: 'visitante'})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'visitante' ? 'bg-white shadow-sm text-orange-600' : 'text-gray-400'}`}>Aula Experimental</button>
+          </div>
+
+          <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.aula_id} onChange={e => setAgendamentoForm({...agendamentoForm, aula_id: e.target.value})}>
+            <option value="">Selecione a aula da grade...</option>
+            {aulas.map(aula => (
+              <option key={aula.id} value={aula.id}>
+                {aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'} às {aula.horario?.slice(0, 5)}
+              </option>
+            ))}
+          </select>
+
+          {agendamentoForm.tipo === 'cadastrado' ? (
+            <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors animate-in fade-in" value={agendamentoForm.aluno_id} onChange={e => setAgendamentoForm({...agendamentoForm, aluno_id: e.target.value})}>
+              <option value="">Selecione o aluno matriculado...</option>
+              {listaAlunos.map(a => <option key={a.id} value={a.id}>{a.nome_completo}</option>)}
+            </select>
+          ) : (
+            <input 
+              required type="text" placeholder="Nome Completo do Visitante" 
+              className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-orange-500 transition-colors animate-in fade-in" 
+              value={agendamentoForm.nome_visitante} onChange={e => setAgendamentoForm({...agendamentoForm, nome_visitante: e.target.value})} 
+            />
+          )}
+
+          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
+          
+          <button disabled={savingAgendamento} className={`w-full text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-colors ${agendamentoForm.tipo === 'cadastrado' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+            {savingAgendamento ? <RefreshCw className="animate-spin" size={20}/> : <UserCheck size={20}/>} Confirmar Vaga
+          </button>
+        </form>
       </Modal>
 
       <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
@@ -821,26 +846,6 @@ export default function Agenda() {
           </div>
         </div>
       </Modal>
-
-      <Modal isOpen={modalAgendamento.isOpen} onClose={modalAgendamento.fechar} titulo="Agendar Aluno Avulso">
-        <form onSubmit={handleAgendarAluno} className="space-y-4 pt-2">
-          <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.aluno_id} onChange={e => setAgendamentoForm({...agendamentoForm, aluno_id: e.target.value})}>
-            <option value="">Selecione o aluno...</option>
-            {listaAlunos.map(a => <option key={a.id} value={a.id}>{a.nome_completo}</option>)}
-          </select>
-          <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.aula_id} onChange={e => setAgendamentoForm({...agendamentoForm, aula_id: e.target.value})}>
-            <option value="">Selecione a aula da grade...</option>
-            {aulas.map(aula => (
-              <option key={aula.id} value={aula.id}>
-                {aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'} às {aula.horario?.slice(0, 5)}
-              </option>
-            ))}
-          </select>
-          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
-          <button disabled={savingAgendamento} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2">Confirmar Agendamento</button>
-        </form>
-      </Modal>
-
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Menu } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
@@ -38,14 +38,30 @@ const queryClient = new QueryClient({
   },
 });
 
-const LayoutComSidebar = ({ perfil }) => (
-  <div className="flex bg-[#FDF8F5] min-h-screen">
-    <Sidebar perfil={perfil} />
-    <div className="flex-1 overflow-y-auto max-h-screen">
-      <Outlet context={{ perfil }} />
+// LAYOUT HEADER MOBILE
+const LayoutComSidebar = ({ perfil }) => {
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  return (
+    <div className="flex h-screen bg-[#FDF8F5] overflow-hidden w-full">
+      <Sidebar perfil={perfil} menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
+      
+      <div className="flex-1 flex flex-col h-screen overflow-hidden w-full max-w-full">
+        {/* HEADER MOBILE */}
+        <div className="md:hidden flex items-center justify-between bg-white border-b border-orange-100 p-4 shrink-0 z-10 shadow-sm">
+           <h2 className="text-xl font-black text-iluminus-terracota tracking-tight">Iluminus</h2>
+           <button onClick={() => setMenuAberto(true)} className="p-2 text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+             <Menu size={24} />
+           </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto w-full">
+          <Outlet context={{ perfil }} />
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
   if (!sessao) return <Navigate to="/" replace />;

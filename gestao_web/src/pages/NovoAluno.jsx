@@ -42,8 +42,23 @@ export default function NovoAluno() {
 
   const roleAtual = watch('role');
   const planoSelecionado = watch('plano_id');
+  const dataInicioPlano = watch('data_inicio_plano');
+
   const planoSelecionadoObj = planos.find(p => p.id === Number(planoSelecionado));
   const isPlanoLivre = planoSelecionadoObj?.nome?.toLowerCase().includes('livre') || planoSelecionadoObj?.nome?.toLowerCase().includes('avulso');
+
+  useEffect(() => {
+    if (planoSelecionadoObj && dataInicioPlano) {
+      const duracaoMeses = planoSelecionadoObj.duracao_meses || 1;
+      const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
+      
+      const dataFim = new Date(dataInicio);
+      dataFim.setMonth(dataFim.getMonth() + duracaoMeses);
+      dataFim.setDate(dataFim.getDate() - 1);
+
+      setValue('data_fim_plano', dataFim.toISOString().split('T')[0], { shouldValidate: true });
+    }
+  }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
   useEffect(() => {
     async function carregarDados() {
@@ -168,7 +183,6 @@ export default function NovoAluno() {
         const limite = getCountMod(modNome);
         const usado = countUsoMod(modNome);
 
-        // SE O PLANO FOR LIVRE, ELE IGNORA ESSA TRAVA TOTALMENTE
         if (!isPlanoLivre && usado >= limite) {
             const ok = window.confirm(`ATENÇÃO: O plano do aluno permite apenas ${limite}x de ${modNome} por semana.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª aula?`);
             if (!ok) return;
@@ -258,30 +272,28 @@ export default function NovoAluno() {
   };
 
   const modalidadesUnicas = [...new Set(modalidadesSelecionadas)];
-  
-  // Se o plano for livre, a lista exibirá TODAS as modalidades da grade disponíveis para ele
   const listaModalidadesAgenda = isPlanoLivre ? modalidades : modalidadesUnicas;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <button onClick={() => navigate('/alunos')} className="flex items-center gap-2 text-gray-400 hover:text-iluminus-terracota font-bold mb-6 transition-colors">
         <ArrowLeft size={20} /> Voltar para lista
       </button>
 
-      <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 p-10">
-        <h1 className="text-3xl font-black text-gray-800 mb-6">
+      <div className="bg-white rounded-[24px] md:rounded-[40px] shadow-sm border border-gray-100 p-6 md:p-10 w-full">
+        <h1 className="text-2xl md:text-3xl font-black text-gray-800 mb-6">
           {alunoParaEditar ? "Perfil do Membro" : "Novo Cadastro"}
         </h1>
 
-        <div className="flex gap-6 border-b border-gray-100 mb-8">
-          <button onClick={() => setAbaAtiva('dados')} className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+        <div className="flex gap-6 border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar">
+          <button onClick={() => setAbaAtiva('dados')} className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 whitespace-nowrap ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             Dados Cadastrais
           </button>
           
           <button 
             onClick={() => setAbaAtiva('agenda')} 
             disabled={!alunoParaEditar} 
-            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
             title={!alunoParaEditar ? "Salve o aluno primeiro" : ""}
           >
             <CalendarDays size={18} /> Agenda Fixa (Turmas)
@@ -367,8 +379,8 @@ export default function NovoAluno() {
                     </div>
                     
                     <div className="relative animate-in fade-in">
-                      <label className="text-[10px] font-black text-gray-400 uppercase absolute -top-2 left-4 bg-white px-1">Fim do Contrato</label>
-                      <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-bold text-gray-600" />
+                      <label className="text-[10px] font-black text-orange-400 uppercase absolute -top-2 left-4 bg-white px-1 flex items-center gap-1">Fim (Calculado) <RefreshCw size={10}/></label>
+                      <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-orange-50 rounded-2xl border border-orange-100 focus:border-orange-300 outline-none font-bold text-orange-800" />
                     </div>
 
                     <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
@@ -417,8 +429,8 @@ export default function NovoAluno() {
 
         {abaAtiva === 'agenda' && (
           <div className="space-y-6 animate-in fade-in">
-             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 flex items-start gap-4">
-               <AlertTriangle className="text-orange-500 shrink-0 mt-1" size={24} />
+             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 flex flex-col md:flex-row items-start gap-4">
+               <AlertTriangle className="text-orange-500 shrink-0 mt-1 hidden md:block" size={24} />
                <div>
                   <h4 className="font-black text-orange-900">Gerenciamento de Turmas Regulares</h4>
                   <p className="text-sm text-orange-800 font-medium mt-1">
@@ -441,12 +453,11 @@ export default function NovoAluno() {
                        
                        const turmasDessaMod = aulasGrade.filter(a => a.modalidades?.nome === modNome);
 
-                       // Esconde a sessão se não tiver turmas criadas para essa modalidade
                        if (turmasDessaMod.length === 0) return null;
 
                        return (
                          <div key={modNome} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
-                            <div className="bg-gray-50 border-b border-gray-100 p-4 flex justify-between items-center">
+                            <div className="bg-gray-50 border-b border-gray-100 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                                <h3 className="font-black text-gray-800 text-lg">{modNome}</h3>
                                <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isPlanoLivre ? 'bg-blue-100 text-blue-700' : isFull ? 'bg-orange-100 text-iluminus-terracota' : 'bg-green-100 text-green-700'}`}>
                                  {isPlanoLivre ? `Matriculado em ${usado} (Ilimitado)` : `Vagas: ${usado} de ${limite}`}
@@ -454,7 +465,7 @@ export default function NovoAluno() {
                             </div>
                             
                             <div className="p-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                 {turmasDessaMod.map(aula => {
                                   const isMatriculado = matriculasAluno.includes(aula.id);
                                   return (
@@ -465,7 +476,7 @@ export default function NovoAluno() {
                                        </div>
                                        <button 
                                          onClick={() => toggleMatriculaFixa(aula)}
-                                         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isMatriculado ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
+                                         className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors ${isMatriculado ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
                                          title={isMatriculado ? "Remover da turma" : "Matricular na turma"}
                                        >
                                          {isMatriculado ? <Trash2 size={18} /> : <Plus size={18} />}
@@ -495,7 +506,7 @@ export default function NovoAluno() {
              <p className="text-xs font-black text-orange-400 uppercase mb-2">Instruções de Acesso</p>
              <p className="text-gray-600 text-sm mb-1">O membro deve acessar com:</p>
              {dadosCriados && (
-               <p className="font-bold text-gray-800">Senha: <span className="font-mono text-lg ml-2 bg-white px-2 rounded border border-orange-200">{SENHA_PADRAO}</span></p>
+               <p className="font-bold text-gray-800 break-all">Senha: <span className="font-mono text-lg ml-2 bg-white px-2 rounded border border-orange-200">{SENHA_PADRAO}</span></p>
              )}
              <p className="text-xs text-gray-400 mt-2">No primeiro login, o sistema pedirá para criar uma nova senha.</p>
            </div>

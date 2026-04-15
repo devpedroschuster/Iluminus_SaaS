@@ -38,7 +38,8 @@ export const modalidadeService = {
       professor_id: modalidade.professor_id || null,
       taxa_professor: Number(modalidade.taxa_professor) || 0,
       taxa_espaco: Number(modalidade.taxa_espaco) || 0,
-      taxa_direcao: Number(modalidade.taxa_direcao) || 0
+      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
+      capacidade_padrao: modalidade.capacidade_padrao
     };
 
     if (modalidade.id) {

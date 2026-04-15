@@ -13,9 +13,8 @@ export default function Modalidades() {
   const [creating, setCreating] = useState(false);      
   const [deletingId, setDeletingId] = useState(null);   
 
-  // ESTADO INICIAL AGORA COM AS 3 FATIAS
   const [novaModalidade, setNovaModalidade] = useState({ 
-    nome: '', professor_id: '', taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
+    nome: '', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
   });
 
   const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
@@ -27,7 +26,6 @@ export default function Modalidades() {
   const [dadosPerfil, setDadosPerfil] = useState({ horarios: [], alunos: [] });
   const [loadingPerfil, setLoadingPerfil] = useState(false);
 
-  // LÓGICA DE VALIDAÇÃO (A soma deve ser sempre 100)
   const totalTaxasNova = Number(novaModalidade.taxa_professor) + Number(novaModalidade.taxa_espaco) + Number(novaModalidade.taxa_direcao);
   const isNovaValida = totalTaxasNova === 100;
 
@@ -72,9 +70,13 @@ export default function Modalidades() {
     setCreating(true);    
 
     try {
-        await modalidadeService.salvar(novaModalidade);
+        const payload = {
+          ...novaModalidade,
+          capacidade_padrao: Number(novaModalidade.capacidade_padrao)
+        };
+        await modalidadeService.salvar(payload);
         showToast.success("Modalidade adicionada com sucesso!");
-        setNovaModalidade({ nome: '', professor_id: '', taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
+        setNovaModalidade({ nome: '', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
         fetchDados();
     } catch (err) {
         showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
@@ -104,6 +106,7 @@ export default function Modalidades() {
       id: mod.id,
       nome: mod.nome,
       professor_id: mod.professor_id || '',
+      capacidade_padrao: mod.capacidade_padrao || 15,
       taxa_professor: mod.taxa_professor || 0,
       taxa_espaco: mod.taxa_espaco || 0,
       taxa_direcao: mod.taxa_direcao || 0
@@ -117,7 +120,11 @@ export default function Modalidades() {
     setSavingEdit(true);
 
     try {
-      await modalidadeService.salvar(modalidadeEmEdicao);
+      const payload = {
+        ...modalidadeEmEdicao,
+        capacidade_padrao: Number(modalidadeEmEdicao.capacidade_padrao)
+      };
+      await modalidadeService.salvar(payload);
       showToast.success("Modalidade atualizada com sucesso!");
       setModalEdicaoAberto(false);
       if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
@@ -135,7 +142,7 @@ export default function Modalidades() {
     <div className="p-8 space-y-8 animate-in fade-in">
        <div>
           <h1 className="text-3xl font-black text-gray-800">Modalidades & Comissões</h1>
-          <p className="text-gray-500">Cadastre as atividades, defina o repasse de lucros e acompanhe as turmas.</p>
+          <p className="text-gray-500">Cadastre as atividades, limites de vagas e regras financeiras.</p>
        </div>
 
       {/* FORMULÁRIO DE NOVA MODALIDADE */}
@@ -143,8 +150,8 @@ export default function Modalidades() {
         <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
         
         <form onSubmit={handleCriarModalidade} className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-[2] w-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="w-full">
               <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome da Modalidade</label>
               <input 
                 required placeholder="Ex: Dança Criativa"
@@ -153,7 +160,7 @@ export default function Modalidades() {
               />
             </div>
             
-            <div className="flex-[2] w-full">
+            <div className="w-full">
               <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Responsável (Opcional)</label>
               <select 
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer transition-all"
@@ -166,9 +173,17 @@ export default function Modalidades() {
                 ))}
               </select>
             </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão (Capacidade)</label>
+              <input 
+                required type="number" min="1"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-all" 
+                value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
+              />
+            </div>
           </div>
 
-          {/* AS 3 FATIAS DA PIZZA */}
           <div className="bg-orange-50 border border-orange-100 p-6 rounded-3xl">
             <div className="flex justify-between items-end mb-4">
                <div>
@@ -190,7 +205,7 @@ export default function Modalidades() {
                 <input type="number" min="0" max="100" className="w-full p-3 bg-white rounded-xl outline-none font-black text-gray-800 text-center border-2 border-transparent focus:border-orange-400" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
               </div>
               <div>
-                <label className="text-[10px] font-black text-purple-600 uppercase block mb-1">Diretor (Gustavo)</label>
+                <label className="text-[10px] font-black text-purple-600 uppercase block mb-1">Diretor</label>
                 <input type="number" min="0" max="100" className="w-full p-3 bg-white rounded-xl outline-none font-black text-gray-800 text-center border-2 border-transparent focus:border-purple-400" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
               </div>
             </div>
@@ -220,9 +235,8 @@ export default function Modalidades() {
                </div>
                <div>
                  <h3 className="font-bold text-gray-800">{mod.nome}</h3>
-                 <p className="text-xs font-medium text-gray-400 flex items-center gap-1 mt-1">
-                   <UserCheck size={12} className={mod.professores ? "text-green-500" : "text-orange-400"}/>
-                   {mod.professores ? mod.professores.nome : 'Sem professor vinculado'}
+                 <p className="text-xs font-medium text-gray-400 flex items-center gap-2 mt-1">
+                   <span className="flex items-center gap-1"><Users size={12} className="text-blue-500"/> {mod.capacidade_padrao || 15} vagas</span>
                  </p>
                </div>
             </div>
@@ -239,7 +253,6 @@ export default function Modalidades() {
         ))}
       </div>
 
-      {/* SUPER PAINEL (RAIO-X DA MODALIDADE) */}
       <Modal isOpen={modalPerfilAberto} onClose={() => setModalPerfilAberto(false)} titulo="Raio-X da Turma">
         {modPerfil && (
           <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
@@ -248,8 +261,7 @@ export default function Modalidades() {
                 <div className="relative z-10">
                     <h2 className="text-2xl font-black text-white mb-1">{modPerfil.nome}</h2>
                     <p className="text-gray-300 flex items-center gap-2 text-sm font-medium">
-                        <UserCheck size={16} className={modPerfil.professores ? "text-green-400" : "text-gray-500"}/> 
-                        {modPerfil.professores ? modPerfil.professores.nome : "Nenhum professor fixo atribuído"}
+                        <Users size={16} className="text-blue-400"/> {modPerfil.capacidade_padrao || 15} vagas por aula
                     </p>
                 </div>
                 <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl backdrop-blur-sm transition-all" title="Editar Configurações">
@@ -264,8 +276,6 @@ export default function Modalidades() {
                 <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-gray-300" size={32} /></div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Alunos Matriculados */}
                     <div className="bg-gray-50 border border-gray-100 p-5 rounded-3xl">
                         <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4">
                             <Users size={18} className="text-blue-500"/> Alunos Ativos ({dadosPerfil.alunos.length})
@@ -285,9 +295,7 @@ export default function Modalidades() {
                         )}
                     </div>
 
-                    {/* COLUNA DIREITA: Agenda & Comissões */}
                     <div className="flex flex-col gap-4">
-                        
                         <div className="bg-white border border-gray-100 p-5 rounded-3xl shadow-sm flex-1">
                             <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4"><Clock size={18} className="text-purple-500"/> Horários na Grade</h4>
                             {dadosPerfil.horarios.length === 0 ? (
@@ -303,7 +311,6 @@ export default function Modalidades() {
                             )}
                         </div>
 
-                        {/* NOVO BOX DE REPASSE (Com as 3 taxas) */}
                         <div className="bg-orange-50 border border-orange-100 p-5 rounded-3xl shadow-sm">
                             <h4 className="font-bold text-orange-900 flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
                             <div className="flex gap-2">
@@ -321,7 +328,6 @@ export default function Modalidades() {
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             )}
@@ -329,12 +335,11 @@ export default function Modalidades() {
         )}
       </Modal>
 
-      {/* MODAL DE EDIÇÃO TRADICIONAL */}
       <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
         {modalidadeEmEdicao && (
           <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
-            <div className="flex gap-4">
-                <div className="flex-[2] w-full">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="w-full">
                 <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome</label>
                 <input 
                     required 
@@ -344,7 +349,7 @@ export default function Modalidades() {
                 />
                 </div>
                 
-                <div className="flex-[2] w-full">
+                <div className="w-full">
                 <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Fixo</label>
                 <select 
                     className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer"
@@ -356,6 +361,15 @@ export default function Modalidades() {
                     <option key={prof.id} value={prof.id}>{prof.nome}</option>
                     ))}
                 </select>
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão</label>
+                  <input 
+                    required type="number" min="1"
+                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-all" 
+                    value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
+                  />
                 </div>
             </div>
 

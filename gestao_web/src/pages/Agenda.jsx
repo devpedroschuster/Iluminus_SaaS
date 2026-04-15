@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, Ban, Trash2, Edit2, RefreshCw, UserPlus,
-  Dumbbell, Music, UserCheck, Users, XCircle, ChevronLeft, ChevronRight, Palette
+  Dumbbell, Music, UserCheck, Users, XCircle, ChevronLeft, ChevronRight, Palette, AlertCircle
 } from 'lucide-react';
 
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
@@ -55,6 +55,10 @@ export default function Agenda() {
   
   const [agendamentoForm, setAgendamentoForm] = useState({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
   
+  // ESTADOS DO FEEDBACK AO VIVO
+  const [infoVaga, setInfoVaga] = useState(null);
+  const [verificandoVaga, setVerificandoVaga] = useState(false);
+
   const [novoFeriado, setNovoFeriado] = useState({ data: '', descricao: '' });
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -142,6 +146,22 @@ export default function Agenda() {
     }
     buscarLista();
   }, [modalLista.isOpen, aulaParaLista, dataLista, atualizarPresencas]);
+
+  // EFEITO DO FEEDBACK AO VIVO NO MODAL
+  useEffect(() => {
+    async function checarDisponibilidadeLive() {
+      if (agendamentoForm.aula_id && agendamentoForm.data_aula) {
+        setVerificandoVaga(true);
+        const alunoIdParaChecar = agendamentoForm.tipo === 'cadastrado' ? agendamentoForm.aluno_id : null;
+        const info = await agendaService.verificarDisponibilidade(agendamentoForm.aula_id, agendamentoForm.data_aula, alunoIdParaChecar);
+        setInfoVaga(info);
+        setVerificandoVaga(false);
+      } else {
+        setInfoVaga(null);
+      }
+    }
+    checarDisponibilidadeLive();
+  }, [agendamentoForm.aula_id, agendamentoForm.data_aula, agendamentoForm.aluno_id, agendamentoForm.tipo]);
 
   const eventosCalendario = useMemo(() => {
     if (!aulas) return [];
@@ -412,18 +432,32 @@ export default function Agenda() {
     }
   }
 
-  async function handleAgendarAluno(e) {
-    e.preventDefault();
+  async function handleAgendarAluno(e, ignorarAvisos = false) {
+    if (e) e.preventDefault();
     if (savingAgendamento) return;
     setSavingAgendamento(true);
+    
     try {
-      await agendaService.agendarAulaAdmin(agendamentoForm);
+      await agendaService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
+      
       showToast.success("Agendamento realizado com sucesso!");
       setAgendamentoForm({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
       modalAgendamento.fechar();
       setAtualizarPresencas(prev => prev + 1);
+      
     } catch (err) {
-      showToast.error("Erro ao agendar: Verifique se o aluno já está na lista.");
+      const msgErro = err.message || "";
+      
+      if (msgErro.includes("lotada") || msgErro.includes("limite do plano")) {
+         const desejaForcar = window.confirm(`⚠️ AVISO DO SISTEMA:\n\n${msgErro}`);
+         
+         if (desejaForcar) {
+            setSavingAgendamento(false);
+            return handleAgendarAluno(null, true); 
+         }
+      } else {
+         showToast.error("Erro ao agendar: " + msgErro);
+      }
     } finally {
       setSavingAgendamento(false);
     }
@@ -793,6 +827,8 @@ export default function Agenda() {
             ))}
           </select>
 
+          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
+
           {agendamentoForm.tipo === 'cadastrado' ? (
             <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors animate-in fade-in" value={agendamentoForm.aluno_id} onChange={e => setAgendamentoForm({...agendamentoForm, aluno_id: e.target.value})}>
               <option value="">Selecione o aluno matriculado...</option>
@@ -806,7 +842,32 @@ export default function Agenda() {
             />
           )}
 
-          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
+          {/* SESSÃO DO FEEDBACK AO VIVO */}
+          <div className="min-h-[60px] animate-in fade-in">
+             {verificandoVaga ? (
+                <div className="flex items-center justify-center p-3 text-gray-400 text-xs font-bold gap-2"><RefreshCw size={14} className="animate-spin"/> Verificando créditos e vagas...</div>
+             ) : infoVaga && (
+                <div className="flex flex-col md:flex-row gap-2">
+                   <div className={`flex-1 p-3 rounded-xl border font-bold text-xs flex items-center justify-between ${infoVaga.ocupacaoAtual >= infoVaga.capacidadeMax ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                      <span>Lotação da Turma</span>
+                      <span className="bg-white/50 px-2 py-1 rounded-md">{infoVaga.ocupacaoAtual} de {infoVaga.capacidadeMax}</span>
+                   </div>
+                   
+                   {agendamentoForm.tipo === 'cadastrado' && agendamentoForm.aluno_id && (
+                     <div className={`flex-1 p-3 rounded-xl border font-bold text-xs flex flex-col justify-center ${infoVaga.usoSemanal >= infoVaga.limiteSemanal && !infoVaga.isLivre ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                        <div className="flex justify-between items-center">
+                           <span>Uso na Semana ({infoVaga.modNome})</span>
+                           {infoVaga.isLivre ? (
+                              <span className="bg-white/50 px-2 py-1 rounded-md text-[10px] uppercase">Livre</span>
+                           ) : (
+                              <span className="bg-white/50 px-2 py-1 rounded-md">{infoVaga.usoSemanal} de {infoVaga.limiteSemanal}</span>
+                           )}
+                        </div>
+                     </div>
+                   )}
+                </div>
+             )}
+          </div>
           
           <button disabled={savingAgendamento} className={`w-full text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-colors ${agendamentoForm.tipo === 'cadastrado' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
             {savingAgendamento ? <RefreshCw className="animate-spin" size={20}/> : <UserCheck size={20}/>} Confirmar Vaga

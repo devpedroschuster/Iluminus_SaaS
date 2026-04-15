@@ -85,13 +85,111 @@ export const agendaService = {
     return true;
   },
 
+  async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
+    try {
+      const { data: aula } = await supabase
+        .from('agenda')
+        .select('capacidade, modalidades(nome, capacidade_padrao)')
+        .eq('id', aulaId)
+        .single();
+        
+      if (!aula) throw new Error("Aula não encontrada no banco.");
+
+      const capacidadeMax = aula.modalidades?.capacidade_padrao || aula.capacidade || 15;
+      const inicioDia = `${dataAula}T00:00:00`;
+      const fimDia = `${dataAula}T23:59:59`;
+
+      const [ { count: qtdAvulsos }, { data: fixos }, { data: excecoes } ] = await Promise.all([
+        supabase.from('presencas').select('id', { count: 'exact' }).eq('aula_id', aulaId).gte('data_checkin', inicioDia).lte('data_checkin', fimDia),
+        supabase.from('agenda_fixa').select('aluno_id').eq('aula_id', aulaId),
+        supabase.from('agenda_excecoes').select('aluno_id, tipo').eq('aula_id', aulaId).eq('data_especifica', dataAula)
+      ]);
+
+      const ausenciasMap = new Set(excecoes?.filter(e => e.tipo === 'ausencia').map(e => e.aluno_id) || []);
+      const qtdFixosAtivos = fixos?.filter(f => !ausenciasMap.has(f.aluno_id)).length || 0;
+
+      const ocupacaoAtual = (qtdAvulsos || 0) + qtdFixosAtivos;
+      let avisoLotacao = null;
+
+      if (ocupacaoAtual >= capacidadeMax) {
+        avisoLotacao = `Esta turma já está lotada! Capacidade máxima: ${capacidadeMax} vagas. Deseja forçar o agendamento mesmo assim?`;
+      }
+
+      let avisoLimitePlano = null;
+      let limiteSemanal = 0;
+      let usoSemanal = 0;
+      let isLivre = false;
+      const modNome = aula.modalidades?.nome || 'Atividade';
+
+      if (alunoId) {
+         const { data: aluno } = await supabase.from('alunos').select('modalidades_selecionadas, planos(nome)').eq('id', alunoId).single();
+         if (aluno && aluno.planos) {
+             isLivre = aluno.planos.nome.toLowerCase().includes('livre') || aluno.planos.nome.toLowerCase().includes('avulso');
+
+             if (!isLivre && aluno.modalidades_selecionadas) {
+                 if (modNome) {
+                     limiteSemanal = aluno.modalidades_selecionadas.filter(m => m === modNome).length;
+
+                     const dataBase = new Date(dataAula + 'T12:00:00');
+                     const diaSemana = dataBase.getDay();
+                     const diffInicio = dataBase.getDate() - diaSemana;
+                     const diffFim = diffInicio + 6;
+                     
+                     const dataInicioSemana = new Date(dataBase.setDate(diffInicio)).toISOString().split('T')[0];
+                     const dataFimSemana = new Date(dataBase.setDate(diffFim)).toISOString().split('T')[0];
+
+                     const { data: agendamentosNaSemana } = await supabase
+                        .from('presencas')
+                        .select('aula_id')
+                        .eq('aluno_id', alunoId)
+                        .gte('data_checkin', `${dataInicioSemana}T00:00:00`)
+                        .lte('data_checkin', `${dataFimSemana}T23:59:59`);
+                     
+                     const { data: fixasNaSemana } = await supabase
+                        .from('agenda_fixa')
+                        .select('aula_id')
+                        .eq('aluno_id', alunoId);
+
+                     usoSemanal = (agendamentosNaSemana?.length || 0) + (fixasNaSemana?.length || 0);
+
+                     if (usoSemanal >= limiteSemanal && limiteSemanal > 0) {
+                        avisoLimitePlano = `O aluno já atingiu ou ultrapassou o limite do plano para a modalidade ${modNome} (Limite: ${limiteSemanal}x na semana). Deseja agendar assim mesmo?`;
+                     }
+                 }
+             }
+         }
+      }
+
+      return {
+        podeAgendarLivremente: !avisoLotacao && !avisoLimitePlano,
+        avisoCritico: avisoLimitePlano || avisoLotacao,
+        capacidadeMax,
+        ocupacaoAtual,
+        limiteSemanal,
+        usoSemanal,
+        isLivre,
+        modNome
+      };
+
+    } catch (error) {
+      console.error("Erro ao verificar capacidade:", error);
+      return { podeAgendarLivremente: true, avisoCritico: null }; 
+    }
+  },
+
   async agendarAulaAdmin(dados) {
+    if (!dados.ignorarAvisos) {
+       const checagem = await this.verificarDisponibilidade(dados.aula_id, dados.data_aula, dados.aluno_id);
+       if (!checagem.podeAgendarLivremente) {
+          throw new Error(checagem.avisoCritico);
+       }
+    }
+
     const payload = {
       aula_id: dados.aula_id,
       data_checkin: `${dados.data_aula}T12:00:00`,
     };
 
-    // Separa se é aluno cadastrado ou visitante
     if (dados.tipo === 'visitante') {
       payload.nome_visitante = dados.nome_visitante;
       payload.aluno_id = null;
@@ -101,7 +199,12 @@ export const agendaService = {
     }
 
     const { error } = await supabase.from('presencas').insert([payload]);
-    if (error) throw error;
+    
+    if (error && error.code === '23505') {
+       throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
+    } else if (error) {
+       throw error;
+    }
   },
 
   async cancelarAgendamento(id) {
@@ -185,7 +288,7 @@ export const agendaService = {
     return true;
   },
 
-async listarMatriculasFixas() {
+  async listarMatriculasFixas() {
     const { data, error } = await supabase
       .from('agenda_fixa')
       .select(`

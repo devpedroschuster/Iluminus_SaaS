@@ -23,7 +23,7 @@ import Planos from './pages/Planos';
 import Modalidades from './pages/Modalidades';
 import Presenca from './pages/Presenca';
 import Comissoes from './pages/Comissoes';  
-
+import Aniversariantes from './pages/Aniversariantes';
 import Landing from './pages/Landing';
 import AreaAluno from './pages/AreaAluno';
 
@@ -203,6 +203,7 @@ export default function App() {
                 <Route path="/modalidades" element={<Modalidades />} />
                 <Route path="/presenca" element={<Presenca />} />
                 <Route path="/comissoes" element={<Comissoes />} />
+                <Route path="/aniversariantes" element={<Aniversariantes />} />
               </Route>
             </Route>
 

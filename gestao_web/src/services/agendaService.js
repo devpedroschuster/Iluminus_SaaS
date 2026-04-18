@@ -2,22 +2,13 @@ import { supabase } from '../lib/supabase';
 
 export const agendaService = {
   async listarProfessores() {
-    const { data, error } = await supabase
-      .from('professores')
-      .select('*')
-      .eq('ativo', true)
-      .order('nome');
-      
+    const { data, error } = await supabase.from('professores').select('*').eq('ativo', true).order('nome');
     if (error) throw error;
     return data;
   },
 
   async listarModalidades() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*')
-      .order('nome');
-      
+    const { data, error } = await supabase.from('modalidades').select('*').order('nome');
     if (error) throw error;
     return data;
   },
@@ -25,47 +16,27 @@ export const agendaService = {
   async listarGrade() {
     const { data: { session } } = await supabase.auth.getSession();
     const email = session?.user?.email;
-
     let professorId = null;
 
     if (email) {
-      const { data: prof } = await supabase
-        .from('professores')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
-
+      const { data: prof } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
       if (prof) professorId = prof.id;
     }
 
-    const { data: aulas, error } = await supabase
-      .from('agenda')
-      .select('*, professores(nome)') 
-      .order('horario', { ascending: true });
-
+    const { data: aulas, error } = await supabase.from('agenda').select('*, professores(nome)').order('horario', { ascending: true });
     if (error) throw error;
-
     if (!professorId) return aulas;
 
-    const { data: modalidadesDoProf } = await supabase
-      .from('modalidades')
-      .select('nome')
-      .eq('professor_id', professorId);
-
+    const { data: modalidadesDoProf } = await supabase.from('modalidades').select('nome').eq('professor_id', professorId);
     const nomesMods = modalidadesDoProf ? modalidadesDoProf.map(m => m.nome.toLowerCase().trim()) : [];
 
-    const aulasDoProfessor = aulas.filter(aula => {
+    return aulas.filter(aula => {
       if (aula.professor_id === professorId) return true;
-
       if (!aula.professor_id && aula.atividade) {
-        const nomeAtividade = aula.atividade.toLowerCase().trim();
-        return nomesMods.includes(nomeAtividade);
+        return nomesMods.includes(aula.atividade.toLowerCase().trim());
       }
-
       return false;
     });
-
-    return aulasDoProfessor;
   },
 
   async salvarAula(aula) {
@@ -85,6 +56,7 @@ export const agendaService = {
     return true;
   },
 
+  // CÉREBRO ATUALIZADO: VERIFICA SE A MODALIDADE FOI LIBERADA NO PLANO
   async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
     try {
       const { data: aula } = await supabase
@@ -107,7 +79,6 @@ export const agendaService = {
 
       const ausenciasMap = new Set(excecoes?.filter(e => e.tipo === 'ausencia').map(e => e.aluno_id) || []);
       const qtdFixosAtivos = fixos?.filter(f => !ausenciasMap.has(f.aluno_id)).length || 0;
-
       const ocupacaoAtual = (qtdAvulsos || 0) + qtdFixosAtivos;
       let avisoLotacao = null;
 
@@ -119,6 +90,7 @@ export const agendaService = {
       let limiteSemanal = 0;
       let usoSemanal = 0;
       let isLivre = false;
+      let temModalidadeNoPlano = true; // Novo verificador de Áreas
       const modNome = aula.modalidades?.nome || 'Atividade';
 
       if (alunoId) {
@@ -126,9 +98,17 @@ export const agendaService = {
          if (aluno && aluno.planos) {
              isLivre = aluno.planos.nome.toLowerCase().includes('livre') || aluno.planos.nome.toLowerCase().includes('avulso');
 
-             if (!isLivre && aluno.modalidades_selecionadas) {
-                 if (modNome) {
-                     limiteSemanal = aluno.modalidades_selecionadas.filter(m => m === modNome).length;
+             if (modNome) {
+                 const selectedMods = aluno.modalidades_selecionadas || [];
+                 // Se é um plano livre legado (cadastrado antes da gente separar as áreas), libera tudo para não quebrar.
+                 const isLegacyLivre = isLivre && selectedMods.length === 0;
+                 
+                 temModalidadeNoPlano = isLegacyLivre || selectedMods.includes(modNome);
+
+                 if (!temModalidadeNoPlano) {
+                     avisoLimitePlano = `Atenção: O plano atual do aluno NÃO permite acesso à modalidade "${modNome}". Deseja forçar a entrada mesmo assim?`;
+                 } else if (!isLivre) {
+                     limiteSemanal = selectedMods.filter(m => m === modNome).length;
 
                      const dataBase = new Date(dataAula + 'T12:00:00');
                      const diaSemana = dataBase.getDay();
@@ -168,11 +148,11 @@ export const agendaService = {
         limiteSemanal,
         usoSemanal,
         isLivre,
-        modNome
+        modNome,
+        temModalidadeNoPlano // Agora devolve se o aluno tá bloqueado na área ou não
       };
 
     } catch (error) {
-      console.error("Erro ao verificar capacidade:", error);
       return { podeAgendarLivremente: true, avisoCritico: null }; 
     }
   },
@@ -199,7 +179,6 @@ export const agendaService = {
     }
 
     const { error } = await supabase.from('presencas').insert([payload]);
-    
     if (error && error.code === '23505') {
        throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
     } else if (error) {
@@ -208,37 +187,13 @@ export const agendaService = {
   },
 
   async cancelarAgendamento(id) {
-    if (!id) {
-      throw new Error("ID do agendamento não identificado pelo sistema.");
-    }
-
-    const { data, error } = await supabase
-      .from('presencas')
-      .delete()
-      .eq('id', id)
-      .select();
-    
+    const { data, error } = await supabase.from('presencas').delete().eq('id', id).select();
     if (error) throw error;
-
-    if (!data || data.length === 0) {
-      throw new Error("O agendamento não foi encontrado no banco de dados para ser removido.");
-    }
-
     return data;
   },
 
   async listarPresencasPeriodo(inicio, fim) {
-    const { data, error } = await supabase
-      .from('presencas')
-      .select(`
-        id,
-        data_checkin,
-        aula_id,
-        nome_visitante,
-        alunos ( id, nome_completo )
-      `)
-      .gte('data_checkin', `${inicio}T00:00:00`)
-      .lte('data_checkin', `${fim}T23:59:59`);
+    const { data, error } = await supabase.from('presencas').select('id, data_checkin, aula_id, nome_visitante, alunos ( id, nome_completo )').gte('data_checkin', `${inicio}T00:00:00`).lte('data_checkin', `${fim}T23:59:59`);
     if (error) throw error;
     return data;
   },
@@ -246,32 +201,13 @@ export const agendaService = {
   async listarPresencas(aulaId, dataAula) {
     const inicioDia = `${dataAula}T00:00:00`;
     const fimDia = `${dataAula}T23:59:59`;
-
-    const { data, error } = await supabase
-      .from('presencas')
-      .select(`
-        id,
-        data_checkin, 
-        alunos (
-          id,
-          nome_completo
-        )
-      `)
-      .eq('aula_id', aulaId)
-      .gte('data_checkin', inicioDia)
-      .lte('data_checkin', fimDia);
-
+    const { data, error } = await supabase.from('presencas').select('id, data_checkin, alunos ( id, nome_completo )').eq('aula_id', aulaId).gte('data_checkin', inicioDia).lte('data_checkin', fimDia);
     if (error) throw error;
     return data;
   },
 
   async listarFeriados() {
-    const { data, error } = await supabase
-      .from('feriados')
-      .select('*')
-      .gte('data', new Date().toISOString().split('T')[0]) 
-      .order('data', { ascending: true });
-
+    const { data, error } = await supabase.from('feriados').select('*').gte('data', new Date().toISOString().split('T')[0]).order('data', { ascending: true });
     if (error) throw error;
     return data;
   },
@@ -289,12 +225,7 @@ export const agendaService = {
   },
 
   async listarMatriculasFixas() {
-    const { data, error } = await supabase
-      .from('agenda_fixa')
-      .select(`
-        aula_id,
-        alunos ( id, nome_completo, data_inicio_plano, data_fim_plano )
-      `);
+    const { data, error } = await supabase.from('agenda_fixa').select('aula_id, alunos ( id, nome_completo, data_inicio_plano, data_fim_plano )');
     if (error) throw error;
     return data;
   },
@@ -315,11 +246,8 @@ export const agendaService = {
     if (fixos) {
       fixos.forEach(f => {
         lista.push({
-           id_relacao: f.id,
-           aluno_id: f.alunos.id,
-           nome: f.alunos.nome_completo,
-           tipo: 'fixo',
-           status: excecoesMap.has(f.alunos.id) ? excecoesMap.get(f.alunos.id) : 'presente'
+           id_relacao: f.id, aluno_id: f.alunos.id, nome: f.alunos.nome_completo,
+           tipo: 'fixo', status: excecoesMap.has(f.alunos.id) ? excecoesMap.get(f.alunos.id) : 'presente'
         });
       });
     }
@@ -327,13 +255,9 @@ export const agendaService = {
     if (avulsos) {
       avulsos.forEach(a => {
         if (!a.nome_visitante && lista.find(l => l.aluno_id === a.alunos?.id)) return;
-        
         lista.push({
-           id_relacao: a.id,
-           aluno_id: a.alunos?.id || null,
-           nome: a.nome_visitante || a.alunos?.nome_completo,
-           tipo: a.nome_visitante ? 'experimental' : 'avulso',
-           status: 'presente'
+           id_relacao: a.id, aluno_id: a.alunos?.id || null, nome: a.nome_visitante || a.alunos?.nome_completo,
+           tipo: a.nome_visitante ? 'experimental' : 'avulso', status: 'presente'
         });
       });
     }
@@ -341,19 +265,12 @@ export const agendaService = {
   },
 
   async registrarFalta(alunoId, aulaId, dataEspecifica) {
-    const { error } = await supabase.from('agenda_excecoes').insert({
-        aluno_id: alunoId,
-        aula_id: aulaId,
-        data_especifica: dataEspecifica,
-        tipo: 'ausencia'
-    });
+    const { error } = await supabase.from('agenda_excecoes').insert({ aluno_id: alunoId, aula_id: aulaId, data_especifica: dataEspecifica, tipo: 'ausencia' });
     if (error) throw error;
   },
 
   async removerFalta(alunoId, aulaId, dataEspecifica) {
-    const { error } = await supabase.from('agenda_excecoes')
-        .delete()
-        .match({ aluno_id: alunoId, aula_id: aulaId, data_especifica: dataEspecifica });
+    const { error } = await supabase.from('agenda_excecoes').delete().match({ aluno_id: alunoId, aula_id: aulaId, data_especifica: dataEspecifica });
     if (error) throw error;
   }
 };

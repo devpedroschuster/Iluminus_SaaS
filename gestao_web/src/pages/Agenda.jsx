@@ -854,10 +854,15 @@ export default function Agenda() {
                    </div>
                    
                    {agendamentoForm.tipo === 'cadastrado' && agendamentoForm.aluno_id && (
-                     <div className={`flex-1 p-3 rounded-xl border font-bold text-xs flex flex-col justify-center ${infoVaga.usoSemanal >= infoVaga.limiteSemanal && !infoVaga.isLivre ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                     <div className={`flex-1 p-3 rounded-xl border font-bold text-xs flex flex-col justify-center ${
+                        infoVaga.temModalidadeNoPlano === false ? 'bg-red-50 text-red-700 border-red-200' :
+                        (infoVaga.usoSemanal >= infoVaga.limiteSemanal && !infoVaga.isLivre ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200')
+                     }`}>
                         <div className="flex justify-between items-center">
                            <span>Uso na Semana ({infoVaga.modNome})</span>
-                           {infoVaga.isLivre ? (
+                           {infoVaga.temModalidadeNoPlano === false ? (
+                              <span className="bg-white/50 px-2 py-1 rounded-md text-[10px] uppercase text-red-700">Bloqueado na Área</span>
+                           ) : infoVaga.isLivre ? (
                               <span className="bg-white/50 px-2 py-1 rounded-md text-[10px] uppercase">Livre</span>
                            ) : (
                               <span className="bg-white/50 px-2 py-1 rounded-md">{infoVaga.usoSemanal} de {infoVaga.limiteSemanal}</span>

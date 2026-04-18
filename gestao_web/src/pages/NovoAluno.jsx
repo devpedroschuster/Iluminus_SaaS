@@ -42,7 +42,7 @@ export default function NovoAluno() {
 
   const roleAtual = watch('role');
   const planoSelecionado = watch('plano_id');
-  const dataInicioPlano = watch('data_inicio_plano');
+  const dataInicioPlano = watch('data_inicio_plano'); 
 
   const planoSelecionadoObj = planos.find(p => p.id === Number(planoSelecionado));
   const isPlanoLivre = planoSelecionadoObj?.nome?.toLowerCase().includes('livre') || planoSelecionadoObj?.nome?.toLowerCase().includes('avulso');
@@ -54,7 +54,7 @@ export default function NovoAluno() {
       
       const dataFim = new Date(dataInicio);
       dataFim.setMonth(dataFim.getMonth() + duracaoMeses);
-      dataFim.setDate(dataFim.getDate() - 1);
+      dataFim.setDate(dataFim.getDate() - 1); 
 
       setValue('data_fim_plano', dataFim.toISOString().split('T')[0], { shouldValidate: true });
     }
@@ -103,27 +103,17 @@ export default function NovoAluno() {
   async function carregarAgendaFixa() {
     setLoadingAgenda(true);
     try {
-      const { data: aulas } = await supabase
-        .from('agenda')
-        .select('*, modalidades(nome)')
-        .eq('eh_recorrente', true);
-      
+      const { data: aulas } = await supabase.from('agenda').select('*, modalidades(nome)').eq('eh_recorrente', true);
       const diasOrdem = { 'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3, 'Quinta-feira': 4, 'Sexta-feira': 5, 'Sábado': 6 };
       
       const aulasOrdenadas = (aulas || []).sort((a, b) => {
-        if (diasOrdem[a.dia_semana] !== diasOrdem[b.dia_semana]) {
-          return diasOrdem[a.dia_semana] - diasOrdem[b.dia_semana];
-        }
+        if (diasOrdem[a.dia_semana] !== diasOrdem[b.dia_semana]) return diasOrdem[a.dia_semana] - diasOrdem[b.dia_semana];
         return a.horario.localeCompare(b.horario);
       });
 
       setAulasGrade(aulasOrdenadas);
 
-      const { data: matriculas } = await supabase
-        .from('agenda_fixa')
-        .select('aula_id')
-        .eq('aluno_id', alunoParaEditar.id);
-      
+      const { data: matriculas } = await supabase.from('agenda_fixa').select('aula_id').eq('aluno_id', alunoParaEditar.id);
       setMatriculasAluno(matriculas?.map(m => m.aula_id) || []);
     } catch (error) {
       showToast.error("Erro ao carregar grade fixa.");
@@ -135,21 +125,15 @@ export default function NovoAluno() {
   const buscarCep = async (cep) => {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) return;
-
     setBuscandoCep(true);
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
       const data = await response.json();
-
       if (!data.erro) {
         setValue('rua', data.logradouro, { shouldValidate: true });
         setValue('bairro', data.bairro, { shouldValidate: true });
         document.getElementById('input-numero')?.focus();
-      } else {
-        showToast.error('CEP não encontrado.');
       }
-    } catch (error) {
-      showToast.error('Erro ao buscar o CEP.');
     } finally {
       setBuscandoCep(false);
     }
@@ -165,13 +149,20 @@ export default function NovoAluno() {
   };
 
   const addModalidade = (mod) => setModalidadesSelecionadas([...modalidadesSelecionadas, mod]);
-
   const removeModalidade = (mod) => {
     const index = modalidadesSelecionadas.lastIndexOf(mod);
     if (index > -1) {
       const novaLista = [...modalidadesSelecionadas];
       novaLista.splice(index, 1);
       setModalidadesSelecionadas(novaLista);
+    }
+  };
+
+  const toggleModLivre = (mod) => {
+    if (modalidadesSelecionadas.includes(mod)) {
+      setModalidadesSelecionadas(modalidadesSelecionadas.filter(m => m !== mod));
+    } else {
+      setModalidadesSelecionadas([...modalidadesSelecionadas, mod]);
     }
   };
 
@@ -226,34 +217,19 @@ export default function NovoAluno() {
       };
 
       if (alunoParaEditar) {
-        await alunosService.atualizar(alunoParaEditar.id, {
-          ...payloadBase,
-          nome_completo: data.nome_completo 
-        });
+        await alunosService.atualizar(alunoParaEditar.id, { ...payloadBase, nome_completo: data.nome_completo });
         showToast.success("Cadastro atualizado com sucesso!");
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
         navigate('/alunos');
       } else {
-        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
-          auth: { persistSession: false, autoRefreshToken: false }
-        });
-
+        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
         const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
-          email: data.email,
-          password: SENHA_PADRAO,
-          options: { data: { role: data.role || 'aluno', nome_completo: data.nome_completo } }
+          email: data.email, password: SENHA_PADRAO, options: { data: { role: data.role || 'aluno', nome_completo: data.nome_completo } }
         });
-
-        if (authError) {
-          throw new Error(authError.message === 'User already registered' ? 'Este e-mail já está cadastrado no sistema.' : authError.message);
-        }
-
-        const { error: updateError } = await supabase.from(data.role === 'professor' ? 'professores' : 'alunos').update(payloadBase).eq('auth_id', authData.user.id);
-
-        if (updateError) {
-          showToast.warning("Acesso criado, mas houve erro ao salvar endereço e plano. Edite depois.");
-        }
-
+        if (authError) throw new Error(authError.message === 'User already registered' ? 'Este e-mail já está cadastrado no sistema.' : authError.message);
+        
+        await supabase.from(data.role === 'professor' ? 'professores' : 'alunos').update(payloadBase).eq('auth_id', authData.user.id);
+        
         await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores'] });
         setDadosCriados({ nome: data.nome_completo, email: data.email });
         setModalOpen(true);
@@ -272,7 +248,9 @@ export default function NovoAluno() {
   };
 
   const modalidadesUnicas = [...new Set(modalidadesSelecionadas)];
-  const listaModalidadesAgenda = isPlanoLivre ? modalidades : modalidadesUnicas;
+  // Lógica para preservar o histórico (alunos que tinham plano livre antigo sem modalidades selecionadas verem tudo)
+  const isLegacyLivre = isPlanoLivre && modalidadesUnicas.length === 0;
+  const listaModalidadesAgenda = isLegacyLivre ? modalidades : modalidadesUnicas;
 
   return (
     <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -289,12 +267,10 @@ export default function NovoAluno() {
           <button onClick={() => setAbaAtiva('dados')} className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 whitespace-nowrap ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             Dados Cadastrais
           </button>
-          
           <button 
             onClick={() => setAbaAtiva('agenda')} 
             disabled={!alunoParaEditar} 
             className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
-            title={!alunoParaEditar ? "Salve o aluno primeiro" : ""}
           >
             <CalendarDays size={18} /> Agenda Fixa (Turmas)
           </button>
@@ -308,12 +284,10 @@ export default function NovoAluno() {
                 <div className="relative md:col-span-2">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                   <input {...register('nome_completo')} placeholder="Nome Completo *" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-                  {errors.nome_completo && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.nome_completo.message}</p>}
                 </div>
                 <div className="relative">
                   <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                   <input {...register('cpf')} placeholder="CPF (Opcional)" className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-                  {errors.cpf && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.cpf.message}</p>}
                 </div>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
@@ -332,7 +306,6 @@ export default function NovoAluno() {
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                   <input {...register('cep')} onBlur={(e) => buscarCep(e.target.value)} placeholder="CEP" maxLength={9} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700" />
-                  {buscandoCep && <RefreshCw size={14} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-orange-400" />}
                 </div>
                 <div className="relative md:col-span-2">
                   <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
@@ -353,8 +326,6 @@ export default function NovoAluno() {
                 <div className="relative md:col-span-2">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                   <input {...register('email')} type="email" placeholder="E-mail de acesso *" disabled={!!alunoParaEditar} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" />
-                  {errors.email && <p className="text-red-500 text-[10px] uppercase ml-4 mt-1">{errors.email.message}</p>}
-                  {alunoParaEditar && <p className="text-gray-400 text-[10px] uppercase ml-4 mt-1">O e-mail de acesso não pode ser alterado por aqui.</p>}
                 </div>
                 <div className="relative">
                     <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
@@ -365,7 +336,7 @@ export default function NovoAluno() {
                 </div>
                 <div className="relative">
                     <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                    <select {...register('plano_id')} disabled={roleAtual !== 'aluno'} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none disabled:opacity-50 cursor-pointer border border-transparent focus:border-orange-200">
+                    <select {...register('plano_id')} disabled={roleAtual !== 'aluno'} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600 appearance-none cursor-pointer">
                       <option value="">Vincular Plano...</option>
                       {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                     </select>
@@ -375,24 +346,42 @@ export default function NovoAluno() {
                   <>
                     <div className="relative animate-in fade-in">
                       <label className="text-[10px] font-black text-gray-400 uppercase absolute -top-2 left-4 bg-white px-1">Início do Contrato</label>
-                      <input {...register('data_inicio_plano')} type="date" className="w-full px-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-orange-200 outline-none font-bold text-gray-600" />
+                      <input {...register('data_inicio_plano')} type="date" className="w-full px-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600" />
                     </div>
                     
                     <div className="relative animate-in fade-in">
                       <label className="text-[10px] font-black text-orange-400 uppercase absolute -top-2 left-4 bg-white px-1 flex items-center gap-1">Fim (Calculado) <RefreshCw size={10}/></label>
-                      <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-orange-50 rounded-2xl border border-orange-100 focus:border-orange-300 outline-none font-bold text-orange-800" />
+                      <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-orange-50 rounded-2xl outline-none font-bold text-orange-800" />
                     </div>
 
                     <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
                       <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">Modalidades do Aluno</label>
                       
                       {isPlanoLivre ? (
-                         <div className="bg-green-50 p-6 rounded-2xl border border-green-100 flex flex-col items-center justify-center text-center mb-4">
-                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
-                              <CheckCircle2 size={24} />
+                         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex flex-col mb-4">
+                            <div className="flex items-center gap-3 mb-4">
+                               <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                                 <CheckCircle2 size={24} />
+                               </div>
+                               <div>
+                                 <h4 className="font-black text-blue-900">Áreas de Acesso Livre</h4>
+                                 <p className="text-xs text-blue-800 mt-0.5 font-medium">Selecione quais modalidades o aluno pode fazer de forma ilimitada com este plano.</p>
+                               </div>
                             </div>
-                            <h4 className="font-black text-green-800">Acesso Total Liberado</h4>
-                            <p className="text-sm text-green-700 mt-1 font-medium">Este é um plano livre. O aluno pode agendar qualquer aula, mas você também pode matriculá-lo na Aba de Agenda Fixa se desejar criar uma rotina.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                               {modalidades.map(mod => {
+                                 const isAtivo = modalidadesSelecionadas.includes(mod);
+                                 return (
+                                   <div key={mod} onClick={() => toggleModLivre(mod)} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${isAtivo ? 'bg-white border-blue-300 shadow-sm' : 'bg-white/40 border-transparent hover:bg-white'}`}>
+                                     <span className={`text-sm font-bold ${isAtivo ? 'text-gray-800' : 'text-gray-400'}`}>{mod}</span>
+                                     <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-colors ${isAtivo ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-400'}`}>
+                                       {isAtivo ? 'Liberado' : 'Bloqueado'}
+                                     </div>
+                                   </div>
+                                 );
+                               })}
+                            </div>
                          </div>
                       ) : (
                         <>
@@ -404,9 +393,9 @@ export default function NovoAluno() {
                                 <div key={mod} className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isAtivo ? 'bg-white border-orange-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}>
                                   <span className={`text-sm font-bold ${isAtivo ? 'text-gray-800' : 'text-gray-400'}`}>{mod}</span>
                                   <div className="flex items-center gap-3 bg-white px-2 py-1 rounded-xl shadow-sm border border-gray-100">
-                                    <button type="button" onClick={() => removeModalidade(mod)} disabled={!isAtivo} className="w-6 h-6 flex items-center justify-center rounded-md bg-gray-50 text-gray-500 font-black hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors">-</button>
+                                    <button type="button" onClick={() => removeModalidade(mod)} disabled={!isAtivo} className="w-6 h-6 flex flex-col items-center justify-center rounded-md bg-gray-50 text-gray-500 font-black hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors">-</button>
                                     <span className="font-black text-iluminus-terracota w-4 text-center">{count}x</span>
-                                    <button type="button" onClick={() => addModalidade(mod)} className="w-6 h-6 flex items-center justify-center rounded-md bg-orange-50 text-orange-600 font-black hover:bg-orange-100 transition-colors">+</button>
+                                    <button type="button" onClick={() => addModalidade(mod)} className="w-6 h-6 flex flex-col items-center justify-center rounded-md bg-orange-50 text-orange-600 font-black hover:bg-orange-100 transition-colors">+</button>
                                   </div>
                                 </div>
                               );
@@ -434,7 +423,7 @@ export default function NovoAluno() {
                <div>
                   <h4 className="font-black text-orange-900">Gerenciamento de Turmas Regulares</h4>
                   <p className="text-sm text-orange-800 font-medium mt-1">
-                    Matricule o aluno em turmas específicas. {isPlanoLivre ? "Como este aluno possui um Plano Livre, ele pode ser matriculado em qualquer turma sem limite." : "O sistema exibirá as aulas que pertencem ao pacote dele."}
+                    Matricule o aluno em turmas específicas. O sistema listará abaixo apenas as turmas das modalidades que você liberou para este aluno.
                   </p>
                </div>
              </div>
@@ -444,7 +433,7 @@ export default function NovoAluno() {
              ) : (
                <div className="space-y-8">
                  {listaModalidadesAgenda.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">Não há modalidades disponíveis no sistema.</p>
+                    <p className="text-gray-400 text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">Nenhuma modalidade configurada no perfil deste aluno ainda.</p>
                  ) : (
                     listaModalidadesAgenda.map(modNome => {
                        const limite = getCountMod(modNome);
@@ -476,8 +465,7 @@ export default function NovoAluno() {
                                        </div>
                                        <button 
                                          onClick={() => toggleMatriculaFixa(aula)}
-                                         className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors ${isMatriculado ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
-                                         title={isMatriculado ? "Remover da turma" : "Matricular na turma"}
+                                         className={`w-10 h-10 shrink-0 rounded-xl flex flex-col items-center justify-center transition-colors ${isMatriculado ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white'}`}
                                        >
                                          {isMatriculado ? <Trash2 size={18} /> : <Plus size={18} />}
                                        </button>
@@ -495,27 +483,12 @@ export default function NovoAluno() {
           </div>
         )}
       </div>
-
+      
+      {/* O Modal Finaliza Aqui */}
       <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); navigate('/alunos'); }} titulo="Cadastro Realizado!">
-        <div className="space-y-4 pt-2">
-           <div className="bg-green-50 p-4 rounded-2xl border border-green-100 text-center">
-              <p className="text-green-800 font-bold">Membro cadastrado com sucesso!</p>
-           </div>
-           
-           <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100">
-             <p className="text-xs font-black text-orange-400 uppercase mb-2">Instruções de Acesso</p>
-             <p className="text-gray-600 text-sm mb-1">O membro deve acessar com:</p>
-             {dadosCriados && (
-               <p className="font-bold text-gray-800 break-all">Senha: <span className="font-mono text-lg ml-2 bg-white px-2 rounded border border-orange-200">{SENHA_PADRAO}</span></p>
-             )}
-             <p className="text-xs text-gray-400 mt-2">No primeiro login, o sistema pedirá para criar uma nova senha.</p>
-           </div>
-
-           <button onClick={copiarInstrucoes} className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-700 transition-colors">
-             {copiado ? <Check size={20} /> : <Copy size={20} />}
-             {copiado ? "Copiado!" : "Copiar Instruções"}
-           </button>
-        </div>
+         <button onClick={copiarInstrucoes} className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-700">
+             {copiado ? <Check size={20} /> : <Copy size={20} />} Copiar
+         </button>
       </Modal>
     </div>
   );

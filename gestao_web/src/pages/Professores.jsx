@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Edit2, ShieldAlert, RefreshCw, Mail, Phone, CreditCard, User } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 // Serviços
@@ -28,8 +27,6 @@ export default function Professores() {
   const modalForm = useModal();
   const modalStatus = useModal();
 
-  const SENHA_PADRAO = "Iluminus576";
-
   useEffect(() => {
     carregarProfessores();
   }, [buscaDebounced]);
@@ -46,12 +43,17 @@ export default function Professores() {
     }
   }
 
-  function prepararEdicao(prof) {
-    setFormProfessor({
-      id: prof.id,
-      nome: prof.nome,
-      email: prof.email || '',
-      telefone: prof.telefone || '',
+  function abrirModalCriar() {
+    setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
+    modalForm.abrir();
+  }
+
+  function abrirModalEditar(prof) {
+    setFormProfessor({ 
+      id: prof.id, 
+      nome: prof.nome, 
+      email: prof.email || '', 
+      telefone: prof.telefone || '', 
       pix_comissao: prof.pix_comissao || '',
       auth_id: prof.auth_id || null
     });
@@ -64,47 +66,37 @@ export default function Professores() {
     setSaving(true);
 
     try {
-      let auth_id = formProfessor.auth_id;
+      let isNovoAcesso = false;
+      let payloadProfessor = { ...formProfessor };
 
-      // LÓGICA DE CRIAÇÃO DE PERFIL DE ACESSO (AUTH)
-      // Se tem e-mail e ainda não tem um perfil de acesso criado
-      if (formProfessor.email && !auth_id) {
-        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
-          auth: { persistSession: false, autoRefreshToken: false }
+      if (payloadProfessor.email && !payloadProfessor.auth_id) {
+        
+        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+          body: { email: payloadProfessor.email, nome: payloadProfessor.nome, role: 'professor' }
         });
 
-        const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
-          email: formProfessor.email,
-          password: SENHA_PADRAO,
-          options: { 
-            data: { 
-              role: 'professor', 
-              nome_completo: formProfessor.nome 
-            } 
-          }
-        });
-
-        if (authError) {
-          if (authError.message === 'User already registered') {
-             // Se o usuário já existe no Auth mas não estava vinculado aqui, 
-             // em um sistema real buscaríamos o ID, mas por segurança vamos avisar.
-             throw new Error("Este e-mail já possui um acesso criado no sistema.");
-          }
-          throw authError;
+        if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
+        
+        if (funcData?.error) {
+           throw new Error(funcData.error === 'User already registered' 
+             ? 'Este e-mail já possui um acesso no sistema.' 
+             : funcData.error);
         }
 
-        auth_id = authData.user.id;
-        showToast.success("Perfil de acesso criado para o professor!");
+        payloadProfessor.auth_id = funcData.user.id;
+        isNovoAcesso = true;
       }
 
-      // Salva ou Atualiza no banco de dados
-      await professoresService.salvar({ ...formProfessor, auth_id });
+      await professoresService.salvar(payloadProfessor);
       
-      showToast.success(formProfessor.id ? "Dados atualizados!" : "Professor cadastrado!");
+      showToast.success(isNovoAcesso 
+        ? "Professor cadastrado e Acesso criado!" 
+        : "Professor atualizado com sucesso!");
+        
       modalForm.fechar();
       carregarProfessores();
     } catch (error) {
-      showToast.error(error.message || "Erro ao salvar professor.");
+       showToast.error(error.message || "Erro ao salvar dados.");
     } finally {
       setSaving(false);
     }
@@ -123,83 +115,96 @@ export default function Professores() {
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-800">Equipe de Professores</h1>
           <p className="text-gray-500">Gerencie os profissionais e seus acessos ao sistema.</p>
         </div>
         <button 
-          onClick={() => { setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null }); modalForm.abrir(); }}
+          onClick={abrirModalCriar}
           className="bg-purple-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-purple-100 hover:scale-[1.02] transition-all"
         >
           <UserPlus size={20} /> Novo Professor
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-4">
-        <Search className="text-gray-400 ml-2" size={20} />
-        <input 
-          type="text" 
-          placeholder="Buscar por nome..." 
-          className="flex-1 outline-none font-medium text-gray-600 bg-transparent"
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
-        />
+      <div className="flex flex-wrap gap-4 bg-white p-4 rounded-[28px] border border-gray-100 shadow-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+          <input 
+            type="text"
+            placeholder="Pesquisar por nome do professor..."
+            className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-2xl outline-none font-medium text-gray-600"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
           <TableSkeleton />
-        ) : professores.length === 0 ? (
-          <div className="col-span-full">
+        ) : professores.length > 0 ? (
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest">
+              <tr>
+                <th className="px-8 py-6">Professor</th>
+                <th className="px-8 py-6">Contato</th>
+                <th className="px-8 py-6">Chave PIX</th>
+                <th className="px-8 py-6">Status</th>
+                <th className="px-8 py-6 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {professores.map((prof) => (
+                <tr key={prof.id} className="group hover:bg-gray-50/50 transition-colors">
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-black text-purple-600">
+                        {prof.nome.charAt(0)}
+                      </div>
+                      <div>
+                         <p className="font-bold text-gray-800">{prof.nome}</p>
+                         {prof.auth_id && <span className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Com Acesso</span>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="text-xs font-bold text-gray-600 block">{prof.telefone || 'Sem telefone'}</span>
+                    <span className="text-[10px] font-medium text-gray-400">{prof.email || 'Sem e-mail'}</span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="text-xs font-black text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
+                      {prof.pix_comissao || 'Não cadastrada'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${prof.ativo ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${prof.ativo ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-[10px] font-black uppercase">{prof.ativo ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => abrirModalEditar(prof)} className="p-2 text-gray-300 hover:text-purple-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-purple-200">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-200">
+                        <ShieldAlert size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="p-20">
             <EmptyState titulo="Nenhum professor encontrado" mensagem="Comece cadastrando seu primeiro professor." />
           </div>
-        ) : (
-          professores.map(prof => (
-            <div key={prof.id} className={`bg-white p-6 rounded-[32px] border transition-all hover:shadow-md group ${!prof.ativo ? 'opacity-60 grayscale' : 'border-gray-100'}`}>
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 font-black text-2xl">
-                  {prof.nome.charAt(0)}
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => prepararEdicao(prof)} className="p-3 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all">
-                    <Edit2 size={18} />
-                  </button>
-                  <button 
-                    onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }}
-                    className={`p-3 rounded-xl transition-all ${prof.ativo ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-red-500 bg-red-50'}`}
-                  >
-                    <ShieldAlert size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <h3 className="font-black text-xl text-gray-800 leading-tight">{prof.nome}</h3>
-                <p className="text-gray-400 text-sm font-medium flex items-center gap-2">
-                  <Mail size={14} className="text-purple-300"/> {prof.email || 'E-mail não cadastrado'}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-50 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Status</span>
-                  <span className={`text-xs font-bold ${prof.ativo ? 'text-green-500' : 'text-red-500'}`}>
-                    {prof.ativo ? '● Ativo no Sistema' : '● Desativado'}
-                  </span>
-                </div>
-                {prof.auth_id && (
-                  <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase">
-                    Com Acesso
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
         )}
       </div>
 
-      {/* Modal de Cadastro/Edição */}
       <Modal isOpen={modalForm.isOpen} onClose={modalForm.fechar} titulo={formProfessor.id ? "Editar Professor" : "Cadastrar Professor"}>
         <form onSubmit={handleSalvar} className="space-y-4 pt-4">
           <div className="space-y-2">
@@ -216,7 +221,7 @@ export default function Professores() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">E-mail (Criará o acesso automaticamente)</label>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">E-mail (Gera acesso automático)</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
               <input 
@@ -226,9 +231,6 @@ export default function Professores() {
                 onChange={e => setFormProfessor({...formProfessor, email: e.target.value})} 
               />
             </div>
-            {!formProfessor.auth_id && formProfessor.email && (
-              <p className="text-[10px] text-purple-500 font-bold px-2 italic">* Ao salvar, uma conta será criada com a senha: {SENHA_PADRAO}</p>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -260,7 +262,7 @@ export default function Professores() {
 
           <button disabled={saving} className="w-full bg-purple-600 text-white py-5 rounded-[22px] font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2 mt-4">
             {saving ? <RefreshCw className="animate-spin" size={24}/> : null}
-            {saving ? "Processando..." : (formProfessor.id ? "Atualizar Cadastro" : "Concluir e Criar Acesso")}
+            {saving ? "Processando Seguro..." : (formProfessor.id ? "Atualizar Cadastro" : "Concluir e Criar Acesso")}
           </button>
         </form>
       </Modal>

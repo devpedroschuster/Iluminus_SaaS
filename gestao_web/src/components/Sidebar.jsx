@@ -52,7 +52,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
       <div className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-white h-screen border-r border-orange-100 p-6 flex flex-col transition-transform duration-300 ease-in-out ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
         <div className="flex justify-between items-center mb-10 px-2">
-          <h2 className="text-xl font-bold text-iluminus-terracota">Iluminus Admin</h2>
+          <h2 className="text-xl font-bold text-iluminus-terracota">Espaço Iluminus 🍀</h2>
           <button className="md:hidden text-gray-400 hover:text-gray-800 bg-gray-50 p-2 rounded-lg" onClick={() => setMenuAberto(false)}>
             <X size={20} />
           </button>

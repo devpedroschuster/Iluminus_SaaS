@@ -1,8 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, Ban, Trash2, Edit2, RefreshCw, UserPlus,
-  Dumbbell, Music, UserCheck, Users, XCircle, ChevronLeft, ChevronRight, Palette, AlertCircle
+  Dumbbell, Music, UserCheck, Users, XCircle, ChevronLeft, ChevronRight, Palette
 } from 'lucide-react';
+
+// IMPORTAÇÃO NOVA PARA PEGAR O PERFIL LOGADO
+import { useOutletContext } from 'react-router-dom';
 
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -45,6 +48,10 @@ const formatosCalendario = {
 };
 
 export default function Agenda() {
+  // AQUI PEGAMOS O PERFIL (admin ou professor)
+  const { perfil } = useOutletContext();
+  const isAdmin = perfil === 'admin';
+
   const initialFormState = { 
     id: null, atividade: '', modalidade_id: '', professor_id: '', dia_semana: 'Segunda-feira', 
     horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional',
@@ -55,10 +62,6 @@ export default function Agenda() {
   
   const [agendamentoForm, setAgendamentoForm] = useState({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
   
-  // ESTADOS DO FEEDBACK AO VIVO
-  const [infoVaga, setInfoVaga] = useState(null);
-  const [verificandoVaga, setVerificandoVaga] = useState(false);
-
   const [novoFeriado, setNovoFeriado] = useState({ data: '', descricao: '' });
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -76,6 +79,10 @@ export default function Agenda() {
   const [savingAula, setSavingAula] = useState(false);
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [savingFeriado, setSavingFeriado] = useState(false);
+  
+  // ESTADOS DO FEEDBACK AO VIVO
+  const [infoVaga, setInfoVaga] = useState(null);
+  const [verificandoVaga, setVerificandoVaga] = useState(false);
   
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
@@ -301,6 +308,12 @@ export default function Agenda() {
   }, [aulas, filtroProf, filtroEspaco, currentDate, currentView, presencasCalendario, matriculasFixas, excecoesCalendario]);
 
   function handleSelectSlot({ start }) {
+    // BLOQUEIO: Professores não podem criar novas turmas clicando na grade vazia
+    if (!isAdmin) {
+      showToast.warning("Apenas a gestão pode criar novas turmas na grade.");
+      return;
+    }
+
     const diaSemanaTexto = format(start, 'eeee', { locale: ptBR });
     const diaCapitalizado = diaSemanaTexto.charAt(0).toUpperCase() + diaSemanaTexto.slice(1);
     setNovaAula({ 
@@ -532,15 +545,23 @@ export default function Agenda() {
           <p className="text-gray-500">Visualize e organize a agenda do estúdio.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button onClick={modalFeriados.abrir} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors">
-            <Ban size={20} /> Bloqueios ({feriados.length})
-          </button>
+          
+          {/* BOTÕES ESCONDIDOS SE NÃO FOR ADMIN */}
+          {isAdmin && (
+            <button onClick={modalFeriados.abrir} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors">
+              <Ban size={20} /> Bloqueios ({feriados.length})
+            </button>
+          )}
+          
           <button onClick={() => { setAgendamentoForm({...agendamentoForm, aula_id: '', data_aula: ''}); modalAgendamento.abrir(); }} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:scale-[1.02] transition-all">
-            <UserCheck size={20} /> Agendar na Turma
+            <UserCheck size={20} /> {isAdmin ? "Agendar na Turma" : "Agendar Aluno"}
           </button>
-          <button onClick={() => { setNovaAula(initialFormState); modalNovaAula.abrir(); }} className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-200 flex items-center gap-2 hover:scale-[1.02] transition-all">
-            <Plus size={20} /> Nova Aula
-          </button>
+          
+          {isAdmin && (
+            <button onClick={() => { setNovaAula(initialFormState); modalNovaAula.abrir(); }} className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-200 flex items-center gap-2 hover:scale-[1.02] transition-all">
+              <Plus size={20} /> Nova Aula
+            </button>
+          )}
         </div>
       </div>
 
@@ -551,13 +572,16 @@ export default function Agenda() {
           <button onClick={() => setFiltroEspaco('danca')} className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${filtroEspaco === 'danca' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-purple-500'}`}><Music size={16} /> Dança</button>
         </div>
 
-        <div className="flex items-center gap-2 pr-4 w-full md:w-auto">
-          <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap px-2">Professor:</span>
-          <select className="bg-gray-50 px-4 py-2 rounded-xl font-bold text-sm outline-none cursor-pointer w-full" value={filtroProf} onChange={e => setFiltroProf(e.target.value)}>
-            <option value="todos">Todos</option>
-            {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-          </select>
-        </div>
+        {/* O PROFESSOR NÃO PRECISA FILTRAR POR PROFESSOR POIS ELE SÓ VÊ O DELE */}
+        {isAdmin && (
+          <div className="flex items-center gap-2 pr-4 w-full md:w-auto">
+            <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap px-2">Professor:</span>
+            <select className="bg-gray-50 px-4 py-2 rounded-xl font-bold text-sm outline-none cursor-pointer w-full" value={filtroProf} onChange={e => setFiltroProf(e.target.value)}>
+              <option value="todos">Todos</option>
+              {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm" style={{ height: '750px' }}>
@@ -647,107 +671,112 @@ export default function Agenda() {
                 <Users size={20} /> Fazer Chamada / Lista de Alunos
               </button>
               
-              <div className="flex gap-3 mt-2">
-                <button onClick={() => { 
-                    modalAcoesEvento.fechar(); 
-                    setNovaAula({ 
-                        id: eventoSelecionado.dadosOriginais.id, 
-                        atividade: eventoSelecionado.dadosOriginais.atividade, 
-                        modalidade_id: eventoSelecionado.dadosOriginais.modalidade_id || '',
-                        professor_id: eventoSelecionado.dadosOriginais.professor_id, 
-                        dia_semana: eventoSelecionado.dadosOriginais.dia_semana || 'Segunda-feira', 
-                        horario: eventoSelecionado.dadosOriginais.horario, 
-                        capacidade: eventoSelecionado.dadosOriginais.capacidade, 
-                        eh_recorrente: eventoSelecionado.dadosOriginais.eh_recorrente, 
-                        data_especifica: eventoSelecionado.dadosOriginais.data_especifica || '', 
-                        espaco: eventoSelecionado.dadosOriginais.espaco || 'funcional', 
-                        cor: eventoSelecionado.dadosOriginais.cor || 'laranja', 
-                        valor_por_aluno: eventoSelecionado.dadosOriginais.valor_por_aluno || '' 
-                    }); 
-                    modalNovaAula.abrir(); 
-                }} className="flex-1 bg-gray-100 text-gray-700 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
-                  <Edit2 size={18} /> Editar Grade
-                </button>
-                <button onClick={() => excluirAula(eventoSelecionado.dadosOriginais.id)} className="flex-1 bg-red-50 text-red-600 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100">
-                  <Trash2 size={18} /> Excluir Grade
-                </button>
-              </div>
+              {/* EDIÇÃO E EXCLUSÃO SÓ APARECEM PARA ADMIN */}
+              {isAdmin && (
+                <div className="flex gap-3 mt-2">
+                  <button onClick={() => { 
+                      modalAcoesEvento.fechar(); 
+                      setNovaAula({ 
+                          id: eventoSelecionado.dadosOriginais.id, 
+                          atividade: eventoSelecionado.dadosOriginais.atividade, 
+                          modalidade_id: eventoSelecionado.dadosOriginais.modalidade_id || '',
+                          professor_id: eventoSelecionado.dadosOriginais.professor_id, 
+                          dia_semana: eventoSelecionado.dadosOriginais.dia_semana || 'Segunda-feira', 
+                          horario: eventoSelecionado.dadosOriginais.horario, 
+                          capacidade: eventoSelecionado.dadosOriginais.capacidade, 
+                          eh_recorrente: eventoSelecionado.dadosOriginais.eh_recorrente, 
+                          data_especifica: eventoSelecionado.dadosOriginais.data_especifica || '', 
+                          espaco: eventoSelecionado.dadosOriginais.espaco || 'funcional', 
+                          cor: eventoSelecionado.dadosOriginais.cor || 'laranja', 
+                          valor_por_aluno: eventoSelecionado.dadosOriginais.valor_por_aluno || '' 
+                      }); 
+                      modalNovaAula.abrir(); 
+                  }} className="flex-1 bg-gray-100 text-gray-700 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                    <Edit2 size={18} /> Editar Grade
+                  </button>
+                  <button onClick={() => excluirAula(eventoSelecionado.dadosOriginais.id)} className="flex-1 bg-red-50 text-red-600 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100">
+                    <Trash2 size={18} /> Excluir Grade
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )})()}
       </Modal>
 
-      <Modal isOpen={modalNovaAula.isOpen} onClose={modalNovaAula.fechar} titulo={novaAula.id ? "Editar Atividade" : "Criar Nova Grade"}>
-        <form onSubmit={salvarAula} className="space-y-4 pt-2">
-            <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
-                <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: true, data_especifica: ''})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Aula Recorrente</button>
-                <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: false})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Evento Único</button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <label className={`border-2 p-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${novaAula.espaco === 'funcional' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-100 text-gray-400'}`}>
-                <input type="radio" name="espaco" value="funcional" className="hidden" checked={novaAula.espaco === 'funcional'} onChange={() => setNovaAula({...novaAula, espaco: 'funcional'})} />
-                <Dumbbell size={18} /> <span className="font-bold text-xs uppercase">Funcional</span>
-              </label>
-              <label className={`border-2 p-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${novaAula.espaco === 'danca' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-gray-100 text-gray-400'}`}>
-                <input type="radio" name="espaco" value="danca" className="hidden" checked={novaAula.espaco === 'danca'} onChange={() => setNovaAula({...novaAula, espaco: 'danca'})} />
-                <Music size={18} /> <span className="font-bold text-xs uppercase">Dança</span>
-              </label>
-            </div>
-
-            {novaAula.eh_recorrente ? (
-                <select 
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 font-bold text-gray-700" 
-                    required 
-                    value={novaAula.modalidade_id || ''} 
-                    onChange={e => {
-                        const val = e.target.value;
-                        if (!val) { setNovaAula({...novaAula, modalidade_id: '', atividade: '', professor_id: ''}); return; }
-                        const modSelecionada = modalidades.find(m => m.id === val);
-                        setNovaAula({ ...novaAula, modalidade_id: modSelecionada.id, atividade: modSelecionada.nome, professor_id: modSelecionada.professor_id || '' });
-                    }}
-                >
-                    <option value="">Selecione a Modalidade Base...</option>
-                    {modalidades.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
-            ) : (
-                <input placeholder="Nome do Evento Especial (Texto Livre)" className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700" required value={novaAula.atividade} onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} />
-            )}
-            
-            {novaAula.espaco === 'danca' && (
-              <input type="number" placeholder="Valor base por aluno (R$) - Opcional" className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" value={novaAula.valor_por_aluno} onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} />
-            )}
-
-            <div>
-              <label className="text-xs font-black text-gray-400 uppercase flex items-center gap-2 mb-2"><Palette size={14}/> Cor no Calendário</label>
-              <div className="flex gap-2">
-                {PALETA_CORES.map(c => (
-                  <button type="button" key={c.id} onClick={() => setNovaAula({...novaAula, cor: c.id})} className={`w-10 h-10 rounded-full border-4 transition-all hover:scale-110 ${novaAula.cor === c.id ? 'scale-110 shadow-md' : 'border-transparent'}`} style={{ backgroundColor: c.bg, borderColor: novaAula.cor === c.id ? c.border : 'transparent' }} title={c.id} />
-                ))}
+      {isAdmin && (
+        <Modal isOpen={modalNovaAula.isOpen} onClose={modalNovaAula.fechar} titulo={novaAula.id ? "Editar Atividade" : "Criar Nova Grade"}>
+          <form onSubmit={salvarAula} className="space-y-4 pt-2">
+              <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
+                  <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: true, data_especifica: ''})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Aula Recorrente</button>
+                  <button type="button" onClick={() => setNovaAula({...novaAula, eh_recorrente: false})} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}>Evento Único</button>
               </div>
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className={`border-2 p-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${novaAula.espaco === 'funcional' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-100 text-gray-400'}`}>
+                  <input type="radio" name="espaco" value="funcional" className="hidden" checked={novaAula.espaco === 'funcional'} onChange={() => setNovaAula({...novaAula, espaco: 'funcional'})} />
+                  <Dumbbell size={18} /> <span className="font-bold text-xs uppercase">Funcional</span>
+                </label>
+                <label className={`border-2 p-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${novaAula.espaco === 'danca' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-gray-100 text-gray-400'}`}>
+                  <input type="radio" name="espaco" value="danca" className="hidden" checked={novaAula.espaco === 'danca'} onChange={() => setNovaAula({...novaAula, espaco: 'danca'})} />
+                  <Music size={18} /> <span className="font-bold text-xs uppercase">Dança</span>
+                </label>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                {novaAula.eh_recorrente ? (
-                    <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={novaAula.dia_semana} onChange={e => setNovaAula({...novaAula, dia_semana: e.target.value})}>
-                        {DIAS_SEMANA.map(d => <option key={d.valor} value={d.label}>{d.label}</option>)}
-                    </select>
-                ) : (
-                    <input type="date" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.data_especifica} onChange={e => setNovaAula({...novaAula, data_especifica: e.target.value})} />
-                )}
-                <input type="time" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.horario} onChange={e => setNovaAula({...novaAula, horario: e.target.value})} />
-            </div>
-            
-            <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
-                <option value="">Selecione o Professor</option>
-                {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
-            
-            <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
-                {savingAula ? <RefreshCw className="animate-spin" size={20}/> : null}
-                {savingAula ? "Salvando..." : (novaAula.id ? "Salvar Alterações" : "Salvar na Grade")}
-            </button>
-        </form>
-      </Modal>
+              {novaAula.eh_recorrente ? (
+                  <select 
+                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 font-bold text-gray-700" 
+                      required 
+                      value={novaAula.modalidade_id || ''} 
+                      onChange={e => {
+                          const val = e.target.value;
+                          if (!val) { setNovaAula({...novaAula, modalidade_id: '', atividade: '', professor_id: ''}); return; }
+                          const modSelecionada = modalidades.find(m => m.id === val);
+                          setNovaAula({ ...novaAula, modalidade_id: modSelecionada.id, atividade: modSelecionada.nome, professor_id: modSelecionada.professor_id || '' });
+                      }}
+                  >
+                      <option value="">Selecione a Modalidade Base...</option>
+                      {modalidades.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  </select>
+              ) : (
+                  <input placeholder="Nome do Evento Especial (Texto Livre)" className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700" required value={novaAula.atividade} onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} />
+              )}
+              
+              {novaAula.espaco === 'danca' && (
+                <input type="number" placeholder="Valor base por aluno (R$) - Opcional" className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" value={novaAula.valor_por_aluno} onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} />
+              )}
+
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase flex items-center gap-2 mb-2"><Palette size={14}/> Cor no Calendário</label>
+                <div className="flex gap-2">
+                  {PALETA_CORES.map(c => (
+                    <button type="button" key={c.id} onClick={() => setNovaAula({...novaAula, cor: c.id})} className={`w-10 h-10 rounded-full border-4 transition-all hover:scale-110 ${novaAula.cor === c.id ? 'scale-110 shadow-md' : 'border-transparent'}`} style={{ backgroundColor: c.bg, borderColor: novaAula.cor === c.id ? c.border : 'transparent' }} title={c.id} />
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                  {novaAula.eh_recorrente ? (
+                      <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={novaAula.dia_semana} onChange={e => setNovaAula({...novaAula, dia_semana: e.target.value})}>
+                          {DIAS_SEMANA.map(d => <option key={d.valor} value={d.label}>{d.label}</option>)}
+                      </select>
+                  ) : (
+                      <input type="date" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.data_especifica} onChange={e => setNovaAula({...novaAula, data_especifica: e.target.value})} />
+                  )}
+                  <input type="time" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.horario} onChange={e => setNovaAula({...novaAula, horario: e.target.value})} />
+              </div>
+              
+              <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
+                  <option value="">Selecione o Professor</option>
+                  {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+              
+              <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
+                  {savingAula ? <RefreshCw className="animate-spin" size={20}/> : null}
+                  {savingAula ? "Salvando..." : (novaAula.id ? "Salvar Alterações" : "Salvar na Grade")}
+              </button>
+          </form>
+        </Modal>
+      )}
 
       <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Lista de Presença / Chamada">
         {aulaParaLista && (
@@ -827,8 +856,6 @@ export default function Agenda() {
             ))}
           </select>
 
-          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
-
           {agendamentoForm.tipo === 'cadastrado' ? (
             <select required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors animate-in fade-in" value={agendamentoForm.aluno_id} onChange={e => setAgendamentoForm({...agendamentoForm, aluno_id: e.target.value})}>
               <option value="">Selecione o aluno matriculado...</option>
@@ -842,7 +869,8 @@ export default function Agenda() {
             />
           )}
 
-          {/* SESSÃO DO FEEDBACK AO VIVO */}
+          <input type="date" required className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 transition-colors" value={agendamentoForm.data_aula} onChange={e => setAgendamentoForm({...agendamentoForm, data_aula: e.target.value})} />
+          
           <div className="min-h-[60px] animate-in fade-in">
              {verificandoVaga ? (
                 <div className="flex items-center justify-center p-3 text-gray-400 text-xs font-bold gap-2"><RefreshCw size={14} className="animate-spin"/> Verificando créditos e vagas...</div>
@@ -873,45 +901,47 @@ export default function Agenda() {
                 </div>
              )}
           </div>
-          
+
           <button disabled={savingAgendamento} className={`w-full text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-colors ${agendamentoForm.tipo === 'cadastrado' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
             {savingAgendamento ? <RefreshCw className="animate-spin" size={20}/> : <UserCheck size={20}/>} Confirmar Vaga
           </button>
         </form>
       </Modal>
 
-      <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
-        <div className="space-y-6 pt-2">
-          <form onSubmit={salvarFeriado} className="flex gap-2">
-            <input type="date" required className="p-3 bg-gray-50 rounded-xl outline-none text-sm font-medium" value={novoFeriado.data} onChange={e => setNovoFeriado({...novoFeriado, data: e.target.value})} />
-            <input type="text" required placeholder="Motivo (ex: Feriado Nacional)" className="flex-1 p-3 bg-gray-50 rounded-xl outline-none text-sm" value={novoFeriado.descricao} onChange={e => setNovoFeriado({...novoFeriado, descricao: e.target.value})} />
-            <button disabled={savingFeriado} className="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-gray-700 transition-colors">
-              {savingFeriado ? <RefreshCw className="animate-spin" size={18} /> : <Plus size={18} />}
-            </button>
-          </form>
+      {isAdmin && (
+        <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
+          <div className="space-y-6 pt-2">
+            <form onSubmit={salvarFeriado} className="flex gap-2">
+              <input type="date" required className="p-3 bg-gray-50 rounded-xl outline-none text-sm font-medium" value={novoFeriado.data} onChange={e => setNovoFeriado({...novoFeriado, data: e.target.value})} />
+              <input type="text" required placeholder="Motivo (ex: Feriado Nacional)" className="flex-1 p-3 bg-gray-50 rounded-xl outline-none text-sm" value={novoFeriado.descricao} onChange={e => setNovoFeriado({...novoFeriado, descricao: e.target.value})} />
+              <button disabled={savingFeriado} className="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-gray-700 transition-colors">
+                {savingFeriado ? <RefreshCw className="animate-spin" size={18} /> : <Plus size={18} />}
+              </button>
+            </form>
 
-          <div>
-            <h4 className="font-bold text-sm text-gray-700 mb-3">Bloqueios Futuros</h4>
-            {feriados.length === 0 ? (
-              <p className="text-sm text-gray-400">Nenhum bloqueio cadastrado.</p>
-            ) : (
-              <ul className="space-y-2">
-                {feriados.map(f => (
-                  <li key={f.id} className="flex justify-between items-center p-3 bg-red-50 text-red-700 rounded-xl border border-red-100">
-                    <div>
-                      <span className="font-black text-sm block">{new Date(f.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                      <span className="text-xs">{f.descricao}</span>
-                    </div>
-                    <button onClick={() => deletarFeriado(f.id)} className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div>
+              <h4 className="font-bold text-sm text-gray-700 mb-3">Bloqueios Futuros</h4>
+              {feriados.length === 0 ? (
+                <p className="text-sm text-gray-400">Nenhum bloqueio cadastrado.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {feriados.map(f => (
+                    <li key={f.id} className="flex justify-between items-center p-3 bg-red-50 text-red-700 rounded-xl border border-red-100">
+                      <div>
+                        <span className="font-black text-sm block">{new Date(f.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                        <span className="text-xs">{f.descricao}</span>
+                      </div>
+                      <button onClick={() => deletarFeriado(f.id)} className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
+                        <Trash2 size={16} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

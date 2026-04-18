@@ -17,15 +17,13 @@ export const professoresService = {
   },
 
   async salvar(professor) {
-    const payload = { ...professor };
-
-    if (!payload.id) {
-      delete payload.id;
-    }
-
-    if (payload.email === '') payload.email = null;
-    if (payload.telefone === '') payload.telefone = null;
-    if (payload.pix_comissao === '') payload.pix_comissao = null;
+    const payload = { 
+      nome: professor.nome,
+      email: professor.email || null,
+      telefone: professor.telefone || null,
+      pix_comissao: professor.pix_comissao || null,
+      auth_id: professor.auth_id || null
+    };
 
     if (professor.id) {
       const { data, error } = await supabase
@@ -49,11 +47,12 @@ export const professoresService = {
     }
   },
 
-  async alterarStatus(id, ativo) {
+  async alternarStatus(id, novoStatus) {
     const { error } = await supabase
       .from('professores')
-      .update({ ativo })
+      .update({ ativo: novoStatus })
       .eq('id', id);
+    
     if (error) throw error;
     return true;
   }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Edit2, ShieldAlert, RefreshCw } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 // Serviços
@@ -18,7 +17,8 @@ export default function Professores() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   
-  const [formProfessor, setFormProfessor] = useState({ id: null, nome: '', email: '', telefone: '', pix_comissao: '' });
+  // Adicionamos o auth_id no estado
+  const [formProfessor, setFormProfessor] = useState({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
   const [profSelecionado, setProfSelecionado] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -43,7 +43,7 @@ export default function Professores() {
   }
 
   function abrirModalCriar() {
-    setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '' });
+    setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
     modalForm.abrir();
   }
 
@@ -53,7 +53,8 @@ export default function Professores() {
       nome: prof.nome, 
       email: prof.email || '', 
       telefone: prof.telefone || '', 
-      pix_comissao: prof.pix_comissao || '' 
+      pix_comissao: prof.pix_comissao || '',
+      auth_id: prof.auth_id || null
     });
     modalForm.abrir();
   }
@@ -65,48 +66,41 @@ export default function Professores() {
 
     try {
       let isNovoAcesso = false;
+      let payloadProfessor = { ...formProfessor };
 
-      if (!formProfessor.id && formProfessor.email) {
-        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, {
-          auth: { persistSession: false, autoRefreshToken: false }
+      // Se o professor tem e-mail digitado mas AINDA NÃO tem login (auth_id)
+      if (payloadProfessor.email && !payloadProfessor.auth_id) {
+        
+        // CHAMADA PARA O NOSSO BACKEND SEGURO (EDGE FUNCTION)
+        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+          body: { email: payloadProfessor.email, nome: payloadProfessor.nome, role: 'professor' }
         });
 
-        const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
-          email: formProfessor.email,
-          password: "Iluminus576",
-          options: { 
-            data: { 
-              role: 'aluno',
-              nome_completo: formProfessor.nome
-            } 
-          }
-        });
-
-        if (authError) {
-          throw new Error(authError.message === 'User already registered' 
-            ? 'Este e-mail já está cadastrado no sistema.' 
-            : authError.message);
+        if (funcError) {
+  console.error("ERRO DA EDGE FUNCTION:", funcError);
+  throw new Error("Falha na comunicação com o servidor seguro.");
+}
+        if (funcData?.error) {
+           throw new Error(funcData.error === 'User already registered' 
+             ? 'Este e-mail já possui um acesso no sistema.' 
+             : funcData.error);
         }
 
-        await supabase.from('alunos').delete().eq('email', formProfessor.email);
-        
+        // Pega o ID gerado pelo backend e atrela ao professor
+        payloadProfessor.auth_id = funcData.user.id;
         isNovoAcesso = true;
       }
 
-      await professoresService.salvar(formProfessor);
+      await professoresService.salvar(payloadProfessor);
       
       showToast.success(isNovoAcesso 
-        ? "Professor cadastrado! Senha padrão: Iluminus576" 
-        : "Professor atualizado!");
+        ? "Professor cadastrado e Acesso criado!" 
+        : "Professor atualizado com sucesso!");
         
       modalForm.fechar();
       carregarProfessores();
     } catch (error) {
-      if (error.message?.includes('unique') || error.message?.includes('cadastrado')) {
-        showToast.error("Já existe um professor com este e-mail.");
-      } else {
-        showToast.error("Erro ao salvar professor: " + error.message);
-      }
+       showToast.error(error.message || "Erro ao salvar dados.");
     } finally {
       setSaving(false);
     }
@@ -127,7 +121,6 @@ export default function Professores() {
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-800 tracking-tight">Professores</h1>
@@ -141,7 +134,6 @@ export default function Professores() {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="flex flex-wrap gap-4 bg-white p-4 rounded-[28px] border border-gray-100 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
@@ -155,7 +147,6 @@ export default function Professores() {
         </div>
       </div>
 
-      {/* Tabela */}
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -178,7 +169,10 @@ export default function Professores() {
                       <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-black text-purple-600">
                         {prof.nome.charAt(0)}
                       </div>
-                      <p className="font-bold text-gray-800">{prof.nome}</p>
+                      <div>
+                         <p className="font-bold text-gray-800">{prof.nome}</p>
+                         {prof.auth_id && <span className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Com Acesso</span>}
+                      </div>
                     </div>
                   </td>
                   <td className="px-8 py-6">
@@ -218,7 +212,6 @@ export default function Professores() {
         )}
       </div>
 
-      {/* Modal Formulário */}
       <Modal isOpen={modalForm.isOpen} onClose={modalForm.fechar} titulo={formProfessor.id ? "Editar Professor" : "Novo Professor"}>
         <form onSubmit={salvarProfessor} className="space-y-4 pt-2">
           <input 
@@ -231,7 +224,7 @@ export default function Professores() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input 
               type="email"
-              placeholder="E-mail (Opcional)" 
+              placeholder="E-mail (Gera acesso automático)" 
               className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-purple-100 transition-all" 
               value={formProfessor.email} 
               onChange={e => setFormProfessor({...formProfessor, email: e.target.value})} 
@@ -251,12 +244,11 @@ export default function Professores() {
           />
           <button disabled={saving} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2 mt-2">
             {saving ? <RefreshCw className="animate-spin" size={20}/> : null}
-            {saving ? "Salvando..." : "Salvar Dados"}
+            {saving ? "Processando Seguro..." : "Salvar Dados"}
           </button>
         </form>
       </Modal>
 
-      {/* Modal Status */}
       <ModalConfirmacao 
         isOpen={modalStatus.isOpen}
         onClose={modalStatus.fechar}

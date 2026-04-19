@@ -81,9 +81,8 @@ export const CONFIG_DATA = {
   DIA_VENCIMENTO_PADRAO: 10,
 };
 
-// Endpoints da API (se houver)
+// Endpoints da API
 export const API_ENDPOINTS = {
-  // No Vite, usamos import.meta.env em vez de process.env
   BASE_URL: import.meta.env.VITE_API_URL || '',
 };
 
@@ -115,6 +114,16 @@ export const ICONES_STATUS = {
 // Configurações de gráficos
 export const CORES_GRAFICOS = ['#D98E73', '#8A9A5B', '#F0E5DE', '#2D2D2D'];
 
+export const PALETA_CORES = [
+  { id: 'laranja', bg: '#ffedd5', text: '#c2410c', border: '#f97316' },
+  { id: 'roxo', bg: '#f3e8ff', text: '#7e22ce', border: '#a855f7' },
+  { id: 'verde', bg: '#dcfce7', text: '#15803d', border: '#22c55e' },
+  { id: 'azul', bg: '#dbeafe', text: '#1d4ed8', border: '#3b82f6' },
+  { id: 'rosa', bg: '#fce7f3', text: '#be185d', border: '#ec4899' },
+  { id: 'amarelo', bg: '#fef3c7', text: '#b45309', border: '#f59e0b' },
+  { id: 'cinza', bg: '#f3f4f6', text: '#374151', border: '#9ca3af' },
+];
+
 export default {
   CORES,
   STATUS_MENSALIDADE,
@@ -129,4 +138,5 @@ export default {
   LINKS,
   ICONES_STATUS,
   CORES_GRAFICOS,
+  PALETA_CORES
 };

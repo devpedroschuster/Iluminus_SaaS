@@ -16,7 +16,7 @@ import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import NovoAluno from './pages/NovoAluno';
 import Professores from './pages/Professores';
-import Agenda from './pages/Agenda';     
+import Agenda from './pages/Agenda/Agenda';     
 import Financeiro from './pages/Financeiro'; 
 import Despesas from './pages/Despesas';   
 import Planos from './pages/Planos';

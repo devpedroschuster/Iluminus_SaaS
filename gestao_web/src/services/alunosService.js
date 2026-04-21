@@ -2,9 +2,6 @@
 import { supabase } from '../lib/supabase';
 
 export const alunosService = {
-  /**
-   * Lista alunos com filtros e joins
-   */
   async listar(filtros = {}) {
     try {
       let query = supabase
@@ -25,14 +22,11 @@ export const alunosService = {
       return data;
     } catch (error) {
       console.error('[alunosService.listar]', error);
-      throw error; // Repassa o erro para o componente tratar com Toast
+      throw error;
     }
   },
 
-  /**
-   * Cria um novo aluno/professor
-   */
-  async criar(dados) {
+    async criar(dados) {
     try {
       const { data, error } = await supabase
         .from('alunos')
@@ -65,10 +59,7 @@ export const alunosService = {
     }
   },
 
-  /**
-   * Exclui um aluno permanentemente do banco de dados
-   */
-  async excluir(id) {
+    async excluir(id) {
     try {
       const { error } = await supabase
         .from('alunos')
@@ -83,10 +74,7 @@ export const alunosService = {
     }
   },
 
-  /**
-   * Altera status de atividade (Ativo/Inativo)
-   */
-  async alterarStatus(id, novoStatus) {
+    async alterarStatus(id, novoStatus) {
     try {
       const { error } = await supabase
         .from('alunos')
@@ -101,10 +89,7 @@ export const alunosService = {
     }
   },
 
-  /**
-   * Deleta um registro
-   */
-  async deletar(id) {
+   async deletar(id) {
     try {
       const { error } = await supabase
         .from('alunos')
@@ -117,5 +102,15 @@ export const alunosService = {
       console.error('[alunosService.deletar]', error);
       throw error;
     }
-  }
+  },
+
+  async listarAniversariantes() {
+    const { data, error } = await supabase
+      .from('alunos')
+      .select('id, nome_completo, data_nascimento, telefone, planos(nome)')
+      .not('data_nascimento', 'is', null);
+
+    if (error) throw error;
+    return data;
+  },
 };

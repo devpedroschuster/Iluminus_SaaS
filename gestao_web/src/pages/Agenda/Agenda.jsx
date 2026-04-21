@@ -9,10 +9,9 @@ import { useAgenda } from '../../hooks/useAgenda';
 import { useAlunos } from '../../hooks/useAlunos';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../components/shared/Toast';
-import Modal, { useModal } from '../../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../../components/shared/Modal';
 import { TableSkeleton } from '../../components/shared/Loading';
 
-// Nossos novos componentes e hooks
 import { useEventosCalendario } from './hooks/useEventosCalendario';
 import { useAgendamento } from './hooks/useAgendamento';
 import { useListaPresenca } from './hooks/useListaPresenca';
@@ -62,6 +61,7 @@ export default function Agenda() {
   const modalLista = useModal();
   const modalAcoesEvento = useModal();
   const modalFeriados = useModal();
+  const modalExcluirAula = useModal();
 
   // HOOKS
   const eventosCalendario = useEventosCalendario({ aulas, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView });
@@ -97,26 +97,59 @@ export default function Agenda() {
     carregarDadosDoMes();
   }, [currentDate.getMonth(), currentDate.getFullYear(), atualizarPresencas]);
 
-  // HANDLERS
   const salvarAula = async (e) => {
     e.preventDefault();
     setSavingAula(true);
+    
     try {
-      await agendaService.salvarAula(novaAula);
-      showToast.success("Grade atualizada!");
+      const payload = {
+        atividade: novaAula.atividade,
+        modalidade_id: novaAula.modalidade_id || null,
+        professor_id: novaAula.professor_id,
+        horario: novaAula.horario,
+        capacidade: Number(novaAula.capacidade) || 15,
+        eh_recorrente: novaAula.eh_recorrente,
+        espaco: novaAula.espaco,
+        ativa: true,
+        valor_por_aluno: Number(novaAula.valor_por_aluno) || 0,
+        cor: novaAula.cor || 'laranja'
+      };
+
+      if (novaAula.id) payload.id = novaAula.id;
+
+      if (novaAula.eh_recorrente) {
+        payload.dia_semana = novaAula.dia_semana; 
+        payload.data_especifica = null;
+        if (!payload.modalidade_id) throw new Error("Selecione uma Modalidade para aulas recorrentes.");
+      } else {
+        if (!novaAula.data_especifica) throw new Error("Data é obrigatória para evento único.");
+        payload.data_especifica = novaAula.data_especifica;
+        const diaCalculado = format(new Date(novaAula.data_especifica + 'T12:00:00'), 'eeee', { locale: ptBR });
+        payload.dia_semana = diaCalculado.charAt(0).toUpperCase() + diaCalculado.slice(1);
+      }
+
+      await agendaService.salvarAula(payload);
+      showToast.success("Grade atualizada com sucesso!");
       modalNovaAula.fechar();
       refetch();
-    } catch (err) { showToast.error(err.message); }
-    finally { setSavingAula(false); }
+    } catch (err) { 
+      showToast.error(err.message); 
+    } finally { 
+      setSavingAula(false); 
+    }
   };
 
-  const excluirAula = async (id) => {
-    if (!confirm("Excluir esta atividade da grade?")) return;
+  const excluirAula = async () => {
+    if (!eventoSelecionado) return;
     try {
-      await agendaService.excluirAula(id);
+      await agendaService.excluirAula(eventoSelecionado.dadosOriginais.id);
+      showToast.success("Grade removida com sucesso.");
+      modalExcluirAula.fechar();
       modalAcoesEvento.fechar();
       refetch();
-    } catch (err) { showToast.error("Erro ao excluir."); }
+    } catch (err) { 
+      showToast.error("Erro ao excluir."); 
+    }
   };
 
   return (
@@ -186,14 +219,13 @@ export default function Agenda() {
         <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} />
       </Modal>
 
-      {/* MODAL AÇÕES EVENTO (Aquele menu que abre ao clicar na aula) */}
+      {/* MODAL AÇÕES EVENTO */}
       <Modal isOpen={modalAcoesEvento.isOpen} onClose={modalAcoesEvento.fechar} titulo="Detalhes da Aula">
         {eventoSelecionado && (() => {
           const corTema = PALETA_CORES.find(c => c.id === (eventoSelecionado.dadosOriginais.cor || 'laranja')) || PALETA_CORES[0];
           
           return (
             <div className="space-y-4 pt-2">
-              {/* Box de Informações com as cores do tema */}
               <div className="p-5 rounded-2xl border" style={{ backgroundColor: corTema.bg, borderColor: corTema.border }}>
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-black text-xl" style={{ color: corTema.text }}>{eventoSelecionado.title}</h3>
@@ -247,7 +279,7 @@ export default function Agenda() {
                       <Edit2 size={18} /> Editar Grade
                     </button>
                     <button 
-                      onClick={() => excluirAula(eventoSelecionado.dadosOriginais.id)} 
+                      onClick={() => modalExcluirAula.abrir()} 
                       className="flex-1 bg-red-50 text-red-600 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
                     >
                       <Trash2 size={18} /> Excluir Grade
@@ -265,6 +297,15 @@ export default function Agenda() {
           <ModalFeriados feriados={feriados} {...hookFeriados} />
         </Modal>
       )}
+      {/* MODAL CONFIRMAR EXCLUSÃO DE AULA */}
+      <ModalConfirmacao 
+        isOpen={modalExcluirAula.isOpen}
+        onClose={modalExcluirAula.fechar}
+        onConfirm={excluirAula}
+        titulo="Excluir Atividade da Grade"
+        mensagem={`Atenção: Ao confirmar, todas as aulas de "${eventoSelecionado?.dadosOriginais?.atividade}" serão apagadas permanentemente do calendário. Tem certeza?`}
+        tipo="danger"
+      />
     </div>
   );
 }

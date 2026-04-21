@@ -5,6 +5,7 @@ export const modalidadeService = {
     const { data, error } = await supabase
       .from('modalidades')
       .select('*, professores (nome)')
+      .order('area')
       .order('nome');
     if (error) throw error;
     return data;
@@ -35,6 +36,7 @@ export const modalidadeService = {
   async salvar(modalidade) {
     const payload = {
       nome: modalidade.nome,
+      area: modalidade.area || 'Dança',
       professor_id: modalidade.professor_id || null,
       taxa_professor: Number(modalidade.taxa_professor) || 0,
       taxa_espaco: Number(modalidade.taxa_espaco) || 0,

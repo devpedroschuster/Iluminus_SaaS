@@ -80,10 +80,10 @@ export default function Comissoes() {
   const exportarRelatorio = () => {
     if (!dados) return;
 
-    const prof = professores.find(p => p.id === filtros.professorId);
+    const prof = professores.find(p => String(p.id) === String(filtros.professorId));
     const wb = XLSX.utils.book_new();
+    
 
-    // Aba 1: Fixos
     if (dados.comissoesFixas.length > 0) {
       const dadosFixos = dados.comissoesFixas.map(c => ({
         'Aluno': c.aluno_nome,
@@ -98,7 +98,6 @@ export default function Comissoes() {
       XLSX.utils.book_append_sheet(wb, wsFixos, "Mensalidades (Fixas)");
     }
 
-    // Aba 2: Variáveis
     if (dados.comissoesVariaveis.length > 0) {
       const dadosVar = dados.comissoesVariaveis.map(c => ({
         'Data da Aula': new Date(c.data_aula + 'T12:00:00').toLocaleDateString('pt-BR'),
@@ -116,7 +115,7 @@ export default function Comissoes() {
     XLSX.writeFile(wb, `Comissoes_${prof?.nome.replace(/\s+/g, '_')}_${filtros.mesAno}.xlsx`);
   };
 
-  const profSelecionado = professores.find(p => p.id === filtros.professorId)?.nome;
+ const profSelecionado = professores.find(p => String(p.id) === String(filtros.professorId))?.nome;
   const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
   const temDados = dados && (dados.comissoesFixas.length > 0 || dados.comissoesVariaveis.length > 0);
 
@@ -165,7 +164,7 @@ export default function Comissoes() {
       ) : dados ? (
         <div className="space-y-6">
           
-          {/* CARDS DE RESUMO HÍBRIDO */}
+          {/* CARDS DE RESUMO */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group hover:border-blue-200 transition-colors md:col-span-2 flex justify-between items-center">
                <div className="relative z-10">
@@ -208,7 +207,7 @@ export default function Comissoes() {
             </button>
           </div>
 
-          {/* TABELA 1: COMISSÕES FIXAS (MENSALIDADES) */}
+          {/* TABELA 1: COMISSÕES MENSALIDADES */}
           <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-50 bg-green-50/30">
               <h3 className="font-black text-green-800 text-lg flex items-center gap-2">

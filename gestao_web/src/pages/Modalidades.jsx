@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Activity, RefreshCw, UserCheck, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle } from 'lucide-react'; 
+import { Plus, Trash2, Activity, RefreshCw, UserCheck, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
 import { showToast } from '../components/shared/Toast';
 import Modal from '../components/shared/Modal';
 import { modalidadeService } from '../services/modalidadeService'; 
@@ -14,7 +14,7 @@ export default function Modalidades() {
   const [deletingId, setDeletingId] = useState(null);   
 
   const [novaModalidade, setNovaModalidade] = useState({ 
-    nome: '', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
+    nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
   });
 
   const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
@@ -76,7 +76,7 @@ export default function Modalidades() {
         };
         await modalidadeService.salvar(payload);
         showToast.success("Modalidade adicionada com sucesso!");
-        setNovaModalidade({ nome: '', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
+        setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
         fetchDados();
     } catch (err) {
         showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
@@ -105,6 +105,7 @@ export default function Modalidades() {
     setModalidadeEmEdicao({
       id: mod.id,
       nome: mod.nome,
+      area: mod.area || 'Dança', // Carrega a área para a edição
       professor_id: mod.professor_id || '',
       capacidade_padrao: mod.capacidade_padrao || 15,
       taxa_professor: mod.taxa_professor || 0,
@@ -138,6 +139,14 @@ export default function Modalidades() {
     }
   }
 
+  const getAreaColor = (area) => {
+    switch (area) {
+      case 'Dança': return 'bg-pink-100 text-pink-700 border-pink-200';
+      case 'Funcional': return 'bg-orange-100 text-orange-700 border-orange-200';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in">
        <div>
@@ -150,7 +159,7 @@ export default function Modalidades() {
         <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
         
         <form onSubmit={handleCriarModalidade} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="w-full">
               <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome da Modalidade</label>
               <input 
@@ -158,6 +167,19 @@ export default function Modalidades() {
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-all" 
                 value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
               />
+            </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-gray-400 uppercase mb-2 block flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+              <select 
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-all cursor-pointer"
+                value={novaModalidade.area}
+                onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
+              >
+                <option value="Dança">Dança</option>
+                <option value="Funcional">Funcional</option>
+                <option value="Livre/Todos">Livre / Outros</option>
+              </select>
             </div>
             
             <div className="w-full">
@@ -175,7 +197,7 @@ export default function Modalidades() {
             </div>
 
             <div className="w-full">
-              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão (Capacidade)</label>
+              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão</label>
               <input 
                 required type="number" min="1"
                 className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-all" 
@@ -234,7 +256,12 @@ export default function Modalidades() {
                  <Activity size={24}/>
                </div>
                <div>
-                 <h3 className="font-bold text-gray-800">{mod.nome}</h3>
+                 <div className="flex items-center gap-2 mb-0.5">
+                   <h3 className="font-bold text-gray-800 leading-none">{mod.nome}</h3>
+                   <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
+                     {mod.area || 'Dança'}
+                   </span>
+                 </div>
                  <p className="text-xs font-medium text-gray-400 flex items-center gap-2 mt-1">
                    <span className="flex items-center gap-1"><Users size={12} className="text-blue-500"/> {mod.capacidade_padrao || 15} vagas</span>
                  </p>
@@ -259,7 +286,12 @@ export default function Modalidades() {
             
             <div className="bg-gray-800 p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
                 <div className="relative z-10">
-                    <h2 className="text-2xl font-black text-white mb-1">{modPerfil.nome}</h2>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h2 className="text-2xl font-black text-white">{modPerfil.nome}</h2>
+                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)} bg-opacity-20`}>
+                        {modPerfil.area || 'Dança'}
+                      </span>
+                    </div>
                     <p className="text-gray-300 flex items-center gap-2 text-sm font-medium">
                         <Users size={16} className="text-blue-400"/> {modPerfil.capacidade_padrao || 15} vagas por aula
                     </p>
@@ -338,29 +370,42 @@ export default function Modalidades() {
       <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
         {modalidadeEmEdicao && (
           <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="w-full">
-                <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome</label>
-                <input 
-                    required 
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent" 
-                    value={modalidadeEmEdicao.nome} 
-                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
-                />
+                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome</label>
+                  <input 
+                      required 
+                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent" 
+                      value={modalidadeEmEdicao.nome} 
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
+                  />
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+                  <select 
+                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer transition-all"
+                    value={modalidadeEmEdicao.area}
+                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
+                  >
+                    <option value="Dança">Dança</option>
+                    <option value="Funcional">Funcional</option>
+                    <option value="Livre/Todos">Livre / Outros</option>
+                  </select>
                 </div>
                 
                 <div className="w-full">
-                <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Fixo</label>
-                <select 
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer"
-                    value={modalidadeEmEdicao.professor_id}
-                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
-                >
-                    <option value="">Sem professor</option>
-                    {professores.map(prof => (
-                    <option key={prof.id} value={prof.id}>{prof.nome}</option>
-                    ))}
-                </select>
+                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Fixo</label>
+                  <select 
+                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer"
+                      value={modalidadeEmEdicao.professor_id}
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
+                  >
+                      <option value="">Sem professor</option>
+                      {professores.map(prof => (
+                      <option key={prof.id} value={prof.id}>{prof.nome}</option>
+                      ))}
+                  </select>
                 </div>
 
                 <div className="w-full">

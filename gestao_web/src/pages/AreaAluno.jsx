@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
+import { showToast } from '../components/shared/Toast'; 
 
 const gerarProximosDias = () => {
   const dias = [];
@@ -28,15 +29,15 @@ const gerarProximosDias = () => {
   return dias;
 };
 
-const PROXIMOS_DIAS = gerarProximosDias();
-
 export default function AreaAluno() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
+
+  const proximosDias = useMemo(() => gerarProximosDias(), []);
   
   const [abaAtiva, setAbaAtiva] = useState('schedule'); 
-  const [diaAtivo, setDiaAtivo] = useState(PROXIMOS_DIAS[0].dataIso); 
+  const [diaAtivo, setDiaAtivo] = useState(() => gerarProximosDias()[0].dataIso); 
   const [modoEdicao, setModoEdicao] = useState(false);
   const [processandoId, setProcessandoId] = useState(null);
   
@@ -70,7 +71,8 @@ export default function AreaAluno() {
       
       const { data, error } = await supabase
         .from('presencas')
-        .select(`id, agenda(atividade, espaco)`)
+        // AGORA BUSCA A ÁREA PARA CONTABILIZAR CORRETAMENTE
+        .select(`id, agenda(atividade, espaco, modalidades(area))`)
         .eq('aluno_id', aluno.id)
         .gte('data_checkin', primeiroDia);
 
@@ -98,12 +100,12 @@ export default function AreaAluno() {
     queryKey: ['agenda', diaAtivo],
     enabled: !!aluno?.id,
     queryFn: async () => {
-      const diaSelecionado = PROXIMOS_DIAS.find(d => d.dataIso === diaAtivo);
+      const diaSelecionado = proximosDias.find(d => d.dataIso === diaAtivo);
       const diaCurto = diaSelecionado.diaBanco.split('-')[0]; 
 
       const { data, error } = await supabase
         .from('agenda')
-        .select(`*, professores (nome), presencas (aluno_id)`)
+        .select(`*, professores (nome), presencas (aluno_id), modalidades(area)`)
         .or(`dia_semana.ilike.*${diaCurto}*,data_especifica.eq.${diaSelecionado.dataIso}`)
         .order('horario', { ascending: true });
 
@@ -139,10 +141,11 @@ export default function AreaAluno() {
       if (updateError) throw updateError;
 
       await queryClient.invalidateQueries(['meu-perfil']);
+      showToast.success("Foto de perfil atualizada!");
       
     } catch (error) {
       console.error("Erro ao fazer upload da imagem:", error);
-      alert("Erro ao enviar a imagem. Verifique se ela é muito grande e tente novamente.");
+      showToast.error("Erro ao enviar a imagem. Verifique se ela é muito grande.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -160,8 +163,9 @@ export default function AreaAluno() {
       if (error) throw error;
       await queryClient.invalidateQueries(['meu-perfil']);
       setModoEdicao(false);
+      showToast.success("Perfil atualizado com sucesso!");
     } catch (error) {
-      alert("Erro ao atualizar os dados.");
+      showToast.error("Erro ao atualizar os dados.");
     } finally {
       setSalvandoPerfil(false);
     }
@@ -174,8 +178,9 @@ export default function AreaAluno() {
       if (error) throw error;
       await queryClient.invalidateQueries(['agenda', diaAtivo]);
       await queryClient.invalidateQueries(['presencas-mes']);
+      showToast.success("Vaga garantida!");
     } catch (error) {
-      alert(`Ops! O banco de dados recusou: ${error.message || error.details || 'Erro desconhecido'}`);
+      showToast.error(`Ops! Recusado: ${error.message || error.details || 'Erro desconhecido'}`);
     } finally {
       setProcessandoId(null);
     }
@@ -188,8 +193,9 @@ export default function AreaAluno() {
       if (error) throw error;
       await queryClient.invalidateQueries(['agenda', diaAtivo]);
       await queryClient.invalidateQueries(['presencas-mes']);
+      showToast.success("Agendamento cancelado.");
     } catch (error) {
-      alert("Erro ao cancelar o agendamento.");
+      showToast.error("Erro ao cancelar o agendamento.");
     } finally {
       setProcessandoId(null);
     }
@@ -220,19 +226,15 @@ export default function AreaAluno() {
 
   const regrasPlano = aluno.planos?.regras_acesso || [];
   let aulasPermitidas = [];
+  
   if (aulasDoDia) {
     aulasPermitidas = aulasDoDia.filter(aula => {
       const jaAgendado = aula.presencas?.some(p => p.aluno_id === aluno.id);
       if (jaAgendado) return true; 
       if (!aluno.planos || regrasPlano.length === 0) return false;
 
-      const atividadeLower = (aula.atividade || '').toLowerCase();
-      const espacoLower = (aula.espaco || '').toLowerCase();
-
-      return regrasPlano.some(r => {
-         const modLower = r.modalidade.toLowerCase();
-         return modLower === 'livre/todos' || modLower === atividadeLower || modLower === espacoLower;
-      });
+      const aulaArea = aula.modalidades?.area;
+      return regrasPlano.some(r => r.modalidade === aulaArea);
     });
   }
 
@@ -279,11 +281,8 @@ export default function AreaAluno() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {regrasPlano.map((regra, idx) => {
                        const usosDaRegra = presencasMes?.filter(p => {
-                          const modLower = regra.modalidade.toLowerCase();
-                          if (modLower === 'livre/todos') return true;
-                          const pAtiv = p.agenda?.atividade?.toLowerCase() || '';
-                          const pEspaco = p.agenda?.espaco?.toLowerCase() || '';
-                          return modLower === pAtiv || modLower === pEspaco;
+                          const pArea = p.agenda?.modalidades?.area;
+                          return regra.modalidade === pArea;
                        }).length || 0;
 
                        const limit = regra.limite;
@@ -293,7 +292,7 @@ export default function AreaAluno() {
                          <div key={idx} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                             <div className="flex justify-between items-end mb-2">
                               <div>
-                                <p className="font-bold text-gray-700 text-sm">{regra.modalidade}</p>
+                                <p className="font-bold text-gray-700 text-sm">Área: {regra.modalidade}</p>
                                 <p className="text-xs text-gray-400 font-medium mt-0.5">
                                   Usado: <span className="text-iluminus-terracota font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
                                 </p>
@@ -313,7 +312,7 @@ export default function AreaAluno() {
               )}
 
               <div className="day-tabs">
-                {PROXIMOS_DIAS.map(d => (
+                {proximosDias.map(d => (
                   <button key={d.dataIso} className={`day-tab ${diaAtivo === d.dataIso ? 'active' : ''}`} onClick={() => setDiaAtivo(d.dataIso)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '8px 16px' }}>
                     <span style={{ fontSize: '13px' }}>{d.diaSemana}</span>
                     <span style={{ fontSize: '10px', opacity: 0.8 }}>{d.diaMes}</span>
@@ -332,7 +331,7 @@ export default function AreaAluno() {
                    </div>
                 ) : aulasPermitidas.length === 0 ? (
                   <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <p className="text-gray-500 font-medium">Nenhuma aula disponível para o seu plano neste dia.</p>
+                    <p className="text-gray-500 font-medium">Nenhuma aula disponível para as áreas do seu plano neste dia.</p>
                   </div>
                 ) : (
                   aulasPermitidas.map(aula => {
@@ -341,27 +340,13 @@ export default function AreaAluno() {
                     const lotado = vagasRestantes <= 0;
                     const estaProcessando = processandoId === aula.id;
 
-                    let regraDestaAula = null;
+                    // Lógica de limite
+                    const aulaArea = aula.modalidades?.area;
+                    const regraDestaAula = regrasPlano.find(r => r.modalidade === aulaArea);
+                    
                     let usosDestaAula = 0;
-                    const atividadeLower = (aula.atividade || '').toLowerCase();
-                    const espacoLower = (aula.espaco || '').toLowerCase();
-
-                    for (const r of regrasPlano) {
-                       const modLower = r.modalidade.toLowerCase();
-                       if (modLower === 'livre/todos' || modLower === atividadeLower || modLower === espacoLower) {
-                          regraDestaAula = r;
-                          break;
-                       }
-                    }
-
                     if (regraDestaAula) {
-                       usosDestaAula = presencasMes?.filter(p => {
-                          const modLower = regraDestaAula.modalidade.toLowerCase();
-                          if (modLower === 'livre/todos') return true;
-                          const pAtiv = p.agenda?.atividade?.toLowerCase() || '';
-                          const pEspaco = p.agenda?.espaco?.toLowerCase() || '';
-                          return modLower === pAtiv || modLower === pEspaco;
-                       }).length || 0;
+                       usosDestaAula = presencasMes?.filter(p => p.agenda?.modalidades?.area === aulaArea).length || 0;
                     }
 
                     const limiteAtingido = regraDestaAula && regraDestaAula.limite !== 999 && usosDestaAula >= regraDestaAula.limite;
@@ -370,8 +355,8 @@ export default function AreaAluno() {
                       <div key={aula.id} className={`class-card anim-fade-up ${jaAgendado ? 'booked' : ''}`}>
                         <div className="class-time-block">
                           <div className="class-time">{formatarHorario(aula.horario)}</div>
-                          <div className={`class-space ${aula.espaco === 'danca' ? 'danca' : 'funcional'}`}>
-                            {aula.espaco === 'danca' ? 'Dança' : 'Funcional'}
+                          <div className={`class-space ${aulaArea === 'Dança' ? 'danca' : 'funcional'}`}>
+                            {aulaArea}
                           </div>
                         </div>
                         
@@ -416,7 +401,6 @@ export default function AreaAluno() {
           </div>
         )}
 
-        {/* ABA PERFIL */}
         {abaAtiva === 'profile' && (
           <div>
             <div className="main-header">
@@ -438,8 +422,6 @@ export default function AreaAluno() {
             <div className="main-body">
               <div className="profile-top">
                 <div className="profile-id-card card">
-                  
-                  {/* FOTO DE PERFIL */}
                   <div 
                     className="avatar lg relative group cursor-pointer overflow-hidden border-2 border-transparent hover:border-orange-300 transition-all"
                     onClick={() => fileInputRef.current?.click()}

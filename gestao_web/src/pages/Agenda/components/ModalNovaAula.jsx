@@ -53,7 +53,7 @@ export default function ModalNovaAula({
       ) : (
         <input 
           placeholder="Nome do Evento" 
-          className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700" 
+          className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:ring-2 ring-orange-100 transition-all" 
           required 
           value={novaAula.atividade} 
           onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} 
@@ -63,8 +63,8 @@ export default function ModalNovaAula({
       {novaAula.espaco === 'danca' && (
         <input 
           type="number" 
-          placeholder="Valor por aluno (R$)" 
-          className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border" 
+          placeholder="Valor por aluno (R$) - Opcional" 
+          className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" 
           value={novaAula.valor_por_aluno} 
           onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} 
         />
@@ -72,15 +72,16 @@ export default function ModalNovaAula({
 
       <div>
         <label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2 mb-2">
-          <Palette size={12}/> Cor no Calendário
+          <Palette size={14}/> Cor no Calendário
         </label>
         <div className="flex gap-2">
           {PALETA_CORES.map(c => (
             <button 
               type="button" 
               key={c.id} 
+              title={c.id}
               onClick={() => setNovaAula({...novaAula, cor: c.id})} 
-              className={`w-8 h-8 rounded-full border-2 transition-all ${novaAula.cor === c.id ? 'scale-110 shadow-md' : 'border-transparent'}`} 
+              className={`w-10 h-10 rounded-full border-4 transition-all hover:scale-110 ${novaAula.cor === c.id ? 'scale-110 shadow-md' : 'border-transparent'}`} 
               style={{ backgroundColor: c.bg, borderColor: novaAula.cor === c.id ? c.border : 'transparent' }} 
             />
           ))}
@@ -98,12 +99,24 @@ export default function ModalNovaAula({
         <input type="time" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.horario} onChange={e => setNovaAula({...novaAula, horario: e.target.value})} />
       </div>
       
-      <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
-        <option value="">Selecione o Professor</option>
-        {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-      </select>
+      <div className="grid grid-cols-3 gap-4">
+        <select className="col-span-2 w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
+          <option value="">Selecione o Professor</option>
+          {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+        
+        <input 
+          type="number" 
+          placeholder="Vagas" 
+          title="Capacidade Máxima de Alunos"
+          className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-center" 
+          required 
+          value={novaAula.capacidade} 
+          onChange={e => setNovaAula({...novaAula, capacidade: e.target.value})} 
+        />
+      </div>
       
-      <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+      <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:scale-[1.01] transition-all shadow-lg">
         {savingAula ? <RefreshCw className="animate-spin" size={20}/> : (novaAula.id ? "Salvar Alterações" : "Salvar na Grade")}
       </button>
     </form>

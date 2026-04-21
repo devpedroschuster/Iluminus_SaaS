@@ -11,8 +11,7 @@ import { useFinanceiro } from '../hooks/useFinanceiro';
 
 // Componentes
 import { showToast } from '../components/shared/Toast';
-import { useModal } from '../components/shared/Modal';
-import Modal from '../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/shared/EmptyState';
 import { formatarMoeda } from '../lib/utils';
@@ -55,15 +54,14 @@ export default function Financeiro() {
   });
 
   const modalBaixa = useModal();
+  const modalGerarMensalidades = useModal();
 
   async function handleGerarMensalidades() {
-    const nomeMes = new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' });
-    if (!confirm(`Deseja gerar as cobranças automáticas para ${nomeMes}/${filtros.ano}?`)) return;
-
     setLoadingGerar(true);
     try {
       await financeiroService.gerarMensalidades(filtros.mes, filtros.ano);
       showToast.success("Cobranças geradas com sucesso!");
+      modalGerarMensalidades.fechar();
       refetch();
     } catch (err) {
       showToast.error("Erro: Verifique se as cobranças já não foram geradas.");
@@ -141,7 +139,6 @@ export default function Financeiro() {
 
     const ws = XLSX.utils.json_to_sheet(dadosExportacao);
     
-    // Largura das colunas
     const colWidths = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
     ws['!cols'] = colWidths;
 
@@ -173,7 +170,7 @@ export default function Financeiro() {
           </button>
 
           <button 
-            onClick={handleGerarMensalidades}
+            onClick={modalGerarMensalidades.abrir}
             disabled={loadingGerar}
             className="bg-gray-800 text-white px-6 py-4 rounded-[22px] font-black shadow-lg hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50"
           >
@@ -346,6 +343,17 @@ export default function Financeiro() {
           </button>
         </form>
       </Modal>
+
+      {/* MODAL GERAR MENSALIDADES */}
+      <ModalConfirmacao 
+        isOpen={modalGerarMensalidades.isOpen}
+        onClose={modalGerarMensalidades.fechar}
+        onConfirm={handleGerarMensalidades}
+        titulo="Gerar Cobranças Automáticas"
+        mensagem={`Deseja gerar as cobranças para todos os alunos ativos no mês de ${new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' })}/${filtros.ano}?`}
+        tipo="primary"
+      />
+
     </div>
   );
 }
@@ -357,6 +365,7 @@ const CardMetrica = React.memo(({ titulo, valor, icone, cor }) => {
     blue: "bg-blue-50 text-blue-600",
     red: "bg-red-50 text-red-600"
   };
+  
   return (
     <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
       <div className={`${cores[cor]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>{icone}</div>
@@ -365,3 +374,5 @@ const CardMetrica = React.memo(({ titulo, valor, icone, cor }) => {
     </div>
   );
 });
+
+export { CardMetrica };

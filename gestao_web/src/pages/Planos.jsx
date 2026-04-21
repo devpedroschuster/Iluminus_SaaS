@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { planosService } from '../services/planosService';
 import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react'; 
 import { showToast } from '../components/shared/Toast';
-import Modal from '../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
 
 export default function Planos() {
   const [planos, setPlanos] = useState([]);
@@ -10,22 +10,28 @@ export default function Planos() {
   const [creating, setCreating] = useState(false);      
   const [deletingId, setDeletingId] = useState(null);   
 
-  // ESTADO DE CRIAÇÃO
   const [novoPlano, setNovoPlano] = useState({ 
-    nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1
+    nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: []
   });
 
-  // ESTADOS DE EDIÇÃO
-  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
+  const modalEdicao = useModal();
   const [savingEdit, setSavingEdit] = useState(false);
   const [planoEmEdicao, setPlanoEmEdicao] = useState(null);
+  
+  const modalExcluir = useModal();
+  const [planoParaExcluir, setPlanoParaExcluir] = useState(null);
 
   useEffect(() => { fetchPlanos(); }, []);
 
   async function fetchPlanos() {
-    const { data } = await supabase.from('planos').select('*').order('id', { ascending: true });
-    if (data) setPlanos(data);
-    setLoadingList(false);
+    try {
+      const data = await planosService.listar();
+      setPlanos(data || []);
+    } catch (err) {
+      showToast.error("Erro ao carregar planos.");
+    } finally {
+      setLoadingList(false);
+    }
   }
 
   async function handleCriarPlano(e) {
@@ -34,18 +40,9 @@ export default function Planos() {
     setCreating(true);    
 
     try {
-        const payload = {
-          nome: novoPlano.nome,
-          preco: novoPlano.preco,
-          frequencia_semanal: novoPlano.frequencia_semanal,
-          duracao_meses: Number(novoPlano.duracao_meses)
-        };
-
-        const { error } = await supabase.from('planos').insert([payload]);
-        if (error) throw error;
-        
+        await planosService.salvar(novoPlano);
         showToast.success("Plano criado com sucesso!");
-        setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1 });
+        setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: [] });
         fetchPlanos();
     } catch (err) {
         showToast.error("Erro ao criar plano.");
@@ -54,23 +51,26 @@ export default function Planos() {
     }
   }
 
-  async function excluirPlano(id) {
-    if (!confirm("Tem certeza que deseja remover este plano?")) return;
-    setDeletingId(id); 
+  async function excluirPlano() {
+    if (!planoParaExcluir) return;
+    setDeletingId(planoParaExcluir.id); 
+    modalExcluir.fechar();
+
     try {
-        await supabase.from('planos').delete().eq('id', id);
+        await planosService.excluir(planoParaExcluir.id);
         showToast.success("Plano removido.");
         fetchPlanos();
     } catch (err) {
         showToast.error("Erro ao excluir. Verifique se há alunos vinculados a ele.");
     } finally {
         setDeletingId(null);
+        setPlanoParaExcluir(null);
     }
   }
 
   function abrirEdicao(plano) {
-    setPlanoEmEdicao({ ...plano, duracao_meses: plano.duracao_meses || 1 });
-    setModalEdicaoAberto(true);
+    setPlanoEmEdicao({ ...plano, duracao_meses: plano.duracao_meses || 1, regras_acesso: plano.regras_acesso || [] });
+    modalEdicao.abrir();
   }
 
   async function handleSalvarEdicao(e) {
@@ -79,18 +79,9 @@ export default function Planos() {
     setSavingEdit(true);
 
     try {
-      const payload = {
-        nome: planoEmEdicao.nome,
-        preco: planoEmEdicao.preco,
-        frequencia_semanal: planoEmEdicao.frequencia_semanal,
-        duracao_meses: Number(planoEmEdicao.duracao_meses)
-      };
-
-      const { error } = await supabase.from('planos').update(payload).eq('id', planoEmEdicao.id);
-      if (error) throw error;
-
+      await planosService.salvar(planoEmEdicao);
       showToast.success("Plano atualizado com sucesso!");
-      setModalEdicaoAberto(false);
+      modalEdicao.fechar();
       fetchPlanos();
     } catch (err) {
       showToast.error("Erro ao atualizar plano.");
@@ -109,47 +100,54 @@ export default function Planos() {
       <div className="bg-white p-6 md:p-8 rounded-[40px] border border-gray-100 shadow-sm w-full">
         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Package size={20}/> Criar Novo Plano</h3>
         
-        <form onSubmit={handleCriarPlano} className="flex flex-col md:flex-row gap-4 items-end w-full">
-          <div className="flex-1 w-full">
-            <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Nome do Plano</label>
-            <input 
-              required placeholder="Ex: Mensal Funcional"
-              className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-              value={novoPlano.nome} onChange={e => setNovoPlano({...novoPlano, nome: e.target.value})} 
-            />
-          </div>
-          
-          <div className="w-full md:w-32">
-            <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Preço (R$)</label>
-            <input 
-              required type="number" step="0.01" placeholder="0.00"
-              className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-              value={novoPlano.preco} onChange={e => setNovoPlano({...novoPlano, preco: e.target.value})} 
-            />
+        <form onSubmit={handleCriarPlano} className="space-y-4 w-full">
+          <div className="flex flex-col md:flex-row gap-4 items-end w-full">
+            <div className="flex-1 w-full">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Nome do Plano</label>
+              <input 
+                required placeholder="Ex: Livre Dança"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
+                value={novoPlano.nome} onChange={e => setNovoPlano({...novoPlano, nome: e.target.value})} 
+              />
+            </div>
+            
+            <div className="w-full md:w-32">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Preço (R$)</label>
+              <input 
+                required type="number" step="0.01" placeholder="0.00"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
+                value={novoPlano.preco} onChange={e => setNovoPlano({...novoPlano, preco: e.target.value})} 
+              />
+            </div>
+
+            <div className="w-full md:w-36">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Freq. Visível</label>
+              <input 
+                required placeholder="Ex: Livre"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
+                value={novoPlano.frequencia_semanal} onChange={e => setNovoPlano({...novoPlano, frequencia_semanal: e.target.value})} 
+              />
+            </div>
+
+            <div className="w-full md:w-32">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Duração (Meses)</label>
+              <input 
+                required type="number" min="1" max="24"
+                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-colors" 
+                value={novoPlano.duracao_meses} onChange={e => setNovoPlano({...novoPlano, duracao_meses: e.target.value})} 
+              />
+            </div>
+
+            <button disabled={creating} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
+              {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>}
+              {creating ? "Salvando..." : "Salvar"}
+            </button>
           </div>
 
-          <div className="w-full md:w-36">
-            <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Freq. Visível</label>
-            <input 
-              required placeholder="Ex: 2x sem."
-              className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-              value={novoPlano.frequencia_semanal} onChange={e => setNovoPlano({...novoPlano, frequencia_semanal: e.target.value})} 
-            />
-          </div>
-
-          <div className="w-full md:w-32">
-            <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Duração (Meses)</label>
-            <input 
-              required type="number" min="1" max="24"
-              className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-colors" 
-              value={novoPlano.duracao_meses} onChange={e => setNovoPlano({...novoPlano, duracao_meses: e.target.value})} 
-            />
-          </div>
-
-          <button disabled={creating} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
-            {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>}
-            {creating ? "Salvando..." : "Salvar"}
-          </button>
+          <SeletorRegras 
+            regras={novoPlano.regras_acesso} 
+            setRegras={(novasRegras) => setNovoPlano({...novoPlano, regras_acesso: novasRegras})} 
+          />
         </form>
       </div>
 
@@ -176,7 +174,12 @@ export default function Planos() {
                 <button onClick={() => abrirEdicao(plano)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Editar Plano">
                     <Edit2 size={18}/>
                 </button>
-                <button onClick={() => excluirPlano(plano.id)} disabled={deletingId === plano.id} className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Excluir Plano">
+                <button 
+                  onClick={() => { setPlanoParaExcluir(plano); modalExcluir.abrir(); }} 
+                  disabled={deletingId === plano.id} 
+                  className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" 
+                  title="Excluir Plano"
+                >
                     {deletingId === plano.id ? <RefreshCw className="animate-spin text-red-500" size={18}/> : <Trash2 size={18}/>}
                 </button>
             </div>
@@ -184,7 +187,7 @@ export default function Planos() {
         ))}
       </div>
 
-      <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Pacote / Plano">
+      <Modal isOpen={modalEdicao.isOpen} onClose={modalEdicao.fechar} titulo="Editar Pacote / Plano">
         {planoEmEdicao && (
           <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
             <div>
@@ -219,6 +222,11 @@ export default function Planos() {
               </div>
             </div>
 
+            <SeletorRegras 
+              regras={planoEmEdicao.regras_acesso} 
+              setRegras={(novasRegras) => setPlanoEmEdicao({...planoEmEdicao, regras_acesso: novasRegras})} 
+            />
+
             <button disabled={savingEdit} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-100 hover:scale-[1.02] transition-all disabled:opacity-50">
               {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Atualizar Plano"}
             </button>
@@ -226,6 +234,93 @@ export default function Planos() {
         )}
       </Modal>
 
+      <ModalConfirmacao 
+        isOpen={modalExcluir.isOpen}
+        onClose={modalExcluir.fechar}
+        onConfirm={excluirPlano}
+        titulo="Remover Pacote / Plano?"
+        mensagem={`Tem certeza que deseja excluir o plano "${planoParaExcluir?.nome}" permanentemente?`}
+        tipo="danger"
+      />
+    </div>
+  );
+}
+
+function SeletorRegras({ regras, setRegras }) {
+  const [mod, setMod] = useState('Dança');
+  const [qty, setQty] = useState('1');
+
+  const adicionarRegra = () => {
+    // Evita duplicar regras para a mesma área
+    if (regras.some(r => r.modalidade === mod)) {
+        showToast.error(`A regra para ${mod} já existe neste plano.`);
+        return;
+    }
+    setRegras([...regras, { modalidade: mod, limite: Number(qty) }]);
+  };
+
+  const removerRegra = (index) => {
+    const novas = [...regras];
+    novas.splice(index, 1);
+    setRegras(novas);
+  };
+
+  return (
+    <div className="space-y-4 border-t border-gray-100 pt-6 mt-6 w-full">
+      <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">
+        Regras de Acesso do Pacote
+      </label>
+      
+      {regras.map((regra, index) => (
+        <div key={index} className="flex gap-2 items-center bg-gray-50 p-3 rounded-2xl animate-in slide-in-from-left-2">
+          <div className="flex-1 font-bold text-gray-700 text-sm">Área: {regra.modalidade}</div>
+          <div className="font-black text-blue-600 bg-white px-3 py-1 rounded-lg border border-gray-100">
+            {regra.limite === 999 ? 'Ilimitado (Livre)' : `${regra.limite}x na semana`}
+          </div>
+          <button 
+            type="button"
+            onClick={() => removerRegra(index)}
+            className="p-2 text-red-400 hover:text-red-600 transition-colors"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ))}
+
+      <div className="grid grid-cols-5 gap-2 items-end bg-blue-50/50 p-4 rounded-3xl border border-dashed border-blue-100">
+        <div className="col-span-2">
+          <label className="text-[9px] font-black text-blue-400 uppercase ml-2">Categoria</label>
+          <select 
+            className="w-full p-3 bg-white rounded-xl outline-none text-sm font-bold cursor-pointer"
+            value={mod} onChange={e => setMod(e.target.value)}
+          >
+            <option value="Dança">Dança</option>
+            <option value="Funcional">Funcional</option>
+          </select>
+        </div>
+        <div className="col-span-2">
+          <label className="text-[9px] font-black text-blue-400 uppercase ml-2">Limite na Semana</label>
+          <select 
+            className="w-full p-3 bg-white rounded-xl outline-none text-sm font-black cursor-pointer text-blue-700"
+            value={qty} onChange={e => setQty(e.target.value)}
+          >
+            <option value="1">1x</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+            <option value="5">5x</option>
+            <option value="6">6x</option>
+            <option value="999">Ilimitado (Livre)</option>
+          </select>
+        </div>
+        <button 
+          type="button"
+          onClick={adicionarRegra}
+          className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-colors flex justify-center"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
     </div>
   );
 }

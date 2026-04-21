@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Save, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
 
 export default function RedefinirSenha() {
@@ -13,7 +13,6 @@ export default function RedefinirSenha() {
   async function handleUpdatePassword(e) {
     e.preventDefault();
     
-    // 1. Validações Locais
     if (novaSenha.length < 6) {
       showToast.error("A senha deve ter pelo menos 6 caracteres.");
       return;
@@ -27,31 +26,38 @@ export default function RedefinirSenha() {
     setLoading(true);
 
     try {
-      // 2. Atualiza a senha no Auth do Supabase
-      const { error } = await supabase.auth.updateUser({
-        password: novaSenha
-      });
-
+      const { error } = await supabase.auth.updateUser({ password: novaSenha });
       if (error) throw error;
 
-      // 3. Atualiza o status de "primeiro_acesso" no banco
-      // Primeiro, pegamos o usuário atual logado
       const { data: { user } } = await supabase.auth.getUser();
-      
+      let rotaDestino = '/dashboard';
+
       if (user) {
-        // Remove a flag para ele não cair nessa tela de novo
-        await supabase
+        const { data: alunoData } = await supabase
           .from('alunos')
-          .update({ primeiro_acesso: false })
-          .eq('auth_id', user.id);
+          .select('role')
+          .eq('auth_id', user.id)
+          .maybeSingle();
+
+        if (alunoData) {
+          await supabase.from('alunos').update({ primeiro_acesso: false }).eq('auth_id', user.id);
+          rotaDestino = alunoData.role === 'admin' ? '/dashboard' : '/area-aluno';
+        } else {
+          const { data: profData } = await supabase
+            .from('professores')
+            .select('id')
+            .eq('email', user.email)
+            .maybeSingle();
+
+          if (profData) {
+            rotaDestino = '/agenda';
+          }
+        }
       }
 
       showToast.success("Senha definida com sucesso!");
       
-      // Delay pequeno para o usuário ler a mensagem antes de mudar de tela
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1000);
+      setTimeout(() => navigate(rotaDestino), 1000);
       
     } catch (error) {
       showToast.error("Erro ao atualizar: " + error.message);
@@ -63,7 +69,6 @@ export default function RedefinirSenha() {
   return (
     <div className="min-h-screen bg-[#FDF8F5] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-[40px] shadow-xl p-10 border border-orange-50 animate-in slide-in-from-bottom-4 duration-500">
-        
         <div className="text-center mb-8">
           <div className="bg-green-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6">
             <Lock className="text-green-600" size={32} />
@@ -76,35 +81,23 @@ export default function RedefinirSenha() {
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Senha</label>
             <input 
-              type="password"
-              required
-              placeholder="Mínimo 6 caracteres"
+              type="password" required placeholder="Mínimo 6 caracteres"
               className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-100 transition-all font-bold text-gray-700"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
+              value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
             />
           </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Confirmar Senha</label>
             <input 
-              type="password"
-              required
-              placeholder="Repita a senha"
+              type="password" required placeholder="Repita a senha"
               className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-100 transition-all font-bold text-gray-700"
-              value={confirmarSenha}
-              onChange={(e) => setConfirmarSenha(e.target.value)}
+              value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
             />
           </div>
 
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gray-800 text-white py-5 rounded-[22px] font-black text-lg shadow-lg hover:bg-gray-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
-          >
-            {loading ? <RefreshCw className="animate-spin" size={24} /> : (
-              <>Salvar e Acessar <CheckCircle2 size={20} /></>
-            )}
+          <button disabled={loading} className="w-full bg-gray-800 text-white py-5 rounded-[22px] font-black text-lg shadow-lg hover:bg-gray-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
+            {loading ? <RefreshCw className="animate-spin" size={24} /> : <><CheckCircle2 size={20} /> Salvar e Acessar</>}
           </button>
         </form>
       </div>

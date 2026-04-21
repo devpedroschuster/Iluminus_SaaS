@@ -1,42 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import './landing.css'; 
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [modalLoginAberto, setModalLoginAberto] = useState(false);
-  const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
-  const [erroLogin, setErroLogin] = useState('');
-  const [carregando, setCarregando] = useState(false);
 
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const doLogin = async () => {
-    if (!email || !senha) {
-      setErroLogin('Preencha o e-mail e a senha.');
-      return;
-    }
-    setCarregando(true);
-    setErroLogin('');
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      });
-
-      if (error) throw error;
-      
-    } catch (error) {
-      console.error("Erro no login:", error);
-      setErroLogin('E-mail ou senha incorretos. Tente novamente.');
-      setCarregando(false);
-    }
   };
 
   return (
@@ -53,7 +24,7 @@ export default function Landing() {
           <button className="nav-link" onClick={() => scrollTo('sec-footer')}>Contato</button>
           <button 
             className="btn btn-primary" 
-            onClick={() => setModalLoginAberto(true)} 
+            onClick={() => navigate('/login')} 
             style={{ padding: '10px 24px', fontSize: '13px' }}
           >
             Área do Aluno
@@ -81,7 +52,7 @@ export default function Landing() {
             No Iluminus cada aula é uma experiência completa. Treinamento funcional e dança em um único espaço pensado para o seu corpo e sua alma.
           </p>
           <div className="hero-btns anim-fade-up s3">
-            <button className="btn btn-primary" onClick={() => setModalLoginAberto(true)} style={{ padding: '15px 40px', fontSize: '15px' }}>Acessar Minha Conta</button>
+            <button className="btn btn-primary" onClick={() => navigate('/login')} style={{ padding: '15px 40px', fontSize: '15px' }}>Acessar Minha Conta</button>
             <button className="btn btn-ghost" onClick={() => scrollTo('sec-aulas')} style={{ padding: '14px 32px', fontSize: '15px' }}>Conhecer as Aulas →</button>
           </div>
           <div className="hero-stats anim-fade-up s4">
@@ -110,7 +81,7 @@ export default function Landing() {
             <div className="schedule-item">Seg a Sex — 18:30</div>
             <div className="schedule-item">Sábados — 09:00</div>
             <div style={{ marginTop: '28px' }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setModalLoginAberto(true)}>Reservar vaga</button>
+              <button className="btn btn-outline btn-sm" onClick={() => navigate('/login')}>Reservar vaga</button>
             </div>
           </div>
           {/* Card Dança */}
@@ -123,7 +94,7 @@ export default function Landing() {
             <div className="schedule-item">Quartas — 20:00</div>
             <div className="schedule-item">Sábados — 10:00</div>
             <div style={{ marginTop: '28px' }}>
-              <button className="btn btn-sm" style={{ background: 'var(--sec)', color: '#fff' }} onClick={() => setModalLoginAberto(true)}>Reservar vaga</button>
+              <button className="btn btn-sm" style={{ background: 'var(--sec)', color: '#fff' }} onClick={() => navigate('/login')}>Reservar vaga</button>
             </div>
           </div>
         </div>
@@ -134,54 +105,6 @@ export default function Landing() {
           <span className="footer-copy">© 2026 Iluminus · Todos os direitos reservados.</span>
         </div>
       </footer>
-
-      {/* LOGIN MODAL */}
-      {modalLoginAberto && (
-        <div id="login-overlay" className="overlay">
-          <div className="modal">
-            <button className="modal-close" onClick={() => setModalLoginAberto(false)}>✕</button>
-            <div className="modal-logo">
-              <div className="logo-mark" style={{ width: '52px', height: '52px', margin: '0 auto 14px', fontSize: '20px' }}>I</div>
-            </div>
-            <h2 className="modal-title">Bem-vindo de volta</h2>
-            <p className="modal-sub">Acesse sua conta Iluminus</p>
-
-            {erroLogin && <div className="modal-error">{erroLogin}</div>}
-
-            <div className="inp-group">
-              <label className="inp-label">E-mail</label>
-              <input 
-                className="inp" 
-                type="email" 
-                placeholder="seu@email.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="inp-group">
-              <label className="inp-label">Senha</label>
-              <input 
-                className="inp" 
-                type="password" 
-                placeholder="••••••••" 
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && doLogin()}
-              />
-            </div>
-            <span className="forgot-link">Esqueceu a senha?</span>
-
-            <button 
-              className="btn btn-primary btn-full" 
-              onClick={doLogin} 
-              disabled={carregando}
-              style={{ fontSize: '15px', padding: '15px' }}
-            >
-              {carregando ? <span className="spinner"></span> : 'Acessar Conta'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -21,7 +21,6 @@ export default function Alunos() {
   const [busca, setBusca] = useState('');
   const [filtroRole, setFiltroRole] = useState('todos');
   
-  // Estados para controle de seleção e modais
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const [modalMatriculaAberto, setModalMatriculaAberto] = useState(false);
   
@@ -31,7 +30,7 @@ export default function Alunos() {
   const modalStatus = useModal();
   const modalExcluir = useModal();
 
-  // Hook de dados
+  // Hook
   const { alunos, loading, refetch } = useAlunos({ 
     role: filtroRole, 
     busca: buscaDebounced 
@@ -130,9 +129,9 @@ export default function Alunos() {
                 <tr key={aluno.id} className="group hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 md:px-8 py-4 md:py-6">
                     <div className="flex items-center gap-4">
-                      {aluno.foto_url ? (
+                      {aluno.avatar_url ? (
                         <img 
-                          src={aluno.foto_url} 
+                          src={aluno.avatar_url} 
                           alt={aluno.nome_completo} 
                           className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm"
                         />

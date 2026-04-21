@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { alunosService } from '../services/alunosService';
 import { Gift, CalendarDays, Search, PartyPopper, Cake, MessageCircle, ChevronRight } from 'lucide-react';
 import { TableSkeleton } from '../components/shared/Loading';
 
@@ -13,19 +13,12 @@ export default function Aniversariantes() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   
-  // Por padrão, o filtro inicia no mês atual
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
 
   useEffect(() => {
     async function fetchAniversariantes() {
       try {
-        // Busca alunos que tenham data de nascimento preenchida
-        const { data, error } = await supabase
-          .from('alunos')
-          .select('id, nome_completo, data_nascimento, telefone, planos(nome)')
-          .not('data_nascimento', 'is', null);
-
-        if (error) throw error;
+        const data = await alunosService.listarAniversariantes();
         setAlunos(data || []);
       } catch (error) {
         console.error("Erro ao buscar aniversariantes", error);
@@ -41,29 +34,23 @@ export default function Aniversariantes() {
     hoje.setHours(0, 0, 0, 0);
 
     return alunos.map(aluno => {
-      // Evita problemas de fuso horário quebrando a string YYYY-MM-DD
       const [ano, mes, dia] = aluno.data_nascimento.split('-');
       const dataNasc = new Date(ano, mes - 1, dia);
       
       const mesNasc = dataNasc.getMonth();
       const diaNasc = dataNasc.getDate();
       
-      // Calcula a idade que o aluno fará ou fez este ano
       let anosFazendo = hoje.getFullYear() - dataNasc.getFullYear();
 
-      // Monta a data do aniversário DESTE ano
       let dataNiverEsteAno = new Date(hoje.getFullYear(), mesNasc, diaNasc);
 
-      // Descobre se o aniversário já passou este ano
       let niverJaPassou = false;
       if (dataNiverEsteAno < hoje) {
          niverJaPassou = true;
-         // Se já passou, o próximo aniversário é ano que vem
          dataNiverEsteAno.setFullYear(hoje.getFullYear() + 1);
-         anosFazendo += 1; // A idade que fará no próximo ano
+         anosFazendo += 1;
       }
 
-      // Calcula os dias faltando para o próximo aniversário
       const diffTime = dataNiverEsteAno - hoje;
       const diasFaltando = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -77,17 +64,15 @@ export default function Aniversariantes() {
         isHoje: diasFaltando === 0,
         diaMesFormatado: `${String(diaNasc).padStart(2, '0')}/${String(mesNasc + 1).padStart(2, '0')}`
       };
-    }).sort((a, b) => a.diaNasc - b.diaNasc); // Ordena pelo dia do mês
+    }).sort((a, b) => a.diaNasc - b.diaNasc);
   }, [alunos]);
 
-  // Filtra pelo mês clicado nas abas E pela busca digitada
   const aniversariantesFiltrados = alunosProcessados.filter(a => {
     const matchMes = a.mesNasc === mesSelecionado;
     const matchBusca = a.nome_completo.toLowerCase().includes(busca.toLowerCase());
     return matchMes && matchBusca;
   });
 
-  // Pega os próximos 5 aniversariantes (independente do mês) para o Card de Destaque
   const proximosAniversariantes = [...alunosProcessados]
     .sort((a, b) => a.diasFaltando - b.diasFaltando)
     .slice(0, 5);
@@ -110,7 +95,7 @@ export default function Aniversariantes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* COLUNA ESQUERDA: DESTAQUES (Próximos) */}
+        {/* COLUNA ESQUERDA: DESTAQUES */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-gradient-to-br from-orange-500 to-iluminus-terracota rounded-[32px] p-6 text-white shadow-lg shadow-orange-200">
              <div className="flex items-center gap-3 mb-6">
@@ -172,7 +157,7 @@ export default function Aniversariantes() {
                  </div>
               </div>
 
-              {/* ABAS DOS MESES */}
+              {/* ABAS MESES */}
               <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 mt-6">
                 {MESES.map((mes, index) => (
                   <button 

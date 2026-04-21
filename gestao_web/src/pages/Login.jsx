@@ -30,32 +30,33 @@ export default function Login() {
 
       if (error) throw error;
 
-      const { data: alunoData } = await supabase
-        .from('alunos')
-        .select('primeiro_acesso, nome_completo, role')
-        .eq('auth_id', authData.user.id)
-        .maybeSingle();
+      const user = authData.user;
+      const metadata = user.user_metadata || {};
+      const role = metadata.role || 'aluno';
 
-      if (alunoData?.primeiro_acesso) {
-        showToast.info(`Olá, ${alunoData.nome_completo.split(' ')[0]}! Defina sua senha pessoal.`);
-        navigate('/redefinir-senha'); 
-        return;
-      } 
+      if (role === 'aluno' || role === 'admin') {
+        const { data: alunoData } = await supabase
+          .from('alunos')
+          .select('primeiro_acesso')
+          .eq('auth_id', user.id)
+          .maybeSingle();
 
-      const { data: profData } = await supabase
-        .from('professores')
-        .select('id')
-        .eq('email', email.trim())
-        .maybeSingle();
+        if (alunoData?.primeiro_acesso) {
+          const primeiroNome = (metadata.nome_completo || metadata.nome || 'Usuário').split(' ')[0];
+          showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
+          navigate('/redefinir-senha'); 
+          return;
+        }
+      }
 
       showToast.success("Login realizado com sucesso!");
       
-      if (profData) {
+      if (role === 'professor') {
         navigate('/agenda');
-      } else if (alunoData?.role === 'aluno') {
-        navigate('/area-aluno');
-      } else {
+      } else if (role === 'admin') {
         navigate('/dashboard');
+      } else {
+        navigate('/area-aluno');
       }
 
     } catch (err) {

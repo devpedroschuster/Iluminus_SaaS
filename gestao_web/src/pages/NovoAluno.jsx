@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home, CheckCircle2, CalendarDays, AlertTriangle, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, User, Mail, ShieldCheck, Package, RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin, Home, CheckCircle2, CalendarDays, AlertTriangle, Trash2, Plus, Info, Lock } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { alunosService } from '../services/alunosService';
-import { createClient } from '@supabase/supabase-js';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/Toast';
@@ -21,7 +20,8 @@ export default function NovoAluno() {
 
   const [abaAtiva, setAbaAtiva] = useState('dados'); 
   const [planos, setPlanos] = useState([]);
-  const [modalidades, setModalidades] = useState([]);
+  
+  const [modalidades, setModalidades] = useState([]); 
   const [modalidadesSelecionadas, setModalidadesSelecionadas] = useState([]);
   
   const [aulasGrade, setAulasGrade] = useState([]);
@@ -33,8 +33,6 @@ export default function NovoAluno() {
   const [dadosCriados, setDadosCriados] = useState(null);
   const [buscandoCep, setBuscandoCep] = useState(false);
 
-  const SENHA_PADRAO = "Iluminus576";
-
   const { register, handleSubmit, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm({
     resolver: yupResolver(alunoSchema),
     defaultValues: { role: 'aluno' }
@@ -44,8 +42,8 @@ export default function NovoAluno() {
   const planoSelecionado = watch('plano_id');
   const dataInicioPlano = watch('data_inicio_plano'); 
 
-  const planoSelecionadoObj = planos.find(p => p.id === Number(planoSelecionado));
-  const isPlanoLivre = planoSelecionadoObj?.nome?.toLowerCase().includes('livre') || planoSelecionadoObj?.nome?.toLowerCase().includes('avulso');
+  const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
+  const regrasPlano = planoSelecionadoObj?.regras_acesso || [];
 
   useEffect(() => {
     if (planoSelecionadoObj && dataInicioPlano) {
@@ -65,12 +63,8 @@ export default function NovoAluno() {
       const { data: planosData } = await supabase.from('planos').select('*').order('nome');
       setPlanos(planosData || []);
 
-      const { data: modData } = await supabase.from('modalidades').select('nome').order('nome');
-      if (modData && modData.length > 0) {
-        setModalidades(modData.map(m => m.nome));
-      } else {
-        setModalidades(['Funcional', 'Dança Criativa', 'Free Funk', 'Ballet', 'Jazz', 'Yoga']);
-      }
+      const { data: modData } = await supabase.from('modalidades').select('id, nome, area').order('area').order('nome');
+      setModalidades(modData || []);
     }
     carregarDados();
 
@@ -103,7 +97,7 @@ export default function NovoAluno() {
   async function carregarAgendaFixa() {
     setLoadingAgenda(true);
     try {
-      const { data: aulas } = await supabase.from('agenda').select('*, modalidades(nome)').eq('eh_recorrente', true);
+      const { data: aulas } = await supabase.from('agenda').select('*, modalidades(id, nome)').eq('eh_recorrente', true);
       const diasOrdem = { 'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2, 'Quarta-feira': 3, 'Quinta-feira': 4, 'Sexta-feira': 5, 'Sábado': 6 };
       
       const aulasOrdenadas = (aulas || []).sort((a, b) => {
@@ -139,18 +133,32 @@ export default function NovoAluno() {
     }
   };
 
-  const getCountMod = (mod) => modalidadesSelecionadas.filter(m => m === mod).length;
+  
+  const getCountModEspecifca = (modId) => modalidadesSelecionadas.filter(id => id === modId).length;
 
-  const countUsoMod = (modNome) => {
-    return matriculasAluno.filter(aulaId => {
-       const aula = aulasGrade.find(a => a.id === aulaId);
-       return aula?.modalidades?.nome === modNome;
+  const getUsoPorArea = (areaNome) => {
+    return modalidadesSelecionadas.filter(id => {
+      const mod = modalidades.find(m => m.id === id);
+      return mod?.area === areaNome;
     }).length;
   };
 
-  const addModalidade = (mod) => setModalidadesSelecionadas([...modalidadesSelecionadas, mod]);
-  const removeModalidade = (mod) => {
-    const index = modalidadesSelecionadas.lastIndexOf(mod);
+  const getRegraDaArea = (areaNome) => {
+    return regrasPlano.find(r => r.modalidade === areaNome);
+  };
+
+  const podeAdicionarMod = (modArea) => {
+    const regra = getRegraDaArea(modArea);
+    if (!regra) return false;
+    if (regra.limite === 999) return true;
+    
+    const usosAtuais = getUsoPorArea(modArea);
+    return usosAtuais < regra.limite;
+  };
+
+  const addModalidade = (modId) => setModalidadesSelecionadas([...modalidadesSelecionadas, modId]);
+  const removeModalidade = (modId) => {
+    const index = modalidadesSelecionadas.lastIndexOf(modId);
     if (index > -1) {
       const novaLista = [...modalidadesSelecionadas];
       novaLista.splice(index, 1);
@@ -158,24 +166,31 @@ export default function NovoAluno() {
     }
   };
 
-  const toggleModLivre = (mod) => {
-    if (modalidadesSelecionadas.includes(mod)) {
-      setModalidadesSelecionadas(modalidadesSelecionadas.filter(m => m !== mod));
-    } else {
-      setModalidadesSelecionadas([...modalidadesSelecionadas, mod]);
-    }
+  const modalidadesAgrupadas = modalidades.reduce((acc, mod) => {
+    const area = mod.area || 'Outros';
+    if(!acc[area]) acc[area] = [];
+    acc[area].push(mod);
+    return acc;
+  }, {});
+
+  const countUsoModNaGrade = (modId) => {
+    return matriculasAluno.filter(aulaId => {
+       const aula = aulasGrade.find(a => a.id === aulaId);
+       return aula?.modalidades?.id === modId;
+    }).length;
   };
 
   async function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
+    const modId = aula.modalidades?.id;
     const modNome = aula.modalidades?.nome;
     
     if (!isMatriculado) {
-        const limite = getCountMod(modNome);
-        const usado = countUsoMod(modNome);
+        const limiteSelecionado = getCountModEspecifca(modId);
+        const usado = countUsoModNaGrade(modId);
 
-        if (!isPlanoLivre && usado >= limite) {
-            const ok = window.confirm(`ATENÇÃO: O plano do aluno permite apenas ${limite}x de ${modNome} por semana.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª aula?`);
+        if (usado >= limiteSelecionado) {
+            const ok = window.confirm(`ATENÇÃO: Você selecionou apenas ${limiteSelecionado}x de ${modNome} no perfil do aluno.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª turma?`);
             if (!ok) return;
         }
 
@@ -222,13 +237,21 @@ export default function NovoAluno() {
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
         navigate('/alunos');
       } else {
-        const supabaseFantasma = createClient(supabase.supabaseUrl, supabase.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
-        const { data: authData, error: authError } = await supabaseFantasma.auth.signUp({
-          email: data.email, password: SENHA_PADRAO, options: { data: { role: data.role || 'aluno', nome_completo: data.nome_completo } }
+        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+          body: { email: data.email, nome: data.nome_completo, role: data.role || 'aluno' }
         });
-        if (authError) throw new Error(authError.message === 'User already registered' ? 'Este e-mail já está cadastrado no sistema.' : authError.message);
+
+        if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
         
-        await supabase.from(data.role === 'professor' ? 'professores' : 'alunos').update(payloadBase).eq('auth_id', authData.user.id);
+        if (funcData?.error) {
+           throw new Error(funcData.error === 'User already registered' 
+             ? 'Este e-mail já possui um acesso no sistema.' 
+             : funcData.error);
+        }
+        
+        await supabase.from(data.role === 'professor' ? 'professores' : 'alunos')
+           .update(payloadBase)
+           .eq('auth_id', funcData.user.id);
         
         await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores'] });
         setDadosCriados({ nome: data.nome_completo, email: data.email });
@@ -240,17 +263,15 @@ export default function NovoAluno() {
   }
 
   const copiarInstrucoes = () => {
-    const texto = `Olá ${dadosCriados.nome}!\nSeu cadastro no Espaço Iluminus foi criado.\n\nAcesse: ${window.location.origin}\nLogin: ${dadosCriados.email}\nSenha Provisória: ${SENHA_PADRAO}\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
+    const texto = `Olá ${dadosCriados.nome}!\nSeu cadastro no Espaço Iluminus foi criado.\n\nAcesse: ${window.location.origin}\nLogin: ${dadosCriados.email}\nSenha Provisória: Iluminus576\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
     navigator.clipboard.writeText(texto);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
     showToast.success("Instruções copiadas!");
   };
 
-  const modalidadesUnicas = [...new Set(modalidadesSelecionadas)];
-  // Lógica para preservar o histórico (alunos que tinham plano livre antigo sem modalidades selecionadas verem tudo)
-  const isLegacyLivre = isPlanoLivre && modalidadesUnicas.length === 0;
-  const listaModalidadesAgenda = isLegacyLivre ? modalidades : modalidadesUnicas;
+  const modalidadesUnicasIDs = [...new Set(modalidadesSelecionadas)];
+  const listaModalidadesAgenda = modalidadesUnicasIDs.map(id => modalidades.find(m => m.id === id)).filter(Boolean);
 
   return (
     <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -278,6 +299,7 @@ export default function NovoAluno() {
         
         {abaAtiva === 'dados' && (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in">
+            {/* INFORMAÇÕES PESSOAIS */}
             <div className="space-y-4">
               <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><User size={16} /> Informações Pessoais</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -300,6 +322,7 @@ export default function NovoAluno() {
               </div>
             </div>
 
+            {/* ENDEREÇO */}
             <div className="space-y-4 pt-4 border-t border-gray-50">
               <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><MapPin size={16} /> Endereço Residencial</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -320,6 +343,7 @@ export default function NovoAluno() {
               </div>
             </div>
 
+            {/* PLANO E REGRAS */}
             <div className="space-y-4 pt-4 border-t border-gray-50">
               <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ShieldCheck size={16} /> Acesso e Plano</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -354,56 +378,96 @@ export default function NovoAluno() {
                       <input {...register('data_fim_plano')} type="date" className="w-full px-4 py-4 bg-orange-50 rounded-2xl outline-none font-bold text-orange-800" />
                     </div>
 
-                    <div className="md:col-span-2 mt-2 animate-in slide-in-from-top-4">
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">Modalidades do Aluno</label>
+                    {/* SELEÇÃO DE SLOTS */}
+                    <div className="md:col-span-2 mt-4 animate-in slide-in-from-top-4">
                       
-                      {isPlanoLivre ? (
-                         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex flex-col mb-4">
-                            <div className="flex items-center gap-3 mb-4">
-                               <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                                 <CheckCircle2 size={24} />
-                               </div>
-                               <div>
-                                 <h4 className="font-black text-blue-900">Áreas de Acesso Livre</h4>
-                                 <p className="text-xs text-blue-800 mt-0.5 font-medium">Selecione quais modalidades o aluno pode fazer de forma ilimitada com este plano.</p>
-                               </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                               {modalidades.map(mod => {
-                                 const isAtivo = modalidadesSelecionadas.includes(mod);
-                                 return (
-                                   <div key={mod} onClick={() => toggleModLivre(mod)} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${isAtivo ? 'bg-white border-blue-300 shadow-sm' : 'bg-white/40 border-transparent hover:bg-white'}`}>
-                                     <span className={`text-sm font-bold ${isAtivo ? 'text-gray-800' : 'text-gray-400'}`}>{mod}</span>
-                                     <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-colors ${isAtivo ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-400'}`}>
-                                       {isAtivo ? 'Liberado' : 'Bloqueado'}
-                                     </div>
-                                   </div>
-                                 );
-                               })}
-                            </div>
-                         </div>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {modalidades.map(mod => {
-                              const count = getCountMod(mod);
-                              const isAtivo = count > 0;
+                      <div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                           <Info className="text-blue-500" size={20} />
+                           <h4 className="font-black text-blue-900 text-lg">Regras do Plano: {planoSelecionadoObj?.nome}</h4>
+                        </div>
+                        
+                        {regrasPlano.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {regrasPlano.map((r, i) => {
+                              const usoAtual = getUsoPorArea(r.modalidade);
+                              const limiteText = r.limite === 999 ? 'Ilimitado' : `${r.limite}x`;
+                              const isFull = r.limite !== 999 && usoAtual >= r.limite;
+
                               return (
-                                <div key={mod} className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all ${isAtivo ? 'bg-white border-orange-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-gray-100'}`}>
-                                  <span className={`text-sm font-bold ${isAtivo ? 'text-gray-800' : 'text-gray-400'}`}>{mod}</span>
-                                  <div className="flex items-center gap-3 bg-white px-2 py-1 rounded-xl shadow-sm border border-gray-100">
-                                    <button type="button" onClick={() => removeModalidade(mod)} disabled={!isAtivo} className="w-6 h-6 flex flex-col items-center justify-center rounded-md bg-gray-50 text-gray-500 font-black hover:bg-red-50 hover:text-red-500 disabled:opacity-30 transition-colors">-</button>
-                                    <span className="font-black text-iluminus-terracota w-4 text-center">{count}x</span>
-                                    <button type="button" onClick={() => addModalidade(mod)} className="w-6 h-6 flex flex-col items-center justify-center rounded-md bg-orange-50 text-orange-600 font-black hover:bg-orange-100 transition-colors">+</button>
-                                  </div>
-                                </div>
+                                <span key={i} className={`border px-4 py-2 rounded-xl font-bold text-sm transition-colors ${isFull ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-blue-700 border-blue-200'}`}>
+                                  {limiteText} na Área: {r.modalidade} {isFull && <Check size={14} className="inline ml-1" />}
+                                </span>
                               );
                             })}
                           </div>
-                          <p className="text-[11px] text-gray-400 mt-2 font-medium">Use os botões + e - para definir quantas vezes na semana o aluno fará cada modalidade no combo contratado.</p>
-                        </>
-                      )}
+                        ) : (
+                          <p className="text-sm text-blue-800 font-medium">Este plano não possui regras cadastradas. O aluno não poderá agendar aulas.</p>
+                        )}
+                      </div>
+
+                      {/* RENDEREZIÇÃO AGRUPADA POR ÁREA */}
+                      <div className="space-y-6">
+                        {Object.entries(modalidadesAgrupadas).map(([areaNome, modsArea]) => {
+                          const regra = getRegraDaArea(areaNome);
+                          const isAreaBloqueada = !regra;
+                          
+                          return (
+                            <div key={areaNome} className={`p-5 rounded-3xl border-2 ${isAreaBloqueada ? 'bg-gray-50 border-dashed border-gray-200 opacity-60' : 'bg-white border-gray-100'}`}>
+                              <div className="flex items-center justify-between mb-4">
+                                 <h4 className="font-black text-gray-700 uppercase tracking-widest text-xs flex items-center gap-2">
+                                   Área: {areaNome} 
+                                   {isAreaBloqueada && <Lock size={14} className="text-gray-400" />}
+                                 </h4>
+                                 {!isAreaBloqueada && regra.limite !== 999 && (
+                                    <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-md">
+                                      Usado: {getUsoPorArea(areaNome)} / {regra.limite}
+                                    </span>
+                                 )}
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {modsArea.map(mod => {
+                                  const count = getCountModEspecifca(mod.id);
+                                  const isAtivo = count > 0;
+                                  const allowAdd = podeAdicionarMod(areaNome);
+
+                                  return (
+                                    <div key={mod.id} className={`flex items-center justify-between p-3 rounded-xl transition-all ${isAreaBloqueada ? 'bg-gray-100' : isAtivo ? 'bg-orange-50/50 border border-orange-100' : 'bg-gray-50 border border-transparent'}`}>
+                                      <span className={`text-sm font-bold ${isAtivo ? 'text-orange-900' : 'text-gray-500'}`}>{mod.nome}</span>
+                                      
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          type="button" 
+                                          onClick={() => removeModalidade(mod.id)} 
+                                          disabled={!isAtivo} 
+                                          className="w-7 h-7 flex flex-col items-center justify-center rounded-lg bg-white shadow-sm text-gray-500 font-black hover:bg-red-50 hover:text-red-500 disabled:opacity-30 disabled:shadow-none transition-colors"
+                                        >
+                                          -
+                                        </button>
+                                        
+                                        <span className={`font-black w-4 text-center ${isAtivo ? 'text-iluminus-terracota' : 'text-gray-300'}`}>
+                                          {count}x
+                                        </span>
+                                        
+                                        <button 
+                                          type="button" 
+                                          onClick={() => addModalidade(mod.id)} 
+                                          disabled={!allowAdd || isAreaBloqueada}
+                                          className={`w-7 h-7 flex flex-col items-center justify-center rounded-lg bg-white shadow-sm font-black transition-colors ${!allowAdd || isAreaBloqueada ? 'opacity-30 shadow-none text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'}`}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
                     </div>
                   </>
                 )}
@@ -423,7 +487,7 @@ export default function NovoAluno() {
                <div>
                   <h4 className="font-black text-orange-900">Gerenciamento de Turmas Regulares</h4>
                   <p className="text-sm text-orange-800 font-medium mt-1">
-                    Matricule o aluno em turmas específicas. O sistema listará abaixo apenas as turmas das modalidades que você liberou para este aluno.
+                    Matricule o aluno nas turmas fixas que ele selecionou.
                   </p>
                </div>
              </div>
@@ -435,21 +499,21 @@ export default function NovoAluno() {
                  {listaModalidadesAgenda.length === 0 ? (
                     <p className="text-gray-400 text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">Nenhuma modalidade configurada no perfil deste aluno ainda.</p>
                  ) : (
-                    listaModalidadesAgenda.map(modNome => {
-                       const limite = getCountMod(modNome);
-                       const usado = countUsoMod(modNome);
-                       const isFull = !isPlanoLivre && (usado >= limite);
+                    listaModalidadesAgenda.map(modObj => {
+                       const limite = getCountModEspecifca(modObj.id);
+                       const usado = countUsoModNaGrade(modObj.id);
+                       const isFull = usado >= limite;
                        
-                       const turmasDessaMod = aulasGrade.filter(a => a.modalidades?.nome === modNome);
+                       const turmasDessaMod = aulasGrade.filter(a => a.modalidades?.id === modObj.id);
 
                        if (turmasDessaMod.length === 0) return null;
 
                        return (
-                         <div key={modNome} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
+                         <div key={modObj.id} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
                             <div className="bg-gray-50 border-b border-gray-100 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                               <h3 className="font-black text-gray-800 text-lg">{modNome}</h3>
-                               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isPlanoLivre ? 'bg-blue-100 text-blue-700' : isFull ? 'bg-orange-100 text-iluminus-terracota' : 'bg-green-100 text-green-700'}`}>
-                                 {isPlanoLivre ? `Matriculado em ${usado} (Ilimitado)` : `Vagas: ${usado} de ${limite}`}
+                               <h3 className="font-black text-gray-800 text-lg">{modObj.nome}</h3>
+                               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isFull ? 'bg-orange-100 text-iluminus-terracota' : 'bg-green-100 text-green-700'}`}>
+                                 Vagas: {usado} de {limite}
                                </div>
                             </div>
                             
@@ -484,7 +548,6 @@ export default function NovoAluno() {
         )}
       </div>
       
-      {/* O Modal Finaliza Aqui */}
       <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); navigate('/alunos'); }} titulo="Cadastro Realizado!">
          <button onClick={copiarInstrucoes} className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-700">
              {copiado ? <Check size={20} /> : <Copy size={20} />} Copiar

@@ -20,7 +20,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
       }
     }
     buscarLista();
-  }, [isOpen, aulaParaLista, dataLista, onAtualizar]);
+  }, [isOpen, aulaParaLista, dataLista]);
 
   const handleRemoverPresenca = async (idRelacao) => {
     if (!window.confirm(`Tem certeza que deseja remover este aluno?`)) return;

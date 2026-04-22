@@ -237,25 +237,41 @@ export default function NovoAluno() {
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
         navigate('/alunos');
       } else {
-        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
-          body: { email: data.email, nome: data.nome_completo, role: data.role || 'aluno' }
-        });
-
-        if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
         
-        if (funcData?.error) {
-           throw new Error(funcData.error === 'User already registered' 
-             ? 'Este e-mail já possui um acesso no sistema.' 
-             : funcData.error);
+        const { data: profExistente } = await supabase.from('professores').select('auth_id').eq('email', data.email.trim()).maybeSingle();
+
+        if (profExistente) {
+          const { error: insertError } = await supabase.from('alunos').insert([{
+             ...payloadBase,
+             auth_id: profExistente.auth_id,
+             nome_completo: data.nome_completo,
+             email: data.email.trim()
+          }]);
+          
+          if (insertError) throw new Error("Erro ao criar vínculo de aluno para este professor.");
+          showToast.success("Perfil de aluno vinculado ao professor existente com sucesso!");
+          
+        } else {
+          const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+            body: { email: data.email.trim(), nome: data.nome_completo, role: data.role || 'aluno' }
+          });
+
+          if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
+          if (funcData?.error) throw new Error(funcData.error === 'User already registered' ? 'Este e-mail já possui um acesso.' : funcData.error);
+          
+          await supabase.from(data.role === 'professor' ? 'professores' : 'alunos')
+             .update(payloadBase).eq('auth_id', funcData.user.id);
+             
+          showToast.success("Cadastro criado com sucesso!");
         }
         
-        await supabase.from(data.role === 'professor' ? 'professores' : 'alunos')
-           .update(payloadBase)
-           .eq('auth_id', funcData.user.id);
-        
         await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores'] });
-        setDadosCriados({ nome: data.nome_completo, email: data.email });
-        setModalOpen(true);
+        if (!profExistente) {
+           setDadosCriados({ nome: data.nome_completo, email: data.email });
+           setModalOpen(true);
+        } else {
+           navigate('/alunos');
+        }
       }
     } catch (error) {
        showToast.error(error.message || "Erro ao processar a solicitação.");

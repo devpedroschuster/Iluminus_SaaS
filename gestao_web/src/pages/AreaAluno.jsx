@@ -71,7 +71,6 @@ export default function AreaAluno() {
       
       const { data, error } = await supabase
         .from('presencas')
-        // AGORA BUSCA A ÁREA PARA CONTABILIZAR CORRETAMENTE
         .select(`id, agenda(atividade, espaco, modalidades(area))`)
         .eq('aluno_id', aluno.id)
         .gte('data_checkin', primeiroDia);
@@ -111,6 +110,15 @@ export default function AreaAluno() {
 
       if (error) throw error;
       return data || [];
+    }
+  });
+
+  const { data: isProfessor } = useQuery({
+    queryKey: ['check-hibrido', aluno?.auth_id],
+    enabled: !!aluno?.auth_id,
+    queryFn: async () => {
+      const { data } = await supabase.from('professores').select('id').eq('auth_id', aluno.auth_id).maybeSingle();
+      return !!data;
     }
   });
 
@@ -259,6 +267,13 @@ export default function AreaAluno() {
         <button className={`nav-item ${abaAtiva === 'schedule' ? 'active' : ''}`} onClick={() => setAbaAtiva('schedule')}><span className="nav-icon">📅</span> Agendar Aulas</button>
         <button className={`nav-item ${abaAtiva === 'profile' ? 'active' : ''}`} onClick={() => setAbaAtiva('profile')}><span className="nav-icon">👤</span> Meu Perfil</button>
         <button className={`nav-item ${abaAtiva === 'payments' ? 'active' : ''}`} onClick={() => setAbaAtiva('payments')}><span className="nav-icon">💳</span> Mensalidades</button>
+        {isProfessor && (
+          <button className="nav-item" onClick={() => navigate('/agenda')} 
+            style={{ marginTop: '20px', backgroundColor: '#EFF6FF', color: '#2563EB', fontWeight: 'bold' }}
+          >
+            <span className="nav-icon"><RefreshCw size={16} /></span> Visão Professor
+          </button>
+        )}
         <div className="sidebar-footer"><button className="nav-item" onClick={doLogout} style={{ color: 'var(--err)' }}><span className="nav-icon">↩</span> Sair</button></div>
       </aside>
 

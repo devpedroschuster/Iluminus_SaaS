@@ -71,27 +71,38 @@ export default function Professores() {
 
       if (payloadProfessor.email && !payloadProfessor.auth_id) {
         
-        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
-          body: { email: payloadProfessor.email, nome: payloadProfessor.nome, role: 'professor' }
-        });
+        const { data: alunoExistente } = await supabase
+          .from('alunos')
+          .select('auth_id')
+          .eq('email', payloadProfessor.email.trim())
+          .maybeSingle();
 
-        if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
-        
-        if (funcData?.error) {
-           throw new Error(funcData.error === 'User already registered' 
-             ? 'Este e-mail já possui um acesso no sistema.' 
-             : funcData.error);
+        if (alunoExistente) {
+          payloadProfessor.auth_id = alunoExistente.auth_id;
+          
+        } else {
+          const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+            body: { email: payloadProfessor.email.trim(), nome: payloadProfessor.nome, role: 'professor' }
+          });
+
+          if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
+          
+          if (funcData?.error) {
+             throw new Error(funcData.error === 'User already registered' 
+               ? 'Este e-mail já possui um acesso no sistema.' 
+               : funcData.error);
+          }
+
+          payloadProfessor.auth_id = funcData.user.id;
+          isNovoAcesso = true;
         }
-
-        payloadProfessor.auth_id = funcData.user.id;
-        isNovoAcesso = true;
       }
 
       await professoresService.salvar(payloadProfessor);
       
       showToast.success(isNovoAcesso 
         ? "Professor cadastrado e Acesso criado!" 
-        : "Professor atualizado com sucesso!");
+        : "Professor vinculado ao acesso existente com sucesso!");
         
       modalForm.fechar();
       carregarProfessores();

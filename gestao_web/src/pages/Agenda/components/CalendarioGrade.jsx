@@ -36,17 +36,36 @@ const CustomToolbar = (toolbar) => (
   </div>
 );
 
+const formatarNomeAbreviado = (nomeCompleto) => {
+  if (!nomeCompleto) return '';
+  const partes = nomeCompleto.trim().split(' ');
+  if (partes.length === 1) return partes[0]; 
+  return `${partes[0]} ${partes[partes.length - 1]}`; 
+};
+
+// 🎨 Card da Aula na Grade (Protegido contra Esmagamento Vertical)
 const CustomEventCard = ({ event }) => (
-  <div className="h-full flex flex-col overflow-hidden relative pointer-events-none">
-    <div className="font-bold text-[11px] leading-tight mb-1 shrink-0">{event.title}</div>
+  <div className="h-full flex flex-col overflow-hidden relative pointer-events-none" title={`${event.title}\nProf: ${event.dadosOriginais?.professores?.nome || 'N/A'}`}>
+    {/* Título com TRUNCATE: Garante que fique em apenas 1 linha para não roubar espaço vertical */}
+    <div className="font-bold text-xs leading-tight mb-[2px] shrink-0 drop-shadow-sm truncate">
+      {event.title}
+    </div>
+    
     {event.alunosAgendados && event.alunosAgendados.length > 0 && (
-      <div className="flex flex-col gap-[2px] mt-1 overflow-hidden">
-        {event.alunosAgendados.slice(0, 3).map((aluno, idx) => (
-          <div key={idx} className="text-[9px] bg-white/50 px-1 rounded truncate flex items-center gap-1 font-medium">
-            <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>{aluno.split(' ')[0]}
+      // min-h-0 é o segredo do Flexbox para permitir que ele oculte os filhos em vez de esmagá-los
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        {event.alunosAgendados.slice(0, 2).map((aluno, idx) => (
+          <div key={idx} className="text-[10px] leading-tight flex items-center gap-1 font-medium overflow-hidden opacity-95 shrink-0">
+            <div className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0"></div>
+            <span className="truncate min-w-0">{formatarNomeAbreviado(aluno)}</span>
           </div>
         ))}
-        {event.alunosAgendados.length > 3 && <div className="text-[9px] bg-white/70 font-bold px-1 rounded text-center mt-[2px] shrink-0">+ {event.alunosAgendados.length - 3} alunos</div>}
+        
+        {event.alunosAgendados.length > 2 && (
+          <div className="text-[9px] font-bold opacity-80 mt-[1px] shrink-0 truncate">
+            + {event.alunosAgendados.length - 2} aluno(s)
+          </div>
+        )}
       </div>
     )}
   </div>
@@ -57,8 +76,9 @@ function eventPropGetter(event) {
   const corTema = PALETA_CORES.find(c => c.id === corDB) || PALETA_CORES[0];
   return {
     style: {
-      backgroundColor: corTema.bg, color: corTema.text, border: '1px solid white', borderLeft: `5px solid ${corTema.border}`,
-      borderRadius: '6px', padding: '2px 6px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', cursor: 'pointer'
+      backgroundColor: corTema.bg, color: corTema.text, border: '1px solid white', borderLeft: `4px solid ${corTema.border}`,
+      borderRadius: '8px', padding: '4px 6px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', cursor: 'pointer',
+      overflow: 'hidden' // Garante que nada vaze para fora do card
     }
   };
 }
@@ -74,11 +94,12 @@ export default function CalendarioGrade({ eventos, currentDate, setCurrentDate, 
           .rbc-timeslot-group { border-color: #f3f4f6; min-height: 60px; }
           .rbc-time-content { border-top: 2px solid #f3f4f6; }
           .rbc-time-gutter .rbc-timeslot-group { font-size: 11px; font-weight: bold; color: #9ca3af; }
+          .rbc-event-content { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
           @media (max-width: 768px) {
             .rbc-calendar { min-width: 600px; } 
             .style-calendar-wrapper { overflow-x: auto; padding-bottom: 20px; } 
             .rbc-time-header-content { font-size: 10px; }
-            .rbc-event { padding: 1px 2px !important; }
+            .rbc-event { padding: 2px 4px !important; }
             .rbc-toolbar { flex-direction: column; gap: 1rem; align-items: stretch !important; }
             .rbc-toolbar h2 { text-align: center; font-size: 1.1rem; }
           }

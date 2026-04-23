@@ -58,7 +58,7 @@ export default function NovoAluno() {
     }
   }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
-  useEffect(() => {
+useEffect(() => {
     async function carregarDados() {
       const { data: planosData } = await supabase.from('planos').select('*').order('nome');
       setPlanos(planosData || []);
@@ -68,24 +68,36 @@ export default function NovoAluno() {
     }
     carregarDados();
 
-    if (alunoParaEditar) {
-      reset({
-        nome_completo: alunoParaEditar.nome_completo || '',
-        email: alunoParaEditar.email || '',
-        role: alunoParaEditar.role || 'aluno',
-        plano_id: alunoParaEditar.planos?.id || alunoParaEditar.plano_id || '',
-        cpf: alunoParaEditar.cpf || '',
-        data_nascimento: alunoParaEditar.data_nascimento || '',
-        telefone: alunoParaEditar.telefone || '',
-        data_inicio_plano: alunoParaEditar.data_inicio_plano || '',
-        data_fim_plano: alunoParaEditar.data_fim_plano || '', 
-        cep: alunoParaEditar.cep || '',
-        rua: alunoParaEditar.rua || '',
-        numero: alunoParaEditar.numero || '',
-        bairro: alunoParaEditar.bairro || '',
-      });
-      setModalidadesSelecionadas(alunoParaEditar.modalidades_selecionadas || []);
+    async function carregarFichaCompleta() {
+      if (alunoParaEditar && alunoParaEditar.id) {
+        const { data: alunoCompleto, error } = await supabase
+          .from('alunos')
+          .select('*')
+          .eq('id', alunoParaEditar.id)
+          .single();
+
+        if (alunoCompleto && !error) {
+          reset({
+            nome_completo: alunoCompleto.nome_completo || '',
+            email: alunoCompleto.email || '',
+            role: alunoCompleto.role || 'aluno',
+            plano_id: alunoCompleto.plano_id || '',
+            cpf: alunoCompleto.cpf || '',
+            data_nascimento: alunoCompleto.data_nascimento || '',
+            telefone: alunoCompleto.telefone || '',
+            data_inicio_plano: alunoCompleto.data_inicio_plano || '',
+            data_fim_plano: alunoCompleto.data_fim_plano || '', 
+            cep: alunoCompleto.cep || '',
+            rua: alunoCompleto.rua || '',
+            numero: alunoCompleto.numero || '',
+            bairro: alunoCompleto.bairro || '',
+          });
+          setModalidadesSelecionadas(alunoCompleto.modalidades_selecionadas || []);
+        }
+      }
     }
+    carregarFichaCompleta();
+
   }, [alunoParaEditar, reset]);
 
   useEffect(() => {

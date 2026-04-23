@@ -15,26 +15,46 @@ export const agendaService = {
 
   async listarGrade() {
     const { data: { session } } = await supabase.auth.getSession();
-    const email = session?.user?.email;
-    let professorId = null;
+    const authId = session?.user?.id;
+    
+    const userRole = session?.user?.user_metadata?.role;
 
-    if (email) {
-      const { data: prof } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
+    const { data: aulas, error } = await supabase
+      .from('agenda')
+      .select('*, professores(nome)')
+      .order('horario', { ascending: true });
+      
+    if (error) throw error;
+
+    if (userRole === 'admin') return aulas;
+
+    let professorId = null;
+    if (authId) {
+      const { data: prof } = await supabase
+        .from('professores')
+        .select('id')
+        .eq('auth_id', authId)
+        .maybeSingle();
+        
       if (prof) professorId = prof.id;
     }
 
-    const { data: aulas, error } = await supabase.from('agenda').select('*, professores(nome)').order('horario', { ascending: true });
-    if (error) throw error;
     if (!professorId) return aulas;
 
-    const { data: modalidadesDoProf } = await supabase.from('modalidades').select('nome').eq('professor_id', professorId);
-    const nomesMods = modalidadesDoProf ? modalidadesDoProf.map(m => m.nome.toLowerCase().trim()) : [];
+    const { data: modalidadesDoProf } = await supabase
+      .from('modalidades')
+      .select('id')
+      .eq('professor_id', professorId);
+      
+    const idsModsDoProf = modalidadesDoProf ? modalidadesDoProf.map(m => m.id) : [];
 
     return aulas.filter(aula => {
       if (aula.professor_id === professorId) return true;
-      if (!aula.professor_id && aula.atividade) {
-        return nomesMods.includes(aula.atividade.toLowerCase().trim());
+      
+      if (!aula.professor_id && aula.modalidade_id && idsModsDoProf.includes(aula.modalidade_id)) {
+        return true;
       }
+      
       return false;
     });
   },
@@ -56,18 +76,21 @@ export const agendaService = {
     return true;
   },
 
-  // CÉREBRO ATUALIZADO: VERIFICA SE A MODALIDADE FOI LIBERADA NO PLANO
   async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
     try {
       const { data: aula } = await supabase
         .from('agenda')
-        .select('capacidade, modalidades(nome, capacidade_padrao)')
+        .select('capacidade, modalidades(id, nome, area, capacidade_padrao)')
         .eq('id', aulaId)
         .single();
         
       if (!aula) throw new Error("Aula não encontrada no banco.");
 
       const capacidadeMax = aula.modalidades?.capacidade_padrao || aula.capacidade || 15;
+      const modId = aula.modalidades?.id;
+      const modNome = aula.modalidades?.nome || 'Atividade';
+      const modArea = aula.modalidades?.area;
+
       const inicioDia = `${dataAula}T00:00:00`;
       const fimDia = `${dataAula}T23:59:59`;
 
@@ -90,26 +113,32 @@ export const agendaService = {
       let limiteSemanal = 0;
       let usoSemanal = 0;
       let isLivre = false;
-      let temModalidadeNoPlano = true; // Novo verificador de Áreas
-      const modNome = aula.modalidades?.nome || 'Atividade';
+      let temModalidadeNoPlano = true;
 
       if (alunoId) {
-         const { data: aluno } = await supabase.from('alunos').select('modalidades_selecionadas, planos(nome)').eq('id', alunoId).single();
+         // BUSCAMOS AS REGRAS E O ARRAY DE UUIDS
+         const { data: aluno } = await supabase.from('alunos').select('modalidades_selecionadas, planos(nome, regras_acesso)').eq('id', alunoId).single();
+         
          if (aluno && aluno.planos) {
-             isLivre = aluno.planos.nome.toLowerCase().includes('livre') || aluno.planos.nome.toLowerCase().includes('avulso');
+             const regrasPlano = aluno.planos.regras_acesso || [];
+             const regraDaArea = regrasPlano.find(r => r.modalidade === modArea);
 
-             if (modNome) {
-                 const selectedMods = aluno.modalidades_selecionadas || [];
-                 // Se é um plano livre legado (cadastrado antes da gente separar as áreas), libera tudo para não quebrar.
-                 const isLegacyLivre = isLivre && selectedMods.length === 0;
-                 
-                 temModalidadeNoPlano = isLegacyLivre || selectedMods.includes(modNome);
+             if (!regraDaArea) {
+                 avisoLimitePlano = `Atenção: O plano atual do aluno NÃO permite acesso à área de "${modArea}". Deseja forçar a entrada mesmo assim?`;
+                 temModalidadeNoPlano = false;
+             } else {
+                 isLivre = regraDaArea.limite === 999;
+                 const selectedModsIds = aluno.modalidades_selecionadas || [];
 
-                 if (!temModalidadeNoPlano) {
-                     avisoLimitePlano = `Atenção: O plano atual do aluno NÃO permite acesso à modalidade "${modNome}". Deseja forçar a entrada mesmo assim?`;
+                 // MUDANÇA AQUI: O limite agora vem 100% da regra do Plano, ignorando os "cliques" no perfil
+                 limiteSemanal = regraDaArea.limite;
+
+                 // Exige apenas que a modalidade esteja presente ao menos 1 vez no perfil
+                 if (!isLivre && !selectedModsIds.includes(modId)) {
+                     avisoLimitePlano = `Atenção: O aluno não possui a modalidade "${modNome}" ativa no perfil dele. Deseja forçar?`;
+                     temModalidadeNoPlano = false;
                  } else if (!isLivre) {
-                     limiteSemanal = selectedMods.filter(m => m === modNome).length;
-
+                     // Calcula quantas vezes ele já fez AULAS DESTA ÁREA na semana
                      const dataBase = new Date(dataAula + 'T12:00:00');
                      const diaSemana = dataBase.getDay();
                      const diffInicio = dataBase.getDate() - diaSemana;
@@ -118,22 +147,27 @@ export const agendaService = {
                      const dataInicioSemana = new Date(dataBase.setDate(diffInicio)).toISOString().split('T')[0];
                      const dataFimSemana = new Date(dataBase.setDate(diffFim)).toISOString().split('T')[0];
 
+                     // Busca todas as presenças da semana puxando a Área junto
                      const { data: agendamentosNaSemana } = await supabase
                         .from('presencas')
-                        .select('aula_id')
+                        .select('aula_id, agenda(modalidades(area))')
                         .eq('aluno_id', alunoId)
                         .gte('data_checkin', `${dataInicioSemana}T00:00:00`)
                         .lte('data_checkin', `${dataFimSemana}T23:59:59`);
                      
                      const { data: fixasNaSemana } = await supabase
                         .from('agenda_fixa')
-                        .select('aula_id')
+                        .select('aula_id, agenda(modalidades(area))')
                         .eq('aluno_id', alunoId);
 
-                     usoSemanal = (agendamentosNaSemana?.length || 0) + (fixasNaSemana?.length || 0);
+                     // Filtra apenas as que pertencem à mesma ÁREA (Ex: Funcional)
+                     const qtdAgendados = agendamentosNaSemana?.filter(p => p.agenda?.modalidades?.area === modArea).length || 0;
+                     const qtdFixos = fixasNaSemana?.filter(f => f.agenda?.modalidades?.area === modArea).length || 0;
+
+                     usoSemanal = qtdAgendados + qtdFixos;
 
                      if (usoSemanal >= limiteSemanal && limiteSemanal > 0) {
-                        avisoLimitePlano = `O aluno já atingiu ou ultrapassou o limite do plano para a modalidade ${modNome} (Limite: ${limiteSemanal}x na semana). Deseja agendar assim mesmo?`;
+                        avisoLimitePlano = `O aluno já atingiu o limite de ${limiteSemanal}x aulas na semana para a área de ${modArea}. Deseja agendar assim mesmo?`;
                      }
                  }
              }
@@ -149,10 +183,11 @@ export const agendaService = {
         usoSemanal,
         isLivre,
         modNome,
-        temModalidadeNoPlano // Agora devolve se o aluno tá bloqueado na área ou não
+        temModalidadeNoPlano 
       };
 
     } catch (error) {
+      console.error(error);
       return { podeAgendarLivremente: true, avisoCritico: null }; 
     }
   },

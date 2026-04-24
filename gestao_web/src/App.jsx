@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { RefreshCw, Menu } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
+// Hooks e Componentes
+import { useAuth } from './hooks/useAuth';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
@@ -15,6 +17,7 @@ import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import NovoAluno from './pages/NovoAluno';
+import Leads from './pages/Leads';
 import Professores from './pages/Professores';
 import Agenda from './pages/Agenda/Agenda';     
 import Financeiro from './pages/Financeiro'; 
@@ -47,7 +50,6 @@ const LayoutComSidebar = ({ perfil }) => {
       <Sidebar perfil={perfil} menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden w-full max-w-full">
-        {/* HEADER MOBILE */}
         <div className="md:hidden flex items-center justify-between bg-white border-b border-orange-100 p-4 shrink-0 z-10 shadow-sm">
            <h2 className="text-xl font-black text-iluminus-terracota tracking-tight">Iluminus</h2>
            <button onClick={() => setMenuAberto(true)} className="p-2 text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
@@ -63,6 +65,7 @@ const LayoutComSidebar = ({ perfil }) => {
   );
 };
 
+// PROTEÇÃO DE ROTAS
 const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
   if (!sessao) return <Navigate to="/" replace />;
   if (allowedRoles && !allowedRoles.includes(perfil)) {
@@ -74,78 +77,7 @@ const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
 };
 
 export default function App() {
-  const [sessao, setSessao] = useState(null);
-  const [perfil, setPerfil] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const perfilJaCarregado = useRef(false);
-
-  useEffect(() => {
-    const carregarPerfilUsuario = async (session) => {
-      if (!session) {
-        setSessao(null);
-        setPerfil(null);
-        setLoading(false);
-        return;
-      }
-
-      setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
-
-      if (perfilJaCarregado.current) {
-        setLoading(false);
-        return;
-      }
-
-      const email = session.user.email;
-
-      try {
-        const { data: usuario, error: errAluno } = await supabase.from('alunos').select('id, role').eq('email', email).maybeSingle();
-        if (errAluno && errAluno.code !== 'PGRST116') console.error("Erro ao verificar aluno:", errAluno);
-        
-        if (usuario) {
-          perfilJaCarregado.current = true;
-          setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
-          setLoading(false);
-          return;
-        }
-
-        const { data: professor, error: errProf } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
-        if (errProf && errProf.code !== 'PGRST116') console.error("Erro ao verificar professor:", errProf);
-        
-        if (professor) {
-          perfilJaCarregado.current = true;
-          setPerfil('professor');
-          setLoading(false);
-          return;
-        }
-
-        perfilJaCarregado.current = true;
-        setPerfil('admin');
-      } catch (error) {
-        console.error("Erro fatal ao carregar perfil:", error);
-        perfilJaCarregado.current = true;
-        setPerfil('admin'); 
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      carregarPerfilUsuario(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        perfilJaCarregado.current = false;
-        setSessao(null);
-        setPerfil(null);
-      } else {
-        carregarPerfilUsuario(session);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { sessao, perfil, loading } = useAuth();
 
   if (loading) {
     return (
@@ -181,19 +113,23 @@ export default function App() {
             } />
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
+            {/* Rotas de Aluno */}
             <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['aluno']} />}>
                <Route path="/area-aluno" element={<AreaAluno />} />
             </Route>
             
+            {/* Rotas Compartilhadas (Admin e Professor) */}
             <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin', 'professor']} />}>
               <Route element={<LayoutComSidebar perfil={perfil} />}>
                 <Route path="/agenda" element={<Agenda />} />
               </Route>
             </Route>
 
+            {/* Rotas Exclusivas do Admin */}
             <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin']} />}>
               <Route element={<LayoutComSidebar perfil={perfil} />}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/leads" element={<Leads />} />
                 <Route path="/alunos" element={<Alunos />} />
                 <Route path="/alunos/novo" element={<NovoAluno />} />
                 <Route path="/professores" element={<Professores />} />

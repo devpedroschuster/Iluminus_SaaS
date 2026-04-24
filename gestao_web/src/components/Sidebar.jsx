@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
-  Gift
+  Gift,
+  Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -23,6 +24,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
   const menuAdmin = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Leads', path: '/leads', icon: Clock },
     { name: 'Professores', path: '/professores', icon: Users },
     { name: 'Alunos', path: '/alunos', icon: Users },
     { name: 'Agenda', path: '/agenda', icon: Calendar },

@@ -16,7 +16,19 @@ export default function NovoAluno() {
   const location = useLocation();
   const queryClient = useQueryClient();
   
-  const alunoParaEditar = location.state?.alunoParaEditar;
+  const alunoParaEditar = location.state?.alunoParaEditar || null;
+  const leadParaConversao = location.state?.leadParaConversao || null;
+
+  useEffect(() => {
+    if (!alunoParaEditar && !leadParaConversao) {
+      reset({
+        nome_completo: '',
+        email: '',
+        role: 'aluno'
+      });
+      setModalidadesSelecionadas([]);
+    }
+  }, [location.pathname]);
 
   const [abaAtiva, setAbaAtiva] = useState('dados'); 
   const [planos, setPlanos] = useState([]);
@@ -94,6 +106,12 @@ useEffect(() => {
           });
           setModalidadesSelecionadas(alunoCompleto.modalidades_selecionadas || []);
         }
+      } else if (leadParaConversao) {
+        reset({
+          nome_completo: leadParaConversao.nome_visitante || '',
+          telefone: leadParaConversao.telefone_visitante || '',
+          role: 'aluno'
+        });
       }
     }
     carregarFichaCompleta();
@@ -229,8 +247,10 @@ useEffect(() => {
 
   async function onSubmit(data) {
     try {
+      const planoFinal = (data.role === 'aluno' && data.plano_id && data.plano_id !== '') ? data.plano_id : null;
+
       const payloadBase = {
-        plano_id: data.role === 'aluno' ? data.plano_id : null,
+        plano_id: planoFinal,
         modalidades_selecionadas: data.role === 'aluno' ? modalidadesSelecionadas : [],
         data_inicio_plano: data.data_inicio_plano || null,
         data_fim_plano: data.data_fim_plano || null,
@@ -248,43 +268,66 @@ useEffect(() => {
         showToast.success("Cadastro atualizado com sucesso!");
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
         navigate('/alunos');
-      } else {
-        
-        const { data: profExistente } = await supabase.from('professores').select('auth_id').eq('email', data.email.trim()).maybeSingle();
-
-        if (profExistente) {
-          const { error: insertError } = await supabase.from('alunos').insert([{
-             ...payloadBase,
-             auth_id: profExistente.auth_id,
-             nome_completo: data.nome_completo,
-             email: data.email.trim()
-          }]);
-          
-          if (insertError) throw new Error("Erro ao criar vínculo de aluno para este professor.");
-          showToast.success("Perfil de aluno vinculado ao professor existente com sucesso!");
-          
-        } else {
-          const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
-            body: { email: data.email.trim(), nome: data.nome_completo, role: data.role || 'aluno' }
-          });
-
-          if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
-          if (funcData?.error) throw new Error(funcData.error === 'User already registered' ? 'Este e-mail já possui um acesso.' : funcData.error);
-          
-          await supabase.from(data.role === 'professor' ? 'professores' : 'alunos')
-             .update(payloadBase).eq('auth_id', funcData.user.id);
-             
-          showToast.success("Cadastro criado com sucesso!");
-        }
-        
-        await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores'] });
-        if (!profExistente) {
-           setDadosCriados({ nome: data.nome_completo, email: data.email });
-           setModalOpen(true);
-        } else {
-           navigate('/alunos');
-        }
+        return;
       }
+
+      let novoAlunoId = null;
+
+      const { data: profExistente } = await supabase.from('professores').select('auth_id').eq('email', data.email.trim()).maybeSingle();
+
+      if (profExistente) {
+        const { data: alunoInserido, error: insertError } = await supabase.from('alunos').insert([{
+           ...payloadBase,
+           auth_id: profExistente.auth_id,
+           nome_completo: data.nome_completo,
+           email: data.email.trim()
+        }]).select('id').single();
+
+        if (insertError) throw new Error("Erro ao criar vínculo de aluno.");
+        novoAlunoId = alunoInserido.id;
+        showToast.success("Perfil de aluno vinculado ao professor existente com sucesso!");
+
+      } else {
+        const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
+          body: { email: data.email.trim(), nome: data.nome_completo, role: data.role || 'aluno' }
+        });
+
+        if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
+        if (funcData?.error) throw new Error(funcData.error === 'User already registered' ? 'Este e-mail já possui um acesso.' : funcData.error);
+        
+        const { data: alunoAtualizado, error: updateError } = await supabase.from(data.role === 'professor' ? 'professores' : 'alunos')
+           .update(payloadBase)
+           .eq('auth_id', funcData.user.id)
+           .select('id')
+           .single();
+           
+        if (updateError) throw new Error("Erro ao salvar os dados do formulário.");
+        novoAlunoId = alunoAtualizado?.id;
+        showToast.success("Cadastro criado com sucesso!");
+      }
+      
+      if (leadParaConversao && leadParaConversao.id) {
+         const payloadConversao = { status_conversao: 'convertido' };
+         
+         if (novoAlunoId) {
+             payloadConversao.aluno_id = novoAlunoId;
+         }
+
+         await supabase
+           .from('presencas')
+           .update(payloadConversao)
+           .eq('id', leadParaConversao.id);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores', 'presencas'] });
+      
+      if (!profExistente) {
+         setDadosCriados({ nome: data.nome_completo, email: data.email });
+         setModalOpen(true);
+      } else {
+         navigate('/alunos');
+      }
+
     } catch (error) {
        showToast.error(error.message || "Erro ao processar a solicitação.");
     }

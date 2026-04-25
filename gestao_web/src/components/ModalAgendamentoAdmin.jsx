@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import Modal from './shared/Modal';
 import * as alunosService from '../services/alunosService';
-import * as agendaService from '../services/agendaService';
+import { gradeService, agendamentoService } from '../services/agendaService';
 
 export default function ModalAgendamentoAdmin({ isOpen, onClose, onSucesso }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
@@ -19,8 +19,7 @@ export default function ModalAgendamentoAdmin({ isOpen, onClose, onSucesso }) {
   const carregarDados = async () => {
     try {
       const alunosData = await alunosService.buscarAlunosAtivos(); 
-      const aulasData = await agendaService.buscarTodasAulas();
-      
+const aulasData = await gradeService.listarGrade();      
       setAlunos(alunosData || []);
       setAulas(aulasData || []);
     } catch (error) {
@@ -31,7 +30,7 @@ export default function ModalAgendamentoAdmin({ isOpen, onClose, onSucesso }) {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      await agendaService.agendarAulaAdmin({
+      await agendamentoService.agendarAulaAdmin({
         aluno_id: data.aluno_id,
         aula_id: data.aula_id,
         data_aula: data.data_aula

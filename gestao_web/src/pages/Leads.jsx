@@ -26,13 +26,6 @@ export default function Leads() {
 
   function marcarComoPerdido(leadId) {
     setConfirmandoId(null);
-    mutationStatus.mutate({ id: leadId, status: 'perdido' }, {
-      onSuccess: () => showToast.success("Visitante marcado como perdido.")
-    });
-  }
-
-  function marcarComoPerdido(leadId) {
-    setConfirmandoId(null);
     
     mutationStatus.mutate({ id: leadId, status: 'perdido' }, {
       onSuccess: () => showToast.success("Visitante marcado como perdido.")

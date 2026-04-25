@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { agendaService } from '../../../services/agendaService';
+import { agendamentoService } from '../../../services/agendaService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) {
@@ -12,7 +12,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
       if (isOpen && aulaParaLista && dataLista) {
         setLoadingLista(true);
         try {
-          const presencas = await agendaService.listarChamadaCompleta(aulaParaLista.id, dataLista);
+          const presencas = await agendamentoService.listarChamadaCompleta(aulaParaLista.id, dataLista);
           setListaPresenca(presencas || []);
         } finally {
           setLoadingLista(false);
@@ -26,7 +26,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     if (!window.confirm(`Tem certeza que deseja remover este aluno?`)) return;
     setRemovendoId(idRelacao);
     try {
-      await agendaService.cancelarAgendamento(idRelacao);
+      await agendamentoService.cancelarAgendamento(idRelacao);
       showToast.success("Aluno removido da lista!");
       if (onAtualizar) onAtualizar();
     } catch (err) {
@@ -38,7 +38,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
 
   const handleRegistrarFalta = async (aluno) => {
     try {
-      await agendaService.registrarFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
+      await agendamentoService.registrarFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
       showToast.success("Falta informada. Aluno removido do card.");
       if (onAtualizar) onAtualizar();
     } catch (err) {
@@ -48,7 +48,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
 
   const handleDesfazerFalta = async (aluno) => {
     try {
-      await agendaService.removerFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
+      await agendamentoService.removerFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
       showToast.success("Falta removida.");
       if (onAtualizar) onAtualizar();
     } catch (err) {

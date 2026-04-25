@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { agendaService } from '../services/agendaService';
+import { gradeService } from '../services/agendaService';
 
 export function useAgenda() {
   // Busca Grade
   const queryGrade = useQuery({
     queryKey: ['agenda'],
-    queryFn: () => agendaService.listarGrade()
+    queryFn: () => gradeService.listarGrade()
   });
 
   // Busca Feriados
   const queryFeriados = useQuery({
     queryKey: ['feriados'],
-    queryFn: () => agendaService.listarFeriados()
+    queryFn: () => gradeService.listarFeriados()
   });
 
   // Função unificada para atualizar tudo

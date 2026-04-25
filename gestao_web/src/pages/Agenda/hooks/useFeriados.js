@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { agendaService } from '../../../services/agendaService';
+import { gradeService } from '../../../services/agendaService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useFeriados(refetch) {
@@ -11,7 +11,7 @@ export function useFeriados(refetch) {
     if (savingFeriado) return;
     setSavingFeriado(true);
     try {
-      await agendaService.cadastrarFeriado(novoFeriado);
+      await gradeService.cadastrarFeriado(novoFeriado);
       showToast.success("Bloqueio adicionado na agenda!");
       setNovoFeriado({ data: '', descricao: '' });
       refetch();
@@ -25,7 +25,7 @@ export function useFeriados(refetch) {
   async function deletarFeriado(id) {
     if (!window.confirm("Tem certeza que deseja remover este bloqueio?")) return;
     try {
-      await agendaService.excluirFeriado(id);
+      await gradeService.excluirFeriado(id);
       showToast.success("Bloqueio removido.");
       refetch();
     } catch (err) {

@@ -1,9 +1,3 @@
-import { gradeService } from './gradeService';
-import { agendamentoService } from './agendamentoService';
-import { leadsService } from './leadsService';
-
-export const agendaService = {
-  ...gradeService,
-  ...agendamentoService,
-  ...leadsService
-};
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';

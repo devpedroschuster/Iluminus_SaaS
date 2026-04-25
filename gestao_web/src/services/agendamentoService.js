@@ -16,20 +16,18 @@ export const agendamentoService = {
       return data; 
 
     } catch (error) {
-      console.error("Erro SQL:", error);
-      
-      alert("ERRO NO BANCO DE DADOS: " + (error.message || JSON.stringify(error)));
+      console.error("Erro estrutural ao verificar disponibilidade:", error);
       
       return { 
-        podeAgendarLivremente: true, 
-        avisoCritico: null,
-        capacidadeMax: 15,
+        podeAgendarLivremente: false, 
+        avisoCritico: "Não foi possível verificar as vagas no momento. Verifique sua conexão.",
+        capacidadeMax: 0,
         ocupacaoAtual: 0,
         limiteSemanal: 0,
         usoSemanal: 0,
         isLivre: false, 
-        modNome: 'Atividade (Erro na Rede)', 
-        temModalidadeNoPlano: true
+        modNome: 'Indisponível', 
+        temModalidadeNoPlano: false
       }; 
     }
   },

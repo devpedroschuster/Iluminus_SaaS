@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { agendaService } from '../../../services/agendaService';
+import { agendamentoService } from '../../../services/agendaService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useAgendamento(onSucesso) {
@@ -13,7 +13,7 @@ export function useAgendamento(onSucesso) {
       if (agendamentoForm.aula_id && agendamentoForm.data_aula) {
         setVerificandoVaga(true);
         const alunoIdParaChecar = agendamentoForm.tipo === 'cadastrado' ? agendamentoForm.aluno_id : null;
-        const info = await agendaService.verificarDisponibilidade(agendamentoForm.aula_id, agendamentoForm.data_aula, alunoIdParaChecar);
+        const info = await agendamentoService.verificarDisponibilidade(agendamentoForm.aula_id, agendamentoForm.data_aula, alunoIdParaChecar);
         setInfoVaga(info);
         setVerificandoVaga(false);
       } else {
@@ -29,7 +29,7 @@ export function useAgendamento(onSucesso) {
     setSavingAgendamento(true);
     
     try {
-      await agendaService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
+      await agendamentoService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
       showToast.success("Agendamento realizado com sucesso!");
       setAgendamentoForm({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
       if (onSucesso) onSucesso();

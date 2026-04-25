@@ -4,7 +4,7 @@ import { Plus, Ban, UserCheck, RefreshCw, Edit2, Trash2, Users, UserPlus } from 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-import { agendaService } from '../../services/agendaService';
+import { gradeService, agendamentoService } from '../../services/agendaService';
 import { useAgenda } from '../../hooks/useAgenda';
 import { useAlunos } from '../../hooks/useAlunos';
 import { supabase } from '../../lib/supabase';
@@ -72,9 +72,9 @@ export default function Agenda() {
   useEffect(() => {
     async function carregarDadosIniciais() {
       const [profData, modData, fixasData] = await Promise.all([
-        agendaService.listarProfessores(),
-        agendaService.listarModalidades(),
-        agendaService.listarMatriculasFixas() 
+        gradeService.listarProfessores(),
+        gradeService.listarModalidades(),
+        gradeService.listarMatriculasFixas() 
       ]);
       setProfessores(profData || []);
       setModalidades(modData || []);
@@ -88,7 +88,7 @@ export default function Agenda() {
       const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
       const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
       const [dadosAvulsos, dadosExcecoes] = await Promise.all([
-         agendaService.listarPresencasPeriodo(inicio, fim),
+         agendamentoService.listarPresencasPeriodo(inicio, fim),
          supabase.from('agenda_excecoes').select('*').gte('data_especifica', inicio).lte('data_especifica', fim)
       ]);
       setPresencasCalendario(dadosAvulsos || []);
@@ -128,7 +128,7 @@ export default function Agenda() {
         payload.dia_semana = diaCalculado.charAt(0).toUpperCase() + diaCalculado.slice(1);
       }
 
-      await agendaService.salvarAula(payload);
+      await gradeService.salvarAula(payload);
       showToast.success("Grade atualizada com sucesso!");
       modalNovaAula.fechar();
       refetch();
@@ -142,7 +142,7 @@ export default function Agenda() {
   const excluirAula = async () => {
     if (!eventoSelecionado) return;
     try {
-      await agendaService.excluirAula(eventoSelecionado.dadosOriginais.id);
+      await gradeService.excluirAula(eventoSelecionado.dadosOriginais.id);
       showToast.success("Grade removida com sucesso.");
       modalExcluirAula.fechar();
       modalAcoesEvento.fechar();

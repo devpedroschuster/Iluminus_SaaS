@@ -10,6 +10,7 @@ import { useAuth } from './hooks/useAuth';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
+import { ThemeProvider } from './hooks/ThemeContext';
 
 // Páginas do Painel Administrativo
 import Login from './pages/Login';
@@ -48,18 +49,19 @@ const LayoutComSidebar = ({ perfil }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#FDF8F5] overflow-hidden w-full">
+    <div className="flex h-screen bg-[#FDF8F5] dark:bg-[#0F0F0F] transition-colors duration-300 overflow-hidden w-full">
       <Sidebar perfil={perfil} menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden w-full max-w-full">
-        <div className="md:hidden flex items-center justify-between bg-white border-b border-orange-100 p-4 shrink-0 z-10 shadow-sm">
-           <h2 className="text-xl font-black text-iluminus-terracota tracking-tight">Iluminus</h2>
-           <button onClick={() => setMenuAberto(true)} className="p-2 text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+        {/* Header Superior Mobile */}
+        <div className="md:hidden flex items-center justify-between bg-white dark:bg-[#121212] border-b border-orange-100 dark:border-zinc-800 p-4 shrink-0 z-10 shadow-sm transition-colors duration-300">
+           <h2 className="text-xl font-black text-iluminus-terracota dark:text-yellow-400 tracking-tight">Iluminus</h2>
+           <button onClick={() => setMenuAberto(true)} className="p-2 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-zinc-800 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
              <Menu size={24} />
            </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto w-full">
+        <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
           <Outlet context={{ perfil }} />
         </div>
       </div>
@@ -92,6 +94,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
+        <ThemeProvider>
         <BrowserRouter>
           <ToastProvider /> 
           <Routes>
@@ -150,6 +153,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </ThemeProvider>
       </ErrorBoundary>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

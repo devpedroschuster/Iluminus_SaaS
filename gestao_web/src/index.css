@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Isso aqui ajuda a garantir que as cores customizadas funcionem */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-iluminus-terracota: #D98E73;
   --color-iluminus-verde: #8A9A5B;

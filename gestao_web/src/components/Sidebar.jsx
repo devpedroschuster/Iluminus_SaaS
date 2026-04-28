@@ -3,16 +3,16 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
-  Gift,
-  Clock,
-  TableConfig,
-  TableConfigIcon
+  Gift, Clock, TableConfigIcon,
+  Sun, Moon // 🔥 Ícones de tema importados
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../hooks/ThemeContext'; // 🔥 O cérebro do tema importado
 
 function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme(); // Puxando o estado do tema
 
   async function handleLogout() {
     try {
@@ -53,12 +53,13 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
         onClick={() => setMenuAberto(false)}
       />
 
-      {/* MENU LATERAL */}
-      <div className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-white h-screen border-r border-orange-100 p-6 flex flex-col transition-transform duration-300 ease-in-out ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      {/* MENU LATERAL - Fundo escuro e bordas ajustadas */}
+      <div className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-white dark:bg-[#121212] h-screen border-r border-orange-100 dark:border-zinc-800 p-6 flex flex-col transition-transform duration-300 ease-in-out ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
         <div className="flex justify-between items-center mb-10 px-2">
-          <h2 className="text-xl font-bold text-iluminus-terracota">Espaço Iluminus 🍀</h2>
-          <button className="md:hidden text-gray-400 hover:text-gray-800 bg-gray-50 p-2 rounded-lg" onClick={() => setMenuAberto(false)}>
+          {/* Logo Amarela no modo escuro */}
+          <h2 className="text-xl font-bold text-iluminus-terracota dark:text-yellow-400 transition-colors">Espaço Iluminus 🍀</h2>
+          <button className="md:hidden text-gray-400 hover:text-gray-800 dark:hover:text-white bg-gray-50 dark:bg-zinc-800 p-2 rounded-lg transition-colors" onClick={() => setMenuAberto(false)}>
             <X size={20} />
           </button>
         </div>
@@ -73,7 +74,11 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
                 to={item.path}
                 onClick={() => setMenuAberto(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  ativo ? 'bg-iluminus-terracota text-white shadow-md shadow-orange-200' : 'text-gray-500 hover:bg-iluminus-fundo hover:text-gray-800'
+                  ativo 
+                    // Se estiver ativo: Laranja normal, Amarelo com texto preto no escuro
+                    ? 'bg-iluminus-terracota text-white shadow-md shadow-orange-200 dark:bg-yellow-400 dark:text-black dark:shadow-yellow-900/20' 
+                    // Se inativo: Efeito hover cinza normal, hover chumbo/amarelo no escuro
+                    : 'text-gray-500 hover:bg-iluminus-fundo hover:text-gray-800 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-yellow-400'
                 }`}
               >
                 <Icon size={20} />
@@ -83,10 +88,20 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
           })}
         </nav>
 
-        <div className="pt-6 border-t border-gray-100 mt-4">
+        <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 mt-4 space-y-2 transition-colors">
+          
+          {/* BOTÃO MÁGICO DE TEMA */}
+          <button 
+            onClick={toggleTheme}
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all font-bold bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 dark:text-yellow-400"
+          >
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            <span>{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>
+          </button>
+
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+            className="flex items-center gap-3 px-4 py-3 w-full text-gray-500 hover:text-red-500 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-950/30 rounded-xl transition-all"
           >
             <LogOut size={20} />
             <span className="font-medium">Sair do Sistema</span>

@@ -56,7 +56,28 @@ export const gradeService = {
   },
 
   async excluirAula(id) {
-    const { error } = await supabase.from('agenda').delete().eq('id', id);
+    try {
+      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
+      
+      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      
+      await supabase.from('presencas').delete().eq('aula_id', id);
+
+      const { error } = await supabase.from('agenda').delete().eq('id', id);
+      if (error) throw error;
+      
+      return true;
+    } catch (error) {
+      console.error("Erro ao excluir aula em cascata:", error);
+      throw error;
+    }
+  },
+
+  async encerrarAula(id, dataEncerramento) {
+    const { error } = await supabase
+      .from('agenda')
+      .update({ data_fim: dataEncerramento })
+      .eq('id', id);
     if (error) throw error;
     return true;
   },
@@ -80,7 +101,6 @@ export const gradeService = {
   },
 
 async listarMatriculasFixas() {
-    // 🔥 CORREÇÃO: Usando alunos(*) evitamos o erro 400 de coluna não encontrada!
     const { data, error } = await supabase.from('agenda_fixa').select('aula_id, alunos (*)');
     if (error) {
       console.error("Erro ao buscar alunos fixos:", error);

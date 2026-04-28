@@ -85,12 +85,18 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
         limite.setHours(23, 59, 59, 999);
 
         let safetyCounter = 0;
-        while (iterador <= limite && safetyCounter < 50) {
+       while (iterador <= limite && safetyCounter < 50) {
           if (iterador.getDay() === diaAlvo) {
             const inicio = new Date(iterador);
             inicio.setHours(hora, minuto, 0);
             const dataStr = format(inicio, 'yyyy-MM-dd');
             
+            if (aula.data_fim && dataStr >= aula.data_fim) {
+              iterador = addDays(iterador, 1);
+              safetyCounter++;
+              continue;
+            }
+
             const ehFeriado = feriados?.find(f => f.data === dataStr && f.bloqueia_agenda);
             if (ehFeriado) {
               iterador = addDays(iterador, 1);

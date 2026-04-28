@@ -64,6 +64,7 @@ export default function Agenda() {
   const modalAcoesEvento = useModal();
   const modalFeriados = useModal();
   const modalExcluirAula = useModal();
+  const modalEncerrarAula = useModal();
 
   // HOOKS
   const eventosCalendario = useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView });
@@ -160,6 +161,20 @@ export default function Agenda() {
       refetch();
     } catch (err) { 
       showToast.error("Erro ao excluir."); 
+    }
+  };
+
+  const encerrarAula = async () => {
+    if (!eventoSelecionado) return;
+    try {
+      const dataClicada = format(eventoSelecionado.start, 'yyyy-MM-dd');
+      await gradeService.encerrarAula(eventoSelecionado.dadosOriginais.id, dataClicada);
+      showToast.success("Turma encerrada desta data em diante. O histórico foi mantido!");
+      modalEncerrarAula.fechar();
+      modalAcoesEvento.fechar();
+      refetch();
+    } catch (err) { 
+      showToast.error("Erro ao encerrar a turma."); 
     }
   };
 
@@ -289,23 +304,35 @@ export default function Agenda() {
                 </button>
                 
                 {isAdmin && (
-                  <div className="flex gap-3 mt-2">
+                  <div className="flex flex-col gap-2 mt-2">
                     <button 
                       onClick={() => { 
                         modalAcoesEvento.fechar(); 
                         setNovaAula({...eventoSelecionado.dadosOriginais}); 
                         modalNovaAula.abrir(); 
                       }} 
-                      className="flex-1 bg-gray-100 text-gray-700 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                      className="w-full bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
                     >
-                      <Edit2 size={18} /> Editar Grade
+                      <Edit2 size={18} /> Editar Cadastro da Grade
                     </button>
-                    <button 
-                      onClick={() => modalExcluirAula.abrir()} 
-                      className="flex-1 bg-red-50 text-red-600 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
-                    >
-                      <Trash2 size={18} /> Excluir Grade
-                    </button>
+                    
+                    <div className="flex gap-2">
+                      {eventoSelecionado.dadosOriginais.eh_recorrente && !eventoSelecionado.dadosOriginais.data_fim && (
+                        <button 
+                          onClick={() => modalEncerrarAula.abrir()} 
+                          className="flex-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-500 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors"
+                        >
+                          <Ban size={18} /> Encerrar Turma
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => modalExcluirAula.abrir()} 
+                        className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                      >
+                        <Trash2 size={18} /> Excluir (Apagar Tudo)
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -321,12 +348,12 @@ export default function Agenda() {
       )}
 
       <ModalConfirmacao 
-        isOpen={modalExcluirAula.isOpen}
-        onClose={modalExcluirAula.fechar}
-        onConfirm={excluirAula}
-        titulo="Excluir Atividade da Grade"
-        mensagem={`Atenção: Ao confirmar, todas as aulas de "${eventoSelecionado?.dadosOriginais?.atividade}" serão apagadas permanentemente do calendário. Tem certeza?`}
-        tipo="danger"
+        isOpen={modalEncerrarAula.isOpen}
+        onClose={modalEncerrarAula.fechar}
+        onConfirm={encerrarAula}
+        titulo="Encerrar Turma e Manter Histórico"
+        mensagem={`A partir do dia ${eventoSelecionado ? format(eventoSelecionado.start, 'dd/MM/yyyy') : ''}, esta turma de "${eventoSelecionado?.dadosOriginais?.atividade}" não aparecerá mais na agenda.\n\nTodo o histórico de presenças e pagamentos anteriores será preservado. Confirma o encerramento?`}
+        tipo="warning"
       />
     </div>
   );

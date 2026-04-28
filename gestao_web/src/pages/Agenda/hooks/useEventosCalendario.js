@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
-export function useEventosCalendario({ aulas, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
+export function useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
   return useMemo(() => {
     if (!aulas) return [];
 
@@ -19,9 +18,12 @@ export function useEventosCalendario({ aulas, presencasCalendario, matriculasFix
     matriculasFixas.forEach(m => {
        if (!fixasMap[m.aula_id]) fixasMap[m.aula_id] = [];
        if (m.alunos?.nome_completo) {
+           // 🔥 CORREÇÃO: Voltando para as colunas que VOCÊ criou no banco de dados!
            fixasMap[m.aula_id].push({ 
-               id: m.alunos.id, nome: m.alunos.nome_completo,
-               inicio: m.alunos.data_inicio_plano, fim: m.alunos.data_fim_plano        
+               id: m.alunos.id, 
+               nome: m.alunos.nome_completo,
+               inicio: m.alunos.data_inicio_plano ? String(m.alunos.data_inicio_plano).split('T')[0] : null, 
+               fim: m.alunos.data_fim_plano ? String(m.alunos.data_fim_plano).split('T')[0] : null
            });
        }
     });
@@ -43,6 +45,25 @@ export function useEventosCalendario({ aulas, presencasCalendario, matriculasFix
     } else {
       inicioVisivel = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 });
       fimVisivel = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
+    }
+
+    if (feriados && feriados.length > 0) {
+      feriados.forEach(f => {
+        if (!f.bloqueia_agenda) return;
+        const [ano, mes, dia] = f.data.split('-');
+        const inicioFeriado = new Date(ano, mes - 1, dia, 0, 0, 0);
+        const fimFeriado = new Date(ano, mes - 1, dia, 23, 59, 59);
+
+        eventosGerados.push({
+          idUnico: `feriado-${f.id || f.data}`,
+          title: `⛔ ${f.descricao}`,
+          start: inicioFeriado,
+          end: fimFeriado,
+          allDay: true,
+          isFeriado: true,
+          dadosOriginais: f
+        });
+      });
     }
 
     const aulasFiltradas = aulas.filter(aula => {
@@ -68,15 +89,23 @@ export function useEventosCalendario({ aulas, presencasCalendario, matriculasFix
           if (iterador.getDay() === diaAlvo) {
             const inicio = new Date(iterador);
             inicio.setHours(hora, minuto, 0);
+            const dataStr = format(inicio, 'yyyy-MM-dd');
+            
+            const ehFeriado = feriados?.find(f => f.data === dataStr && f.bloqueia_agenda);
+            if (ehFeriado) {
+              iterador = addDays(iterador, 1);
+              safetyCounter++;
+              continue;
+            }
+
             const fim = new Date(inicio);
             fim.setHours(hora + 1, minuto, 0); 
-            const dataStr = format(inicio, 'yyyy-MM-dd');
             
             const fixosPresentesHoje = todosFixosDaTurma.filter(aluno => {
                 if (excecoesMap[`${aluno.id}-${aula.id}-${dataStr}`]) return false;
                 if (aluno.inicio && dataStr < aluno.inicio) return false;
                 if (aluno.fim && dataStr > aluno.fim) return false;
-                return true;
+                return true; 
             }).map(a => a.nome);
 
             const alunosAvulsos = presencasMap[`${aula.id}-${dataStr}`] || [];
@@ -90,27 +119,31 @@ export function useEventosCalendario({ aulas, presencasCalendario, matriculasFix
           safetyCounter++;
         }
       } else if (aula.data_especifica) {
-        const [ano, mes, dia] = aula.data_especifica.split('-');
-        const inicio = new Date(ano, mes - 1, dia, hora, minuto);
-        const fim = new Date(inicio);
-        fim.setHours(hora + 1, minuto, 0);
+        const ehFeriado = feriados?.find(f => f.data === aula.data_especifica && f.bloqueia_agenda);
+        
+        if (!ehFeriado) {
+          const [ano, mes, dia] = aula.data_especifica.split('-');
+          const inicio = new Date(ano, mes - 1, dia, hora, minuto);
+          const fim = new Date(inicio);
+          fim.setHours(hora + 1, minuto, 0);
 
-        const fixosPresentesHoje = todosFixosDaTurma.filter(aluno => {
-            if (excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`]) return false;
-            if (aluno.inicio && aula.data_especifica < aluno.inicio) return false;
-            if (aluno.fim && aula.data_especifica > aluno.fim) return false;
-            return true;
-        }).map(a => a.nome);
+          const fixosPresentesHoje = todosFixosDaTurma.filter(aluno => {
+              if (excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`]) return false;
+              if (aluno.inicio && aula.data_especifica < aluno.inicio) return false;
+              if (aluno.fim && aula.data_especifica > aluno.fim) return false;
+              return true;
+          }).map(a => a.nome);
 
-        const alunosAvulsos = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
-        eventosGerados.push({
-          idUnico: `${aula.id}-unico`, title: `⭐ ${aula.atividade}`,
-          start: inicio, end: fim, dadosOriginais: aula, isEventoLivre: true,
-          alunosAgendados: [...new Set([...fixosPresentesHoje, ...alunosAvulsos])]
-        });
+          const alunosAvulsos = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
+          eventosGerados.push({
+            idUnico: `${aula.id}-unico`, title: `⭐ ${aula.atividade}`,
+            start: inicio, end: fim, dadosOriginais: aula, isEventoLivre: true,
+            alunosAgendados: [...new Set([...fixosPresentesHoje, ...alunosAvulsos])]
+          });
+        }
       }
     });
 
     return eventosGerados;
-  }, [aulas, filtroProf, filtroEspaco, currentDate, currentView, presencasCalendario, matriculasFixas, excecoesCalendario]);
+  }, [aulas, feriados, filtroProf, filtroEspaco, currentDate, currentView, presencasCalendario, matriculasFixas, excecoesCalendario]);
 }

@@ -4,7 +4,9 @@ import { Plus, Ban, UserCheck, RefreshCw, Edit2, Trash2, Users, UserPlus } from 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-import { gradeService, agendamentoService } from '../../services/agendaService';
+// 🔥 IMPORTAÇÕES DIRETAS (Para evitar conflitos)
+import { gradeService } from '../../services/gradeService';
+import { agendamentoService } from '../../services/agendamentoService';
 import { useAgenda } from '../../hooks/useAgenda';
 import { useAlunos } from '../../hooks/useAlunos';
 import { supabase } from '../../lib/supabase';
@@ -64,35 +66,44 @@ export default function Agenda() {
   const modalExcluirAula = useModal();
 
   // HOOKS
-  const eventosCalendario = useEventosCalendario({ aulas, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView });
-  const hookAgendamento = useAgendamento(() => { modalAgendamentoModal.fechar(); setAtualizarPresencas(prev => prev + 1); });
+  const eventosCalendario = useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView });
+  const hookAgendamento = useAgendamento(() => { modalAgendamentoModal.fechar(); setAtualizarPresencas(prev => prev + 1); }, feriados);
   const hookLista = useListaPresenca(aulaParaLista, dataLista, modalLista.isOpen, () => setAtualizarPresencas(prev => prev + 1));
   const hookFeriados = useFeriados(refetch);
-
+  
   useEffect(() => {
     async function carregarDadosIniciais() {
-      const [profData, modData, fixasData] = await Promise.all([
-        gradeService.listarProfessores(),
-        gradeService.listarModalidades(),
-        gradeService.listarMatriculasFixas() 
-      ]);
-      setProfessores(profData || []);
-      setModalidades(modData || []);
-      setMatriculasFixas(fixasData || []);
+      // 🔥 BLINDA O CÓDIGO CONTRA FALHAS SILENCIOSAS
+      try {
+        const [profData, modData, fixasData] = await Promise.all([
+          gradeService.listarProfessores(),
+          gradeService.listarModalidades(),
+          gradeService.listarMatriculasFixas() 
+        ]);
+        setProfessores(profData || []);
+        setModalidades(modData || []);
+        setMatriculasFixas(fixasData || []);
+      } catch (error) {
+        console.error("Erro ao carregar dados iniciais da agenda:", error);
+      }
     }
     carregarDadosIniciais();
   }, []);
 
   useEffect(() => {
     async function carregarDadosDoMes() {
-      const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
-      const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
-      const [dadosAvulsos, dadosExcecoes] = await Promise.all([
-         agendamentoService.listarPresencasPeriodo(inicio, fim),
-         supabase.from('agenda_excecoes').select('*').gte('data_especifica', inicio).lte('data_especifica', fim)
-      ]);
-      setPresencasCalendario(dadosAvulsos || []);
-      setExcecoesCalendario(dadosExcecoes.data || []);
+      try {
+        const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
+        const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
+        const [dadosAvulsos, dadosExcecoes] = await Promise.all([
+           agendamentoService.listarPresencasPeriodo(inicio, fim),
+           supabase.from('agenda_excecoes').select('*').gte('data_especifica', inicio).lte('data_especifica', fim)
+        ]);
+        setPresencasCalendario(dadosAvulsos || []);
+        setExcecoesCalendario(dadosExcecoes.data || []);
+      } catch (error) {
+        console.error("Erro ao carregar presenças e exceções do mês:", error);
+      }
     }
     carregarDadosDoMes();
   }, [currentDate.getMonth(), currentDate.getFullYear(), atualizarPresencas]);
@@ -191,21 +202,35 @@ export default function Agenda() {
              currentView={currentView} setCurrentView={setCurrentView}
              handleSelectSlot={({start}) => {
                 if(!isAdmin) return;
+                
+                const dataStr = format(start, 'yyyy-MM-dd');
+                const ehFeriado = feriados.find(f => f.data === dataStr && f.bloqueia_agenda);
+                if (ehFeriado) {
+                    showToast.error(`Data bloqueada: ${ehFeriado.descricao}`);
+                    return;
+                }
+
                 const dia = format(start, 'eeee', { locale: ptBR });
-                setNovaAula({...initialFormState, horario: format(start, 'HH:mm'), dia_semana: dia.charAt(0).toUpperCase() + dia.slice(1), data_especifica: format(start, 'yyyy-MM-dd')});
+                setNovaAula({...initialFormState, horario: format(start, 'HH:mm'), dia_semana: dia.charAt(0).toUpperCase() + dia.slice(1), data_especifica: dataStr});
                 modalNovaAula.abrir();
-             }} 
-             handleSelectEvent={(ev) => { setEventoSelecionado(ev); modalAcoesEvento.abrir(); }}
+             }}
+            handleSelectEvent={(ev) => { 
+                if (ev.isFeriado) {
+                   showToast.error(`Este dia está bloqueado: ${ev.dadosOriginais.descricao}`);
+                   return;
+                }
+                setEventoSelecionado(ev); 
+                modalAcoesEvento.abrir(); 
+             }}
           />
         )}
       </div>
 
-      {/* MODAL AGENDAMENTO */}
+      {/* MODAIS (mantidos iguais) */}
       <Modal isOpen={modalAgendamentoModal.isOpen} onClose={modalAgendamentoModal.fechar} titulo="Agendamento">
         <ModalAgendamento {...hookAgendamento} aulas={aulas} listaAlunos={listaAlunos} />
       </Modal>
 
-      {/* MODAL NOVA AULA */}
       <Modal isOpen={modalNovaAula.isOpen} onClose={modalNovaAula.fechar} titulo={novaAula.id ? "Editar Atividade" : "Nova Aula"}>
         <ModalNovaAula 
           novaAula={novaAula} setNovaAula={setNovaAula} 
@@ -214,12 +239,10 @@ export default function Agenda() {
         />
       </Modal>
 
-      {/* MODAL LISTA PRESENÇA */}
       <Modal isOpen={modalLista.isOpen} onClose={modalLista.fechar} titulo="Chamada">
         <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} />
       </Modal>
 
-      {/* MODAL AÇÕES EVENTO */}
       <Modal isOpen={modalAcoesEvento.isOpen} onClose={modalAcoesEvento.fechar} titulo="Detalhes da Aula">
         {eventoSelecionado && (() => {
           const corTema = PALETA_CORES.find(c => c.id === (eventoSelecionado.dadosOriginais.cor || 'laranja')) || PALETA_CORES[0];
@@ -241,7 +264,6 @@ export default function Agenda() {
                 </p>
               </div>
 
-              {/* Botões de Ação */}
               <div className="grid grid-cols-1 gap-3 mt-4">
                 <button 
                   onClick={() => { 
@@ -291,13 +313,13 @@ export default function Agenda() {
           )
         })()}
       </Modal>
-      {/* MODAL FERIADOS */}
+
       {isAdmin && (
         <Modal isOpen={modalFeriados.isOpen} onClose={modalFeriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
           <ModalFeriados feriados={feriados} {...hookFeriados} />
         </Modal>
       )}
-      {/* MODAL CONFIRMAR EXCLUSÃO DE AULA */}
+
       <ModalConfirmacao 
         isOpen={modalExcluirAula.isOpen}
         onClose={modalExcluirAula.fechar}

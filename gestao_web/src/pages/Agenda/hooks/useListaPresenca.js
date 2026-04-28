@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { agendamentoService } from '../../../services/agendaService';
+import { agendamentoService } from '../../../services/agendamentoService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) {

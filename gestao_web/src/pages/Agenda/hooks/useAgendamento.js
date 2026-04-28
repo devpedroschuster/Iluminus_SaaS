@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { agendamentoService } from '../../../services/agendaService';
+import { agendamentoService } from '../../../services/agendamentoService';
 import { showToast } from '../../../components/shared/Toast';
 
-export function useAgendamento(onSucesso) {
+export function useAgendamento(onSucesso, feriados = []) {
   const [agendamentoForm, setAgendamentoForm] = useState({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [infoVaga, setInfoVaga] = useState(null);
@@ -25,6 +25,15 @@ export function useAgendamento(onSucesso) {
 
   const handleAgendarAluno = async (e, ignorarAvisos = false) => {
     if (e) e.preventDefault();
+    
+    if (agendamentoForm.data_aula) {
+      const ehFeriado = feriados.find(f => f.data === agendamentoForm.data_aula && f.bloqueia_agenda);
+      if (ehFeriado) {
+        showToast.error(`Agenda Bloqueada: Não é possível agendar no feriado de ${ehFeriado.descricao}.`);
+        return false;
+      }
+    }
+
     if (savingAgendamento) return;
     setSavingAgendamento(true);
     
@@ -33,7 +42,7 @@ export function useAgendamento(onSucesso) {
       showToast.success("Agendamento realizado com sucesso!");
       setAgendamentoForm({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
       if (onSucesso) onSucesso();
-      return true; // Sucesso
+      return true; 
     } catch (err) {
       const msgErro = err.message || "";
       if (msgErro.includes("lotada") || msgErro.includes("limite do plano")) {
@@ -44,7 +53,7 @@ export function useAgendamento(onSucesso) {
       } else {
          showToast.error("Erro ao agendar: " + msgErro);
       }
-      return false; // Falha ou cancelado
+      return false; 
     } finally {
       setSavingAgendamento(false);
     }

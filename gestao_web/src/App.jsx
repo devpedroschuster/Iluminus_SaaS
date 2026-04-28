@@ -29,6 +29,8 @@ import Comissoes from './pages/Comissoes';
 import Aniversariantes from './pages/Aniversariantes';
 import Landing from './pages/Landing';
 import AreaAluno from './pages/AreaAluno';
+import PerfilAluno from './pages/PerfilAluno';
+import ConfiguracoesFeriados from './pages/ConfiguracoesFeriados';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -132,6 +134,7 @@ export default function App() {
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/alunos" element={<Alunos />} />
                 <Route path="/alunos/novo" element={<NovoAluno />} />
+                <Route path="/alunos/:id" element={<PerfilAluno />} />
                 <Route path="/professores" element={<Professores />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/despesas" element={<Despesas />} />
@@ -140,6 +143,7 @@ export default function App() {
                 <Route path="/presenca" element={<Presenca />} />
                 <Route path="/comissoes" element={<Comissoes />} />
                 <Route path="/aniversariantes" element={<Aniversariantes />} />
+                <Route path="/configuracoes/feriados" element={<ConfiguracoesFeriados />} />
               </Route>
             </Route>
 

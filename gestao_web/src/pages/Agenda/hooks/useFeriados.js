@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { gradeService } from '../../../services/agendaService';
+import { gradeService } from '../../../services/gradeService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useFeriados(refetch) {

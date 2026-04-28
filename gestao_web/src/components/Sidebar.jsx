@@ -4,7 +4,9 @@ import {
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Gift,
-  Clock
+  Clock,
+  TableConfig,
+  TableConfigIcon
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -35,6 +37,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { name: 'Modalidades', path: '/modalidades', icon: Package },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
     { name: 'Presença', path: '/presenca', icon: UserCheck },
+    { name: 'Configurações', path: '/configuracoes/feriados', icon: TableConfigIcon },
   ];
 
   const menuProfessor = [

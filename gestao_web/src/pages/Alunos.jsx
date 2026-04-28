@@ -128,7 +128,11 @@ export default function Alunos() {
               {alunos.map((aluno) => (
                 <tr key={aluno.id} className="group hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 md:px-8 py-4 md:py-6">
-                    <div className="flex items-center gap-4">
+                    <div 
+                      className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => navigate(`/alunos/${aluno.id}`)}
+                      title="Ver Perfil do Aluno"
+                    >
                       {aluno.avatar_url ? (
                         <img 
                           src={aluno.avatar_url} 
@@ -141,7 +145,7 @@ export default function Alunos() {
                         </div>
                       )}
                       <div>
-                        <p className="font-bold text-gray-800">{aluno.nome_completo}</p>
+                        <p className="font-bold text-gray-800 hover:text-iluminus-terracota transition-colors">{aluno.nome_completo}</p>
                         <p className="text-xs text-gray-400 font-medium">{aluno.email}</p>
                       </div>
                     </div>

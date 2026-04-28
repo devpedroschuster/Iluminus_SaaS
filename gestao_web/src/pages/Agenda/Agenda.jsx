@@ -348,10 +348,19 @@ export default function Agenda() {
       )}
 
       <ModalConfirmacao 
+        isOpen={modalExcluirAula.isOpen}
+        onClose={modalExcluirAula.fechar}
+        onConfirm={excluirAula}
+        titulo="Excluir Grade Permanentemente"
+        mensagem={`Atenção: Ao confirmar, todas as aulas de "${eventoSelecionado?.dadosOriginais?.atividade}" e suas presenças serão apagadas do banco de dados. Esta ação NÃO pode ser desfeita.`}
+        tipo="danger"
+      />
+
+      <ModalConfirmacao 
         isOpen={modalEncerrarAula.isOpen}
         onClose={modalEncerrarAula.fechar}
         onConfirm={encerrarAula}
-        titulo="Encerrar Turma e Manter Histórico"
+        titulo="Encerrar Turma na Grade"
         mensagem={`A partir do dia ${eventoSelecionado ? format(eventoSelecionado.start, 'dd/MM/yyyy') : ''}, esta turma de "${eventoSelecionado?.dadosOriginais?.atividade}" não aparecerá mais na agenda.\n\nTodo o histórico de presenças e pagamentos anteriores será preservado. Confirma o encerramento?`}
         tipo="warning"
       />

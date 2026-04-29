@@ -36,13 +36,6 @@ const CustomToolbar = (toolbar) => (
   </div>
 );
 
-const formatarNomeAbreviado = (nomeCompleto) => {
-  if (!nomeCompleto) return '';
-  const partes = nomeCompleto.trim().split(' ');
-  if (partes.length === 1) return partes[0]; 
-  return `${partes[0]} ${partes[partes.length - 1]}`; 
-};
-
 // 🎨 Card da Aula na Grade (Protegido contra Esmagamento Vertical)
 const CustomEventCard = ({ event }) => (
   <div className="h-full flex flex-col overflow-hidden relative pointer-events-none" title={`${event.title}\nProf: ${event.dadosOriginais?.professores?.nome || 'N/A'}`}>
@@ -57,7 +50,8 @@ const CustomEventCard = ({ event }) => (
         {event.alunosAgendados.slice(0, 2).map((aluno, idx) => (
           <div key={idx} className="text-[10px] leading-tight flex items-center gap-1 font-medium overflow-hidden opacity-95 shrink-0">
             <div className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0"></div>
-            <span className="truncate min-w-0">{formatarNomeAbreviado(aluno)}</span>
+            {/* 🔥 MÁGICA AQUI: Removi a função que quebrava o nome. O CSS "truncate" fará os pontinhos automaticamente! */}
+            <span className="truncate min-w-0" title={aluno}>{aluno}</span>
           </div>
         ))}
         

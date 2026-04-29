@@ -10,6 +10,7 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
       const dataStr = p.data_checkin.split('T')[0];
       const key = `${p.aula_id}-${dataStr}`;
       if (!presencasMap[key]) presencasMap[key] = [];
+      
       const nomeExibicao = p.nome_visitante || p.alunos?.nome_completo;
       if (nomeExibicao) presencasMap[key].push(nomeExibicao);
     });
@@ -18,7 +19,6 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     matriculasFixas.forEach(m => {
        if (!fixasMap[m.aula_id]) fixasMap[m.aula_id] = [];
        if (m.alunos?.nome_completo) {
-           // 🔥 CORREÇÃO: Voltando para as colunas que VOCÊ criou no banco de dados!
            fixasMap[m.aula_id].push({ 
                id: m.alunos.id, 
                nome: m.alunos.nome_completo,
@@ -85,18 +85,12 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
         limite.setHours(23, 59, 59, 999);
 
         let safetyCounter = 0;
-       while (iterador <= limite && safetyCounter < 50) {
+        while (iterador <= limite && safetyCounter < 50) {
           if (iterador.getDay() === diaAlvo) {
             const inicio = new Date(iterador);
             inicio.setHours(hora, minuto, 0);
             const dataStr = format(inicio, 'yyyy-MM-dd');
             
-            if (aula.data_fim && dataStr >= aula.data_fim) {
-              iterador = addDays(iterador, 1);
-              safetyCounter++;
-              continue;
-            }
-
             const ehFeriado = feriados?.find(f => f.data === dataStr && f.bloqueia_agenda);
             if (ehFeriado) {
               iterador = addDays(iterador, 1);
@@ -110,9 +104,12 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
             const fixosPresentesHoje = todosFixosDaTurma.filter(aluno => {
                 if (excecoesMap[`${aluno.id}-${aula.id}-${dataStr}`]) return false;
                 if (aluno.inicio && dataStr < aluno.inicio) return false;
-                if (aluno.fim && dataStr > aluno.fim) return false;
                 return true; 
-            }).map(a => a.nome);
+            }).map(aluno => {
+                const isVencido = aluno.fim && dataStr > aluno.fim;
+                // Devolve o nome completo, com ou sem a flag
+                return isVencido ? `⚠️ ${aluno.nome}` : aluno.nome;
+            });
 
             const alunosAvulsos = presencasMap[`${aula.id}-${dataStr}`] || [];
             eventosGerados.push({
@@ -136,9 +133,11 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
           const fixosPresentesHoje = todosFixosDaTurma.filter(aluno => {
               if (excecoesMap[`${aluno.id}-${aula.id}-${aula.data_especifica}`]) return false;
               if (aluno.inicio && aula.data_especifica < aluno.inicio) return false;
-              if (aluno.fim && aula.data_especifica > aluno.fim) return false;
               return true;
-          }).map(a => a.nome);
+          }).map(aluno => {
+              const isVencido = aluno.fim && aula.data_especifica > aluno.fim;
+              return isVencido ? `⚠️ ${aluno.nome}` : aluno.nome;
+          });
 
           const alunosAvulsos = presencasMap[`${aula.id}-${aula.data_especifica}`] || [];
           eventosGerados.push({

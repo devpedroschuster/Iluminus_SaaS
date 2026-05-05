@@ -28,9 +28,18 @@ import ModalFeriados from './components/ModalFeriados';
 import ModalAcoesEvento from './components/ModalAcoesEvento';
 
 const INITIAL_FORM_STATE = { 
-  id: null, atividade: '', modalidade_id: '', professor_id: '', dia_semana: 'Segunda-feira', 
-  horario: '', capacidade: 15, eh_recorrente: true, data_especifica: '', espaco: 'funcional',
-  valor_por_aluno: '', cor: 'laranja'
+  id: null, 
+  atividade: '', 
+  modalidadeId: '', 
+  professorId: '', 
+  diaSemana: 'segunda-feira', 
+  horario: '', 
+  capacidade: 15, 
+  ehRecorrente: true, 
+  dataEspecifica: '', 
+  espaco: 'funcional',
+  valorPorAluno: '', 
+  cor: 'laranja'
 };
 
 export default function Agenda() {
@@ -82,8 +91,13 @@ export default function Agenda() {
     const ehFeriado = feriados.find(f => f.data === dataStr && f.bloqueia_agenda);
     if (ehFeriado) return showToast.error(`Data bloqueada: ${ehFeriado.descricao}`);
 
-    const dia = format(start, 'eeee', { locale: ptBR });
-    setNovaAula({ ...INITIAL_FORM_STATE, horario: format(start, 'HH:mm'), dia_semana: dia.charAt(0).toUpperCase() + dia.slice(1), data_especifica: dataStr });
+    const dia = format(start, 'eeee', { locale: ptBR }).toLowerCase();
+setNovaAula({ 
+  ...INITIAL_FORM_STATE, 
+  horario: format(start, 'HH:mm'), 
+  diaSemana: dia, 
+  dataEspecifica: dataStr 
+});
     modais.novaAula.abrir();
   };
 
@@ -124,7 +138,21 @@ export default function Agenda() {
           evento={eventoSelecionado} isAdmin={isAdmin}
           onAgendar={(ev) => { modais.acoesEvento.fechar(); hookAgendamento.setAgendamentoForm({tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: ev.dadosOriginais.id, data_aula: format(ev.start, 'yyyy-MM-dd')}); modais.agendamento.abrir(); }}
           onChamada={(ev) => { modais.acoesEvento.fechar(); setAulaParaLista(ev.dadosOriginais); setDataLista(format(ev.start, 'yyyy-MM-dd')); modais.lista.abrir(); }}
-          onEditar={(ev) => { modais.acoesEvento.fechar(); setNovaAula({...ev.dadosOriginais}); modais.novaAula.abrir(); }}
+          onEditar={(ev) => { modais.acoesEvento.fechar(); setNovaAula({
+    id: d.id,
+    atividade: d.atividade,
+    modalidadeId: d.modalidade_id || '',
+    professorId: d.professor_id || '',
+    diaSemana: String(d.dia_semana || 'segunda-feira').toLowerCase(),
+    horario: d.horario,
+    capacidade: d.capacidade,
+    ehRecorrente: d.eh_recorrente,
+    dataEspecifica: d.data_especifica || '',
+    espaco: d.espaco,
+    valorPorAluno: d.valor_por_aluno || '',
+    cor: d.cor
+  });
+        modais.novaAula.abrir(); }}
           onEncerrar={() => modais.encerrar.abrir()}
           onExcluir={() => modais.excluir.abrir()}
         />

@@ -11,20 +11,31 @@ export function useGradeMutations({ onSuccess }) {
     setSavingAula(true);
     try {
       const payload = {
-        ...novaAula,
+        atividade: novaAula.atividade,
+        modalidade_id: novaAula.modalidadeId || null,
+        professor_id: novaAula.professorId || null,
+        horario: novaAula.horario,
         capacidade: Number(novaAula.capacidade) || 15,
-        valor_por_aluno: Number(novaAula.valor_por_aluno) || 0,
+        eh_recorrente: novaAula.ehRecorrente,
+        data_especifica: novaAula.dataEspecifica || null,
+        espaco: novaAula.espaco,
+        valor_por_aluno: Number(novaAula.valorPorAluno) || 0,
         cor: novaAula.cor || 'laranja',
         ativa: true
       };
 
-      if (novaAula.eh_recorrente) {
-        payload.data_especifica = null;
-        if (!payload.modalidade_id) throw new Error("Selecione uma Modalidade para aulas recorrentes.");
+      if (novaAula.id) {
+        payload.id = novaAula.id;
+      }
+
+      // 3. Regras de datas
+      if (novaAula.ehRecorrente) {
+        payload.dia_semana = novaAula.diaSemana.toLowerCase();
+        if (!payload.modalidade_id) throw new Error("Selecione uma Modalidade.");
       } else {
-        if (!novaAula.data_especifica) throw new Error("Data é obrigatória para evento único.");
-        const diaCalculado = format(new Date(novaAula.data_especifica + 'T12:00:00'), 'eeee', { locale: ptBR });
-        payload.dia_semana = diaCalculado.charAt(0).toUpperCase() + diaCalculado.slice(1);
+        if (!novaAula.dataEspecifica) throw new Error("Data é obrigatória.");
+        const diaCalculado = format(new Date(novaAula.dataEspecifica + 'T12:00:00'), 'eeee', { locale: ptBR });
+        payload.dia_semana = diaCalculado.toLowerCase();
       }
 
       await gradeService.salvarAula(payload);

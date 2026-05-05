@@ -5,6 +5,7 @@ import { showToast } from '../../../components/shared/Toast';
 export function useFeriados(refetch) {
   const [novoFeriado, setNovoFeriado] = useState({ data: '', descricao: '' });
   const [savingFeriado, setSavingFeriado] = useState(false);
+  const [feriadoParaExcluir, setFeriadoParaExcluir] = useState(null);
 
   async function salvarFeriado(e) {
     e.preventDefault();
@@ -22,16 +23,24 @@ export function useFeriados(refetch) {
     }
   }
 
-  async function deletarFeriado(id) {
-    if (!window.confirm("Tem certeza que deseja remover este bloqueio?")) return;
+  const solicitarExclusao = (id) => setFeriadoParaExcluir(id);
+  const cancelarExclusao = () => setFeriadoParaExcluir(null);
+
+  async function confirmarExclusao() {
+    if (!feriadoParaExcluir) return;
     try {
-      await gradeService.excluirFeriado(id);
+      await gradeService.excluirFeriado(feriadoParaExcluir);
       showToast.success("Bloqueio removido.");
       refetch();
     } catch (err) {
       showToast.error("Erro ao remover bloqueio.");
+    } finally {
+      setFeriadoParaExcluir(null);
     }
   }
 
-  return { novoFeriado, setNovoFeriado, savingFeriado, salvarFeriado, deletarFeriado };
+  return { 
+    novoFeriado, setNovoFeriado, savingFeriado, salvarFeriado, 
+    feriadoParaExcluir, solicitarExclusao, confirmarExclusao, cancelarExclusao 
+  };
 }

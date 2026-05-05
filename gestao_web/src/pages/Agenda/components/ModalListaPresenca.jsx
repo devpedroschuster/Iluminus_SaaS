@@ -1,9 +1,11 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
+import { ModalConfirmacao } from '../../../components/shared/Modal';
 
 export default function ModalListaPresenca({ 
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista, 
-  removendoId, handleRemoverPresenca, handleRegistrarFalta, handleDesfazerFalta 
+  handleRegistrarFalta, handleDesfazerFalta,
+  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey
 }) {
   if (!aulaParaLista) return null;
 
@@ -51,9 +53,12 @@ export default function ModalListaPresenca({
                          <button onClick={() => handleRegistrarFalta(aluno)} className="text-[11px] font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors">Informar Falta</button>
                       )
                   ) : (
-                      <button onClick={() => handleRemoverPresenca(aluno.id_relacao)} className="text-[11px] font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
-                        {removendoId === aluno.id_relacao ? <RefreshCw className="animate-spin" size={14}/> : "Remover"}
-                      </button>
+                      <button 
+  onClick={() => solicitarRemocao(aluno.id_relacao)} 
+  className="text-[11px] font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+>
+  <Trash2 size={14} /> Remover
+</button>
                   )}
                 </div>
               </li>
@@ -61,6 +66,14 @@ export default function ModalListaPresenca({
           </ul>
         )}
       </div>
+
+      <ModalConfirmacao 
+        isOpen={!!alunoParaRemover} 
+        onClose={cancelarRemocao} 
+        onConfirm={confirmarRemocao} 
+        titulo="Remover Aluno" 
+        mensagem="Tem certeza que deseja remover este aluno desta lista de presença?" 
+        tipo="danger" 
+      />
     </div>
-  );
-}
+  );}

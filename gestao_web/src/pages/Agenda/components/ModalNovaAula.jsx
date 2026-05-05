@@ -10,15 +10,15 @@ export default function ModalNovaAula({
       <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
         <button 
           type="button" 
-          onClick={() => setNovaAula({...novaAula, eh_recorrente: true, data_especifica: ''})} 
-          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
+          onClick={() => setNovaAula({...novaAula, ehRecorrente: true, dataEspecifica: ''})} 
+          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.ehRecorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
         >
           Aula Recorrente
         </button>
         <button 
           type="button" 
-          onClick={() => setNovaAula({...novaAula, eh_recorrente: false})} 
-          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.eh_recorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
+          onClick={() => setNovaAula({...novaAula, ehRecorrente: false})} 
+          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.ehRecorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
         >
           Evento Único
         </button>
@@ -35,16 +35,16 @@ export default function ModalNovaAula({
         </label>
       </div>
 
-      {novaAula.eh_recorrente ? (
+      {novaAula.ehRecorrente ? (
         <select 
           className="w-full p-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-500 font-bold text-gray-700" 
           required 
-          value={novaAula.modalidade_id || ''} 
+          value={novaAula.modalidadeId || ''} 
           onChange={e => {
             const val = e.target.value;
             if (!val) return;
-            const mod = modalidades.find(m => m.id === val);
-            setNovaAula({ ...novaAula, modalidade_id: mod.id, atividade: mod.nome, professor_id: mod.professor_id || '' });
+            const mod = modalidades.find(m => String(m.id) === String(val));
+            setNovaAula({ ...novaAula, modalidadeId: mod.id, atividade: mod.nome, professorId: mod.professor_id || '' });
           }}
         >
           <option value="">Modalidade Base...</option>
@@ -56,7 +56,7 @@ export default function ModalNovaAula({
           className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:ring-2 ring-orange-100 transition-all" 
           required 
           value={novaAula.atividade} 
-          onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidade_id: ''})} 
+          onChange={e => setNovaAula({...novaAula, atividade: e.target.value, modalidadeId: ''})} 
         />
       )}
 
@@ -65,8 +65,8 @@ export default function ModalNovaAula({
           type="number" 
           placeholder="Valor por aluno (R$) - Opcional" 
           className="w-full p-4 bg-gray-50 rounded-2xl outline-none border-purple-100 border focus:border-purple-300" 
-          value={novaAula.valor_por_aluno} 
-          onChange={e => setNovaAula({...novaAula, valor_por_aluno: e.target.value})} 
+          value={novaAula.valorPorAluno} 
+          onChange={e => setNovaAula({...novaAula, valorPorAluno: e.target.value})} 
         />
       )}
 
@@ -89,18 +89,18 @@ export default function ModalNovaAula({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {novaAula.eh_recorrente ? (
-          <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={novaAula.dia_semana} onChange={e => setNovaAula({...novaAula, dia_semana: e.target.value})}>
-            {DIAS_SEMANA.map(d => <option key={d.valor} value={d.label}>{d.label}</option>)}
+        {novaAula.ehRecorrente ? (
+          <select className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={novaAula.diaSemana} onChange={e => setNovaAula({...novaAula, diaSemana: e.target.value})}>
+            {DIAS_SEMANA.map(d => <option key={d.valor} value={d.valor}>{d.label}</option>)}
           </select>
         ) : (
-          <input type="date" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.data_especifica} onChange={e => setNovaAula({...novaAula, data_especifica: e.target.value})} />
+          <input type="date" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.dataEspecifica} onChange={e => setNovaAula({...novaAula, dataEspecifica: e.target.value})} />
         )}
         <input type="time" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.horario} onChange={e => setNovaAula({...novaAula, horario: e.target.value})} />
       </div>
       
       <div className="grid grid-cols-3 gap-4">
-        <select className="col-span-2 w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professor_id} onChange={e => setNovaAula({...novaAula, professor_id: e.target.value})}>
+        <select className="col-span-2 w-full p-4 bg-gray-50 rounded-2xl outline-none" required value={novaAula.professorId} onChange={e => setNovaAula({...novaAula, professorId: e.target.value})}>
           <option value="">Selecione o Professor</option>
           {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
         </select>

@@ -1,7 +1,11 @@
 import React from 'react';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { ModalConfirmacao } from '../../../components/shared/Modal';
 
-export default function ModalFeriados({ feriados, novoFeriado, setNovoFeriado, savingFeriado, salvarFeriado, deletarFeriado }) {
+export default function ModalFeriados({ 
+  feriados, novoFeriado, setNovoFeriado, savingFeriado, salvarFeriado, 
+  feriadoParaExcluir, solicitarExclusao, confirmarExclusao, cancelarExclusao 
+}) {
   return (
     <div className="space-y-6 pt-2">
       <form onSubmit={salvarFeriado} className="flex gap-2">
@@ -24,14 +28,23 @@ export default function ModalFeriados({ feriados, novoFeriado, setNovoFeriado, s
                   <span className="font-black text-sm block">{new Date(f.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                   <span className="text-xs">{f.descricao}</span>
                 </div>
-                <button onClick={() => deletarFeriado(f.id)} className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
-                  <Trash2 size={16} />
+                <button type="button" onClick={() => solicitarExclusao(f.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors">
+                   <Trash2 size={18} />
                 </button>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      <ModalConfirmacao 
+        isOpen={!!feriadoParaExcluir} 
+        onClose={cancelarExclusao} 
+        onConfirm={confirmarExclusao} 
+        titulo="Remover Bloqueio" 
+        mensagem="Tem certeza que deseja remover este bloqueio da agenda?" 
+        tipo="danger" 
+      />
     </div>
   );
 }

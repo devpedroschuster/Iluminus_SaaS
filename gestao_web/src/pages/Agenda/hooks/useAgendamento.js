@@ -9,6 +9,7 @@ export function useAgendamento(onSucesso, feriados = []) {
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [infoVaga, setInfoVaga] = useState(null);
   const [verificandoVaga, setVerificandoVaga] = useState(false);
+  const [modalLotacao, setModalLotacao] = useState({ isOpen: false, msg: '' });
 
   useEffect(() => {
     async function checarDisponibilidadeLive() {
@@ -48,19 +49,31 @@ export function useAgendamento(onSucesso, feriados = []) {
       return true; 
     } catch (err) {
       const msgErro = err.message || "";
-      if (msgErro.includes("lotada") || msgErro.includes("limite do plano")) {
-         if (window.confirm(`⚠️ AVISO DO SISTEMA:\n\n${msgErro}`)) {
-            setSavingAgendamento(false);
-            return handleAgendarAluno(null, true); 
-         }
+      if (msgErro.includes("lotada") || msgErro.includes("atingiu o limite")) {
+         setModalLotacao({ isOpen: true, msg: msgErro });
+         setSavingAgendamento(false);
+         return false;
       } else {
          showToast.error("Erro ao agendar: " + msgErro);
       }
       return false; 
     } finally {
-      setSavingAgendamento(false);
-    }
+if (!modalLotacao.isOpen) setSavingAgendamento(false);    }
   };
 
-  return { agendamentoForm, setAgendamentoForm, handleAgendarAluno, savingAgendamento, infoVaga, verificandoVaga };
+const confirmarAgendamentoLotado = () => {
+    setModalLotacao({ isOpen: false, msg: '' });
+    handleAgendarAluno(null, true);
+  };
+
+  const cancelarAgendamentoLotado = () => {
+    setModalLotacao({ isOpen: false, msg: '' });
+    setSavingAgendamento(false);
+  };
+
+  return { 
+    agendamentoForm, setAgendamentoForm, handleAgendarAluno, 
+    savingAgendamento, infoVaga, verificandoVaga,
+    modalLotacao, confirmarAgendamentoLotado, cancelarAgendamentoLotado
+  };
 }

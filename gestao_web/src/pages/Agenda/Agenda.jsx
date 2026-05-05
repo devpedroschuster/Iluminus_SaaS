@@ -38,7 +38,6 @@ export default function Agenda() {
   const isAdmin = perfil === 'admin';
 
   // 1. Estados e Hooks Extraídos
-  const [atualizarPresencas, setAtualizarPresencas] = useState(0);
   const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
@@ -49,7 +48,7 @@ export default function Agenda() {
   const { aulas, feriados, loading, refetch } = useAgenda();
   const { alunos: listaAlunos } = useAlunos({ role: 'aluno' });
   const pageState = useAgendaPage();
-  const dadosMes = useAgendaDadosMes(pageState.currentDate, atualizarPresencas);
+  const dadosMes = useAgendaDadosMes(pageState.currentDate);
 
   // 2. Modais
   const modais = {
@@ -58,8 +57,8 @@ export default function Agenda() {
   };
 
   // 3. Handlers de Domínio
-  const hookAgendamento = useAgendamento(() => { modais.agendamento.fechar(); setAtualizarPresencas(prev => prev + 1); }, feriados);
-  const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen, () => setAtualizarPresencas(prev => prev + 1));
+  const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados);
+  const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen);
   const hookFeriados = useFeriados(refetch);
   const eventosCalendario = useEventosCalendario({ aulas, feriados, ...dadosMes, matriculasFixas: dadosIniciais.matriculasFixas, ...pageState });
 

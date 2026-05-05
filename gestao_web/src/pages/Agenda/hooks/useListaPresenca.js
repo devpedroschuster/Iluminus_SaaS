@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { agendamentoService } from '../../../services/agendamentoService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) {
   const [listaPresenca, setListaPresenca] = useState([]);
+  const queryClient = useQueryClient();
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
 
@@ -28,6 +30,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     try {
       await agendamentoService.cancelarAgendamento(idRelacao);
       showToast.success("Aluno removido da lista!");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       if (onAtualizar) onAtualizar();
     } catch (err) {
       showToast.error("Erro ao remover: " + err.message);
@@ -40,6 +43,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     try {
       await agendamentoService.registrarFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
       showToast.success("Falta informada. Aluno removido do card.");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       if (onAtualizar) onAtualizar();
     } catch (err) {
       showToast.error("Erro ao registrar falta.");
@@ -50,6 +54,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     try {
       await agendamentoService.removerFalta(aluno.aluno_id, aulaParaLista.id, dataLista);
       showToast.success("Falta removida.");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       if (onAtualizar) onAtualizar();
     } catch (err) {
       showToast.error("Erro ao remover falta.");

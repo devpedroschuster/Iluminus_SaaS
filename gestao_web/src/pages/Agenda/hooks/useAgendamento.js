@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { agendamentoService } from '../../../services/agendamentoService';
 import { showToast } from '../../../components/shared/Toast';
 
 export function useAgendamento(onSucesso, feriados = []) {
+  const queryClient = useQueryClient();
   const [agendamentoForm, setAgendamentoForm] = useState({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [infoVaga, setInfoVaga] = useState(null);
@@ -41,6 +43,7 @@ export function useAgendamento(onSucesso, feriados = []) {
       await agendamentoService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
       showToast.success("Agendamento realizado com sucesso!");
       setAgendamentoForm({ tipo: 'cadastrado', aluno_id: '', nome_visitante: '', aula_id: '', data_aula: '' });
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       if (onSucesso) onSucesso();
       return true; 
     } catch (err) {

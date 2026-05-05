@@ -3,16 +3,16 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
-  Gift, Clock, TableConfigIcon,
-  Sun, Moon // 🔥 Ícones de tema importados
+  Gift, Clock, TableConfigIcon, Bell,
+  Sun, Moon
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../hooks/ThemeContext'; // 🔥 O cérebro do tema importado
+import { useTheme } from '../hooks/ThemeContext';
 
 function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme(); // Puxando o estado do tema
+  const { theme, toggleTheme } = useTheme();
 
   async function handleLogout() {
     try {
@@ -26,6 +26,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
   const menuAdmin = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Notificações', path: '/notificacoes', icon: Bell },
     { name: 'Leads', path: '/leads', icon: Clock },
     { name: 'Professores', path: '/professores', icon: Users },
     { name: 'Alunos', path: '/alunos', icon: Users },

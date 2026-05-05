@@ -32,6 +32,7 @@ import Landing from './pages/Landing';
 import AreaAluno from './pages/AreaAluno';
 import PerfilAluno from './pages/PerfilAluno';
 import ConfiguracoesFeriados from './pages/ConfiguracoesFeriados';
+import Notificacoes from './pages/Notificacoes';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -147,6 +148,7 @@ export default function App() {
                 <Route path="/comissoes" element={<Comissoes />} />
                 <Route path="/aniversariantes" element={<Aniversariantes />} />
                 <Route path="/configuracoes/feriados" element={<ConfiguracoesFeriados />} />
+                <Route path="/notificacoes" element={<Notificacoes />} />
               </Route>
             </Route>
 

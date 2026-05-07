@@ -44,6 +44,22 @@ export const PAGINACAO = {
   ITENS_POR_PAGINA_MOBILE: 10,
 };
 
+export const FORMAS_PAGAMENTO = [
+  { valor: 'pix', label: 'Pix' },
+  { valor: 'credito', label: 'Cartão de Crédito' },
+  { valor: 'debito', label: 'Cartão de Débito' },
+  { valor: 'dinheiro', label: 'Dinheiro' },
+  { valor: 'transferencia', label: 'Transferência' },
+];
+
+export const TIPOS_AULA = [
+  { valor: 'regular', label: 'Aula Regular' },
+  { valor: 'plano_livre', label: 'Plano Livre' },
+  { valor: 'experimental', label: 'Aula Experimental' },
+  { valor: 'avulsa', label: 'Aula Avulsa' },
+];
+
+
 // Limites de campos
 export const LIMITES = {
   NOME_MIN: 3,

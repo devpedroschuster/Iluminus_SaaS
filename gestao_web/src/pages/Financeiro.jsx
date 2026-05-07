@@ -1,378 +1,312 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DollarSign, TrendingUp, CreditCard, Smartphone, 
-  Banknote, Clock, CheckCircle, Search, Plus, RefreshCw, AlertCircle, FileSpreadsheet
+  Banknote, Clock, CheckCircle, Search, RefreshCw, AlertCircle, Calendar, FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { supabase } from '../lib/supabase';
 
 // Hooks e Serviços
 import { financeiroService } from '../services/financeiroService';
 import { useFinanceiro } from '../hooks/useFinanceiro';
 
-// Componentes
+// Componentes Novos e Constantes
+import SelectFormaPagamento from '../components/SelectFormaPagamento';
+import RepasseAlunoCard from '../components/RepasseAlunoCard';
+import { TIPOS_AULA } from '../lib/constants';
+
+// Componentes Compartilhados
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/shared/EmptyState';
 import { formatarMoeda } from '../lib/utils';
 
-const METODOS_PAGAMENTO = [
-  { valor: 'pix', label: 'PIX', icone: <Smartphone size={16} /> },
-  { valor: 'cartao_credito', label: 'Cartão Crédito', icone: <CreditCard size={16} /> },
-  { valor: 'cartao_debito', label: 'Cartão Débito', icone: <CreditCard size={16} /> },
-  { valor: 'dinheiro', label: 'Dinheiro', icone: <Banknote size={16} /> },
-  { valor: 'transferencia', label: 'Transferência', icone: <TrendingUp size={16} /> },
-];
-
-const STATUS_CORES = {
-  pago: { bg: 'bg-green-100', text: 'text-green-700' },
-  pendente: { bg: 'bg-orange-100', text: 'text-orange-700' },
-  atrasado: { bg: 'bg-red-100', text: 'text-red-700' }
-};
-
 export default function Financeiro() {
-  const [busca, setBusca] = useState('');
-  const [loadingGerar, setLoadingGerar] = useState(false);
-  
+  const dataAtual = new Date();
   const [filtros, setFiltros] = useState({
-    mes: new Date().getMonth(),
-    ano: new Date().getFullYear(),
-    status: 'todos'
+    mes: dataAtual.getMonth() + 1,
+    ano: dataAtual.getFullYear()
   });
 
-  const [mensalidadeSelecionada, setMensalidadeSelecionada] = useState(null);
-  const [dadosPagamento, setDadosPagamento] = useState({
-    metodo: 'pix',
-    desconto: 0,
-    multa: 0,
-    observacoes: ''
-  });
-
-  const { mensalidades, loading, refetch } = useFinanceiro({ 
-    mes: filtros.mes, 
-    ano: filtros.ano 
-  });
-
-  const modalBaixa = useModal();
+  const { mensalidades, loading, refetch } = useFinanceiro(filtros);
+  const [busca, setBusca] = useState('');
+  
+  // Modais
+  const modalPagamento = useModal();
+  const modalResultado = useModal();
   const modalGerarMensalidades = useModal();
 
-  async function handleGerarMensalidades() {
-    setLoadingGerar(true);
-    try {
-      await financeiroService.gerarMensalidades(filtros.mes, filtros.ano);
-      showToast.success("Cobranças geradas com sucesso!");
-      modalGerarMensalidades.fechar();
-      refetch();
-    } catch (err) {
-      showToast.error("Erro: Verifique se as cobranças já não foram geradas.");
-    } finally {
-      setLoadingGerar(false);
-    }
-  }
+  // Estados do Formulário
+  const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
+  const [valorPago, setValorPago] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState('');
+  const [tipoAula, setTipoAula] = useState('regular');
+  const [professorId, setProfessorId] = useState('');
+  const [modalidadeNome, setModalidadeNome] = useState('');
+  
+  const [professores, setProfessores] = useState([]);
+  const [resultadoRepasse, setResultadoRepasse] = useState(null);
+  const [gerando, setGerando] = useState(false);
 
-  async function confirmarBaixa(e) {
+  useEffect(() => {
+    async function carregarProfessores() {
+      const { data } = await supabase.from('professores').select('id, nome').eq('ativo', true);
+      if (data) setProfessores(data);
+    }
+    carregarProfessores();
+  }, []);
+
+  const metricas = useMemo(() => {
+    if (!mensalidades) return { recebido: 0, pendente: 0, atrasado: 0, total: 0 };
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    return mensalidades.reduce((acc, m) => {
+      const valorOriginal = Number(m.planos?.preco) || 0;
+      const valorReal = m.valor_pago !== null ? Number(m.valor_pago) : valorOriginal;
+      
+      if (m.status === 'pago') {
+        acc.recebido += valorReal;
+        acc.total += valorReal;
+      } else if (m.data_vencimento < hoje) {
+        acc.atrasado += valorOriginal;
+        acc.total += valorOriginal;
+      } else {
+        acc.pendente += valorOriginal;
+        acc.total += valorOriginal;
+      }
+      return acc;
+    }, { recebido: 0, pendente: 0, atrasado: 0, total: 0 });
+  }, [mensalidades]);
+
+  const handleAbrirPagamento = (mensalidade) => {
+    setPagamentoSelecionado(mensalidade);
+    setValorPago(mensalidade.planos?.preco?.toString() || '');
+    setFormaPagamento('');
+    setTipoAula('regular');
+    setProfessorId('');
+    setModalidadeNome('');
+    modalPagamento.abrir();
+  };
+
+  const handleConfirmarPagamento = async (e) => {
     e.preventDefault();
     try {
-      const valorBase = Number(mensalidadeSelecionada.planos?.preco || 0);
-      const valorFinal = valorBase - Number(dadosPagamento.desconto) + Number(dadosPagamento.multa);
-
-      await financeiroService.confirmarPagamento(mensalidadeSelecionada.id, {
-        valor_pago: valorFinal,
-        metodo: dadosPagamento.metodo,
-        desconto: dadosPagamento.desconto,
-        multa: dadosPagamento.multa,
-        observacoes: dadosPagamento.observacoes,
-        nome_aluno: mensalidadeSelecionada.alunos?.nome_completo
-      });
-
-      showToast.success("Pagamento registrado!");
-      modalBaixa.fechar();
-      refetch();
-    } catch (err) {
-      showToast.error("Erro ao registrar pagamento.");
-      console.error(err);
-    }
-  }
-
-  const mensalidadesFiltradas = mensalidades.filter(m => {
-    const matchBusca = m.alunos?.nome_completo?.toLowerCase().includes(busca.toLowerCase());
-    
-    let matchStatus = true;
-    if (filtros.status === 'pendente_atrasado') {
-      matchStatus = m.status === 'pendente' || m.status === 'atrasado';
-    } else if (filtros.status !== 'todos') {
-      matchStatus = m.status === filtros.status;
-    }
-    
-    return matchBusca && matchStatus;
-  });
-
-  const totais = mensalidades.reduce((acc, m) => {
-    const valor = Number(m.planos?.preco || 0);
-    if (m.status === 'pago') acc.recebido += Number(m.valor_pago || valor);
-    else if (m.status === 'atrasado') acc.atrasado += valor;
-    else acc.pendente += valor;
-    return acc;
-  }, { recebido: 0, pendente: 0, atrasado: 0 });
-
-  function exportarExcel() {
-    if (mensalidadesFiltradas.length === 0) {
-      showToast.error("Não há dados para exportar com os filtros atuais.");
-      return;
-    }
-
-    const dadosExportacao = mensalidadesFiltradas.map(m => {
-      const valorPlano = Number(m.planos?.preco) || 0;
-      const valorPago = Number(m.valor_pago) || 0;
-
-      return {
-        'Aluno': m.alunos?.nome_completo || 'Aluno Removido',
-        'Plano': m.planos?.nome || 'Avulso',
-        'Valor Previsto': `R$ ${valorPlano.toFixed(2).replace('.', ',')}`,
-        'Valor Pago': m.status === 'pago' ? `R$ ${valorPago.toFixed(2).replace('.', ',')}` : '-',
-        'Vencimento': new Date(m.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR'),
-        'Status': m.status.toUpperCase(),
-        'Forma Pgto': m.metodo_pagamento ? m.metodo_pagamento.toUpperCase() : '-',
-        'Data Pgto': m.data_pagamento ? new Date(m.data_pagamento).toLocaleDateString('pt-BR') : '-',
+      const valorFormatado = parseFloat(valorPago.replace(/\./g, '').replace(',', '.'));
+      const payload = {
+        valor_pago: valorFormatado,
+        forma_pagamento: formaPagamento,
+        tipo_aula: tipoAula,
+        professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
+        modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null
       };
-    });
 
-    const ws = XLSX.utils.json_to_sheet(dadosExportacao);
-    
-    const colWidths = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
-    ws['!cols'] = colWidths;
+      const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
+      showToast.success('Pagamento processado com sucesso!');
+      refetch();
+      modalPagamento.fechar();
+      setResultadoRepasse(res.resultado);
+      modalResultado.abrir();
+    } catch (error) {
+      showToast.error("Erro ao processar pagamento");
+    }
+  };
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Mensalidades');
-    
-    const nomeMes = new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' });
-    XLSX.writeFile(wb, `Financeiro_${nomeMes}_${filtros.ano}.xlsx`);
-    showToast.success("Planilha exportada com sucesso!");
-  }
+  const handleGerarMensalidades = async () => {
+    setGerando(true);
+    try {
+      await financeiroService.gerarMensalidades(filtros.mes - 1, filtros.ano);
+      showToast.success('Cobranças geradas para os alunos ativos!');
+      refetch();
+      modalGerarMensalidades.fechar();
+    } catch (error) {
+      showToast.error('Erro ao gerar cobranças');
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const alunosFiltrados = mensalidades?.filter(m => 
+    (m.alunos?.nome_completo || '').toLowerCase().includes(busca.toLowerCase())
+  );
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
+      {/* Header com Ações */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Financeiro</h1>
-          <p className="text-gray-500">Gestão de mensalidades e caixa.</p>
+          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
+            <DollarSign className="text-iluminus-terracota" size={32} /> Financeiro
+          </h1>
+          <p className="text-gray-500 mt-1">Gestão de mensalidades e repasses profissionais.</p>
         </div>
-        
-        <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={exportarExcel}
-            disabled={mensalidadesFiltradas.length === 0}
-            className="bg-green-600 text-white px-6 py-4 rounded-[22px] font-black shadow-lg hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FileSpreadsheet size={20} />
-            Exportar Excel
-          </button>
-
+        <div className="flex gap-2 w-full md:w-auto">
           <button 
             onClick={modalGerarMensalidades.abrir}
-            disabled={loadingGerar}
-            className="bg-gray-800 text-white px-6 py-4 rounded-[22px] font-black shadow-lg hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50"
+            className="flex-1 md:flex-none bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
           >
-            {loadingGerar ? <RefreshCw className="animate-spin" size={20} /> : <Plus size={20} />}
-            Gerar Cobranças do Mês
+            <RefreshCw size={20} /> Gerar Cobranças
           </button>
         </div>
       </div>
 
-      {/* Cards de Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <CardMetrica titulo="Recebido" valor={formatarMoeda(totais.recebido)} icone={<CheckCircle />} cor="green" />
-        <CardMetrica titulo="Pendente" valor={formatarMoeda(totais.pendente)} icone={<Clock />} cor="orange" />
-        <CardMetrica titulo="Atrasado" valor={formatarMoeda(totais.atrasado)} icone={<AlertCircle />} cor="red" />
+      {/* Cartões de Métricas (Restaurado) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <CardMetrica titulo="Recebido" valor={metricas.recebido} icone={<CheckCircle />} cor="green" />
+        <CardMetrica titulo="Pendente" valor={metricas.pendente} icone={<Clock />} cor="orange" />
+        <CardMetrica titulo="Atrasado" valor={metricas.atrasado} icone={<AlertCircle />} cor="red" />
+        <CardMetrica titulo="Total Mês" valor={metricas.total} icone={<TrendingUp />} cor="blue" />
       </div>
 
-      {/* Barra de Filtros */}
-      <div className="bg-white p-6 rounded-[35px] border border-gray-100 shadow-sm flex flex-wrap gap-4 items-center">
+      {/* Filtros e Busca */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="flex gap-2">
-            <select 
-              className="bg-gray-50 px-4 py-3 rounded-2xl font-bold text-sm outline-none cursor-pointer"
-              value={filtros.mes}
-              onChange={e => setFiltros({...filtros, mes: parseInt(e.target.value)})}
-            >
-              {Array.from({length: 12}).map((_, i) => (
-                  <option key={i} value={i}>{new Date(0, i).toLocaleString('pt-BR', {month: 'long'})}</option>
-              ))}
-            </select>
-            <select 
-              className="bg-gray-50 px-4 py-3 rounded-2xl font-bold text-sm outline-none cursor-pointer"
-              value={filtros.ano}
-              onChange={e => setFiltros({...filtros, ano: parseInt(e.target.value)})}
-            >
-              <option value={2024}>2024</option>
-              <option value={2025}>2025</option>
-              <option value={2026}>2026</option>
-            </select>
+          <select 
+            value={filtros.mes} 
+            onChange={(e) => setFiltros({...filtros, mes: parseInt(e.target.value)})}
+            className="bg-gray-50 border-none rounded-xl px-4 py-3 font-bold text-gray-700 focus:ring-2 focus:ring-iluminus-terracota/20"
+          >
+            {Array.from({length: 12}, (_, i) => (
+              <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('pt-BR', {month: 'long'})}</option>
+            ))}
+          </select>
+          <select 
+            value={filtros.ano} 
+            onChange={(e) => setFiltros({...filtros, ano: parseInt(e.target.value)})}
+            className="bg-gray-50 border-none rounded-xl px-4 py-3 font-bold text-gray-700 focus:ring-2 focus:ring-iluminus-terracota/20"
+          >
+            {[2024, 2025, 2026].map(ano => <option key={ano} value={ano}>{ano}</option>)}
+          </select>
         </div>
-
-        {/* Filtro de Status */}
-        <select 
-          className="bg-gray-50 px-6 py-3 rounded-2xl font-bold text-sm text-gray-600 outline-none cursor-pointer"
-          value={filtros.status}
-          onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
-        >
-          <option value="todos">Todos os Status</option>
-          <option value="pago">Pagos</option>
-          <option value="pendente_atrasado">Pendentes e Atrasados</option>
-        </select>
-
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input 
+            type="text"
             placeholder="Buscar aluno..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-2xl border-none outline-none font-medium"
             value={busca}
-            onChange={e => setBusca(e.target.value)}
+            onChange={(e) => setBusca(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-iluminus-terracota/20 font-medium"
           />
         </div>
       </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? (
-            <div className="p-4"><TableSkeleton /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400">
-                <tr>
-                  <th className="px-8 py-5">Aluno / Plano</th>
-                  <th className="px-8 py-5">Vencimento</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Ação</th>
+      {/* Tabela de Mensalidades */}
+      {loading ? <TableSkeleton /> : alunosFiltrados?.length > 0 ? (
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Aluno</th>
+                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Vencimento</th>
+                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Valor</th>
+                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Status</th>
+                <th className="p-4 font-bold text-gray-400 uppercase text-xs text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {alunosFiltrados.map((item) => (
+                <tr key={item.id} className="hover:bg-orange-50/30 transition-colors">
+                  <td className="p-4 font-bold text-gray-700">{item.alunos?.nome_completo}</td>
+                  <td className="p-4 text-gray-500 font-medium">
+                    {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                  </td>
+                  <td className="p-4 font-bold text-gray-700">
+  {item.status === 'pago' 
+    ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco) 
+    : formatarMoeda(item.planos?.preco)}
+</td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                      {item.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    {item.status !== 'pago' && (
+                      <button 
+                        onClick={() => handleAbrirPagamento(item)}
+                        className="bg-iluminus-terracota text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90"
+                      >
+                        Receber
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {mensalidadesFiltradas.length > 0 ? (
-                  mensalidadesFiltradas.map(m => (
-                    <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-8 py-5">
-                        <p className="font-bold text-gray-700">{m.alunos?.nome_completo}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">{m.planos?.nome}</p>
-                      </td>
-                      <td className="px-8 py-5 font-medium text-gray-500">
-                        {new Date(m.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${STATUS_CORES[m.status]?.bg || 'bg-gray-100'} ${STATUS_CORES[m.status]?.text || 'text-gray-600'}`}>
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        {m.status !== 'pago' ? (
-                          <button 
-                            onClick={() => { 
-                              setMensalidadeSelecionada(m); 
-                              setDadosPagamento({ metodo: 'pix', desconto: 0, multa: 0, observacoes: '' });
-                              modalBaixa.abrir(); 
-                            }}
-                            className="bg-gray-800 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-black transition-all"
-                          >
-                            Dar Baixa
-                          </button>
-                        ) : (
-                          <span className="text-gray-300 text-xs font-bold flex items-center justify-end gap-1">
-                            <CheckCircle size={14}/> Pago
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan="4"><EmptyState titulo="Nenhuma cobrança encontrada" mensagem="Tente mudar os filtros ou gere novas cobranças." /></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <EmptyState titulo="Nenhum registro" mensagem="Não há mensalidades para o período selecionado." />}
+
+      {/* Modal de Pagamento com Novos Campos */}
+      <Modal isOpen={modalPagamento.isOpen} onClose={modalPagamento.fechar} titulo="Confirmar Recebimento">
+        {pagamentoSelecionado && (
+          <form onSubmit={handleConfirmarPagamento} className="space-y-6">
+            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
+              <p className="text-sm text-gray-600 font-medium">Aluno</p>
+              <p className="font-black text-gray-800 text-lg">{pagamentoSelecionado.alunos?.nome_completo}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Valor (R$)</label>
+                <input type="text" value={valorPago} onChange={(e) => setValorPago(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 font-bold" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Forma</label>
+                <SelectFormaPagamento value={formaPagamento} onChange={setFormaPagamento} required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Aula</label>
+              <select value={tipoAula} onChange={(e) => setTipoAula(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3">
+                {TIPOS_AULA.map(t => <option key={t.valor} value={t.valor}>{t.label}</option>)}
+              </select>
+            </div>
+            {(tipoAula === 'experimental' || tipoAula === 'avulsa') && (
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border">
+                <select value={professorId} onChange={(e) => setProfessorId(e.target.value)} className="border rounded-lg p-2 text-sm" required>
+                  <option value="">Professor...</option>
+                  {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+                <input type="text" value={modalidadeNome} onChange={(e) => setModalidadeNome(e.target.value)} placeholder="Modalidade..." className="border rounded-lg p-2 text-sm" required />
+              </div>
+            )}
+            <button type="submit" className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black">Confirmar Recebimento</button>
+          </form>
         )}
-      </div>
-
-      {/* Modal de Pagamento */}
-      <Modal isOpen={modalBaixa.isOpen} onClose={modalBaixa.fechar} titulo="Registrar Pagamento">
-        <form onSubmit={confirmarBaixa} className="space-y-6 pt-2">
-          <div className="bg-orange-50 p-6 rounded-[32px] text-center">
-            <p className="text-xs font-black text-gray-400 uppercase mb-1">Valor Original</p>
-            <p className="text-3xl font-black text-iluminus-terracota">{formatarMoeda(mensalidadeSelecionada?.planos?.preco)}</p>
-            <p className="text-sm text-gray-500 font-medium mt-1">{mensalidadeSelecionada?.alunos?.nome_completo}</p>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Desconto (R$)</label>
-              <input 
-                type="number"
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 outline-none font-bold"
-                value={dadosPagamento.desconto}
-                onChange={e => setDadosPagamento({...dadosPagamento, desconto: e.target.value})}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Multa (R$)</label>
-              <input 
-                type="number"
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 outline-none font-bold"
-                value={dadosPagamento.multa}
-                onChange={e => setDadosPagamento({...dadosPagamento, multa: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Forma de Pagamento</label>
-            <select 
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 outline-none font-bold text-gray-700"
-                value={dadosPagamento.metodo}
-                onChange={e => setDadosPagamento({...dadosPagamento, metodo: e.target.value})}
-            >
-                {METODOS_PAGAMENTO.map(met => (
-                <option key={met.valor} value={met.valor}>{met.label}</option>
-                ))}
-            </select>
-          </div>
-
-          <button 
-            type="submit"
-            className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all"
-          >
-            Confirmar Recebimento
-          </button>
-        </form>
       </Modal>
 
-      {/* MODAL GERAR MENSALIDADES */}
-      <ModalConfirmacao 
-        isOpen={modalGerarMensalidades.isOpen}
-        onClose={modalGerarMensalidades.fechar}
-        onConfirm={handleGerarMensalidades}
-        titulo="Gerar Cobranças Automáticas"
-        mensagem={`Deseja gerar as cobranças para todos os alunos ativos no mês de ${new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' })}/${filtros.ano}?`}
-        tipo="primary"
-      />
+      {/* Modal de Sucesso e Repasse */}
+      <Modal isOpen={modalResultado.isOpen} onClose={modalResultado.fechar} titulo="Repasse Processado">
+        {resultadoRepasse && pagamentoSelecionado && (
+          <div className="space-y-6">
+            <RepasseAlunoCard aluno={pagamentoSelecionado.alunos} mensalidade={{ tipo_aula: tipoAula }} resultado={resultadoRepasse} />
+            <button onClick={modalResultado.fechar} className="w-full bg-gray-100 py-3 rounded-xl font-bold">Fechar</button>
+          </div>
+        )}
+      </Modal>
 
+      <ModalConfirmacao 
+        isOpen={modalGerarMensalidades.isOpen} onClose={modalGerarMensalidades.fechar} onConfirm={handleGerarMensalidades}
+        titulo="Gerar Cobranças" mensagem="Deseja gerar as cobranças para todos os alunos ativos deste mês?"
+      />
     </div>
   );
 }
 
-const CardMetrica = React.memo(({ titulo, valor, icone, cor }) => {
+const CardMetrica = ({ titulo, valor, icone, cor }) => {
   const cores = {
     green: "bg-green-50 text-green-600",
     orange: "bg-orange-50 text-orange-600",
     blue: "bg-blue-50 text-blue-600",
     red: "bg-red-50 text-red-600"
   };
-  
   return (
-    <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-      <div className={`${cores[cor]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>{icone}</div>
-      <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{titulo}</p>
-      <h2 className="text-3xl font-black text-gray-800 mt-1">{valor}</h2>
+    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-4">
+      <div className={`p-4 rounded-2xl ${cores[cor]}`}>{React.cloneElement(icone, { size: 24 })}</div>
+      <div>
+        <p className="text-gray-400 text-sm font-bold uppercase">{titulo}</p>
+        <p className="text-2xl font-black text-gray-800">{formatarMoeda(valor)}</p>
+      </div>
     </div>
   );
-});
-
-export { CardMetrica };
+};

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Gift, Clock, TableConfigIcon, Bell,
-  Sun, Moon
+  Sun, Moon, Percent
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../hooks/ThemeContext';
@@ -38,6 +38,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { name: 'Modalidades', path: '/modalidades', icon: Package },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
     { name: 'Presença', path: '/presenca', icon: UserCheck },
+    { name: 'Repasses', path: '/configuracoes/repasse', icon: Percent },
     { name: 'Configurações', path: '/configuracoes/feriados', icon: TableConfigIcon },
   ];
 

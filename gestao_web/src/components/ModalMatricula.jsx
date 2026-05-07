@@ -38,6 +38,61 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     }
   }
 
+  // Função para calcular quando o plano termina
+  const calcularDataFim = (dataInicioStr, mesesAdicionais) => {
+    if (!dataInicioStr || !mesesAdicionais) return '';
+    const [ano, mes, dia] = dataInicioStr.split('-');
+    const dataCalculada = new Date(ano, parseInt(mes) - 1 + parseInt(mesesAdicionais), dia);
+    return dataCalculada.toISOString().split('T')[0];
+  };
+
+  // Função que processa a matrícula e cria a cobrança no financeiro
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      const planoInfos = planos.find(p => p.id === planoSelecionado);
+      const dataInicio = new Date().toISOString().split('T')[0];
+      const dataFim = calcularDataFim(dataInicio, planoInfos?.duracao_meses || 1);
+
+      // 1. Atualiza o plano e modalidades do aluno no cadastro
+      const { error: errAluno } = await supabase
+        .from('alunos')
+        .update({
+          plano_id: planoSelecionado,
+          modalidades_selecionadas: modalidadesSelecionadas,
+          data_fim_plano: dataFim
+        })
+        .eq('id', aluno.id);
+
+      if (errAluno) throw errAluno;
+
+      // 2. CRIA A MENSALIDADE (Faz o aluno aparecer no Financeiro automaticamente)
+      const { error: errMensalidade } = await supabase
+        .from('mensalidades')
+        .insert([{
+          aluno_id: aluno.id,
+          plano_id: planoSelecionado,
+          data_vencimento: dataInicio,
+          status: 'pendente'
+        }]);
+
+      if (errMensalidade) throw errMensalidade;
+
+      showToast.success('Matrícula realizada e cobrança gerada!');
+      onMatriculaSucesso();
+      onClose();
+    } catch (error) {
+      console.error(error);
+      showToast.error('Erro ao realizar matrícula');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  
+
   // Função select
   const toggleModalidade = (mod) => {
     setModalidadesSelecionadas(prev => 
@@ -100,7 +155,7 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
         {loading ? (
           <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-orange-400" size={40} /></div>
         ) : (
-          <form onSubmit={handleSalvar} className="p-6 overflow-y-auto space-y-6">
+          <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6">
             
             {/* Seleção do Plano */}
             <div>

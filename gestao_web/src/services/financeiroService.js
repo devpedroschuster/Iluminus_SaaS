@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
 
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
@@ -46,22 +47,27 @@ export const financeiroService = {
   },
 
   async confirmarPagamento(id, dados) {
-    const payload = {
-      status: 'pago',
-      valor_pago: dados.valor_pago,
-      metodo_pagamento: dados.metodo,
-      data_pagamento: new Date().toISOString().split('T')[0] 
-    };
-
-    const { error } = await supabase
-      .from('mensalidades')
-      .update(payload)
-      .eq('id', id);
-
-    if (error) {
-      console.error("Erro do Supabase ao dar baixa:", error);
-      throw error;
-    }
-    return true;
-  }
-};
+      // dados deve incluir: valor_pago, forma_pagamento (obrigatório),
+      //                     tipo_aula (default 'regular'), professor_id?, modalidade_nome?
+      const payload = {
+        status: 'pago',
+        valor_pago: dados.valor_pago,
+        forma_pagamento: dados.forma_pagamento,
+        metodo_pagamento: dados.forma_pagamento, // compat. com coluna antiga, se ainda existir
+        tipo_aula: dados.tipo_aula || 'regular',
+        professor_id: dados.professor_id || null,
+        modalidade_nome: dados.modalidade_nome || null,
+        data_pagamento: new Date().toISOString().split('T')[0],
+      };
+  
+      const { error } = await supabase
+        .from('mensalidades')
+        .update(payload)
+        .eq('id', id);
+      if (error) throw error;
+  
+      // Dispara o motor de repasses
+      const resultado = await gerarRepassesDaMensalidade(id);
+      return { ok: true, resultado };
+    },
+  };

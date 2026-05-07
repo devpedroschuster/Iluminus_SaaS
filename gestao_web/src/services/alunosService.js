@@ -143,12 +143,14 @@ async buscarPerfilCompleto(alunoId) {
 
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
+      // 1. Finaliza o plano antigo no histórico
       await supabase
         .from('historico_planos')
         .update({ status: 'finalizado' })
         .eq('aluno_id', alunoId)
         .eq('status', 'ativo');
 
+      // 2. Registra o novo período no histórico
       const { error: errHist } = await supabase
         .from('historico_planos')
         .insert([{
@@ -162,19 +164,32 @@ async buscarPerfilCompleto(alunoId) {
       
       if (errHist) throw errHist;
 
+      // 3. Atualiza o cadastro principal do aluno
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
           plano_id: dadosRenovacao.plano_id,
-          data_vencimento: dadosRenovacao.data_fim
+          data_fim_plano: dadosRenovacao.data_fim
         })
         .eq('id', alunoId);
 
       if (errAluno) throw errAluno;
 
+      // O vencimento é definido como a data de início do novo plano
+      const { error: errMensalidade } = await supabase
+        .from('mensalidades')
+        .insert([{
+          aluno_id: alunoId,
+          plano_id: dadosRenovacao.plano_id,
+          data_vencimento: dadosRenovacao.data_inicio,
+          status: 'pendente'
+        }]);
+
+      if (errMensalidade) throw errMensalidade;
+
       return true;
     } catch (error) {
-      console.error('Erro ao renovar plano:', error);
+      console.error('[alunosService.renovarPlano]', error);
       throw error;
     }
   }

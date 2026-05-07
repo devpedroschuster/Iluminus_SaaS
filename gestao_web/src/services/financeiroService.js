@@ -19,6 +19,7 @@ export const financeiroService = {
   },
 
   async gerarMensalidades(mes, ano) {
+    // 1. Busca todos os alunos ativos que possuem plano
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, plano_id')
@@ -27,15 +28,47 @@ export const financeiroService = {
 
     if (errAlunos) throw errAlunos;
 
-    const dataVencimento = new Date(ano, mes, 10).toISOString().split('T')[0];
-    
-    const novasCobrancas = alunos.map(aluno => ({
-      aluno_id: aluno.id,
-      plano_id: aluno.plano_id,
-      data_vencimento: dataVencimento,
-      status: 'pendente'
-    }));
+    // 2. Busca a última mensalidade de cada aluno para saber de onde partir o cálculo
+    const { data: ultimasMensalidades } = await supabase
+      .from('mensalidades')
+      .select('aluno_id, data_vencimento')
+      .order('data_vencimento', { ascending: false });
 
+    // Criamos um mapa para identificar rapidamente a última data de cada aluno
+    const mapaUltimasDatas = new Map();
+    ultimasMensalidades?.forEach(m => {
+      if (!mapaUltimasDatas.has(m.aluno_id)) {
+        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
+      }
+    });
+
+    const novasCobrancas = [];
+
+    alunos.forEach(aluno => {
+      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
+      
+      if (ultimaDataStr) {
+        // CALCULA O PRÓXIMO CICLO: Última data + 30 dias
+        const d = new Date(ultimaDataStr + 'T12:00:00');
+        d.setDate(d.getDate() + 30);
+        
+        const proximaData = d.toISOString().split('T')[0];
+        const [pAno, pMes] = proximaData.split('-').map(Number);
+
+        // Se a próxima data calculada cair no mês/ano que você selecionou no painel
+        // Nota: 'mes' vem do JavaScript (0-11), por isso comparamos com mes + 1
+        if (pAno === ano && pMes === (mes + 1)) {
+          novasCobrancas.push({
+            aluno_id: aluno.id,
+            plano_id: aluno.plano_id,
+            data_vencimento: proximaData,
+            status: 'pendente'
+          });
+        }
+      }
+    });
+
+    // 3. Insere as novas mensalidades, cada uma no seu dia correto
     if (novasCobrancas.length > 0) {
       const { error: errInsert } = await supabase
         .from('mensalidades')

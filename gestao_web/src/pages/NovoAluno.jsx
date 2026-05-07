@@ -44,6 +44,7 @@ export default function NovoAluno() {
   const [copiado, setCopiado] = useState(false);
   const [dadosCriados, setDadosCriados] = useState(null);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().split('T')[0]);
 
   const { register, handleSubmit, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm({
     resolver: yupResolver(alunoSchema),
@@ -245,10 +246,21 @@ useEffect(() => {
     }
   }
 
+  // 1. Função de cálculo da data de fim (baseado no ciclo de 30 dias)
+  const calcularDataFim = (dataVencimentoStr, mesesAdicionais) => {
+    if (!dataVencimentoStr || !mesesAdicionais) return '';
+    const d = new Date(dataVencimentoStr + 'T12:00:00');
+    d.setDate(d.getDate() + (Number(mesesAdicionais) * 30));
+    return d.toISOString().split('T')[0];
+  };
+
+  // 2. Submissão do Formulário
   async function onSubmit(data) {
     try {
       const planoFinal = (data.role === 'aluno' && data.plano_id && data.plano_id !== '') ? data.plano_id : null;
+      let planoInfos = null;
 
+      // A. Prepara os dados base
       const payloadBase = {
         plano_id: planoFinal,
         modalidades_selecionadas: data.role === 'aluno' ? modalidadesSelecionadas : [],
@@ -263,6 +275,18 @@ useEffect(() => {
         bairro: data.bairro || null,
       };
 
+      // B. Calcula as datas baseadas no plano escolhido e na data de vencimento
+      if (planoFinal) {
+        planoInfos = planos.find(p => String(p.id) === String(planoFinal));
+        if (planoInfos) {
+          const meses = planoInfos.duracao_meses || 1;
+          const dataInicio = new Date().toISOString().split('T')[0];
+          payloadBase.data_inicio_plano = dataInicio;
+          payloadBase.data_fim_plano = calcularDataFim(dataVencimento, meses);
+        }
+      }
+
+      // --- MODO EDIÇÃO ---
       if (alunoParaEditar) {
         await alunosService.atualizar(alunoParaEditar.id, { ...payloadBase, nome_completo: data.nome_completo });
         showToast.success("Cadastro atualizado com sucesso!");
@@ -271,8 +295,8 @@ useEffect(() => {
         return;
       }
 
+      // --- MODO CRIAÇÃO ---
       let novoAlunoId = null;
-
       const { data: profExistente } = await supabase.from('professores').select('auth_id').eq('email', data.email.trim()).maybeSingle();
 
       if (profExistente) {
@@ -285,7 +309,7 @@ useEffect(() => {
 
         if (insertError) throw new Error("Erro ao criar vínculo de aluno.");
         novoAlunoId = alunoInserido.id;
-        showToast.success("Perfil de aluno vinculado ao professor existente com sucesso!");
+        showToast.success("Perfil vinculado ao professor com sucesso!");
 
       } else {
         const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
@@ -305,18 +329,35 @@ useEffect(() => {
         novoAlunoId = alunoAtualizado?.id;
         showToast.success("Cadastro criado com sucesso!");
       }
+
+      // --- O "SUPERPODER" FINANCEIRO ---
+      // Se for um novo aluno E tiver plano, gera Histórico e Financeiro
+      if (novoAlunoId && planoFinal && planoInfos) {
+        
+        const { error: errHist } = await supabase.from('historico_planos').insert([{
+          aluno_id: novoAlunoId,
+          plano_id: planoFinal,
+          data_inicio: payloadBase.data_inicio_plano,
+          data_fim: payloadBase.data_fim_plano,
+          status: 'ativo',
+          valor_pago: planoInfos.preco || 0
+        }]);
+        if (errHist) console.error("Erro no histórico:", errHist);
+
+        const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
+          aluno_id: novoAlunoId,
+          plano_id: planoFinal,
+          data_vencimento: dataVencimento,
+          status: 'pendente'
+        }]);
+        if (errMensalidade) console.error("Erro na mensalidade:", errMensalidade);
+      }
       
+      // --- FINALIZAÇÃO ---
       if (leadParaConversao && leadParaConversao.id) {
          const payloadConversao = { status_conversao: 'convertido' };
-         
-         if (novoAlunoId) {
-             payloadConversao.aluno_id = novoAlunoId;
-         }
-
-         await supabase
-           .from('presencas')
-           .update(payloadConversao)
-           .eq('id', leadParaConversao.id);
+         if (novoAlunoId) payloadConversao.aluno_id = novoAlunoId;
+         await supabase.from('presencas').update(payloadConversao).eq('id', leadParaConversao.id);
       }
 
       await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores', 'presencas'] });
@@ -435,6 +476,22 @@ useEffect(() => {
                       <option value="">Vincular Plano...</option>
                       {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                     </select>
+                    {/* NOVO: Data do 1º Pagamento (Aparece só se escolher um plano) */}
+              {planoSelecionado && (
+                <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100 mt-2">
+                  <label className="block text-sm font-bold text-blue-800 mb-2">Data do 1º Pagamento</label>
+                  <input
+                    type="date"
+                    value={dataVencimento}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setDataVencimento(e.target.value)}
+                    className="w-full bg-white border-none rounded-xl px-4 py-3 font-bold text-gray-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  />
+                  <p className="text-[11px] text-blue-600 mt-2 font-medium">
+                    O plano terá validade contando a partir desta data de pagamento.
+                  </p>
+                </div>
+              )}
                 </div>
 
                 {planoSelecionado && roleAtual === 'aluno' && (

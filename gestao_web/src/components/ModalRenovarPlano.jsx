@@ -9,39 +9,56 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     plano_id: '',
-    data_inicio: new Date().toISOString().split('T')[0],
+    data_inicio: new Date().toISOString().split('T')[0], 
     data_fim: '',
     valor_pago: ''
   });
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && alunoId) {
+      // Busca a lista de planos disponíveis
       supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data }) => {
         if (data) setPlanos(data);
       });
-    }
-  }, [isOpen]);
 
+      // 2. Busca a data de fim do plano atual do aluno diretamente no banco e atualiza o formulário
+      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data }) => {
+        if (data && data.data_fim_plano) {
+          setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
+        }
+      });
+    }
+  }, [isOpen, alunoId]);
+
+  // Agora aceita a quantidade de meses para calcular o ciclo correto
   const calcularDataFim = (dataInicioStr, mesesAdicionais) => {
     if (!dataInicioStr || !mesesAdicionais) return '';
-    
-    const [ano, mes, dia] = dataInicioStr.split('-');
-    
-    const dataCalculada = new Date(ano, parseInt(mes) - 1 + parseInt(mesesAdicionais), dia);
-    
-    return dataCalculada.toISOString().split('T')[0];
+    const d = new Date(dataInicioStr + 'T12:00:00');
+    // Multiplica 30 dias pela duração do plano (Ex: 12 meses = 360 dias)
+    d.setDate(d.getDate() + (mesesAdicionais * 30)); 
+    return d.toISOString().split('T')[0];
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await alunosService.renovarPlano(alunoId, form);
-      showToast.success("Plano renovado com sucesso!");
-      onSucesso();
+      const planoInfos = planos.find(p => String(p.id) === String(form.plano_id));
+      const duracao = planoInfos?.duracao_meses || 1;
+      
+      const novaDataFim = calcularDataFim(form.data_inicio, duracao);
+
+      await alunosService.renovarPlano(alunoId, {
+        ...form,
+        data_fim: novaDataFim
+      });
+
+      showToast.success('Plano renovado e histórico atualizado!');
+      onSucesso?.();
       onClose();
     } catch (error) {
-      showToast.error("Erro ao renovar plano.");
+      console.error(error);
+      showToast.error('Erro ao renovar plano');
     } finally {
       setLoading(false);
     }

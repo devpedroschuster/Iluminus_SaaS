@@ -11,6 +11,7 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
   const [modalidadesSelecionadas, setModalidadesSelecionadas] = useState(
     aluno?.modalidades_selecionadas || []
   );
+  const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().split('T')[0]);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -19,17 +20,18 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     carregarDados();
   }, []);
 
-  async function carregarDados() {
+async function carregarDados() {
     setLoading(true);
     try {
-      const { data: planosData } = await supabase.from('planos').select('id, nome, regras_acesso');
+      const { data: planosData } = await supabase
+        .from('planos')
+        .select('id, nome, preco, duracao_meses, regras_acesso'); // Adicionados campos cruciais
+      
       const { data: modData } = await supabase.from('modalidades').select('nome').order('nome');
       
       if (planosData) setPlanos(planosData);
       if (modData && modData.length > 0) {
         setModalidades(modData.map(m => m.nome));
-      } else {
-        setModalidades(['Funcional', 'Dança Criativa', 'Free Funk', 'Ballet', 'Jazz', 'Yoga']);
       }
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -38,62 +40,7 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     }
   }
 
-  // Função para calcular quando o plano termina
-  const calcularDataFim = (dataInicioStr, mesesAdicionais) => {
-    if (!dataInicioStr || !mesesAdicionais) return '';
-    const [ano, mes, dia] = dataInicioStr.split('-');
-    const dataCalculada = new Date(ano, parseInt(mes) - 1 + parseInt(mesesAdicionais), dia);
-    return dataCalculada.toISOString().split('T')[0];
-  };
-
-  // Função que processa a matrícula e cria a cobrança no financeiro
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-
-    try {
-      const planoInfos = planos.find(p => p.id === planoSelecionado);
-      const dataInicio = new Date().toISOString().split('T')[0];
-      const dataFim = calcularDataFim(dataInicio, planoInfos?.duracao_meses || 1);
-
-      // 1. Atualiza o plano e modalidades do aluno no cadastro
-      const { error: errAluno } = await supabase
-        .from('alunos')
-        .update({
-          plano_id: planoSelecionado,
-          modalidades_selecionadas: modalidadesSelecionadas,
-          data_fim_plano: dataFim
-        })
-        .eq('id', aluno.id);
-
-      if (errAluno) throw errAluno;
-
-      // 2. CRIA A MENSALIDADE (Faz o aluno aparecer no Financeiro automaticamente)
-      const { error: errMensalidade } = await supabase
-        .from('mensalidades')
-        .insert([{
-          aluno_id: aluno.id,
-          plano_id: planoSelecionado,
-          data_vencimento: dataInicio,
-          status: 'pendente'
-        }]);
-
-      if (errMensalidade) throw errMensalidade;
-
-      showToast.success('Matrícula realizada e cobrança gerada!');
-      onMatriculaSucesso();
-      onClose();
-    } catch (error) {
-      console.error(error);
-      showToast.error('Erro ao realizar matrícula');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  
-
-  // Função select
+    // Função select
   const toggleModalidade = (mod) => {
     setModalidadesSelecionadas(prev => 
       prev.includes(mod) 
@@ -102,35 +49,79 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     );
   };
 
-  async function handleSalvar(e) {
+  // 1. ÚNICA função de cálculo de data
+  const calcularDataFimPorVencimento = (dataVencimentoStr, mesesPlano) => {
+    const d = new Date(dataVencimentoStr + 'T12:00:00'); 
+    d.setDate(d.getDate() + (Number(mesesPlano) * 30));
+    return d.toISOString().split('T')[0];
+  };
+
+  // 3. Submissão completa: Aluno + Histórico + Financeiro
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!planoSelecionado) {
-      showToast.error("Por favor, selecione um plano.");
-      return;
-    }
-    
     setSaving(true);
+
     try {
-      const { error } = await supabase
+      // CORREÇÃO: Comparamos como String para evitar erro de tipo (Texto vs Número)
+      const planoInfos = planos.find(p => String(p.id) === String(planoSelecionado));
+      
+      if (!planoInfos) {
+        throw new Error("Informações do plano não encontradas.");
+      }
+
+      const meses = planoInfos.duracao_meses || 1;
+      const dataInicio = new Date().toISOString().split('T')[0];
+      const dataFim = calcularDataFimPorVencimento(dataVencimento, meses);
+
+      // A. Atualiza o cadastro do Aluno
+      const { error: errAluno } = await supabase
         .from('alunos')
-        .update({ 
+        .update({
           plano_id: planoSelecionado,
-          modalidades_selecionadas: modalidadesSelecionadas 
+          modalidades_selecionadas: modalidadesSelecionadas,
+          data_inicio_plano: dataInicio,
+          data_fim_plano: dataFim
         })
         .eq('id', aluno.id);
 
-      if (error) throw error;
+      if (errAluno) throw errAluno;
 
-      showToast.success("Matrícula atualizada com sucesso!");
+      // B. Grava no Histórico de Planos (Para aparecer no perfil)
+      const { error: errHist } = await supabase
+        .from('historico_planos')
+        .insert([{
+          aluno_id: aluno.id,
+          plano_id: planoSelecionado,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          status: 'ativo',
+          valor_pago: planoInfos.preco || 0
+        }]);
+
+      if (errHist) throw errHist;
+
+      // C. Cria a Mensalidade (Para aparecer no Financeiro)
+      const { error: errMensalidade } = await supabase
+        .from('mensalidades')
+        .insert([{
+          aluno_id: aluno.id,
+          plano_id: planoSelecionado,
+          data_vencimento: dataVencimento,
+          status: 'pendente'
+        }]);
+
+      if (errMensalidade) throw errMensalidade;
+
+      showToast.success('Matrícula, Histórico e Financeiro gerados com sucesso!');
       onMatriculaSucesso();
       onClose();
     } catch (error) {
-      showToast.error("Erro ao salvar matrícula.");
       console.error(error);
+      showToast.error('Erro ao processar matrícula completa');
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in">
@@ -212,6 +203,20 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
                 <p className="text-[11px] text-gray-400 mt-2 font-medium">Marque apenas as modalidades inclusas no pacote contratado.</p>
               </div>
             )}
+
+            <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+  <label className="block text-sm font-bold text-blue-800 mb-2">Data do 1º Pagamento (Combinada)</label>
+  <input
+    type="date"
+    value={dataVencimento}
+    min={new Date().toISOString().split('T')[0]}
+    onChange={(e) => setDataVencimento(e.target.value)}
+    className="w-full bg-white border-none rounded-xl px-4 py-2 font-bold text-gray-700 focus:ring-2 focus:ring-blue-500/20"
+  />
+  <p className="text-[10px] text-blue-600 mt-2">
+    O plano terá validade de 30 dias a partir desta data de pagamento.
+  </p>
+</div>
 
             {/* Botão Salvar */}
             <button 

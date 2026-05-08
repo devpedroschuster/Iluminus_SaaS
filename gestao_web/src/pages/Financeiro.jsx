@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DollarSign, TrendingUp, CreditCard, Smartphone, 
-  Banknote, Clock, CheckCircle, Search, RefreshCw, AlertCircle, Calendar, FileSpreadsheet
+  Banknote, Clock, CheckCircle, Search, RefreshCw, AlertCircle, Calendar, FileSpreadsheet, Plus
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
@@ -20,6 +20,7 @@ import { showToast } from '../components/shared/Toast';
 import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/shared/EmptyState';
+import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
 import { formatarMoeda } from '../lib/utils';
 
 export default function Financeiro() {
@@ -36,6 +37,7 @@ export default function Financeiro() {
   const modalPagamento = useModal();
   const modalResultado = useModal();
   const modalGerarMensalidades = useModal();
+  const [modalAddOpen, setModalAddOpen] = useState(false);
 
   // Estados do Formulário
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
@@ -126,9 +128,10 @@ export default function Financeiro() {
     }
   };
 
-  const alunosFiltrados = mensalidades?.filter(m => 
-    (m.alunos?.nome_completo || '').toLowerCase().includes(busca.toLowerCase())
-  );
+  const alunosFiltrados = mensalidades?.filter(m => {
+    const nomeBase = m.alunos?.nome_completo || m.nome_visitante || '';
+    return nomeBase.toLowerCase().includes(busca.toLowerCase());
+  });
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
@@ -147,10 +150,16 @@ export default function Financeiro() {
           >
             <RefreshCw size={20} /> Gerar Cobranças
           </button>
+          <button 
+  onClick={() => setModalAddOpen(true)}
+  className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-green-700 transition-all"
+>
+  <Plus size={20} /> Novo Lançamento
+</button>
         </div>
       </div>
 
-      {/* Cartões de Métricas (Restaurado) */}
+      {/* Cartões Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <CardMetrica titulo="Recebido" valor={metricas.recebido} icone={<CheckCircle />} cor="green" />
         <CardMetrica titulo="Pendente" valor={metricas.pendente} icone={<Clock />} cor="orange" />
@@ -190,7 +199,7 @@ export default function Financeiro() {
         </div>
       </div>
 
-      {/* Tabela de Mensalidades */}
+      {/* Tabela Mensalidades */}
       {loading ? <TableSkeleton /> : alunosFiltrados?.length > 0 ? (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <table className="w-full text-left">
@@ -206,15 +215,20 @@ export default function Financeiro() {
             <tbody className="divide-y divide-gray-50">
               {alunosFiltrados.map((item) => (
                 <tr key={item.id} className="hover:bg-orange-50/30 transition-colors">
-                  <td className="p-4 font-bold text-gray-700">{item.alunos?.nome_completo}</td>
+                  <td className="p-4 font-bold text-gray-700 flex items-center gap-2">
+                    {item.alunos?.nome_completo || item.nome_visitante || 'Visitante'}
+                    {!item.alunos && item.nome_visitante && (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] rounded-md uppercase tracking-wider">Avulso</span>
+                    )}
+                  </td>
                   <td className="p-4 text-gray-500 font-medium">
                     {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                   </td>
                   <td className="p-4 font-bold text-gray-700">
-  {item.status === 'pago' 
-    ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco) 
-    : formatarMoeda(item.planos?.preco)}
-</td>
+                    {item.status === 'pago' 
+                      ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco) 
+                      : formatarMoeda(item.planos?.preco)}
+                  </td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                       {item.status.toUpperCase()}
@@ -237,13 +251,15 @@ export default function Financeiro() {
         </div>
       ) : <EmptyState titulo="Nenhum registro" mensagem="Não há mensalidades para o período selecionado." />}
 
-      {/* Modal de Pagamento com Novos Campos */}
+      {/* Modal Pagamento */}
       <Modal isOpen={modalPagamento.isOpen} onClose={modalPagamento.fechar} titulo="Confirmar Recebimento">
         {pagamentoSelecionado && (
           <form onSubmit={handleConfirmarPagamento} className="space-y-6">
             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
               <p className="text-sm text-gray-600 font-medium">Aluno</p>
-              <p className="font-black text-gray-800 text-lg">{pagamentoSelecionado.alunos?.nome_completo}</p>
+              <p className="font-black text-gray-800 text-lg">
+    {pagamentoSelecionado.alunos?.nome_completo || pagamentoSelecionado.nome_visitante || 'Visitante'}
+  </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -275,11 +291,15 @@ export default function Financeiro() {
         )}
       </Modal>
 
-      {/* Modal de Sucesso e Repasse */}
+      {/* Modal Sucesso e Repasse */}
       <Modal isOpen={modalResultado.isOpen} onClose={modalResultado.fechar} titulo="Repasse Processado">
         {resultadoRepasse && pagamentoSelecionado && (
           <div className="space-y-6">
-            <RepasseAlunoCard aluno={pagamentoSelecionado.alunos} mensalidade={{ tipo_aula: tipoAula }} resultado={resultadoRepasse} />
+            <RepasseAlunoCard aluno={pagamentoSelecionado.alunos} mensalidade={{ tipo_aula: tipoAula }} resultado={resultadoRepasse} /><RepasseAlunoCard 
+    aluno={pagamentoSelecionado.alunos || { nome_completo: pagamentoSelecionado.nome_visitante || 'Visitante' }} 
+    mensalidade={{ tipo_aula: tipoAula }} 
+    resultado={resultadoRepasse} 
+  />
             <button onClick={modalResultado.fechar} className="w-full bg-gray-100 py-3 rounded-xl font-bold">Fechar</button>
           </div>
         )}
@@ -288,6 +308,11 @@ export default function Financeiro() {
       <ModalConfirmacao 
         isOpen={modalGerarMensalidades.isOpen} onClose={modalGerarMensalidades.fechar} onConfirm={handleGerarMensalidades}
         titulo="Gerar Cobranças" mensagem="Deseja gerar as cobranças para todos os alunos ativos deste mês?"
+      />
+      <ModalAdicionarPagamentoManual 
+        isOpen={modalAddOpen} 
+        onClose={() => setModalAddOpen(false)}
+        onSucesso={refetch} 
       />
     </div>
   );

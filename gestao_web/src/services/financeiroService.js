@@ -19,7 +19,6 @@ export const financeiroService = {
   },
 
   async gerarMensalidades(mes, ano) {
-    // 1. Busca todos os alunos ativos que possuem plano
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, plano_id')
@@ -28,13 +27,11 @@ export const financeiroService = {
 
     if (errAlunos) throw errAlunos;
 
-    // 2. Busca a última mensalidade de cada aluno para saber de onde partir o cálculo
     const { data: ultimasMensalidades } = await supabase
       .from('mensalidades')
       .select('aluno_id, data_vencimento')
       .order('data_vencimento', { ascending: false });
 
-    // Criamos um mapa para identificar rapidamente a última data de cada aluno
     const mapaUltimasDatas = new Map();
     ultimasMensalidades?.forEach(m => {
       if (!mapaUltimasDatas.has(m.aluno_id)) {
@@ -48,15 +45,12 @@ export const financeiroService = {
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
       
       if (ultimaDataStr) {
-        // CALCULA O PRÓXIMO CICLO: Última data + 30 dias
         const d = new Date(ultimaDataStr + 'T12:00:00');
         d.setDate(d.getDate() + 30);
         
         const proximaData = d.toISOString().split('T')[0];
         const [pAno, pMes] = proximaData.split('-').map(Number);
 
-        // Se a próxima data calculada cair no mês/ano que você selecionou no painel
-        // Nota: 'mes' vem do JavaScript (0-11), por isso comparamos com mes + 1
         if (pAno === ano && pMes === (mes + 1)) {
           novasCobrancas.push({
             aluno_id: aluno.id,
@@ -68,7 +62,6 @@ export const financeiroService = {
       }
     });
 
-    // 3. Insere as novas mensalidades, cada uma no seu dia correto
     if (novasCobrancas.length > 0) {
       const { error: errInsert } = await supabase
         .from('mensalidades')
@@ -79,14 +72,48 @@ export const financeiroService = {
     return true;
   },
 
+  async adicionarPagamentoManual(dados) {
+    const payload = {
+      aluno_id: dados.aluno_id ? dados.aluno_id : null, 
+      nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
+      plano_id: dados.plano_id ? dados.plano_id : null,
+      professor_id: dados.professor_id ? dados.professor_id : null,
+      modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
+      
+      tipo_aula: dados.tipo_aula,
+      valor_pago: Number(dados.valor_pago),
+      status: dados.status || 'pago',
+      
+      forma_pagamento: dados.forma_pagamento,
+      
+      data_vencimento: dados.data_vencimento,
+      data_pagamento: dados.status === 'pago' ? dados.data_vencimento : null,
+    };
+
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro detalhado do Supabase:", error);
+      throw error;
+    }
+
+    if (dados.status === 'pago') {
+      await gerarRepassesDaMensalidade(data.id);
+    }
+
+    return data;
+  },
+
   async confirmarPagamento(id, dados) {
-      // dados deve incluir: valor_pago, forma_pagamento (obrigatório),
-      //                     tipo_aula (default 'regular'), professor_id?, modalidade_nome?
       const payload = {
         status: 'pago',
         valor_pago: dados.valor_pago,
         forma_pagamento: dados.forma_pagamento,
-        metodo_pagamento: dados.forma_pagamento, // compat. com coluna antiga, se ainda existir
+        metodo_pagamento: dados.forma_pagamento,
         tipo_aula: dados.tipo_aula || 'regular',
         professor_id: dados.professor_id || null,
         modalidade_nome: dados.modalidade_nome || null,
@@ -99,7 +126,6 @@ export const financeiroService = {
         .eq('id', id);
       if (error) throw error;
   
-      // Dispara o motor de repasses
       const resultado = await gerarRepassesDaMensalidade(id);
       return { ok: true, resultado };
     },

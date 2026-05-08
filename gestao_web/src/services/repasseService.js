@@ -138,12 +138,21 @@ export async function gerarRepassesDaMensalidade(mensalidadeId) {
     .single();
   if (errMensa) throw errMensa;
   
-  const { data: aluno, error: errAluno } = await supabase
-    .from('alunos')
-    .select('id, nome_completo, modalidades_selecionadas')
-    .eq('id', mensalidade.aluno_id)
-    .single();
-  if (errAluno) throw errAluno;
+  let aluno = { 
+    id: null, 
+    nome_completo: mensalidade.nome_visitante || 'Visitante', 
+    modalidades_selecionadas: [] 
+  };
+  
+  if (mensalidade.aluno_id) {
+    const { data: alunoData, error: errAluno } = await supabase
+      .from('alunos')
+      .select('id, nome_completo, modalidades_selecionadas')
+      .eq('id', mensalidade.aluno_id)
+      .single();
+    if (errAluno) throw errAluno;
+    aluno = alunoData;
+  }
 
   const { data: modsRaw, error: errMods } = await supabase
     .from('modalidades')

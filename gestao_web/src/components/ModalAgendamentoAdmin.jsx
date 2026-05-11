@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form';
 import Modal from './shared/Modal';
 import * as alunosService from '../services/alunosService';
 import { gradeService, agendamentoService } from '../services/agendaService';
+// Adicionado Loader2
+import { Loader2 } from 'lucide-react';
 
 export default function ModalAgendamentoAdmin({ isOpen, onClose, onSucesso }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
@@ -19,7 +21,7 @@ export default function ModalAgendamentoAdmin({ isOpen, onClose, onSucesso }) {
   const carregarDados = async () => {
     try {
       const alunosData = await alunosService.buscarAlunosAtivos(); 
-const aulasData = await gradeService.listarGrade();      
+      const aulasData = await gradeService.listarGrade();      
       setAlunos(alunosData || []);
       setAulas(aulasData || []);
     } catch (error) {
@@ -47,16 +49,18 @@ const aulasData = await gradeService.listarGrade();
     }
   };
 
+  const inputClass = "w-full bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl pl-4 pr-4 py-3 text-sm focus:ring-2 focus:ring-iluminus-terracota/20 outline-none transition-all text-gray-700 dark:text-zinc-200 placeholder:text-gray-400 dark:placeholder:text-zinc-500";
+  const labelClass = "block text-sm font-bold text-gray-700 dark:text-zinc-300 mb-1";
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Agendar Aluno Manualmente">
+    <Modal isOpen={isOpen} onClose={onClose} titulo="Agendar Aluno Manualmente">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         
-        {/* Seleção de Aluno */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Aluno</label>
+          <label className={labelClass}>Aluno</label>
           <select 
             {...register('aluno_id', { required: "Selecione um aluno" })}
-            className="w-full rounded-md border border-gray-300 p-2 focus:ring-blue-500 focus:border-blue-500"
+            className={inputClass}
           >
             <option value="">Selecione o aluno...</option>
             {alunos.map(aluno => (
@@ -65,15 +69,14 @@ const aulasData = await gradeService.listarGrade();
               </option>
             ))}
           </select>
-          {errors.aluno_id && <span className="text-red-500 text-xs">{errors.aluno_id.message}</span>}
+          {errors.aluno_id && <span className="text-red-500 dark:text-red-400 text-xs font-medium mt-1 block">{errors.aluno_id.message}</span>}
         </div>
 
-        {/* Seleção de Aula */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Aula</label>
+          <label className={labelClass}>Aula</label>
           <select 
             {...register('aula_id', { required: "Selecione uma aula" })}
-            className="w-full rounded-md border border-gray-300 p-2 focus:ring-blue-500 focus:border-blue-500"
+            className={inputClass}
           >
             <option value="">Selecione a aula...</option>
             {aulas.map(aula => (
@@ -82,36 +85,36 @@ const aulasData = await gradeService.listarGrade();
               </option>
             ))}
           </select>
-          {errors.aula_id && <span className="text-red-500 text-xs">{errors.aula_id.message}</span>}
+          {errors.aula_id && <span className="text-red-500 dark:text-red-400 text-xs font-medium mt-1 block">{errors.aula_id.message}</span>}
         </div>
 
-        {/* Seleção de Data */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Data da Aula</label>
+          <label className={labelClass}>Data da Aula</label>
           <input 
             type="date" 
             {...register('data_aula', { required: "A data é obrigatória" })}
-            className="w-full rounded-md border border-gray-300 p-2 focus:ring-blue-500 focus:border-blue-500"
+            className={inputClass}
           />
-          {errors.data_aula && <span className="text-red-500 text-xs">{errors.data_aula.message}</span>}
+          {errors.data_aula && <span className="text-red-500 dark:text-red-400 text-xs font-medium mt-1 block">{errors.data_aula.message}</span>}
         </div>
 
-        {/* Botões de Ação */}
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 pt-4">
           <button 
             type="button" 
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            className="px-6 py-3 font-bold text-gray-500 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition-all"
             disabled={isLoading}
           >
             Cancelar
           </button>
+          
+          {/* Botão com Feedback Visual Atualizado */}
           <button 
             type="submit" 
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="px-6 py-3 font-bold bg-iluminus-terracota text-white rounded-xl hover:brightness-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isLoading ? 'Agendando...' : 'Confirmar Agendamento'}
+            {isLoading ? <><Loader2 className="animate-spin" size={20} /> Agendando...</> : 'Confirmar Agendamento'}
           </button>
         </div>
       </form>

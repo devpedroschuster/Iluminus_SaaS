@@ -1,38 +1,41 @@
 // src/components/shared/Toast.jsx
-
 import React from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
+// Caminho corrigido para bater exatamente com a sua pasta hooks
+import { useTheme } from '../../hooks/ThemeContext'; 
 
 /**
  * Configuração do Toast Provider
- * Coloque este componente no App.jsx
  */
 export function ToastProvider() {
+  const { theme } = useTheme(); // Detecta o tema atual
+
   return (
     <Toaster
       position="top-right"
       toastOptions={{
         duration: 4000,
         style: {
-          background: '#fff',
-          color: '#2D2D2D',
+          background: theme === 'dark' ? '#1C1C1C' : '#fff',
+          color: theme === 'dark' ? '#E4E4E7' : '#2D2D2D',
           borderRadius: '16px',
           padding: '16px',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-          border: '1px solid #F0E5DE',
-          maxWidth: '400px'
+          boxShadow: theme === 'dark' ? '0 10px 40px rgba(0,0,0,0.5)' : '0 10px 40px rgba(0,0,0,0.1)',
+          border: theme === 'dark' ? '1px solid #3F3F46' : '1px solid #F0E5DE',
+          maxWidth: '400px',
+          transition: 'all 0.2s ease-in-out'
         },
         success: {
           iconTheme: {
             primary: '#10B981',
-            secondary: '#fff',
+            secondary: theme === 'dark' ? '#1C1C1C' : '#fff',
           },
         },
         error: {
           iconTheme: {
             primary: '#EF4444',
-            secondary: '#fff',
+            secondary: theme === 'dark' ? '#1C1C1C' : '#fff',
           },
         },
       }}
@@ -101,29 +104,3 @@ export const showToast = {
     });
   }
 };
-
-/**
- * Exemplos de uso:
- * 
- * import { showToast } from './components/shared/Toast';
- * 
- * showToast.success('Aluno cadastrado com sucesso!');
- * showToast.error('Falha ao salvar dados.');
- * showToast.warning('Atenção: Esta ação é irreversível.');
- * showToast.info('Nova atualização disponível.');
- * 
- * // Com ação de desfazer
- * showToast.custom('Aula excluída', () => restaurarAula(id), 'Desfazer');
- * 
- * // Com promise
- * showToast.promise(
- *   salvarDados(),
- *   {
- *     loading: 'Salvando...',
- *     success: 'Dados salvos!',
- *     error: 'Erro ao salvar.'
- *   }
- * );
- */
-
-export default ToastProvider;

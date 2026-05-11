@@ -20,12 +20,12 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     carregarDados();
   }, []);
 
-async function carregarDados() {
+  async function carregarDados() {
     setLoading(true);
     try {
       const { data: planosData } = await supabase
         .from('planos')
-        .select('id, nome, preco, duracao_meses, regras_acesso'); // Adicionados campos cruciais
+        .select('id, nome, preco, duracao_meses, regras_acesso');
       
       const { data: modData } = await supabase.from('modalidades').select('nome').order('nome');
       
@@ -40,7 +40,6 @@ async function carregarDados() {
     }
   }
 
-    // Função select
   const toggleModalidade = (mod) => {
     setModalidadesSelecionadas(prev => 
       prev.includes(mod) 
@@ -49,20 +48,17 @@ async function carregarDados() {
     );
   };
 
-  // 1. ÚNICA função de cálculo de data
   const calcularDataFimPorVencimento = (dataVencimentoStr, mesesPlano) => {
     const d = new Date(dataVencimentoStr + 'T12:00:00'); 
     d.setDate(d.getDate() + (Number(mesesPlano) * 30));
     return d.toISOString().split('T')[0];
   };
 
-  // 3. Submissão completa: Aluno + Histórico + Financeiro
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
 
     try {
-      // CORREÇÃO: Comparamos como String para evitar erro de tipo (Texto vs Número)
       const planoInfos = planos.find(p => String(p.id) === String(planoSelecionado));
       
       if (!planoInfos) {
@@ -73,7 +69,6 @@ async function carregarDados() {
       const dataInicio = new Date().toISOString().split('T')[0];
       const dataFim = calcularDataFimPorVencimento(dataVencimento, meses);
 
-      // A. Atualiza o cadastro do Aluno
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
@@ -86,7 +81,6 @@ async function carregarDados() {
 
       if (errAluno) throw errAluno;
 
-      // B. Grava no Histórico de Planos (Para aparecer no perfil)
       const { error: errHist } = await supabase
         .from('historico_planos')
         .insert([{
@@ -100,7 +94,6 @@ async function carregarDados() {
 
       if (errHist) throw errHist;
 
-      // C. Cria a Mensalidade (Para aparecer no Financeiro)
       const { error: errMensalidade } = await supabase
         .from('mensalidades')
         .insert([{
@@ -124,21 +117,21 @@ async function carregarDados() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-[#1A1A1A] dark:border dark:border-zinc-800 rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Cabeçalho do Modal */}
-        <div className="bg-gray-50 p-6 border-b border-gray-100 flex justify-between items-center">
+        <div className="bg-gray-50 dark:bg-zinc-900 p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
+            <h2 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2">
               <Package className="text-iluminus-terracota" /> 
               Matrícula do Aluno
             </h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">
+            <p className="text-sm text-gray-500 dark:text-zinc-400 font-medium mt-1">
               {aluno?.nome_completo || 'Aluno selecionado'}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 bg-white rounded-full text-gray-400 hover:text-red-500 shadow-sm transition-colors">
+          <button onClick={onClose} className="p-2 bg-white dark:bg-zinc-800 rounded-full text-gray-400 dark:text-zinc-500 hover:text-red-500 shadow-sm transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -150,11 +143,11 @@ async function carregarDados() {
             
             {/* Seleção do Plano */}
             <div>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">1. Escolha o Plano</label>
+              <label className="text-xs font-black text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-3 block">1. Escolha o Plano</label>
               <div className="grid grid-cols-1 gap-3">
                 {planos.map(plano => (
-                  <label key={plano.id} className={`cursor-pointer border-2 rounded-2xl p-4 flex items-center justify-between transition-all ${planoSelecionado === plano.id ? 'border-iluminus-terracota bg-orange-50' : 'border-gray-100 hover:border-orange-200 bg-white'}`}>
-                    <span className={`font-bold ${planoSelecionado === plano.id ? 'text-iluminus-terracota' : 'text-gray-600'}`}>
+                  <label key={plano.id} className={`cursor-pointer border-2 rounded-2xl p-4 flex items-center justify-between transition-all ${planoSelecionado === plano.id ? 'border-iluminus-terracota bg-orange-50 dark:bg-orange-950/20' : 'border-gray-100 dark:border-zinc-800 hover:border-orange-200 dark:hover:border-zinc-700 bg-white dark:bg-zinc-800/40'}`}>
+                    <span className={`font-bold ${planoSelecionado === plano.id ? 'text-iluminus-terracota' : 'text-gray-600 dark:text-zinc-300'}`}>
                       {plano.nome}
                     </span>
                     <input 
@@ -174,55 +167,52 @@ async function carregarDados() {
             {/* Seleção das Modalidades */}
             {planoSelecionado && (
               <div className="animate-in slide-in-from-top-4">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3 block">2. Selecione as Modalidades</label>
-                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                <label className="text-xs font-black text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-3 block">2. Selecione as Modalidades</label>
+                <div className="bg-gray-50 dark:bg-zinc-900/40 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800">
                   <div className="grid grid-cols-2 gap-3">
                     {modalidades.map(mod => {
-  const isChecked = modalidadesSelecionadas.includes(mod);
-  return (
-    <label key={mod} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-white shadow-sm border border-orange-100' : 'hover:bg-gray-100 border border-transparent'}`}>
-      
-      <input 
-        type="checkbox" 
-        className="hidden"
-        checked={isChecked}
-        onChange={() => toggleModalidade(mod)}
-      />
-      
-      <div className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-iluminus-terracota border-iluminus-terracota' : 'bg-white border-gray-300'}`}>
-        {isChecked && <CheckCircle2 className="text-white w-4 h-4" />}
-      </div>
-      <span className={`text-sm font-bold ${isChecked ? 'text-gray-800' : 'text-gray-500'}`}>
-        {mod}
-      </span>
-    </label>
-  );
-})}
+                      const isChecked = modalidadesSelecionadas.includes(mod);
+                      return (
+                        <label key={mod} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-white dark:bg-zinc-800 shadow-sm border border-orange-100 dark:border-orange-900/30' : 'hover:bg-gray-100 dark:hover:bg-zinc-800 border border-transparent'}`}>
+                          <input 
+                            type="checkbox" 
+                            className="hidden"
+                            checked={isChecked}
+                            onChange={() => toggleModalidade(mod)}
+                          />
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-iluminus-terracota border-iluminus-terracota' : 'bg-white dark:bg-zinc-900 border-gray-300 dark:border-zinc-700'}`}>
+                            {isChecked && <CheckCircle2 className="text-white w-4 h-4" />}
+                          </div>
+                          <span className={`text-sm font-bold ${isChecked ? 'text-gray-800 dark:text-zinc-200' : 'text-gray-500 dark:text-zinc-500'}`}>
+                            {mod}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2 font-medium">Marque apenas as modalidades inclusas no pacote contratado.</p>
               </div>
             )}
 
-            <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-  <label className="block text-sm font-bold text-blue-800 mb-2">Data do 1º Pagamento (Combinada)</label>
-  <input
-    type="date"
-    value={dataVencimento}
-    min={new Date().toISOString().split('T')[0]}
-    onChange={(e) => setDataVencimento(e.target.value)}
-    className="w-full bg-white border-none rounded-xl px-4 py-2 font-bold text-gray-700 focus:ring-2 focus:ring-blue-500/20"
-  />
-  <p className="text-[10px] text-blue-600 mt-2">
-    O plano terá validade de 30 dias a partir desta data de pagamento.
-  </p>
-</div>
+            {/* Bloco de Data */}
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-900">
+              <label className="block text-sm font-bold text-blue-800 dark:text-blue-300 mb-2">Data do 1º Pagamento (Combinada)</label>
+              <input
+                type="date"
+                value={dataVencimento}
+                min={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setDataVencimento(e.target.value)}
+                className="w-full bg-white dark:bg-zinc-900 border-none rounded-xl px-4 py-2 font-bold text-gray-700 dark:text-zinc-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
+              />
+              <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-2 font-medium">
+                O plano terá validade de 30 dias a partir desta data de pagamento.
+              </p>
+            </div>
 
-            {/* Botão Salvar */}
             <button 
               type="submit" 
               disabled={saving || !planoSelecionado}
-              className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50 transition-all hover:scale-[1.02]"
+              className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-orange-100 dark:shadow-none disabled:opacity-50 transition-all hover:scale-[1.02]"
             >
               {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
               {saving ? 'Salvando...' : 'Confirmar Matrícula'}

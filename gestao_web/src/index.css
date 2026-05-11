@@ -8,3 +8,56 @@
   --color-iluminus-fundo: #FDF8F5;
   --color-iluminus-texto: #2D2D2D;
 }
+
+/* ========================================================
+   DARK MODE: REACT BIG CALENDAR OVERRIDES
+   ======================================================== */
+.dark .rbc-calendar {
+  background-color: transparent;
+  color: #E4E4E7; /* text-zinc-200 */
+}
+
+/* Bordas gerais do calendário */
+.dark .rbc-header,
+.dark .rbc-month-view,
+.dark .rbc-time-view,
+.dark .rbc-agenda-view,
+.dark .rbc-day-bg + .rbc-day-bg,
+.dark .rbc-month-row + .rbc-month-row,
+.dark .rbc-month-col,
+.dark .rbc-time-content,
+.dark .rbc-time-header-content,
+.dark .rbc-timeslot-group,
+.dark .rbc-day-slot .rbc-time-slot,
+.dark .rbc-agenda-time-cell, 
+.dark .rbc-agenda-date-cell, 
+.dark .rbc-agenda-event-cell {
+  border-color: #27272A !important; /* border-zinc-800 */
+}
+
+/* Cabeçalho dos dias */
+.dark .rbc-header {
+  color: #A1A1AA; /* text-zinc-400 */
+  font-weight: 800;
+  padding: 8px 0;
+}
+
+/* Dias fora do mês atual */
+.dark .rbc-off-range-bg {
+  background-color: #18181B; /* bg-zinc-900 */
+}
+
+/* Dia atual (Hoje) */
+.dark .rbc-today {
+  background-color: #3F3F46; /* bg-zinc-700 */
+}
+
+/* Textos e links internos */
+.dark .rbc-button-link {
+  color: #E4E4E7;
+}
+
+.dark .rbc-show-more {
+  color: #F97316; /* text-orange-500 (Iluminus Terracota) */
+  font-weight: bold;
+}

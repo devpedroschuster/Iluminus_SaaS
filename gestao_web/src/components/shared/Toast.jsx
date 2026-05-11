@@ -1,15 +1,10 @@
-// src/components/shared/Toast.jsx
 import React from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
-// Caminho corrigido para bater exatamente com a sua pasta hooks
-import { useTheme } from '../../hooks/ThemeContext'; 
+import { useTheme } from '../../providers/ThemeProvider';
 
-/**
- * Configuração do Toast Provider
- */
 export function ToastProvider() {
-  const { theme } = useTheme(); // Detecta o tema atual
+  const { theme } = useTheme();
 
   return (
     <Toaster
@@ -43,9 +38,6 @@ export function ToastProvider() {
   );
 }
 
-/**
- * Helper functions para diferentes tipos de toast
- */
 export const showToast = {
   success: (mensagem, opcoes = {}) => {
     toast.success(mensagem, {
@@ -75,7 +67,6 @@ export const showToast = {
     });
   },
   
-  // Toast personalizado para ações
   custom: (mensagem, onAction, textoAcao = 'Desfazer') => {
     toast((t) => (
       <div className="flex items-center justify-between gap-4">
@@ -95,7 +86,6 @@ export const showToast = {
     });
   },
   
-  // Toast de loading com promise
   promise: (promise, mensagens = {}) => {
     return toast.promise(promise, {
       loading: mensagens.loading || 'Processando...',

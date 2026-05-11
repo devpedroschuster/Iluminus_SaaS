@@ -7,10 +7,11 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 // Hooks e Componentes
 import { useAuth } from './hooks/useAuth';
+import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
-import { ThemeProvider } from './hooks/ThemeContext';
+
 
 // Páginas do Painel Administrativo
 import Login from './pages/Login';

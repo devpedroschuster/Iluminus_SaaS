@@ -1,63 +1,88 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@layer base {
+  :root {
+    /* Superfícies */
+    --background: 30 33% 98%;
+    --foreground: 220 13% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --subtle: 220 14% 92%;
+    --border: 220 13% 91%;
+    --input: 220 14% 96%;
+    --ring: 18 75% 55%;
 
-@theme {
-  --color-iluminus-terracota: #D98E73;
-  --color-iluminus-verde: #8A9A5B;
-  --color-iluminus-fundo: #FDF8F5;
-  --color-iluminus-texto: #2D2D2D;
+    /* Marca Iluminus */
+    --primary: 18 75% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-soft: 18 80% 96%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 214 100% 97%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 143 85% 96%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 48 96% 96%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 94% 97%;
+    --purple: 270 60% 60%;
+    --purple-soft: 270 80% 96%;
+    
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 220 14% 96%;
+    --card: 240 6% 11%;
+    --card-foreground: 220 14% 96%;
+    --popover: 240 6% 11%;
+    --popover-foreground: 220 14% 96%;
+    --muted: 240 5% 16%;
+    --muted-foreground: 240 5% 65%;
+    --subtle: 240 5% 20%;
+    --border: 240 5% 22%;
+    --input: 240 5% 16%;
+    --ring: 18 80% 62%;
+    --primary: 18 80% 62%;
+    --primary-foreground: 240 10% 7%;
+    --primary-soft: 18 60% 18%;
+    --info: 217 91% 65%;
+    --info-foreground: 240 10% 7%;
+    --info-soft: 217 60% 20%;
+    --success: 142 60% 50%;
+    --success-foreground: 240 10% 7%;
+    --success-soft: 142 50% 18%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 240 10% 7%;
+    --warning-soft: 38 50% 20%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 240 10% 7%;
+    --destructive-soft: 0 60% 20%;
+    --purple: 270 60% 65%;
+    --purple-soft: 270 50% 20%;
+  }
 }
 
-/* ========================================================
-   DARK MODE: REACT BIG CALENDAR OVERRIDES
-   ======================================================== */
-.dark .rbc-calendar {
-  background-color: transparent;
-  color: #E4E4E7; /* text-zinc-200 */
-}
-
-/* Bordas gerais do calendário */
-.dark .rbc-header,
-.dark .rbc-month-view,
-.dark .rbc-time-view,
-.dark .rbc-agenda-view,
-.dark .rbc-day-bg + .rbc-day-bg,
-.dark .rbc-month-row + .rbc-month-row,
-.dark .rbc-month-col,
-.dark .rbc-time-content,
-.dark .rbc-time-header-content,
-.dark .rbc-timeslot-group,
-.dark .rbc-day-slot .rbc-time-slot,
-.dark .rbc-agenda-time-cell, 
-.dark .rbc-agenda-date-cell, 
-.dark .rbc-agenda-event-cell {
-  border-color: #27272A !important; /* border-zinc-800 */
-}
-
-/* Cabeçalho dos dias */
-.dark .rbc-header {
-  color: #A1A1AA; /* text-zinc-400 */
-  font-weight: 800;
-  padding: 8px 0;
-}
-
-/* Dias fora do mês atual */
-.dark .rbc-off-range-bg {
-  background-color: #18181B; /* bg-zinc-900 */
-}
-
-/* Dia atual (Hoje) */
-.dark .rbc-today {
-  background-color: #3F3F46; /* bg-zinc-700 */
-}
-
-/* Textos e links internos */
-.dark .rbc-button-link {
-  color: #E4E4E7;
-}
-
-.dark .rbc-show-more {
-  color: #F97316; /* text-orange-500 (Iluminus Terracota) */
-  font-weight: bold;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    @apply antialiased;
+  }
+  ::selection {
+    background-color: hsl(var(--primary) / 0.2);
+    color: hsl(var(--primary));
+  }
 }

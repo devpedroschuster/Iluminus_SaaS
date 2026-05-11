@@ -4,10 +4,11 @@ import {
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Gift, Clock, TableConfigIcon, Bell,
-  Sun, Moon, Percent, DollarSign // <-- Adicionado o DollarSign
+  Sun, Moon, Percent, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../hooks/ThemeContext';
+import { useTheme } from '../providers/ThemeProvider';
+import ThemeToggle from './ui/ThemeToggle';
 
 function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   const location = useLocation();
@@ -24,7 +25,6 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     }
   }
 
-  // Novo formato: Inserimos objetos { label: 'Nome' } para criar os separadores
   const menuAdmin = [
     { label: 'Visão Geral' },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -39,7 +39,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
     
     { label: 'Financeiro' },
-    { name: 'Financeiro', path: '/financeiro', icon: DollarSign }, // Ícone atualizado
+    { name: 'Financeiro', path: '/financeiro', icon: DollarSign },
     { name: 'Comissões', path: '/comissoes', icon: Calculator },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
     
@@ -73,10 +73,8 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
           </button>
         </div>
 
-        {/* space-y-1 para agrupar melhor os botões embaixo dos seus labels */}
         <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
           {menu.map((item, index) => {
-            // Se o objeto for um 'label', renderiza o separador de grupo
             if (item.label) {
               return (
                 <div key={`label-${index}`} className="pt-5 pb-2 first:pt-0 px-3">
@@ -87,7 +85,6 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
               );
             }
 
-            // Se for um item de menu normal, renderiza o Link
             const Icon = item.icon;
             const ativo = location.pathname === item.path;
             return (
@@ -109,13 +106,9 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
         </nav>
 
         <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 mt-2 space-y-2 transition-colors">
-          <button 
-            onClick={toggleTheme}
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all font-bold bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 dark:text-yellow-400"
-          >
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            <span>{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>
-          </button>
+          <div className="flex justify-center w-full pb-2">
+  <ThemeToggle />
+</div>
 
           <button 
             onClick={handleLogout}

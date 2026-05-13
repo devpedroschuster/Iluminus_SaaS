@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Activity, RefreshCw, UserCheck, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
+import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
 import { showToast } from '../components/shared/Toast';
 import Modal from '../components/shared/Modal';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Surface from '../components/ui/Surface';
 import { modalidadeService } from '../services/modalidadeService'; 
 
 export default function Modalidades() {
@@ -105,7 +108,7 @@ export default function Modalidades() {
     setModalidadeEmEdicao({
       id: mod.id,
       nome: mod.nome,
-      area: mod.area || 'Dança', // Carrega a área para a edição
+      area: mod.area || 'Dança', 
       professor_id: mod.professor_id || '',
       capacidade_padrao: mod.capacidade_padrao || 15,
       taxa_professor: mod.taxa_professor || 0,
@@ -141,51 +144,48 @@ export default function Modalidades() {
 
   const getAreaColor = (area) => {
     switch (area) {
-      case 'Dança': return 'bg-pink-100 text-pink-700 border-pink-200';
-      case 'Funcional': return 'bg-orange-100 text-orange-700 border-orange-200';
-      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+      case 'Dança': return 'bg-purple-soft text-purple border-purple/20';
+      case 'Funcional': return 'bg-warning-soft text-warning border-warning/20';
+      default: return 'bg-muted text-muted-foreground border-border';
     }
   };
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in">
        <div>
-          <h1 className="text-3xl font-black text-gray-800">Modalidades & Comissões</h1>
-          <p className="text-gray-500">Cadastre as atividades, limites de vagas e regras financeiras.</p>
+          <h1 className="text-3xl font-black text-foreground">Modalidades & Comissões</h1>
+          <p className="text-muted-foreground">Cadastre as atividades, limites de vagas e regras financeiras.</p>
        </div>
 
       {/* FORMULÁRIO DE NOVA MODALIDADE */}
-      <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm space-y-6">
-        <h3 className="font-bold text-gray-800 flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
+      <Surface variant="card" padding="lg" className="space-y-6">
+        <h3 className="font-bold text-foreground flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
         
         <form onSubmit={handleCriarModalidade} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="w-full">
-              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome da Modalidade</label>
-              <input 
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome da Modalidade</label>
+              <Input 
                 required placeholder="Ex: Dança Criativa"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-all" 
                 value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
               />
             </div>
 
             <div className="w-full">
-              <label className="text-xs font-black text-gray-400 uppercase mb-2 block flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-              <select 
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-all cursor-pointer"
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+              <Input as="select"
                 value={novaModalidade.area}
                 onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
               >
                 <option value="Dança">Dança</option>
                 <option value="Funcional">Funcional</option>
                 <option value="Livre/Todos">Livre / Outros</option>
-              </select>
+              </Input>
             </div>
             
             <div className="w-full">
-              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Responsável (Opcional)</label>
-              <select 
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer transition-all"
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Responsável (Opcional)</label>
+              <Input as="select"
                 value={novaModalidade.professor_id}
                 onChange={e => setNovaModalidade({...novaModalidade, professor_id: e.target.value})}
               >
@@ -193,90 +193,92 @@ export default function Modalidades() {
                 {professores.map(prof => (
                   <option key={prof.id} value={prof.id}>{prof.nome}</option>
                 ))}
-              </select>
+              </Input>
             </div>
 
             <div className="w-full">
-              <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão</label>
-              <input 
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+              <Input 
                 required type="number" min="1"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-all" 
+                className="font-black text-info focus-visible:ring-info" 
                 value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
               />
             </div>
           </div>
 
-          <div className="bg-orange-50 border border-orange-100 p-6 rounded-3xl">
+          <Surface variant="subtle" className="border border-border p-6 rounded-3xl">
             <div className="flex justify-between items-end mb-4">
                <div>
-                 <h4 className="font-bold text-orange-900 flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
-                 <p className="text-xs text-orange-700/70 font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
+                 <h4 className="font-bold text-foreground flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
+                 <p className="text-xs text-muted-foreground font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
                </div>
-               <div className={`text-xl font-black ${isNovaValida ? 'text-green-600' : 'text-red-500'}`}>
+               <div className={`text-xl font-black ${isNovaValida ? 'text-success' : 'text-destructive'}`}>
                  Total: {totalTaxasNova}%
                </div>
             </div>
             
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="text-[10px] font-black text-blue-600 uppercase block mb-1">Professor</label>
-                <input type="number" min="0" max="100" className="w-full p-3 bg-white rounded-xl outline-none font-black text-gray-800 text-center border-2 border-transparent focus:border-blue-400" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
+                <label className="text-[10px] font-black text-info uppercase block mb-1">Professor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-info" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
               </div>
               <div>
-                <label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Espaço (Caixa)</label>
-                <input type="number" min="0" max="100" className="w-full p-3 bg-white rounded-xl outline-none font-black text-gray-800 text-center border-2 border-transparent focus:border-orange-400" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
+                <label className="text-[10px] font-black text-warning uppercase block mb-1">Espaço (Caixa)</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-warning" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
               </div>
               <div>
-                <label className="text-[10px] font-black text-purple-600 uppercase block mb-1">Diretor</label>
-                <input type="number" min="0" max="100" className="w-full p-3 bg-white rounded-xl outline-none font-black text-gray-800 text-center border-2 border-transparent focus:border-purple-400" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
+                <label className="text-[10px] font-black text-purple uppercase block mb-1">Diretor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-purple" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
               </div>
             </div>
-          </div>
+          </Surface>
 
           <div className="flex justify-end">
-             <button disabled={creating || !isNovaValida} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] w-full md:w-auto">
+             <Button type="submit" variant="brand" size="lg" disabled={creating || !isNovaValida} className="w-full md:w-auto font-black flex gap-3">
                {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
-             </button>
+             </Button>
           </div>
         </form>
-      </div>
+      </Surface>
 
       {/* GRADE DE MODALIDADES */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loadingList ? (
-           [1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-3xl animate-pulse" />)
+           [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)
         ) : modalidades.map(mod => (
-          <div 
+          <Surface 
             key={mod.id} 
+            variant="card"
+            padding="md"
             onClick={() => abrirPerfil(mod)}
-            className="bg-white p-5 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-lg hover:border-orange-200 hover:-translate-y-1 cursor-pointer transition-all group"
+            className="flex justify-between items-center hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
           >
             <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-orange-50 rounded-2xl text-iluminus-terracota flex items-center justify-center">
+               <div className="w-12 h-12 bg-primary-soft rounded-2xl text-primary flex items-center justify-center">
                  <Activity size={24}/>
                </div>
                <div>
                  <div className="flex items-center gap-2 mb-0.5">
-                   <h3 className="font-bold text-gray-800 leading-none">{mod.nome}</h3>
+                   <h3 className="font-bold text-foreground leading-none">{mod.nome}</h3>
                    <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
                      {mod.area || 'Dança'}
                    </span>
                  </div>
-                 <p className="text-xs font-medium text-gray-400 flex items-center gap-2 mt-1">
-                   <span className="flex items-center gap-1"><Users size={12} className="text-blue-500"/> {mod.capacidade_padrao || 15} vagas</span>
+                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mt-1">
+                   <span className="flex items-center gap-1"><Users size={12} className="text-info"/> {mod.capacidade_padrao || 15} vagas</span>
                  </p>
                </div>
             </div>
 
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Editar">
+              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all" title="Editar">
                 <Edit2 size={18}/>
               </button>
-              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Excluir">
-                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-red-500" size={18}/> : <Trash2 size={18}/>}
+              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all" title="Excluir">
+                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-destructive" size={18}/> : <Trash2 size={18}/>}
               </button>
             </div>
-          </div>
+          </Surface>
         ))}
       </div>
 
@@ -284,82 +286,82 @@ export default function Modalidades() {
         {modPerfil && (
           <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
             
-            <div className="bg-gray-800 p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
+            <div className="bg-card border border-border p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-black text-white">{modPerfil.nome}</h2>
-                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)} bg-opacity-20`}>
+                      <h2 className="text-2xl font-black text-foreground">{modPerfil.nome}</h2>
+                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)}`}>
                         {modPerfil.area || 'Dança'}
                       </span>
                     </div>
-                    <p className="text-gray-300 flex items-center gap-2 text-sm font-medium">
-                        <Users size={16} className="text-blue-400"/> {modPerfil.capacidade_padrao || 15} vagas por aula
+                    <p className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                        <Users size={16} className="text-info"/> {modPerfil.capacidade_padrao || 15} vagas por aula
                     </p>
                 </div>
-                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl backdrop-blur-sm transition-all" title="Editar Configurações">
+                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-subtle hover:bg-muted text-foreground p-3 rounded-xl transition-all border border-border" title="Editar Configurações">
                     <Edit2 size={20} />
                 </button>
-                <div className="absolute -right-8 -top-8 text-white/5 rotate-12">
+                <div className="absolute -right-8 -top-8 text-muted/5 rotate-12">
                     <Activity size={120} />
                 </div>
             </div>
 
             {loadingPerfil ? (
-                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-gray-300" size={32} /></div>
+                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-muted-foreground" size={32} /></div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gray-50 border border-gray-100 p-5 rounded-3xl">
-                        <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4">
-                            <Users size={18} className="text-blue-500"/> Alunos Ativos ({dadosPerfil.alunos.length})
+                    <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                        <h4 className="font-bold text-foreground flex items-center gap-2 mb-4">
+                            <Users size={18} className="text-info"/> Alunos Ativos ({dadosPerfil.alunos.length})
                         </h4>
                         
                         {dadosPerfil.alunos.length === 0 ? (
-                            <p className="text-sm text-gray-400 text-center py-4">Nenhum aluno vinculado no momento.</p>
+                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno vinculado no momento.</p>
                         ) : (
                             <ul className="space-y-2">
                                 {dadosPerfil.alunos.map(aluno => (
-                                    <li key={aluno.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-                                        <span className="font-bold text-sm text-gray-700">{aluno.nome_completo}</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
+                                    <li key={aluno.id} className="bg-card p-3 rounded-xl border border-border shadow-sm flex items-center justify-between">
+                                        <span className="font-bold text-sm text-foreground">{aluno.nome_completo}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-info bg-info-soft px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
                                     </li>
                                 ))}
                             </ul>
                         )}
-                    </div>
+                    </Surface>
 
                     <div className="flex flex-col gap-4">
-                        <div className="bg-white border border-gray-100 p-5 rounded-3xl shadow-sm flex-1">
-                            <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-4"><Clock size={18} className="text-purple-500"/> Horários na Grade</h4>
+                        <Surface variant="card" className="p-5 rounded-3xl flex-1">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-4"><Clock size={18} className="text-purple"/> Horários na Grade</h4>
                             {dadosPerfil.horarios.length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
+                                <p className="text-sm text-muted-foreground text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
                             ) : (
                                 <ul className="flex flex-col gap-2">
                                     {dadosPerfil.horarios.map((h, i) => (
-                                        <li key={i} className="bg-purple-50 text-purple-700 border border-purple-100 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
+                                        <li key={i} className="bg-purple-soft text-purple border border-purple/20 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
                                             <Calendar size={16} /> {h.dia_semana}, {h.horario.slice(0,5)}
                                         </li>
                                     ))}
                                 </ul>
                             )}
-                        </div>
+                        </Surface>
 
-                        <div className="bg-orange-50 border border-orange-100 p-5 rounded-3xl shadow-sm">
-                            <h4 className="font-bold text-orange-900 flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
+                        <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
                             <div className="flex gap-2">
-                                <div className="flex-1 bg-white p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-blue-600 uppercase">Prof</span>
-                                    <span className="text-sm font-black text-gray-800">{modPerfil.taxa_professor || 0}%</span>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-info uppercase">Prof</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_professor || 0}%</span>
                                 </div>
-                                <div className="flex-1 bg-white p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-orange-500 uppercase">Caixa</span>
-                                    <span className="text-sm font-black text-gray-800">{modPerfil.taxa_espaco || 0}%</span>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-warning uppercase">Caixa</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_espaco || 0}%</span>
                                 </div>
-                                <div className="flex-1 bg-white p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-purple-600 uppercase">Dir</span>
-                                    <span className="text-sm font-black text-gray-800">{modPerfil.taxa_direcao || 0}%</span>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-purple uppercase">Dir</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_direcao || 0}%</span>
                                 </div>
                             </div>
-                        </div>
+                        </Surface>
                     </div>
                 </div>
             )}
@@ -372,32 +374,29 @@ export default function Modalidades() {
           <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="w-full">
-                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Nome</label>
-                  <input 
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome</label>
+                  <Input 
                       required 
-                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent" 
                       value={modalidadeEmEdicao.nome} 
                       onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
                   />
                 </div>
 
                 <div className="w-full">
-                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-                  <select 
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer transition-all"
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+                  <Input as="select"
                     value={modalidadeEmEdicao.area}
                     onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
                   >
                     <option value="Dança">Dança</option>
                     <option value="Funcional">Funcional</option>
                     <option value="Livre/Todos">Livre / Outros</option>
-                  </select>
+                  </Input>
                 </div>
                 
                 <div className="w-full">
-                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Professor Fixo</label>
-                  <select 
-                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent cursor-pointer"
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Fixo</label>
+                  <Input as="select"
                       value={modalidadeEmEdicao.professor_id}
                       onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
                   >
@@ -405,44 +404,44 @@ export default function Modalidades() {
                       {professores.map(prof => (
                       <option key={prof.id} value={prof.id}>{prof.nome}</option>
                       ))}
-                  </select>
+                  </Input>
                 </div>
 
                 <div className="w-full">
-                  <label className="text-xs font-black text-gray-400 uppercase mb-2 block">Vagas Padrão</label>
-                  <input 
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+                  <Input 
                     required type="number" min="1"
-                    className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-all" 
+                    className="font-black text-info focus-visible:ring-info" 
                     value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
                   />
                 </div>
             </div>
 
-            <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+            <Surface variant="subtle" className="border border-border p-4 rounded-2xl">
                 <div className="flex justify-between items-center mb-3">
-                    <label className="text-xs font-black text-gray-500 uppercase block">Divisão da Comissão</label>
-                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-green-500' : 'text-red-500'}`}>Total: {totalTaxasEdicao}%</span>
+                    <label className="text-xs font-black text-muted-foreground uppercase block">Divisão da Comissão</label>
+                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-success' : 'text-destructive'}`}>Total: {totalTaxasEdicao}%</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <div>
-                        <span className="text-[10px] uppercase font-bold text-blue-500 mb-1 block">Prof</span>
-                        <input type="number" className="w-full p-2 rounded-lg border border-gray-200 text-center font-bold" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
+                        <span className="text-[10px] uppercase font-bold text-info mb-1 block">Prof</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-info" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
                     </div>
                     <div>
-                        <span className="text-[10px] uppercase font-bold text-orange-500 mb-1 block">Espaço</span>
-                        <input type="number" className="w-full p-2 rounded-lg border border-gray-200 text-center font-bold" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
+                        <span className="text-[10px] uppercase font-bold text-warning mb-1 block">Espaço</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-warning" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
                     </div>
                     <div>
-                        <span className="text-[10px] uppercase font-bold text-purple-500 mb-1 block">Diretor</span>
-                        <input type="number" className="w-full p-2 rounded-lg border border-gray-200 text-center font-bold" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
+                        <span className="text-[10px] uppercase font-bold text-purple mb-1 block">Diretor</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-purple" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
                     </div>
                 </div>
-                {!isEdicaoValida && <p className="text-[10px] font-bold text-red-500 mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
-            </div>
+                {!isEdicaoValida && <p className="text-[10px] font-bold text-destructive mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
+            </Surface>
 
-            <button disabled={savingEdit || !isEdicaoValida} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all disabled:opacity-50">
+            <Button type="submit" variant="brand" disabled={savingEdit || !isEdicaoValida} className="w-full font-black text-lg gap-2">
               {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
-            </button>
+            </Button>
           </form>
         )}
       </Modal>

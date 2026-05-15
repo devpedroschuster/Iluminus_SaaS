@@ -228,6 +228,7 @@ export default function Financeiro() {
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Aluno</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Vencimento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Pagamento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ação</th>
               </tr>
@@ -248,6 +249,15 @@ export default function Financeiro() {
                     {item.status === 'pago'
                       ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco)
                       : formatarMoeda(item.planos?.preco)}
+                  </td>
+                  <td className="p-4">
+                    {item.status === 'pago' && item.forma_pagamento ? (
+                      <Badge tone="neutral" variant="soft" className="capitalize">
+                        {item.forma_pagamento}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </td>
                   <td className="p-4">
                     <Badge tone={item.status === 'pago' ? 'success' : 'warning'}>

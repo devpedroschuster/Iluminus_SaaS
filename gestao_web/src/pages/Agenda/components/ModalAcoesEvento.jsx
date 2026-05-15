@@ -24,6 +24,9 @@ export default function ModalAcoesEvento({ evento, isAdmin, onAgendar, onChamada
         <p className="text-sm font-medium" style={{ color: corTema.text, opacity: 0.8 }}>
           Prof: {evento.dadosOriginais.professores?.nome || 'Não definido'}
         </p>
+        <p className="text-sm font-medium" style={{ color: corTema.text, opacity: 0.7 }}>
+  Modalidade: {evento.dadosOriginais.modalidades?.nome || '—'}
+</p>
       </div>
 
       <Button 

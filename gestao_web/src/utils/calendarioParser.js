@@ -10,10 +10,30 @@ export const DIAS_MAPA = {
   'sábado': 6 
 };
 
+// 🌟 NOVA FUNÇÃO: Protege contra o desvio de fuso horário do UTC do Supabase
+function extrairDataLocal(dataUTCStr) {
+  if (!dataUTCStr) return null;
+  if (dataUTCStr.length === 10) return dataUTCStr; // Já é formato YYYY-MM-DD puro
+
+  // Cria a data lendo o fuso do navegador do utilizador
+  const dataLocal = new Date(dataUTCStr);
+  if (isNaN(dataLocal.getTime())) return null;
+
+  // Extrai o ano, mês e dia locais com zeros à esquerda
+  const ano = dataLocal.getFullYear();
+  const mes = String(dataLocal.getMonth() + 1).padStart(2, '0');
+  const dia = String(dataLocal.getDate()).padStart(2, '0');
+
+  return `${ano}-${mes}-${dia}`;
+}
+
 export function buildPresencasIndex(presencasCalendario) {
   const map = {};
   presencasCalendario.forEach(p => {
-    const dataStr = p.data_checkin.split('T')[0];
+    // Usamos a função segura em vez de apenas .split('T')[0]
+    const dataStr = extrairDataLocal(p.data_checkin);
+    if (!dataStr) return;
+
     const key = `${p.aula_id}-${dataStr}`;
     if (!map[key]) map[key] = [];
     
@@ -31,8 +51,9 @@ export function buildFixosIndex(matriculasFixas) {
         map[m.aula_id].push({ 
             id: m.alunos.id, 
             nome: m.alunos.nome_completo,
-            inicio: m.alunos.data_inicio_plano ? String(m.alunos.data_inicio_plano).split('T')[0] : null, 
-            fim: m.alunos.data_fim_plano ? String(m.alunos.data_fim_plano).split('T')[0] : null
+            // Usamos a função segura para o início e fim dos planos
+            inicio: extrairDataLocal(m.alunos.data_inicio_plano), 
+            fim: extrairDataLocal(m.alunos.data_fim_plano)
         });
     }
   });
@@ -42,7 +63,9 @@ export function buildFixosIndex(matriculasFixas) {
 export function buildExcecoesIndex(excecoesCalendario) {
   const map = {};
   excecoesCalendario.forEach(e => {
-    map[`${e.aluno_id}-${e.aula_id}-${e.data_especifica}`] = true;
+    // A data específica geralmente já vem como YYYY-MM-DD, mas protegemos na mesma
+    const dataSegura = extrairDataLocal(e.data_especifica);
+    map[`${e.aluno_id}-${e.aula_id}-${dataSegura}`] = true;
   });
   return map;
 }
@@ -87,10 +110,10 @@ export function expandirRecorrencia(aula, inicioVisivel, fimVisivel, feriados, i
       if (isFeriado(dataStr, feriados)) return;
 
       const inicio = new Date(dataIterador);
-      inicio.setHours(hora, minuto, 0);
+      inicio.setHours(hora, minuto, 0, 0); // 👈 Assegura que arranca a zero segundos e zero milissegundos
       
       const fim = new Date(inicio);
-      fim.setHours(hora + 1, minuto, 0);
+      fim.setHours(hora + 1, minuto, 0, 0);
 
       eventos.push({
         idUnico: `${aula.id}-${dataStr}`, 
@@ -113,9 +136,9 @@ export function expandirEventoUnico(aula, feriados, indexes) {
   const [ano, mes, dia] = aula.data_especifica.split('-');
   const [hora, minuto] = aula.horario.split(':').map(Number);
   
-  const inicio = new Date(ano, mes - 1, dia, hora, minuto);
+  const inicio = new Date(ano, mes - 1, dia, hora, minuto, 0, 0);
   const fim = new Date(inicio);
-  fim.setHours(hora + 1, minuto, 0);
+  fim.setHours(hora + 1, minuto, 0, 0);
 
   const todosFixosDaTurma = indexes.fixasMap[aula.id] || [];
 
@@ -137,8 +160,8 @@ export function gerarEventosFeriados(feriados) {
     return {
       idUnico: `feriado-${f.id || f.data}`,
       title: `⛔ ${f.descricao}`,
-      start: new Date(ano, mes - 1, dia, 0, 0, 0),
-      end: new Date(ano, mes - 1, dia, 23, 59, 59),
+      start: new Date(ano, mes - 1, dia, 0, 0, 0, 0),
+      end: new Date(ano, mes - 1, dia, 23, 59, 59, 999),
       allDay: true,
       isFeriado: true,
       dadosOriginais: f

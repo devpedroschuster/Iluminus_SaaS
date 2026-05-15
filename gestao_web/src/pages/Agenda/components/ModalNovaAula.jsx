@@ -16,10 +16,11 @@ export default function ModalNovaAula({
     setNovaAula({
       ...novaAula,
       modalidadeId: id,
+      atividade: mod?.nome ?? prev.atividade,
       professorId: mod?.professor_id || '',
       capacidade: mod?.capacidade_padrao || 15,
       espaco: mod?.area?.toLowerCase() === 'funcional' ? 'funcional' : 'danca',
-      corTema: novaAula.corTema || (mod?.area === 'Funcional' ? '#f59e0b' : '#a855f7') 
+cor: novaAula.cor || (mod?.area === 'Funcional' ? 'amarelo' : 'roxo')
     });
   };
 
@@ -106,9 +107,9 @@ export default function ModalNovaAula({
              <button
                key={cor.id} 
                type="button"
-               onClick={() => setNovaAula({...novaAula, corTema: cor.border})}
+               onClick={() => setNovaAula({...novaAula, cor: cor.id})}
                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center border-2 flex-shrink-0 opacity-100 ${
-                 novaAula.corTema === cor.border 
+                 novaAula.cor === cor.id 
                   ? 'border-foreground scale-110 shadow-sm' 
                   : 'border-transparent hover:scale-110'
                }`}

@@ -20,7 +20,7 @@ export const gradeService = {
 
     const { data: aulas, error } = await supabase
       .from('agenda')
-      .select('*, professores(nome)')
+      .select('*, professores(nome), modalidades(id, nome)')
       .order('horario', { ascending: true });
       
     if (error) throw error;

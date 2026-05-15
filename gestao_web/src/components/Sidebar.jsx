@@ -3,17 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
-  Gift, Clock, TableConfigIcon, Bell,
-  Sun, Moon, Percent, DollarSign
+  Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
+  CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '../providers/ThemeProvider';
 import ThemeToggle from './ui/ThemeToggle';
 
 function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
 
   async function handleLogout() {
     try {
@@ -25,102 +23,134 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     }
   }
 
+  // Menu completo restaurado com Aniversariantes e configurações extras
   const menuAdmin = [
     { label: 'Visão Geral' },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Notificações', path: '/notificacoes', icon: Bell },
     { name: 'Leads', path: '/leads', icon: Clock },
+    { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
     
     { label: 'Gestão e Operação' },
     { name: 'Alunos', path: '/alunos', icon: Users },
-    { name: 'Professores', path: '/professores', icon: Users },
+    { name: 'Planos', path: '/planos', icon: CreditCard },
+    { name: 'Professores', path: '/professores', icon: UserCheck },
+    { name: 'Modalidades', path: '/modalidades', icon: Package },
     { name: 'Agenda', path: '/agenda', icon: Calendar },
-    { name: 'Presença', path: '/presenca', icon: UserCheck },
-    { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
+    { name: 'Feriados', path: '/configuracoes/feriados', icon: TableConfigIcon },
     
     { label: 'Financeiro' },
-    { name: 'Financeiro', path: '/financeiro', icon: DollarSign },
-    { name: 'Comissões', path: '/comissoes', icon: Calculator },
+    { name: 'Mensalidades', path: '/financeiro', icon: DollarSign },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
-    
-    { label: 'Configurações' },
-    { name: 'Planos', path: '/planos', icon: Package },
-    { name: 'Modalidades', path: '/modalidades', icon: Package },
-    { name: 'Repasses', path: '/configuracoes/repasse', icon: Percent },
-    { name: 'Sistema', path: '/configuracoes/feriados', icon: TableConfigIcon },
+    { name: 'Comissões', path: '/comissoes', icon: Percent },
+    { name: 'Repasse Regras', path: '/configuracoes/repasse', icon: Calculator },
   ];
 
   const menuProfessor = [
-    { label: 'Minhas Aulas' },
-    { name: 'Agenda', path: '/agenda', icon: Calendar },
+    { label: 'Menu Professor' },
+    { name: 'Minha Agenda', path: '/agenda', icon: Calendar },
+    { name: 'Meus Alunos', path: '/alunos', icon: Users },
+    { name: 'Minhas Comissões', path: '/comissoes', icon: Percent },
   ];
 
-  const menu = perfil === 'professor' ? menuProfessor : menuAdmin;
+  // Lógica correta: se não for explicitamente professor, mostra o menu Admin
+  const isProfessor = perfil?.role === 'professor' || perfil?.tipo === 'professor';
+  const itensMenu = isProfessor ? menuProfessor : menuAdmin;
 
   return (
     <>
-      <div 
-        className={`md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setMenuAberto(false)}
-      />
+      {/* Overlay Mobile */}
+      {menuAberto && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden transition-all"
+          onClick={() => setMenuAberto(false)}
+        />
+      )}
 
-      <div className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-white dark:bg-[#121212] h-screen border-r border-orange-100 dark:border-zinc-800 p-6 flex flex-col transition-transform duration-300 ease-in-out ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      {/* Container Sidebar */}
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-72 bg-card border-r border-border
+        transform transition-transform duration-300 ease-in-out
+        flex flex-col h-full
+        ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
         
-        <div className="flex justify-between items-center mb-8 px-2">
-          <h2 className="text-xl font-bold text-iluminus-terracota dark:text-yellow-400 transition-colors">Espaço Iluminus 🍀</h2>
-          <button className="md:hidden text-gray-400 hover:text-gray-800 dark:hover:text-white bg-gray-50 dark:bg-zinc-800 p-2 rounded-lg transition-colors" onClick={() => setMenuAberto(false)}>
+        {/* Header / Logo */}
+        <div className="p-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <span className="text-white font-black text-xl">I</span>
+            </div>
+            <h1 className="text-2xl font-black text-foreground tracking-tighter">
+              Iluminus
+            </h1>
+          </div>
+          
+          <button 
+            onClick={() => setMenuAberto(false)}
+            className="md:hidden p-2 text-muted-foreground hover:bg-subtle rounded-xl border border-border bg-card"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
-          {menu.map((item, index) => {
+        {/* Navegação */}
+        <nav className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
+          {itensMenu.map((item, index) => {
             if (item.label) {
               return (
-                <div key={`label-${index}`} className="pt-5 pb-2 first:pt-0 px-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500">
-                    {item.label}
-                  </p>
-                </div>
+                <p key={`label-${index}`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 px-4 mt-6 mb-2">
+                  {item.label}
+                </p>
               );
             }
 
             const Icon = item.icon;
             const ativo = location.pathname === item.path;
+
             return (
               <Link 
                 key={item.path} 
                 to={item.path}
                 onClick={() => setMenuAberto(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  ativo 
-                    ? 'bg-iluminus-terracota text-white shadow-md shadow-orange-200 dark:bg-yellow-400 dark:text-black dark:shadow-yellow-900/20' 
-                    : 'text-gray-500 hover:bg-iluminus-fundo hover:text-gray-800 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-yellow-400'
-                }`}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all
+                  ${ativo 
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
+                    : 'text-muted-foreground hover:bg-subtle hover:text-foreground'}
+                `}
               >
                 <Icon size={20} />
-                <span className="font-medium">{item.name}</span>
+                <span className="text-sm">{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="pt-6 border-t border-gray-100 dark:border-zinc-800 mt-2 space-y-2 transition-colors">
+        {/* Rodapé da Sidebar */}
+        <div className="p-4 border-t border-border mt-auto space-y-2">
           <div className="flex justify-center w-full pb-2">
-  <ThemeToggle />
-</div>
+            <ThemeToggle />
+          </div>
 
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-gray-500 hover:text-red-500 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-950/30 rounded-xl transition-all"
+            className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
           >
             <LogOut size={20} />
-            <span className="font-medium">Sair do Sistema</span>
+            <span className="text-sm">Sair do Sistema</span>
           </button>
+          
+          <div className="px-4 py-2">
+            <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">
+              v2.1.0 • Design System Ativo
+            </p>
+          </div>
         </div>
-      </div>
+      </aside>
     </>
   );
 }
 
-export default React.memo(Sidebar);
+export default Sidebar;

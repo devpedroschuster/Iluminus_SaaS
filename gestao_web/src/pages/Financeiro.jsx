@@ -23,6 +23,12 @@ import EmptyState from '../components/shared/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
 import { formatarMoeda } from '../lib/utils';
 
+// Design System
+import Surface from '../components/ui/Surface';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+
 export default function Financeiro() {
   const dataAtual = new Date();
   const [filtros, setFiltros] = useState({
@@ -138,155 +144,209 @@ export default function Financeiro() {
       {/* Header com Ações */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-            <DollarSign className="text-iluminus-terracota" size={32} /> Financeiro
+          <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
+            <DollarSign className="text-primary" size={32} /> Financeiro
           </h1>
-          <p className="text-gray-500 mt-1">Gestão de mensalidades e repasses profissionais.</p>
+          <p className="text-muted-foreground mt-1">Gestão de mensalidades e repasses profissionais.</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <button 
+          <Button
+            variant="secondary"
             onClick={modalGerarMensalidades.abrir}
-            className="flex-1 md:flex-none bg-gray-100 text-gray-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+            leftIcon={<RefreshCw size={18} />}
+            className="flex-1 md:flex-none"
           >
-            <RefreshCw size={20} /> Gerar Cobranças
-          </button>
-          <button 
-  onClick={() => setModalAddOpen(true)}
-  className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-green-700 transition-all"
->
-  <Plus size={20} /> Novo Lançamento
-</button>
+            Gerar Cobranças
+          </Button>
+          <Button
+            variant="success"
+            onClick={() => setModalAddOpen(true)}
+            leftIcon={<Plus size={18} />}
+          >
+            Novo Lançamento
+          </Button>
         </div>
       </div>
 
       {/* Cartões Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <CardMetrica titulo="Recebido" valor={metricas.recebido} icone={<CheckCircle />} cor="green" />
-        <CardMetrica titulo="Pendente" valor={metricas.pendente} icone={<Clock />} cor="orange" />
-        <CardMetrica titulo="Atrasado" valor={metricas.atrasado} icone={<AlertCircle />} cor="red" />
-        <CardMetrica titulo="Total Mês" valor={metricas.total} icone={<TrendingUp />} cor="blue" />
+        <CardMetrica titulo="Recebido"  valor={metricas.recebido}  icone={<CheckCircle />} tone="success"     />
+        <CardMetrica titulo="Pendente"  valor={metricas.pendente}  icone={<Clock />}        tone="warning"     />
+        <CardMetrica titulo="Atrasado"  valor={metricas.atrasado}  icone={<AlertCircle />}  tone="destructive" />
+        <CardMetrica titulo="Total Mês" valor={metricas.total}     icone={<TrendingUp />}   tone="info"        />
       </div>
 
       {/* Filtros e Busca */}
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
+      <Surface variant="card" className="flex flex-col md:flex-row gap-4">
         <div className="flex gap-2">
-          <select 
-            value={filtros.mes} 
-            onChange={(e) => setFiltros({...filtros, mes: parseInt(e.target.value)})}
-            className="bg-gray-50 border-none rounded-xl px-4 py-3 font-bold text-gray-700 focus:ring-2 focus:ring-iluminus-terracota/20"
+          {/* Mês */}
+          <Input
+            as="select"
+            value={filtros.mes}
+            onChange={(e) => setFiltros({ ...filtros, mes: parseInt(e.target.value) })}
+            className="font-bold"
           >
-            {Array.from({length: 12}, (_, i) => (
-              <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('pt-BR', {month: 'long'})}</option>
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                {new Date(0, i).toLocaleString('pt-BR', { month: 'long' })}
+              </option>
             ))}
-          </select>
-          <select 
-            value={filtros.ano} 
-            onChange={(e) => setFiltros({...filtros, ano: parseInt(e.target.value)})}
-            className="bg-gray-50 border-none rounded-xl px-4 py-3 font-bold text-gray-700 focus:ring-2 focus:ring-iluminus-terracota/20"
+          </Input>
+
+          {/* Ano */}
+          <Input
+            as="select"
+            value={filtros.ano}
+            onChange={(e) => setFiltros({ ...filtros, ano: parseInt(e.target.value) })}
+            className="font-bold"
           >
-            {[2024, 2025, 2026].map(ano => <option key={ano} value={ano}>{ano}</option>)}
-          </select>
+            {[2024, 2025, 2026].map(ano => (
+              <option key={ano} value={ano}>{ano}</option>
+            ))}
+          </Input>
         </div>
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Buscar aluno..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-iluminus-terracota/20 font-medium"
-          />
-        </div>
-      </div>
+
+        {/* Busca */}
+        <Input
+          leftIcon={<Search size={18} />}
+          type="text"
+          placeholder="Buscar aluno..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          wrapperClassName="flex-1"
+        />
+      </Surface>
 
       {/* Tabela Mensalidades */}
-      {loading ? <TableSkeleton /> : alunosFiltrados?.length > 0 ? (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+      {loading ? (
+        <TableSkeleton />
+      ) : alunosFiltrados?.length > 0 ? (
+        <Surface variant="card" padding="none" className="overflow-hidden">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Aluno</th>
-                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Vencimento</th>
-                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Valor</th>
-                <th className="p-4 font-bold text-gray-400 uppercase text-xs">Status</th>
-                <th className="p-4 font-bold text-gray-400 uppercase text-xs text-right">Ação</th>
+              <tr className="bg-muted border-b border-border">
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Aluno</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Vencimento</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {alunosFiltrados.map((item) => (
-                <tr key={item.id} className="hover:bg-orange-50/30 transition-colors">
-                  <td className="p-4 font-bold text-gray-700 flex items-center gap-2">
+                <tr key={item.id} className="hover:bg-primary-soft/20 transition-colors">
+                  <td className="p-4 font-bold text-foreground flex items-center gap-2">
                     {item.alunos?.nome_completo || item.nome_visitante || 'Visitante'}
                     {!item.alunos && item.nome_visitante && (
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] rounded-md uppercase tracking-wider">Avulso</span>
+                      <Badge tone="neutral" variant="soft" className="text-[9px]">Avulso</Badge>
                     )}
                   </td>
-                  <td className="p-4 text-gray-500 font-medium">
+                  <td className="p-4 text-muted-foreground font-medium">
                     {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="p-4 font-bold text-gray-700">
-                    {item.status === 'pago' 
-                      ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco) 
+                  <td className="p-4 font-bold text-foreground">
+                    {item.status === 'pago'
+                      ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco)
                       : formatarMoeda(item.planos?.preco)}
                   </td>
                   <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${item.status === 'pago' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    <Badge tone={item.status === 'pago' ? 'success' : 'warning'}>
                       {item.status.toUpperCase()}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="p-4 text-right">
                     {item.status !== 'pago' && (
-                      <button 
+                      <Button
+                        variant="brand"
+                        size="sm"
                         onClick={() => handleAbrirPagamento(item)}
-                        className="bg-iluminus-terracota text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90"
                       >
                         Receber
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      ) : <EmptyState titulo="Nenhum registro" mensagem="Não há mensalidades para o período selecionado." />}
+        </Surface>
+      ) : (
+        <EmptyState titulo="Nenhum registro" mensagem="Não há mensalidades para o período selecionado." />
+      )}
 
       {/* Modal Pagamento */}
       <Modal isOpen={modalPagamento.isOpen} onClose={modalPagamento.fechar} titulo="Confirmar Recebimento">
         {pagamentoSelecionado && (
           <form onSubmit={handleConfirmarPagamento} className="space-y-6">
-            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-              <p className="text-sm text-gray-600 font-medium">Aluno</p>
-              <p className="font-black text-gray-800 text-lg">
-    {pagamentoSelecionado.alunos?.nome_completo || pagamentoSelecionado.nome_visitante || 'Visitante'}
-  </p>
-            </div>
+            {/* Info do aluno */}
+            <Surface variant="muted" padding="md">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Aluno</p>
+              <p className="font-black text-foreground text-lg mt-0.5">
+                {pagamentoSelecionado.alunos?.nome_completo || pagamentoSelecionado.nome_visitante || 'Visitante'}
+              </p>
+            </Surface>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Valor (R$)</label>
-                <input type="text" value={valorPago} onChange={(e) => setValorPago(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 font-bold" required />
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Valor (R$)
+                </label>
+                <Input
+                  type="text"
+                  value={valorPago}
+                  onChange={(e) => setValorPago(e.target.value)}
+                  required
+                />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Forma</label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Forma
+                </label>
                 <SelectFormaPagamento value={formaPagamento} onChange={setFormaPagamento} required />
               </div>
             </div>
+
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Aula</label>
-              <select value={tipoAula} onChange={(e) => setTipoAula(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3">
-                {TIPOS_AULA.map(t => <option key={t.valor} value={t.valor}>{t.label}</option>)}
-              </select>
+              <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Tipo de Aula
+              </label>
+              <Input
+                as="select"
+                value={tipoAula}
+                onChange={(e) => setTipoAula(e.target.value)}
+              >
+                {TIPOS_AULA.map(t => (
+                  <option key={t.valor} value={t.valor}>{t.label}</option>
+                ))}
+              </Input>
             </div>
+
             {(tipoAula === 'experimental' || tipoAula === 'avulsa') && (
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border">
-                <select value={professorId} onChange={(e) => setProfessorId(e.target.value)} className="border rounded-lg p-2 text-sm" required>
+              <Surface variant="muted" padding="md" className="grid grid-cols-2 gap-4">
+                <Input
+                  as="select"
+                  value={professorId}
+                  onChange={(e) => setProfessorId(e.target.value)}
+                  required
+                >
                   <option value="">Professor...</option>
-                  {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-                <input type="text" value={modalidadeNome} onChange={(e) => setModalidadeNome(e.target.value)} placeholder="Modalidade..." className="border rounded-lg p-2 text-sm" required />
-              </div>
+                  {professores.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </Input>
+                <Input
+                  type="text"
+                  value={modalidadeNome}
+                  onChange={(e) => setModalidadeNome(e.target.value)}
+                  placeholder="Modalidade..."
+                  required
+                />
+              </Surface>
             )}
-            <button type="submit" className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black">Confirmar Recebimento</button>
+
+            <Button type="submit" variant="brand" size="lg" fullWidth>
+              Confirmar Recebimento
+            </Button>
           </form>
         )}
       </Modal>
@@ -295,20 +355,26 @@ export default function Financeiro() {
       <Modal isOpen={modalResultado.isOpen} onClose={modalResultado.fechar} titulo="Repasse Processado">
         {resultadoRepasse && pagamentoSelecionado && (
           <div className="space-y-6">
-            <RepasseAlunoCard aluno={pagamentoSelecionado.alunos} mensalidade={{ tipo_aula: tipoAula }} resultado={resultadoRepasse} /><RepasseAlunoCard 
-    aluno={pagamentoSelecionado.alunos || { nome_completo: pagamentoSelecionado.nome_visitante || 'Visitante' }} 
-    mensalidade={{ tipo_aula: tipoAula }} 
-    resultado={resultadoRepasse} 
-  />
-            <button onClick={modalResultado.fechar} className="w-full bg-gray-100 py-3 rounded-xl font-bold">Fechar</button>
+            <RepasseAlunoCard
+              aluno={pagamentoSelecionado.alunos || { nome_completo: pagamentoSelecionado.nome_visitante || 'Visitante' }}
+              mensalidade={{ tipo_aula: tipoAula }}
+              resultado={resultadoRepasse}
+            />
+            <Button variant="secondary" fullWidth onClick={modalResultado.fechar}>
+              Fechar
+            </Button>
           </div>
         )}
       </Modal>
 
       <ModalConfirmacao 
-        isOpen={modalGerarMensalidades.isOpen} onClose={modalGerarMensalidades.fechar} onConfirm={handleGerarMensalidades}
-        titulo="Gerar Cobranças" mensagem="Deseja gerar as cobranças para todos os alunos ativos deste mês?"
+        isOpen={modalGerarMensalidades.isOpen}
+        onClose={modalGerarMensalidades.fechar}
+        onConfirm={handleGerarMensalidades}
+        titulo="Gerar Cobranças"
+        mensagem="Deseja gerar as cobranças para todos os alunos ativos deste mês?"
       />
+
       <ModalAdicionarPagamentoManual 
         isOpen={modalAddOpen} 
         onClose={() => setModalAddOpen(false)}
@@ -318,20 +384,23 @@ export default function Financeiro() {
   );
 }
 
-const CardMetrica = ({ titulo, valor, icone, cor }) => {
-  const cores = {
-    green: "bg-green-50 text-green-600",
-    orange: "bg-orange-50 text-orange-600",
-    blue: "bg-blue-50 text-blue-600",
-    red: "bg-red-50 text-red-600"
-  };
-  return (
-    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-4">
-      <div className={`p-4 rounded-2xl ${cores[cor]}`}>{React.cloneElement(icone, { size: 24 })}</div>
-      <div>
-        <p className="text-gray-400 text-sm font-bold uppercase">{titulo}</p>
-        <p className="text-2xl font-black text-gray-800">{formatarMoeda(valor)}</p>
-      </div>
-    </div>
-  );
+// Card de Métrica
+
+const ICON_TONE = {
+  success:     'bg-success-soft text-success',
+  warning:     'bg-warning-soft text-warning',
+  destructive: 'bg-destructive-soft text-destructive',
+  info:        'bg-info-soft text-info',
 };
+
+const CardMetrica = ({ titulo, valor, icone, tone }) => (
+  <Surface variant="card" className="flex items-center gap-4">
+    <div className={`p-4 rounded-2xl shrink-0 ${ICON_TONE[tone] ?? ICON_TONE.info}`}>
+      {React.cloneElement(icone, { size: 24 })}
+    </div>
+    <div>
+      <p className="text-muted-foreground text-xs font-bold uppercase tracking-wide">{titulo}</p>
+      <p className="text-2xl font-black text-foreground">{formatarMoeda(valor)}</p>
+    </div>
+  </Surface>
+);

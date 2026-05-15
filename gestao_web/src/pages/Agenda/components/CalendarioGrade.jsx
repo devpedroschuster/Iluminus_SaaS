@@ -100,24 +100,43 @@ const CustomEventCard = ({ event }) => {
 
       {event.alunosAgendados && event.alunosAgendados.length > 0 && (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0 gap-[2px]">
-          {event.alunosAgendados.slice(0, 2).map((aluno, idx) => (
-            <div
-              key={idx}
-              className="text-[10px] leading-tight flex items-center gap-1.5 font-medium overflow-hidden opacity-90 shrink-0"
-            >
-              <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>
-              {/* Exibindo o nome completo conforme solicitado */}
-              <span className="truncate min-w-0" title={aluno}>
-                {aluno}
-              </span>
-            </div>
-          ))}
+          {event.alunosAgendados.slice(0, 2).map((item, idx) => {
+            const nome = typeof item === 'string' ? item : item.nome;
+            const isLead = typeof item === 'object' && item.isLead;
+            
+            return (
+              <div 
+                key={idx} 
+                className={`text-[10px] leading-tight flex items-center gap-1.5 font-medium overflow-hidden shrink-0 ${
+                  isLead ? 'opacity-100' : 'opacity-90'
+                }`}
+              >
+                {isLead ? (
+                  <span className="text-[7px] leading-[1] font-black bg-amber-400/90 text-amber-950 px-1 py-0.5 rounded-[3px] shrink-0">
+                    LEAD
+                  </span>
+                ) : (
+                  <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>
+                )}
+                <span className={`truncate min-w-0 ${isLead ? 'font-bold underline decoration-amber-400/40' : ''}`} title={nome}>
+                  {nome}
+                </span>
+              </div>
+            );
+          })}
 
-          {event.alunosAgendados.length > 2 && (
-            <div className="text-[9px] font-bold opacity-75 mt-0.5 shrink-0 truncate">
-              + {event.alunosAgendados.length - 2} aluno(s)
-            </div>
-          )}
+          {event.alunosAgendados.length > 2 && (() => {
+            const resto = event.alunosAgendados.slice(2);
+            const leadsResto = resto.filter(a => typeof a === 'object' && a.isLead).length;
+            
+            return (
+              <div className="text-[9px] font-bold opacity-75 mt-0.5 shrink-0 truncate">
+                + {resto.length} {leadsResto > 0 
+                  ? `(${leadsResto} lead${leadsResto > 1 ? 's' : ''})` 
+                  : 'aluno(s)'}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

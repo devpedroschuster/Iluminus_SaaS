@@ -38,7 +38,12 @@ export function buildPresencasIndex(presencasCalendario) {
     if (!map[key]) map[key] = [];
     
     const nomeExibicao = p.nome_visitante || p.alunos?.nome_completo;
-    if (nomeExibicao) map[key].push(nomeExibicao);
+    if (nomeExibicao) {
+      map[key].push({
+      nome: nomeExibicao,
+      isLead: !!p.nome_visitante
+  });
+}
   });
   return map;
 }
@@ -83,11 +88,22 @@ function compilarAlunosAgendados(aulaId, dataStr, todosFixosDaTurma, indexes) {
     return true; 
   }).map(aluno => {
     const isVencido = aluno.fim && dataStr > aluno.fim;
-    return isVencido ? `⚠️ ${aluno.nome}` : aluno.nome;
-  });
+    const nomeFormatado = isVencido ? `⚠️ ${aluno.nome}` : aluno.nome;
+    return { 
+        nome: nomeFormatado, 
+        isLead: false 
+      };
+    });
 
   const alunosAvulsos = presencasMap[`${aulaId}-${dataStr}`] || [];
-  return [...new Set([...fixosPresentesHoje, ...alunosAvulsos])];
+  const listaCompleta = [...fixosPresentesHoje, ...alunosAvulsos];
+  const nomesVistos = new Set();
+  
+  return listaCompleta.filter(item => {
+    if (nomesVistos.has(item.nome)) return false;
+    nomesVistos.add(item.nome);
+    return true;
+  });
 }
 
 export function expandirRecorrencia(aula, inicioVisivel, fimVisivel, feriados, indexes) {

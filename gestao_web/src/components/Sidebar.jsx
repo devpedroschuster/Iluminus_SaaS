@@ -80,7 +80,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
         <div className="p-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-white font-black text-xl">I</span>
+              <span className="text-primary-foreground font-black text-xl">I</span>
             </div>
             <h1 className="text-2xl font-black text-foreground tracking-tighter">
               Iluminus

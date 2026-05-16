@@ -98,7 +98,7 @@ export default function Login() {
         {/* Cabeçalho */}
         <div className="text-center mb-10">
           <div className="bg-orange-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6 transform rotate-3">
-            <LogIn className="text-iluminus-terracota" size={32} />
+            <LogIn className="text-primary" size={32} />
           </div>
           <h1 className="text-4xl font-black text-gray-800 tracking-tight mb-2">Iluminus</h1>
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
@@ -108,7 +108,7 @@ export default function Login() {
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-4">
             <div className="relative group">
-              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-iluminus-terracota transition-colors" size={20} />
+              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
               <input 
                 type="email"
                 required
@@ -120,7 +120,7 @@ export default function Login() {
             </div>
 
             <div className="relative group">
-              <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-iluminus-terracota transition-colors" size={20} />
+              <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
               <input 
                 type="password"
                 required
@@ -135,7 +135,7 @@ export default function Login() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-iluminus-terracota text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-orange-100 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            className="w-full bg-primary text-primary-foreground py-5 rounded-[22px] font-black text-lg shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
           >
             {loading ? <RefreshCw className="animate-spin" size={24} /> : (
               <>Entrar no Sistema <ArrowRight size={20} /></>
@@ -146,7 +146,7 @@ export default function Login() {
         <div className="mt-8 text-center">
           <button 
             onClick={modalRecuperar.abrir}
-            className="text-sm font-bold text-gray-400 hover:text-iluminus-terracota transition-colors"
+            className="text-sm font-bold text-gray-400 hover:text-primary transition-colors"
           >
             Esqueceu sua senha?
           </button>
@@ -173,8 +173,8 @@ function RecuperarFormInterno({ onSubmit, loading }) {
   return (
     <div className="space-y-6 pt-2">
       <div className="bg-orange-50 p-4 rounded-2xl flex gap-3 border border-orange-100">
-        <AlertCircle className="text-iluminus-terracota shrink-0" size={20} />
-        <p className="text-xs text-iluminus-terracota font-bold leading-relaxed">
+        <AlertCircle className="text-primary shrink-0" size={20} />
+        <p className="text-xs text-primary font-bold leading-relaxed">
           Enviaremos um link seguro para você redefinir sua senha. Verifique também a caixa de Spam.
         </p>
       </div>

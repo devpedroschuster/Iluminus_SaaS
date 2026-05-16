@@ -195,7 +195,7 @@ setNovaAula({
         <div className="flex flex-wrap gap-3">
           {isAdmin && <button onClick={modais.feriados.abrir} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors"><Ban size={20} /> Bloqueios ({feriados.length})</button>}
           <button onClick={() => { hookAgendamento.setAgendamentoForm({...hookAgendamento.agendamentoForm, aula_id: '', data_aula: ''}); modais.agendamento.abrir(); }} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex gap-2"><UserCheck size={20} /> {isAdmin ? "Agendar na Turma" : "Agendar Aluno"}</button>
-          {isAdmin && <button onClick={() => { setNovaAula(INITIAL_FORM_STATE); modais.novaAula.abrir(); }} className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold flex gap-2"><Plus size={20} /> Nova Aula</button>}
+          {isAdmin && <button onClick={() => { setNovaAula(INITIAL_FORM_STATE); modais.novaAula.abrir(); }} className="bg-primary text-white px-6 py-3 rounded-2xl font-bold flex gap-2"><Plus size={20} /> Nova Aula</button>}
         </div>
       </div>
 
@@ -710,14 +710,14 @@ export default function ModalNovaAula({
         <button 
           type="button" 
           onClick={() => setNovaAula({...novaAula, ehRecorrente: true, dataEspecifica: ''})} 
-          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.ehRecorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
+          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${novaAula.ehRecorrente ? 'bg-white shadow-sm text-primary' : 'text-gray-400'}`}
         >
           Aula Recorrente
         </button>
         <button 
           type="button" 
           onClick={() => setNovaAula({...novaAula, ehRecorrente: false})} 
-          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.ehRecorrente ? 'bg-white shadow-sm text-iluminus-terracota' : 'text-gray-400'}`}
+          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${!novaAula.ehRecorrente ? 'bg-white shadow-sm text-primary' : 'text-gray-400'}`}
         >
           Evento Único
         </button>
@@ -815,7 +815,7 @@ export default function ModalNovaAula({
         />
       </div>
       
-      <button disabled={savingAula} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:scale-[1.01] transition-all shadow-lg">
+      <button disabled={savingAula} className="w-full bg-primary text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:scale-[1.01] transition-all shadow-lg">
         {savingAula ? <RefreshCw className="animate-spin" size={20}/> : (novaAula.id ? "Salvar Alterações" : "Salvar na Grade")}
       </button>
     </form>
@@ -1297,7 +1297,7 @@ export default function Alunos() {
         </div>
         <button 
           onClick={() => navigate('/alunos/novo')}
-          className="w-full md:w-auto bg-iluminus-terracota text-white px-6 py-4 rounded-[22px] font-black shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+          className="w-full md:w-auto bg-primary text-white px-6 py-4 rounded-[22px] font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
         >
           <UserPlus size={20} /> Novo Aluno
         </button>
@@ -1358,12 +1358,12 @@ export default function Alunos() {
                           className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm"
                         />
                       ) : (
-                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-black text-iluminus-terracota">
+                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-black text-primary">
                           {aluno.nome_completo?.charAt(0)}
                         </div>
                       )}
                       <div>
-                        <p className="font-bold text-gray-800 hover:text-iluminus-terracota transition-colors">{aluno.nome_completo}</p>
+                        <p className="font-bold text-gray-800 hover:text-primary transition-colors">{aluno.nome_completo}</p>
                         <p className="text-xs text-gray-400 font-medium">{aluno.email}</p>
                       </div>
                     </div>
@@ -1398,7 +1398,7 @@ export default function Alunos() {
                       </button>
                       <button 
                         onClick={() => { setAlunoSelecionado(aluno); modalStatus.abrir(); }} 
-                        className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-200" 
+                        className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-primary/30" 
                         title="Ativar/Desativar"
                       >
                         <ShieldAlert size={16} />
@@ -1621,7 +1621,7 @@ export default function Aniversariantes() {
                   <button 
                     key={mes}
                     onClick={() => setMesSelecionado(index)}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${mesSelecionado === index ? 'bg-orange-100 text-iluminus-terracota shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${mesSelecionado === index ? 'bg-orange-100 text-primary shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
                   >
                     {mes}
                   </button>
@@ -1641,7 +1641,7 @@ export default function Aniversariantes() {
              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    {aniversariantesFiltrados.map(aluno => (
-                      <div key={aluno.id} className={`bg-white p-5 rounded-3xl border shadow-sm flex flex-col justify-between transition-all hover:border-orange-200 hover:shadow-md group ${aluno.isHoje ? 'border-orange-300 ring-4 ring-orange-50' : 'border-gray-100'}`}>
+                      <div key={aluno.id} className={`bg-white p-5 rounded-3xl border shadow-sm flex flex-col justify-between transition-all hover:border-primary/30 hover:shadow-md group ${aluno.isHoje ? 'border-orange-300 ring-4 ring-primary/10' : 'border-gray-100'}`}>
                          
                          <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-4">
@@ -1997,7 +1997,7 @@ export default function AreaAluno() {
                               <div>
                                 <p className="font-bold text-gray-700 text-sm">Área: {regra.modalidade}</p>
                                 <p className="text-xs text-gray-400 font-medium mt-0.5">
-                                  Usado: <span className="text-iluminus-terracota font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
+                                  Usado: <span className="text-primary font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
                                 </p>
                               </div>
                               {limit !== 999 && <span className="text-[10px] font-bold text-gray-400">{Math.floor(pct)}%</span>}
@@ -2132,7 +2132,7 @@ export default function AreaAluno() {
                   >
                     {uploadingAvatar ? (
                       <div className="w-full h-full flex items-center justify-center bg-orange-100">
-                        <RefreshCw className="animate-spin text-iluminus-terracota" size={24} />
+                        <RefreshCw className="animate-spin text-primary" size={24} />
                       </div>
                     ) : aluno.avatar_url ? (
                       <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />
@@ -2328,7 +2328,7 @@ export default function Comissoes() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-            <PieChart className="text-iluminus-terracota" size={32} /> Comissões e Repasses
+            <PieChart className="text-primary" size={32} /> Comissões e Repasses
           </h1>
           <p className="text-gray-500 mt-1">Gere os extratos de pagamento consolidados dos professores.</p>
         </div>
@@ -2339,7 +2339,7 @@ export default function Comissoes() {
         <form onSubmit={handleBuscar} className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
             <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-              <Users size={16} className="text-iluminus-terracota" /> Professor
+              <Users size={16} className="text-primary" /> Professor
             </label>
             <select
               value={filtros.professorId}
@@ -2354,7 +2354,7 @@ export default function Comissoes() {
           </div>
           <div className="w-full md:w-48">
             <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-              <Calendar size={16} className="text-iluminus-terracota" /> Mês
+              <Calendar size={16} className="text-primary" /> Mês
             </label>
             <input
               type="month"
@@ -2366,7 +2366,7 @@ export default function Comissoes() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full md:w-auto bg-iluminus-terracota text-white px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            className="w-full md:w-auto bg-primary text-white px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
           >
             <Search size={20} /> Buscar
           </button>
@@ -2418,7 +2418,7 @@ export default function Comissoes() {
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h3 className="font-black text-gray-800 text-lg flex items-center gap-2">
-                <Wallet className="text-iluminus-terracota" size={20} /> Extrato de Repasses
+                <Wallet className="text-primary" size={20} /> Extrato de Repasses
               </h3>
             </div>
             
@@ -2526,7 +2526,7 @@ export default function ConfiguracoesFeriados() {
     <div className="max-w-4xl mx-auto p-8 animate-in fade-in">
       <div className="mb-8">
         <h1 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-2">
-          <Calendar className="text-iluminus-terracota" /> 
+          <Calendar className="text-primary" /> 
           Calendário e Feriados
         </h1>
         <p className="text-gray-500 font-medium">Automatize os bloqueios da agenda importando os feriados nacionais.</p>
@@ -2544,7 +2544,7 @@ export default function ConfiguracoesFeriados() {
             <select 
               value={ano}
               onChange={(e) => setAno(e.target.value)}
-              className="border border-gray-200 bg-gray-50 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500"
+              className="border border-gray-200 bg-gray-50 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/100"
             >
               {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -2845,7 +2845,7 @@ export default function Dashboard() {
         {loadingHistorico ? <ChartSkeleton /> : (
           <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
             <h3 className="font-bold mb-6 text-gray-700 flex items-center gap-2">
-              <TrendingUp size={18} className="text-iluminus-terracota" /> Receita x Tempo
+              <TrendingUp size={18} className="text-primary" /> Receita x Tempo
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -2865,7 +2865,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           <div className="p-8 border-b border-gray-50 flex justify-between items-center">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-              <Users size={18} className="text-iluminus-terracota" /> Comissões por Professor (Mês)
+              <Users size={18} className="text-primary" /> Comissões por Professor (Mês)
             </h3>
           </div>
           <div className="flex-1 p-8 overflow-y-auto max-h-64">
@@ -2878,7 +2878,7 @@ export default function Dashboard() {
                 {dadosComissoes.map((prof, index) => (
                   <div key={index} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
                     <span className="font-bold text-gray-700">{prof.nome}</span>
-                    <span className="font-black text-iluminus-terracota">{formatarMoeda(prof.total)}</span>
+                    <span className="font-black text-primary">{formatarMoeda(prof.total)}</span>
                   </div>
                 ))}
               </div>
@@ -2890,7 +2890,7 @@ export default function Dashboard() {
       {/* TABELA: ÚLTIMAS ATIVIDADES FINANCEIRAS */}
       <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm mt-8">
         <h3 className="font-bold mb-6 text-gray-700 flex items-center gap-2">
-          <Activity size={18} className="text-iluminus-terracota" /> Últimas Transações
+          <Activity size={18} className="text-primary" /> Últimas Transações
         </h3>
         {loadingAtividades ? <div className="animate-pulse h-32 bg-gray-50 rounded-2xl"></div> : (
           <div className="overflow-x-auto">
@@ -2966,7 +2966,7 @@ export default function Dashboard() {
 
 const CardIndicador = React.memo(({ titulo, valor, icone, cor }) => {
   const estilos = {
-    orange: "bg-orange-50 text-iluminus-terracota",
+    orange: "bg-orange-50 text-primary",
     green: "bg-green-50 text-green-600",
     blue: "bg-blue-50 text-blue-600" 
   };
@@ -3245,7 +3245,7 @@ export default function Despesas() {
           </button>
           <button 
             onClick={() => { resetForm(); modalNova.abrir(); }}
-            className="flex items-center gap-2 bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all"
+            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all"
           >
             <Plus size={18} /> Nova Despesa
           </button>
@@ -3493,7 +3493,7 @@ export default function Despesas() {
           <label className="flex items-center gap-3 cursor-pointer bg-gray-50 p-4 rounded-2xl mt-2 border border-transparent hover:border-red-100 transition-colors">
             <input
               type="checkbox"
-              className="w-5 h-5 rounded accent-iluminus-terracota cursor-pointer"
+              className="w-5 h-5 rounded accent-primary cursor-pointer"
               checked={formDespesa.recorrente}
               onChange={e => setFormDespesa({...formDespesa, recorrente: e.target.checked})}
             />
@@ -3677,7 +3677,7 @@ export default function Financeiro() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-            <DollarSign className="text-iluminus-terracota" size={32} /> Financeiro
+            <DollarSign className="text-primary" size={32} /> Financeiro
           </h1>
           <p className="text-gray-500 mt-1">Gestão de mensalidades e repasses profissionais.</p>
         </div>
@@ -3776,7 +3776,7 @@ export default function Financeiro() {
                     {item.status !== 'pago' && (
                       <button 
                         onClick={() => handleAbrirPagamento(item)}
-                        className="bg-iluminus-terracota text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90"
+                        className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90"
                       >
                         Receber
                       </button>
@@ -3824,7 +3824,7 @@ export default function Financeiro() {
                 <input type="text" value={modalidadeNome} onChange={(e) => setModalidadeNome(e.target.value)} placeholder="Modalidade..." className="border rounded-lg p-2 text-sm" required />
               </div>
             )}
-            <button type="submit" className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black">Confirmar Recebimento</button>
+            <button type="submit" className="w-full bg-primary text-white py-4 rounded-2xl font-black">Confirmar Recebimento</button>
           </form>
         )}
       </Modal>
@@ -4565,7 +4565,7 @@ const loading = visaoAtiva === 'cards' ? loadingPendentes : loadingHistorico;
                       <button 
                         onClick={() => fetchNextPage()} 
                         disabled={isFetchingNextPage}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 text-sm font-bold text-gray-600 rounded-xl hover:bg-gray-50 hover:text-iluminus-terracota transition-all shadow-sm disabled:opacity-50"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 text-sm font-bold text-gray-600 rounded-xl hover:bg-gray-50 hover:text-primary transition-all shadow-sm disabled:opacity-50"
                       >
                         {isFetchingNextPage ? (
                           <><RefreshCw size={16} className="animate-spin" /> Carregando mais...</>
@@ -4688,7 +4688,7 @@ export default function Login() {
         {/* Cabeçalho */}
         <div className="text-center mb-10">
           <div className="bg-orange-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6 transform rotate-3">
-            <LogIn className="text-iluminus-terracota" size={32} />
+            <LogIn className="text-primary" size={32} />
           </div>
           <h1 className="text-4xl font-black text-gray-800 tracking-tight mb-2">Iluminus</h1>
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
@@ -4698,7 +4698,7 @@ export default function Login() {
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-4">
             <div className="relative group">
-              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-iluminus-terracota transition-colors" size={20} />
+              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
               <input 
                 type="email"
                 required
@@ -4710,7 +4710,7 @@ export default function Login() {
             </div>
 
             <div className="relative group">
-              <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-iluminus-terracota transition-colors" size={20} />
+              <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
               <input 
                 type="password"
                 required
@@ -4725,7 +4725,7 @@ export default function Login() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-iluminus-terracota text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-orange-100 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            className="w-full bg-primary text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
           >
             {loading ? <RefreshCw className="animate-spin" size={24} /> : (
               <>Entrar no Sistema <ArrowRight size={20} /></>
@@ -4736,7 +4736,7 @@ export default function Login() {
         <div className="mt-8 text-center">
           <button 
             onClick={modalRecuperar.abrir}
-            className="text-sm font-bold text-gray-400 hover:text-iluminus-terracota transition-colors"
+            className="text-sm font-bold text-gray-400 hover:text-primary transition-colors"
           >
             Esqueceu sua senha?
           </button>
@@ -4763,8 +4763,8 @@ function RecuperarFormInterno({ onSubmit, loading }) {
   return (
     <div className="space-y-6 pt-2">
       <div className="bg-orange-50 p-4 rounded-2xl flex gap-3 border border-orange-100">
-        <AlertCircle className="text-iluminus-terracota shrink-0" size={20} />
-        <p className="text-xs text-iluminus-terracota font-bold leading-relaxed">
+        <AlertCircle className="text-primary shrink-0" size={20} />
+        <p className="text-xs text-primary font-bold leading-relaxed">
           Enviaremos um link seguro para você redefinir sua senha. Verifique também a caixa de Spam.
         </p>
       </div>
@@ -5029,7 +5029,7 @@ export default function Modalidades() {
           </div>
 
           <div className="flex justify-end">
-             <button disabled={creating || !isNovaValida} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] w-full md:w-auto">
+             <button disabled={creating || !isNovaValida} className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] w-full md:w-auto">
                {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
              </button>
           </div>
@@ -5044,10 +5044,10 @@ export default function Modalidades() {
           <div 
             key={mod.id} 
             onClick={() => abrirPerfil(mod)}
-            className="bg-white p-5 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-lg hover:border-orange-200 hover:-translate-y-1 cursor-pointer transition-all group"
+            className="bg-white p-5 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-lg hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
           >
             <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-orange-50 rounded-2xl text-iluminus-terracota flex items-center justify-center">
+               <div className="w-12 h-12 bg-orange-50 rounded-2xl text-primary flex items-center justify-center">
                  <Activity size={24}/>
                </div>
                <div>
@@ -5235,7 +5235,7 @@ export default function Modalidades() {
                 {!isEdicaoValida && <p className="text-[10px] font-bold text-red-500 mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
             </div>
 
-            <button disabled={savingEdit || !isEdicaoValida} className="w-full bg-iluminus-terracota text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all disabled:opacity-50">
+            <button disabled={savingEdit || !isEdicaoValida} className="w-full bg-primary text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50">
               {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
             </button>
           </form>
@@ -5262,7 +5262,7 @@ export default function Notificacoes() {
     <div className="p-8 space-y-8 animate-in fade-in max-w-5xl mx-auto">
       <div>
         <h1 className="text-3xl font-black text-gray-800 flex items-center gap-3">
-          <Bell className="text-iluminus-terracota" size={32} /> Central de Notificações
+          <Bell className="text-primary" size={32} /> Central de Notificações
         </h1>
         <p className="text-gray-500">Acompanhe vencimentos e aniversários. Dê o "OK" para limpá-los da lista.</p>
       </div>
@@ -5286,7 +5286,7 @@ export default function Notificacoes() {
               const isHoje = notif.diasFaltando === 0;
               
               return (
-                <div key={notif.idUnico} className={`bg-white p-6 rounded-3xl border shadow-sm flex flex-col justify-between transition-all ${isAtrasado ? 'border-red-200' : 'border-gray-100 hover:border-orange-200'}`}>
+                <div key={notif.idUnico} className={`bg-white p-6 rounded-3xl border shadow-sm flex flex-col justify-between transition-all ${isAtrasado ? 'border-red-200' : 'border-gray-100 hover:border-primary/30'}`}>
                   <div className="flex gap-4 items-start mb-4">
                     <div className={`p-3 rounded-2xl ${notif.tipo === 'aniversario' ? 'bg-purple-50 text-purple-600' : 'bg-orange-50 text-orange-600'}`}>
                       {notif.tipo === 'aniversario' ? <Cake size={24} /> : <Package size={24} />}
@@ -5336,7 +5336,7 @@ export default function Notificacoes() {
                 </div>
                 <button 
                   onClick={() => desfazerResolvida(notif.idUnico)}
-                  className="text-xs font-bold text-gray-400 hover:text-iluminus-terracota flex items-center gap-1 transition-colors"
+                  className="text-xs font-bold text-gray-400 hover:text-primary flex items-center gap-1 transition-colors"
                 >
                   <RotateCcw size={14} /> Desfazer
                 </button>
@@ -5740,7 +5740,7 @@ useEffect(() => {
 
   return (
     <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <button onClick={() => navigate('/alunos')} className="flex items-center gap-2 text-gray-400 hover:text-iluminus-terracota font-bold mb-6 transition-colors">
+      <button onClick={() => navigate('/alunos')} className="flex items-center gap-2 text-gray-400 hover:text-primary font-bold mb-6 transition-colors">
         <ArrowLeft size={20} /> Voltar para lista
       </button>
 
@@ -5750,13 +5750,13 @@ useEffect(() => {
         </h1>
 
         <div className="flex gap-6 border-b border-gray-100 mb-8 overflow-x-auto custom-scrollbar">
-          <button onClick={() => setAbaAtiva('dados')} className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 whitespace-nowrap ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+          <button onClick={() => setAbaAtiva('dados')} className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 whitespace-nowrap ${abaAtiva === 'dados' ? 'border-iluminus-terracota text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             Dados Cadastrais
           </button>
           <button 
             onClick={() => setAbaAtiva('agenda')} 
             disabled={!alunoParaEditar} 
-            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-iluminus-terracota' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
+            className={`pb-4 font-black uppercase tracking-wider text-sm transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${abaAtiva === 'agenda' ? 'border-iluminus-terracota text-primary' : 'border-transparent text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed'}`}
           >
             <CalendarDays size={18} /> Agenda Fixa (Turmas)
           </button>
@@ -5927,7 +5927,7 @@ useEffect(() => {
                                           -
                                         </button>
                                         
-                                        <span className={`font-black w-4 text-center ${isAtivo ? 'text-iluminus-terracota' : 'text-gray-300'}`}>
+                                        <span className={`font-black w-4 text-center ${isAtivo ? 'text-primary' : 'text-gray-300'}`}>
                                           {count}x
                                         </span>
                                         
@@ -5955,7 +5955,7 @@ useEffect(() => {
               </div>
             </div>
             
-            <button type="submit" disabled={isSubmitting} className="w-full bg-iluminus-terracota text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-orange-100 hover:scale-[1.01] flex items-center justify-center gap-3 mt-8 transition-all">
+            <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-white py-5 rounded-[22px] font-black text-lg shadow-lg shadow-primary/20 hover:scale-[1.01] flex items-center justify-center gap-3 mt-8 transition-all">
               {isSubmitting ? <RefreshCw className="animate-spin" size={24} /> : (alunoParaEditar ? "Salvar Alterações" : "Concluir Cadastro")}
             </button>
           </form>
@@ -5993,7 +5993,7 @@ useEffect(() => {
                          <div key={modObj.id} className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
                             <div className="bg-gray-50 border-b border-gray-100 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                                <h3 className="font-black text-gray-800 text-lg">{modObj.nome}</h3>
-                               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isFull ? 'bg-orange-100 text-iluminus-terracota' : 'bg-green-100 text-green-700'}`}>
+                               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${isFull ? 'bg-orange-100 text-primary' : 'bg-green-100 text-green-700'}`}>
                                  Vagas: {usado} de {limite}
                                </div>
                             </div>
@@ -6181,7 +6181,7 @@ export default function PerfilAluno() {
         </div>
 
         {/* CARD LARANJA DINÂMICO */}
-        <div className="bg-iluminus-terracota p-8 rounded-[32px] text-white relative overflow-hidden flex flex-col justify-center min-h-[140px]">
+        <div className="bg-primary p-8 rounded-[32px] text-white relative overflow-hidden flex flex-col justify-center min-h-[140px]">
           <div className="relative z-10">
             <p className="text-orange-100 text-xs font-bold uppercase tracking-wider">{tituloFrequencia}</p>
             <h3 className="text-4xl font-black mt-1 flex items-baseline gap-2">
@@ -6215,7 +6215,7 @@ export default function PerfilAluno() {
             key={aba.id}
             onClick={() => setAbaAtiva(aba.id)}
             className={`pb-4 flex items-center gap-2 font-bold transition-all whitespace-nowrap px-1 ${
-              abaAtiva === aba.id ? 'border-b-2 border-iluminus-terracota text-iluminus-terracota' : 'text-gray-400 hover:text-gray-600'
+              abaAtiva === aba.id ? 'border-b-2 border-iluminus-terracota text-primary' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             {aba.icon} {aba.label}
@@ -6297,7 +6297,7 @@ export default function PerfilAluno() {
               </div>
               <button 
                 onClick={() => setModalRenovarAberto(true)} 
-                className="bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-black hover:brightness-90 transition-all shadow-md active:scale-95"
+                className="bg-primary text-white px-6 py-3 rounded-2xl font-black hover:brightness-90 transition-all shadow-md active:scale-95"
               >
                 + Renovar / Alterar Plano
               </button>
@@ -6361,11 +6361,11 @@ export default function PerfilAluno() {
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100">
               <h3 className="font-black text-gray-800 mb-4 flex items-center gap-2"><Activity size={20} className="text-red-500"/> Observações Médicas Rápidas</h3>
               <textarea 
-                className="w-full h-44 p-5 bg-gray-50 border border-gray-100 rounded-3xl focus:ring-2 focus:ring-orange-500 outline-none font-medium text-gray-700 transition-all"
+                className="w-full h-44 p-5 bg-gray-50 border border-gray-100 rounded-3xl focus:ring-2 focus:ring-primary/100 outline-none font-medium text-gray-700 transition-all"
                 placeholder="Ex: Aluno possui hérnia de disco, evitar impactos..."
                 defaultValue={aluno?.observacoes_medicas}
               />
-              <button className="mt-4 bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black hover:brightness-90 transition-all active:scale-95 shadow-lg shadow-orange-900/10">
+              <button className="mt-4 bg-primary text-white px-8 py-4 rounded-2xl font-black hover:brightness-90 transition-all active:scale-95 shadow-lg shadow-orange-900/10">
                 Salvar Resumo Médico
               </button>
             </div>
@@ -6524,7 +6524,7 @@ export default function Planos() {
               />
             </div>
 
-            <button disabled={creating} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
+            <button disabled={creating} className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>}
               {creating ? "Salvando..." : "Salvar"}
             </button>
@@ -6543,7 +6543,7 @@ export default function Planos() {
         ) : planos.map(plano => (
           <div key={plano.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
             <div className="flex items-center gap-4">
-               <div className="bg-orange-50 p-4 rounded-2xl text-iluminus-terracota"><Package size={24}/></div>
+               <div className="bg-orange-50 p-4 rounded-2xl text-primary"><Package size={24}/></div>
                <div>
                  <h3 className="font-black text-lg text-gray-800 leading-tight">{plano.nome}</h3>
                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-400 mt-1">
@@ -6985,7 +6985,7 @@ export default function Presenca() {
           <button onClick={exportarRelatorio} className="flex items-center gap-2 bg-white border border-gray-200 px-5 py-3 rounded-2xl font-bold text-gray-600 hover:bg-gray-50 transition-all">
             <Download size={18} /> Exportar
           </button>
-          <button onClick={modalCheckin.abrir} className="flex items-center gap-2 bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
+          <button onClick={modalCheckin.abrir} className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
             <UserCheck size={18} /> Fazer Check-in
           </button>
         </div>
@@ -7010,7 +7010,7 @@ export default function Presenca() {
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                   <div className="flex-1 flex items-end w-full">
-                    <div className="bg-iluminus-terracota rounded-t-xl w-full transition-all hover:brightness-95" style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }} />
+                    <div className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95" style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-gray-700">{dia.total}</p>
@@ -7027,7 +7027,7 @@ export default function Presenca() {
         <div className="flex flex-wrap gap-4">
           <div className="flex gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-200">
             {['hoje', 'semana', 'mes'].map(periodo => (
-              <button key={periodo} onClick={() => setFiltros({...filtros, periodo})} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${filtros.periodo === periodo ? 'bg-iluminus-terracota text-white' : 'text-gray-400 hover:text-gray-600'}`}>
+              <button key={periodo} onClick={() => setFiltros({...filtros, periodo})} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${filtros.periodo === periodo ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-600'}`}>
                 {periodo}
               </button>
             ))}
@@ -7103,7 +7103,7 @@ export default function Presenca() {
                       <p className="font-bold text-gray-700">{aluno.nome_completo}</p>
                       <p className="text-xs text-gray-400">{aluno.email}</p>
                     </div>
-                    <UserCheck className="text-iluminus-terracota" size={20} />
+                    <UserCheck className="text-primary" size={20} />
                   </div>
                 </button>
               ))
@@ -7384,7 +7384,7 @@ export default function Professores() {
                       <button onClick={() => abrirModalEditar(prof)} className="p-2 text-gray-300 hover:text-purple-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-purple-200">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-200">
+                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-primary/30">
                         <ShieldAlert size={16} />
                       </button>
                     </div>

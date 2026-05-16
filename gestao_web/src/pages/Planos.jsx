@@ -138,7 +138,7 @@ export default function Planos() {
               />
             </div>
 
-            <button disabled={creating} className="bg-iluminus-terracota text-white px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-orange-100 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
+            <button disabled={creating} className="bg-primary text-primary-foreground px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>}
               {creating ? "Salvando..." : "Salvar"}
             </button>
@@ -157,7 +157,7 @@ export default function Planos() {
         ) : planos.map(plano => (
           <div key={plano.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
             <div className="flex items-center gap-4">
-               <div className="bg-orange-50 p-4 rounded-2xl text-iluminus-terracota"><Package size={24}/></div>
+               <div className="bg-orange-50 p-4 rounded-2xl text-primary"><Package size={24}/></div>
                <div>
                  <h3 className="font-black text-lg text-gray-800 leading-tight">{plano.nome}</h3>
                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-400 mt-1">

@@ -2,7 +2,7 @@ import React from 'react';
 import { RefreshCw } from 'lucide-react';
 
 // Spinner simples para botões ou telas inteiras
-export function Spinner({ size = 24, className = "text-iluminus-terracota" }) {
+export function Spinner({ size = 24, className = "text-primary" }) {
   return <RefreshCw className={`animate-spin ${className}`} size={size} />;
 }
 

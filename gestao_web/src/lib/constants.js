@@ -6,9 +6,9 @@
 
 // Cores do tema
 export const CORES = {
-  terracota: '#D98E73',
+  amarelo: '#FFD600',
   texto: '#2D2D2D',
-  fundo: '#FDF8F5',
+  fundo: 'hsl(var(--background))',
   verde: '#8A9A5B',
   bege: '#F0E5DE',
 };
@@ -128,7 +128,7 @@ export const ICONES_STATUS = {
 };
 
 // Configurações de gráficos
-export const CORES_GRAFICOS = ['#D98E73', '#8A9A5B', '#F0E5DE', '#2D2D2D'];
+export const CORES_GRAFICOS = ['#FFD600', '#8A9A5B', 'hsl(var(--muted))', '#2D2D2D'];
 
 export const PALETA_CORES = [
   { id: 'laranja', bg: '#ffedd5', text: '#c2410c', border: '#f97316' },

@@ -43,7 +43,7 @@ export default function ConfiguracoesFeriados() {
     <div className="max-w-4xl mx-auto p-8 animate-in fade-in">
       <div className="mb-8">
         <h1 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-2">
-          <Calendar className="text-iluminus-terracota" /> 
+          <Calendar className="text-primary" /> 
           Calendário e Feriados
         </h1>
         <p className="text-gray-500 font-medium">Automatize os bloqueios da agenda importando os feriados nacionais.</p>
@@ -61,7 +61,7 @@ export default function ConfiguracoesFeriados() {
             <select 
               value={ano}
               onChange={(e) => setAno(e.target.value)}
-              className="border border-gray-200 bg-gray-50 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500"
+              className="border border-gray-200 bg-gray-50 rounded-2xl p-4 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/100"
             >
               {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
             </select>

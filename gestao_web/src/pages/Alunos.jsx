@@ -12,6 +12,7 @@ import { useAlunos } from '../hooks/useAlunos';
 // Design System
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
 
 // Componentes
 import { showToast } from '../components/shared/Toast';
@@ -81,12 +82,17 @@ export default function Alunos() {
             Gerencie os alunos matriculados no Espaço Iluminus.
           </p>
         </div>
-        <button
+
+        {/* ✅ Substituído por <Button> do DS — bg-primary + restante do visual já embutidos no variant="brand" */}
+        <Button
+          variant="brand"
+          size="lg"
+          leftIcon={<UserPlus size={20} />}
           onClick={() => navigate('/alunos/novo')}
-          className="w-full md:w-auto bg-iluminus-terracota text-white px-6 py-4 rounded-[22px] font-black shadow-lg shadow-orange-100 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+          className="w-full md:w-auto rounded-[22px] hover:scale-[1.02]"
         >
-          <UserPlus size={20} /> Novo Aluno
-        </button>
+          Novo Aluno
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -144,12 +150,13 @@ export default function Alunos() {
                             className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"
                           />
                         ) : (
-                          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center font-black text-iluminus-terracota">
+                          // ✅ bg-orange-100 → bg-primary-soft (token DS)
+                          <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
                             {aluno.nome_completo?.charAt(0)}
                           </div>
                         )}
                         <div>
-                          <p className="font-bold text-foreground hover:text-iluminus-terracota transition-colors">
+                          <p className="font-bold text-foreground hover:text-primary transition-colors">
                             {aluno.nome_completo}
                           </p>
                           <p className="text-xs text-muted-foreground font-medium">
@@ -186,12 +193,13 @@ export default function Alunos() {
                     </td>
                     <td className="px-6 md:px-8 py-4 md:py-6 text-right">
                       <div className="flex justify-end gap-2">
+                        {/* ✅ hover:text-green-600 → hover:text-success | hover:border-green-200 → hover:border-success/30 */}
                         <button
                           onClick={() => {
                             setAlunoSelecionado(aluno);
                             setModalMatriculaAberto(true);
                           }}
-                          className="p-2 text-muted-foreground hover:text-green-600 transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-green-200 hover:bg-subtle"
+                          className="p-2 text-muted-foreground hover:text-success transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-success/30 hover:bg-subtle"
                           title="Matricular/Alterar Plano"
                         >
                           <Package size={16} />
@@ -199,21 +207,24 @@ export default function Alunos() {
 
                         <button
                           onClick={() => handleEditar(aluno)}
-                          className="p-2 text-muted-foreground hover:text-blue-600 transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-blue-200 hover:bg-subtle"
+                          className="p-2 text-muted-foreground hover:text-info transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-info/30 hover:bg-subtle"
                           title="Editar"
                         >
                           <Edit2 size={16} />
                         </button>
+
+                        {/* ✅ hover:text-orange-600 → hover:text-primary (token DS) */}
                         <button
                           onClick={() => {
                             setAlunoSelecionado(aluno);
                             modalStatus.abrir();
                           }}
-                          className="p-2 text-muted-foreground hover:text-orange-600 transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-orange-200 hover:bg-subtle"
+                          className="p-2 text-muted-foreground hover:text-primary transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-primary/30 hover:bg-subtle"
                           title="Ativar/Desativar"
                         >
                           <ShieldAlert size={16} />
                         </button>
+
                         <button
                           onClick={() => {
                             setAlunoSelecionado(aluno);

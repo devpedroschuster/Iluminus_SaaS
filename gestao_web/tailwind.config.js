@@ -58,7 +58,7 @@ export default {
         },
 
         // Apelido legado
-        'iluminus-terracota': 'hsl(var(--primary))',
+        'iluminus-amarelo': 'hsl(var(--primary))',
         'iluminus-fundo': 'hsl(var(--background))',
       },
       borderRadius: {

@@ -5,7 +5,7 @@ import { cn } from '../../lib/cn';
  * Botão padronizado do sistema.
  *
  * variants:
- *  - brand       : CTA principal (terracota da Iluminus)
+ *  - brand       : CTA principal (amarelo da Iluminus)
  *  - primary     : ação principal neutra escura
  *  - secondary   : ação alternativa, fundo muted
  *  - outline     : borda + transparente

@@ -270,7 +270,7 @@ export default function Presenca() {
           <button onClick={exportarRelatorio} className="flex items-center gap-2 bg-white border border-gray-200 px-5 py-3 rounded-2xl font-bold text-gray-600 hover:bg-gray-50 transition-all">
             <Download size={18} /> Exportar
           </button>
-          <button onClick={modalCheckin.abrir} className="flex items-center gap-2 bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
+          <button onClick={modalCheckin.abrir} className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
             <UserCheck size={18} /> Fazer Check-in
           </button>
         </div>
@@ -295,7 +295,7 @@ export default function Presenca() {
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                   <div className="flex-1 flex items-end w-full">
-                    <div className="bg-iluminus-terracota rounded-t-xl w-full transition-all hover:brightness-95" style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }} />
+                    <div className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95" style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-bold text-gray-700">{dia.total}</p>
@@ -312,7 +312,7 @@ export default function Presenca() {
         <div className="flex flex-wrap gap-4">
           <div className="flex gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-200">
             {['hoje', 'semana', 'mes'].map(periodo => (
-              <button key={periodo} onClick={() => setFiltros({...filtros, periodo})} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${filtros.periodo === periodo ? 'bg-iluminus-terracota text-white' : 'text-gray-400 hover:text-gray-600'}`}>
+              <button key={periodo} onClick={() => setFiltros({...filtros, periodo})} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${filtros.periodo === periodo ? 'bg-primary text-primary-foreground' : 'text-gray-400 hover:text-gray-600'}`}>
                 {periodo}
               </button>
             ))}
@@ -382,13 +382,13 @@ export default function Presenca() {
               <p className="text-center text-gray-400 py-8">Nenhum aluno encontrado</p>
             ) : (
               alunosFiltrados.map(aluno => (
-                <button key={aluno.id} onClick={() => realizarCheckin(aluno)} className="w-full p-4 bg-white border border-gray-100 rounded-2xl hover:border-iluminus-terracota hover:bg-orange-50/30 transition-all text-left">
+                <button key={aluno.id} onClick={() => realizarCheckin(aluno)} className="w-full p-4 bg-white border border-gray-100 rounded-2xl hover:border-primary hover:bg-orange-50/30 transition-all text-left">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-gray-700">{aluno.nome_completo}</p>
                       <p className="text-xs text-gray-400">{aluno.email}</p>
                     </div>
-                    <UserCheck className="text-iluminus-terracota" size={20} />
+                    <UserCheck className="text-primary" size={20} />
                   </div>
                 </button>
               ))

@@ -260,7 +260,7 @@ export default function Despesas() {
           </button>
           <button 
             onClick={() => { resetForm(); modalNova.abrir(); }}
-            className="flex items-center gap-2 bg-iluminus-terracota text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all"
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all"
           >
             <Plus size={18} /> Nova Despesa
           </button>
@@ -508,7 +508,7 @@ export default function Despesas() {
           <label className="flex items-center gap-3 cursor-pointer bg-gray-50 p-4 rounded-2xl mt-2 border border-transparent hover:border-red-100 transition-colors">
             <input
               type="checkbox"
-              className="w-5 h-5 rounded accent-iluminus-terracota cursor-pointer"
+              className="w-5 h-5 rounded accent-primary cursor-pointer"
               checked={formDespesa.recorrente}
               onChange={e => setFormDespesa({...formDespesa, recorrente: e.target.checked})}
             />

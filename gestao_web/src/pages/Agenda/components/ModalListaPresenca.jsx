@@ -45,7 +45,8 @@ export default function ModalListaPresenca({
                   <div className="flex flex-wrap gap-2 mt-1">
                     {aluno.tipo === 'fixo' && <span className="text-[9px] bg-purple-soft text-purple px-2 py-0.5 rounded font-black uppercase tracking-wider">Fixo</span>}
                     {aluno.tipo === 'avulso' && <span className="text-[9px] bg-info-soft text-info px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>}
-                    {aluno.tipo === 'experimental' && <span className="text-[9px] bg-warning-soft text-warning px-2 py-0.5 rounded font-black uppercase tracking-wider">Experimental</span>}
+                    {aluno.tipo === 'experimental' && ( <span className="ml-1.5 text-[10px] font-black bg-warning/20 text-warning px-1.5 py-0.5 rounded-full border border-warning/30">LEAD</span>
+)}
                     {aluno.status === 'ausencia' && <span className="text-[9px] bg-destructive-soft text-destructive px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta Informada</span>}
                   </div>
                 </div>

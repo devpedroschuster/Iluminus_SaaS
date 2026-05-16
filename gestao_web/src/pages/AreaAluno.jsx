@@ -309,7 +309,7 @@ export default function AreaAluno() {
                               <div>
                                 <p className="font-bold text-gray-700 text-sm">Área: {regra.modalidade}</p>
                                 <p className="text-xs text-gray-400 font-medium mt-0.5">
-                                  Usado: <span className="text-iluminus-terracota font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
+                                  Usado: <span className="text-primary font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
                                 </p>
                               </div>
                               {limit !== 999 && <span className="text-[10px] font-bold text-gray-400">{Math.floor(pct)}%</span>}
@@ -444,7 +444,7 @@ export default function AreaAluno() {
                   >
                     {uploadingAvatar ? (
                       <div className="w-full h-full flex items-center justify-center bg-orange-100">
-                        <RefreshCw className="animate-spin text-iluminus-terracota" size={24} />
+                        <RefreshCw className="animate-spin text-primary" size={24} />
                       </div>
                     ) : aluno.avatar_url ? (
                       <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />

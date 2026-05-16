@@ -15,12 +15,12 @@
     --subtle: 220 14% 92%;
     --border: 220 13% 91%;
     --input: 220 14% 96%;
-    --ring: 18 75% 55%;
+    --ring: 60 100% 50%;
 
     /* Marca Iluminus */
-    --primary: 18 75% 55%;
-    --primary-foreground: 0 0% 100%;
-    --primary-soft: 18 80% 96%;
+    --primary: 60 100% 50%;
+--primary-foreground: 60 100% 8%;
+--primary-soft: 60 100% 93%;
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
     --info-soft: 214 100% 97%;
@@ -51,10 +51,10 @@
     --subtle: 240 5% 20%;
     --border: 240 5% 22%;
     --input: 240 5% 16%;
-    --ring: 18 80% 62%;
-    --primary: 18 80% 62%;
-    --primary-foreground: 240 10% 7%;
-    --primary-soft: 18 60% 18%;
+    --ring: 60 100% 50%;
+    --primary: 60 100% 52%;
+    --primary-foreground: 60 100% 8%;
+    --primary-soft: 60 80% 15%;
     --info: 217 91% 65%;
     --info-foreground: 240 10% 7%;
     --info-soft: 217 60% 20%;

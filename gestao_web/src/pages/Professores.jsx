@@ -200,7 +200,7 @@ export default function Professores() {
                       <button onClick={() => abrirModalEditar(prof)} className="p-2 text-gray-300 hover:text-purple-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-purple-200">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-orange-200">
+                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-primary/30">
                         <ShieldAlert size={16} />
                       </button>
                     </div>

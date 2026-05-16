@@ -76,7 +76,7 @@ export const showToast = {
             onAction();
             toast.dismiss(t.id);
           }}
-          className="text-iluminus-terracota font-bold text-sm hover:underline"
+          className="text-primary font-bold text-sm hover:underline"
         >
           {textoAcao}
         </button>

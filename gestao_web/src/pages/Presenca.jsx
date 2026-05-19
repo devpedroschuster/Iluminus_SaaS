@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
+import {
   QrCode, Search, UserCheck, Calendar, TrendingUp,
   Clock, Award, AlertCircle, Users, CheckCircle2,
   XCircle, Filter, Download
 } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
-import Modal from '../components/shared/Modal';
-import { useModal } from '../components/shared/Modal';
-import { TableSkeleton, CardSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
 import { formatarData } from '../lib/utils';
+
+// ✅ Componentes do Design System
+import Modal, { useModal } from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import Badge from '../components/ui/Badge';
+import Surface from '../components/ui/Surface';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 export default function Presenca() {
   const [presencas, setPresencas] = useState([]);
@@ -25,7 +30,7 @@ export default function Presenca() {
   });
 
   const [filtros, setFiltros] = useState({
-    periodo: 'hoje', 
+    periodo: 'hoje',
     aluno: 'todos',
     aula: 'todas'
   });
@@ -33,6 +38,7 @@ export default function Presenca() {
   const [busca, setBusca] = useState('');
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
 
+  // ✅ useModal do DS (aberto/abrir/fechar em vez de isOpen/abrir/fechar misto)
   const modalCheckin = useModal();
   const modalQRCode = useModal();
   const modalDetalhes = useModal();
@@ -53,7 +59,7 @@ export default function Presenca() {
 
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
       const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
-      
+
       const { data: aulasData } = await supabase
         .from('agenda')
         .select('*')
@@ -78,9 +84,8 @@ export default function Presenca() {
       setPresencas(presencasData || []);
 
       calcularMetricas(presencasData || [], alunosData || []);
-
     } catch (err) {
-      showToast.error("Erro ao carregar dados de presença.");
+      showToast.error('Erro ao carregar dados de presença.');
     } finally {
       setLoading(false);
     }
@@ -114,28 +119,29 @@ export default function Presenca() {
 
   function calcularMetricas(presencasData, alunosData) {
     const hoje = new Date().toISOString().split('T')[0];
-    const checkinsHoje = presencasData.filter(p => 
-      p.data_checkin?.split('T')[0] === hoje
+    const checkinsHoje = presencasData.filter(
+      p => p.data_checkin?.split('T')[0] === hoje
     ).length;
 
     const alunosAtivos = alunosData.length;
 
     const semanaAtras = new Date();
     semanaAtras.setDate(semanaAtras.getDate() - 7);
-    
-    const presencasSemana = presencasData.filter(p => 
-      new Date(p.data_checkin) >= semanaAtras
+
+    const presencasSemana = presencasData.filter(
+      p => new Date(p.data_checkin) >= semanaAtras
     );
 
     const alunosComPresenca = new Set(presencasSemana.map(p => p.aluno_id));
-    const frequenciaMedia = alunosAtivos > 0 
-      ? ((alunosComPresenca.size / alunosAtivos) * 100).toFixed(1)
-      : 0;
+    const frequenciaMedia =
+      alunosAtivos > 0
+        ? ((alunosComPresenca.size / alunosAtivos) * 100).toFixed(1)
+        : 0;
 
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => {
-      const count = presencasSemana.filter(p => 
-        new Date(p.data_checkin).getDay() === idx
+      const count = presencasSemana.filter(
+        p => new Date(p.data_checkin).getDay() === idx
       ).length;
       return { dia, total: count };
     });
@@ -151,7 +157,7 @@ export default function Presenca() {
   async function realizarCheckin(aluno, aulaId = null) {
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      
+
       const { data: checkinExistente } = await supabase
         .from('presencas')
         .select('id')
@@ -165,14 +171,14 @@ export default function Presenca() {
         return;
       }
 
-      const { error } = await supabase
-        .from('presencas')
-        .insert([{
+      const { error } = await supabase.from('presencas').insert([
+        {
           aluno_id: aluno.id,
           aula_id: aulaId,
           tipo: aulaId ? 'aula' : 'livre',
           data_checkin: new Date().toISOString()
-        }]);
+        }
+      ]);
 
       if (error) throw error;
 
@@ -180,9 +186,8 @@ export default function Presenca() {
       modalCheckin.fechar();
       setBusca('');
       fetchDados();
-
     } catch (err) {
-      showToast.error("Erro ao registrar presença.");
+      showToast.error('Erro ao registrar presença.');
     }
   }
 
@@ -193,147 +198,263 @@ export default function Presenca() {
 
       const { data } = await supabase
         .from('presencas')
-        .select(`
-          *,
-          agenda(atividade, horario)
-        `)
+        .select(`*, agenda(atividade, horario)`)
         .eq('aluno_id', aluno.id)
         .gte('data_checkin', trintaDiasAtras.toISOString())
         .order('data_checkin', { ascending: false });
 
-      setAlunoSelecionado({
-        ...aluno,
-        historico: data || []
-      });
+      setAlunoSelecionado({ ...aluno, historico: data || [] });
       modalDetalhes.abrir();
-
     } catch (err) {
-      showToast.error("Erro ao carregar histórico.");
+      showToast.error('Erro ao carregar histórico.');
     }
   }
 
   function exportarRelatorio() {
     const dadosExport = presencasFiltradas.map(p => ({
-      'Aluno': p.alunos?.nome_completo,
-      'Email': p.alunos?.email,
+      Aluno: p.alunos?.nome_completo,
+      Email: p.alunos?.email,
       'Data/Hora': new Date(p.data_checkin).toLocaleString('pt-BR'),
-      'Aula': p.agenda?.atividade || 'Treino Livre',
-      'Horário': p.agenda?.horario || '-',
-      'Tipo': p.tipo
+      Aula: p.agenda?.atividade || 'Treino Livre',
+      Horário: p.agenda?.horario || '-',
+      Tipo: p.tipo
     }));
 
     const headers = Object.keys(dadosExport[0]);
     const csvRows = [
       headers.join(','),
-      ...dadosExport.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          return typeof value === 'string' && value.includes(',') 
-            ? `"${value}"` 
-            : value;
-        }).join(',')
+      ...dadosExport.map(row =>
+        headers
+          .map(header => {
+            const value = row[header];
+            return typeof value === 'string' && value.includes(',')
+              ? `"${value}"`
+              : value;
+          })
+          .join(',')
       )
     ];
 
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvRows.join('\n')], {
+      type: 'text/csv;charset=utf-8;'
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
     link.setAttribute('download', `presencas_${filtros.periodo}.csv`);
     link.click();
-    showToast.success("Relatório exportado!");
+    showToast.success('Relatório exportado!');
   }
 
-  const alunosFiltrados = alunos.filter(a => 
-    !busca || 
-    a.nome_completo?.toLowerCase().includes(busca.toLowerCase()) ||
-    a.email?.toLowerCase().includes(busca.toLowerCase())
+  const alunosFiltrados = alunos.filter(
+    a =>
+      !busca ||
+      a.nome_completo?.toLowerCase().includes(busca.toLowerCase()) ||
+      a.email?.toLowerCase().includes(busca.toLowerCase())
   );
 
   const presencasFiltradas = presencas.filter(p => {
-    const matchAluno = filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
-    const matchAula = filtros.aula === 'todas' || p.aula_id === Number(filtros.aula);
+    const matchAluno =
+      filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
+    const matchAula =
+      filtros.aula === 'todas' || p.aula_id === Number(filtros.aula);
     return matchAluno && matchAula;
   });
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
+
+      {/* ── Cabeçalho ─────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Presença & Check-in</h1>
-          <p className="text-gray-500">Controle de frequência dos alunos</p>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">
+            Presença & Check-in
+          </h1>
+          <p className="text-muted-foreground">
+            Controle de frequência dos alunos
+          </p>
         </div>
+
+        {/* ✅ Botões nativos → Button DS */}
         <div className="flex gap-3">
-          <button onClick={modalQRCode.abrir} className="flex items-center gap-2 bg-white border border-gray-200 px-5 py-3 rounded-2xl font-bold text-gray-600 hover:bg-gray-50 transition-all">
-            <QrCode size={18} /> QR Code
-          </button>
-          <button onClick={exportarRelatorio} className="flex items-center gap-2 bg-white border border-gray-200 px-5 py-3 rounded-2xl font-bold text-gray-600 hover:bg-gray-50 transition-all">
-            <Download size={18} /> Exportar
-          </button>
-          <button onClick={modalCheckin.abrir} className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
-            <UserCheck size={18} /> Fazer Check-in
-          </button>
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<QrCode size={18} />}
+            onClick={modalQRCode.abrir}
+          >
+            QR Code
+          </Button>
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<Download size={18} />}
+            onClick={exportarRelatorio}
+          >
+            Exportar
+          </Button>
+          <Button
+            variant="brand"
+            size="md"
+            leftIcon={<UserCheck size={18} />}
+            onClick={modalCheckin.abrir}
+          >
+            Fazer Check-in
+          </Button>
         </div>
       </div>
 
-      {loading ? <CardSkeleton /> : (
+      {/* ── KPI Cards ─────────────────────────────────────────────── */}
+      {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <CardMetrica titulo="Check-ins Hoje" valor={metricas.checkinsHoje} icone={<CheckCircle2 />} cor="green" />
-          <CardMetrica titulo="Taxa de Frequência" valor={`${metricas.frequenciaMedia}%`} subtitulo="última semana" icone={<TrendingUp />} cor="blue" />
-          <CardMetrica titulo="Alunos Ativos" valor={metricas.alunosAtivos} icone={<Users />} cor="orange" />
-          <CardMetrica titulo="Média Diária" valor={Math.round(metricas.checkinsHoje * 7 / 1)} subtitulo="baseado em hoje" icone={<Award />} cor="purple" />
+          {[...Array(4)].map((_, i) => <Skeleton.Card key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <CardMetrica
+            titulo="Check-ins Hoje"
+            valor={metricas.checkinsHoje}
+            icone={<CheckCircle2 />}
+            tone="success"
+          />
+          <CardMetrica
+            titulo="Taxa de Frequência"
+            valor={`${metricas.frequenciaMedia}%`}
+            subtitulo="última semana"
+            icone={<TrendingUp />}
+            tone="info"
+          />
+          <CardMetrica
+            titulo="Alunos Ativos"
+            valor={metricas.alunosAtivos}
+            icone={<Users />}
+            // ✅ orange hardcoded → token brand (primary = amarelo Iluminus)
+            tone="brand"
+          />
+          <CardMetrica
+            titulo="Média Diária"
+            valor={Math.round(metricas.checkinsHoje * 7 / 1)}
+            subtitulo="baseado em hoje"
+            icone={<Award />}
+            tone="purple"
+          />
         </div>
       )}
 
+      {/* ── Gráfico de barras semanal ──────────────────────────────── */}
       {metricas.presencaSemana.length > 0 && (
-        <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-6">Distribuição Semanal</h3>
+        // ✅ bg-white border-gray-100 → Surface variant="card"
+        <Surface variant="card" padding="xl" className="rounded-[40px]">
+          <h3 className="font-bold text-foreground mb-6">
+            Distribuição Semanal
+          </h3>
           <div className="flex gap-2 items-end h-48">
             {metricas.presencaSemana.map((dia, idx) => {
-              const maxAltura = Math.max(...metricas.presencaSemana.map(d => d.total));
+              const maxAltura = Math.max(
+                ...metricas.presencaSemana.map(d => d.total)
+              );
               const altura = maxAltura > 0 ? (dia.total / maxAltura) * 100 : 0;
               return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+                <div
+                  key={idx}
+                  className="flex-1 flex flex-col items-center gap-2"
+                >
                   <div className="flex-1 flex items-end w-full">
-                    <div className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95" style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }} />
+                    <div
+                      className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95"
+                      style={{
+                        height: `${altura}%`,
+                        minHeight: dia.total > 0 ? '20px' : '0'
+                      }}
+                    />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-gray-700">{dia.total}</p>
-                    <p className="text-[10px] text-gray-400 font-bold">{dia.dia}</p>
+                    <p className="text-sm font-bold text-foreground">
+                      {dia.total}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-bold">
+                      {dia.dia}
+                    </p>
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </Surface>
       )}
 
-      <div className="bg-white p-6 rounded-[28px] border border-gray-100 shadow-sm">
+      {/* ── Filtros ───────────────────────────────────────────────── */}
+      {/* ✅ bg-white border-gray-100 → Surface variant="card" */}
+      <Surface variant="card" padding="lg" className="rounded-[28px]">
         <div className="flex flex-wrap gap-4">
-          <div className="flex gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-200">
+
+          {/* Pills de período */}
+          {/* ✅ bg-gray-50 border-gray-200 → bg-muted border-border */}
+          <div className="flex gap-2 bg-muted p-1 rounded-2xl border border-border">
             {['hoje', 'semana', 'mes'].map(periodo => (
-              <button key={periodo} onClick={() => setFiltros({...filtros, periodo})} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${filtros.periodo === periodo ? 'bg-primary text-primary-foreground' : 'text-gray-400 hover:text-gray-600'}`}>
+              <button
+                key={periodo}
+                onClick={() => setFiltros({ ...filtros, periodo })}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                  filtros.periodo === periodo
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
                 {periodo}
               </button>
             ))}
           </div>
-          <select className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-gray-200" value={filtros.aluno} onChange={(e) => setFiltros({...filtros, aluno: e.target.value})}>
-            <option value="todos">Todos os Alunos</option>
-            {alunos.map(a => <option key={a.id} value={a.id}>{a.nome_completo}</option>)}
-          </select>
-          <select className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-gray-200" value={filtros.aula} onChange={(e) => setFiltros({...filtros, aula: e.target.value})}>
-            <option value="todas">Todas as Aulas</option>
-            {aulas.map(a => <option key={a.id} value={a.id}>{a.atividade} - {a.horario}</option>)}
-          </select>
-        </div>
-      </div>
 
-      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? <TableSkeleton /> : presencasFiltradas.length === 0 ? (
-          <EmptyState titulo="Nenhuma presença registrada" mensagem="Faça o primeiro check-in do dia!" />
+          {/* ✅ select raw bg-gray-50 border-gray-200 → Input as="select" DS */}
+          <Input
+            as="select"
+            className="w-auto"
+            value={filtros.aluno}
+            onChange={e => setFiltros({ ...filtros, aluno: e.target.value })}
+          >
+            <option value="todos">Todos os Alunos</option>
+            {alunos.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.nome_completo}
+              </option>
+            ))}
+          </Input>
+
+          <Input
+            as="select"
+            className="w-auto"
+            value={filtros.aula}
+            onChange={e => setFiltros({ ...filtros, aula: e.target.value })}
+          >
+            <option value="todas">Todas as Aulas</option>
+            {aulas.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.atividade} - {a.horario}
+              </option>
+            ))}
+          </Input>
+        </div>
+      </Surface>
+
+      {/* ── Tabela de presenças ───────────────────────────────────── */}
+      {/* ✅ bg-white border-gray-100 → Surface variant="card" */}
+      <Surface variant="card" padding="none" className="rounded-[40px] overflow-hidden">
+        {loading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(5)].map((_, i) => <Skeleton.Row key={i} />)}
+          </div>
+        ) : presencasFiltradas.length === 0 ? (
+          // ✅ EmptyState shared → EmptyState DS
+          <EmptyState
+            icon={<Users size={28} />}
+            title="Nenhuma presença registrada"
+            description="Faça o primeiro check-in do dia!"
+          />
         ) : (
           <table className="w-full text-left">
-            <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 border-b border-gray-100">
+            {/* ✅ bg-gray-50/50 text-gray-400 border-gray-100 → tokens DS */}
+            <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-8 py-5">Aluno</th>
                 <th className="px-8 py-5">Atividade</th>
@@ -342,51 +463,104 @@ export default function Presenca() {
                 <th className="px-8 py-5 text-right">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            {/* ✅ divide-gray-50 hover:bg-gray-50/30 → tokens DS */}
+            <tbody className="divide-y divide-border">
               {presencasFiltradas.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50/30 transition-colors">
+                <tr
+                  key={p.id}
+                  // ✅ hover:bg-orange-50/30 → hover:bg-primary-soft/30
+                  className="hover:bg-primary-soft/30 transition-colors"
+                >
                   <td className="px-8 py-5">
                     <div>
-                      <p className="font-bold text-gray-700">{p.alunos?.nome_completo}</p>
-                      <p className="text-[10px] text-gray-400 font-medium">{p.alunos?.email}</p>
+                      <p className="font-bold text-foreground">
+                        {p.alunos?.nome_completo}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        {p.alunos?.email}
+                      </p>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <span className="text-sm font-medium text-gray-600">{p.agenda?.atividade || 'Treino Livre'}</span>
-                    {p.agenda?.horario && <p className="text-xs text-gray-400">{p.agenda.horario}</p>}
+                    <span className="text-sm font-medium text-foreground">
+                      {p.agenda?.atividade || 'Treino Livre'}
+                    </span>
+                    {p.agenda?.horario && (
+                      <p className="text-xs text-muted-foreground">
+                        {p.agenda.horario}
+                      </p>
+                    )}
                   </td>
-                  <td className="px-8 py-5 text-sm text-gray-600">{new Date(p.data_checkin).toLocaleString('pt-BR')}</td>
+                  <td className="px-8 py-5 text-sm text-muted-foreground">
+                    {new Date(p.data_checkin).toLocaleString('pt-BR')}
+                  </td>
                   <td className="px-8 py-5">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${p.tipo === 'aula' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>{p.tipo}</span>
+                    {/* ✅ span raw bg-blue-100/bg-gray-100 → Badge DS */}
+                    <Badge
+                      tone={p.tipo === 'aula' ? 'info' : 'neutral'}
+                      variant="soft"
+                    >
+                      {p.tipo}
+                    </Badge>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button onClick={() => { const aluno = alunos.find(a => a.id === p.aluno_id); if (aluno) visualizarDetalhes(aluno); }} className="bg-white border border-gray-100 px-4 py-2 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-50 transition-all">
+                    {/* ✅ button nativo bg-white border-gray-100 → Button outline */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const aluno = alunos.find(a => a.id === p.aluno_id);
+                        if (aluno) visualizarDetalhes(aluno);
+                      }}
+                    >
                       Ver Histórico
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </div>
+      </Surface>
 
-      <Modal isOpen={modalCheckin.isOpen} onClose={modalCheckin.fechar} titulo="Fazer Check-in">
+      {/* ── Modal Check-in ───────────────────────────────────────── */}
+      {/* ✅ Modal shared → Modal DS (aberto/fechar em vez de isOpen/onClose) */}
+      <Modal
+        aberto={modalCheckin.aberto}
+        fechar={modalCheckin.fechar}
+        title="Fazer Check-in"
+      >
         <div className="space-y-6 pt-2">
-          <div className="flex bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 items-center">
-            <Search size={20} className="text-gray-400 mr-3" />
-            <input type="text" placeholder="Buscar aluno por nome ou e-mail..." className="outline-none bg-transparent w-full text-gray-600" value={busca} onChange={(e) => setBusca(e.target.value)} />
-          </div>
+          {/* ✅ div raw bg-gray-50 border-gray-200 → Input DS com ícone */}
+          <Input
+            leftIcon={<Search size={20} />}
+            type="text"
+            placeholder="Buscar aluno por nome ou e-mail..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+          />
+
           <div className="max-h-96 overflow-y-auto space-y-2">
             {alunosFiltrados.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">Nenhum aluno encontrado</p>
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum aluno encontrado
+              </p>
             ) : (
               alunosFiltrados.map(aluno => (
-                <button key={aluno.id} onClick={() => realizarCheckin(aluno)} className="w-full p-4 bg-white border border-gray-100 rounded-2xl hover:border-primary hover:bg-orange-50/30 transition-all text-left">
+                <button
+                  key={aluno.id}
+                  onClick={() => realizarCheckin(aluno)}
+                  // ✅ hover:bg-orange-50/30 → hover:bg-primary-soft/30
+                  className="w-full p-4 bg-card border border-border rounded-2xl hover:border-primary hover:bg-primary-soft/30 transition-all text-left"
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-gray-700">{aluno.nome_completo}</p>
-                      <p className="text-xs text-gray-400">{aluno.email}</p>
+                      <p className="font-bold text-foreground">
+                        {aluno.nome_completo}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {aluno.email}
+                      </p>
                     </div>
                     <UserCheck className="text-primary" size={20} />
                   </div>
@@ -397,33 +571,68 @@ export default function Presenca() {
         </div>
       </Modal>
 
+      {/* ── Modal Detalhes do Aluno ───────────────────────────────── */}
       {alunoSelecionado && (
-        <Modal isOpen={modalDetalhes.isOpen} onClose={modalDetalhes.fechar} titulo={`Histórico: ${alunoSelecionado.nome_completo}`}>
+        <Modal
+          aberto={modalDetalhes.aberto}
+          fechar={modalDetalhes.fechar}
+          title={`Histórico: ${alunoSelecionado.nome_completo}`}
+        >
           <div className="space-y-6 pt-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-green-50 p-4 rounded-2xl">
-                <p className="text-xs font-black text-green-700 uppercase mb-1">Total (30 dias)</p>
-                <p className="text-2xl font-black text-green-700">{alunoSelecionado.historico?.length || 0}</p>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-2xl">
-                <p className="text-xs font-black text-blue-700 uppercase mb-1">Frequência</p>
-                <p className="text-2xl font-black text-blue-700">{alunoSelecionado.planos?.frequencia_semanal || 0}x/sem</p>
-              </div>
+              {/* ✅ bg-green-50 → Surface muted + Badge para cor semântica */}
+              <Surface variant="muted" padding="md" className="rounded-2xl">
+                <p className="text-xs font-black text-success uppercase mb-1">
+                  Total (30 dias)
+                </p>
+                <p className="text-2xl font-black text-success">
+                  {alunoSelecionado.historico?.length || 0}
+                </p>
+              </Surface>
+              {/* ✅ bg-blue-50 → Surface muted */}
+              <Surface variant="muted" padding="md" className="rounded-2xl">
+                <p className="text-xs font-black text-info uppercase mb-1">
+                  Frequência
+                </p>
+                <p className="text-2xl font-black text-info">
+                  {alunoSelecionado.planos?.frequencia_semanal || 0}x/sem
+                </p>
+              </Surface>
             </div>
+
             <div>
-              <h4 className="font-bold text-gray-700 mb-4">Últimas Presenças</h4>
+              <h4 className="font-bold text-foreground mb-4">
+                Últimas Presenças
+              </h4>
               <div className="max-h-64 overflow-y-auto space-y-2">
                 {alunoSelecionado.historico?.length === 0 ? (
-                  <p className="text-center text-gray-400 py-4">Sem registros</p>
+                  <p className="text-center text-muted-foreground py-4">
+                    Sem registros
+                  </p>
                 ) : (
                   alunoSelecionado.historico?.map(h => (
-                    <div key={h.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
+                    // ✅ bg-gray-50 → Surface muted
+                    <Surface
+                      key={h.id}
+                      variant="muted"
+                      padding="sm"
+                      className="rounded-xl flex justify-between items-center"
+                    >
                       <div>
-                        <p className="font-bold text-sm text-gray-700">{h.agenda?.atividade || 'Treino Livre'}</p>
-                        <p className="text-xs text-gray-400">{new Date(h.data_checkin).toLocaleDateString('pt-BR')} às {new Date(h.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="font-bold text-sm text-foreground">
+                          {h.agenda?.atividade || 'Treino Livre'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(h.data_checkin).toLocaleDateString('pt-BR')}{' '}
+                          às{' '}
+                          {new Date(h.data_checkin).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
                       </div>
-                      <CheckCircle2 className="text-green-500" size={16} />
-                    </div>
+                      <CheckCircle2 className="text-success" size={16} />
+                    </Surface>
                   ))
                 )}
               </div>
@@ -432,35 +641,68 @@ export default function Presenca() {
         </Modal>
       )}
 
-      <Modal isOpen={modalQRCode.isOpen} onClose={modalQRCode.fechar} titulo="QR Code para Check-in">
+      {/* ── Modal QR Code ─────────────────────────────────────────── */}
+      <Modal
+        aberto={modalQRCode.aberto}
+        fechar={modalQRCode.fechar}
+        title="QR Code para Check-in"
+      >
         <div className="text-center py-8">
-          <div className="bg-gray-100 w-64 h-64 mx-auto rounded-3xl flex items-center justify-center mb-6">
-            <QrCode size={120} className="text-gray-400" />
-          </div>
-          <p className="text-sm text-gray-500">Os alunos podem escanear este QR Code para fazer check-in automático.</p>
-          <p className="text-xs text-gray-400 mt-2">Feature em desenvolvimento - integração com app mobile</p>
+          {/* ✅ bg-gray-100 → Surface muted */}
+          <Surface
+            variant="muted"
+            padding="none"
+            className="w-64 h-64 mx-auto rounded-3xl flex items-center justify-center mb-6"
+          >
+            <QrCode size={120} className="text-muted-foreground" />
+          </Surface>
+          <p className="text-sm text-muted-foreground">
+            Os alunos podem escanear este QR Code para fazer check-in automático.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Feature em desenvolvimento - integração com app mobile
+          </p>
         </div>
       </Modal>
     </div>
   );
 }
 
-function CardMetrica({ titulo, valor, subtitulo, icone, cor }) {
-  const cores = {
-    green: "bg-green-50 text-green-600",
-    blue: "bg-blue-50 text-blue-600",
-    orange: "bg-orange-50 text-orange-600",
-    purple: "bg-purple-50 text-purple-600"
-  };
+// ── CardMetrica ────────────────────────────────────────────────────────────────
+/**
+ * ✅ Objeto cores hardcoded (orange: "bg-orange-50 text-orange-600" etc.)
+ *    → mapeado para tones semânticos do Badge/DS.
+ *    tone: "brand" | "info" | "success" | "purple"
+ */
+const ICON_TONE = {
+  brand:    'bg-primary-soft text-primary',
+  info:     'bg-info-soft text-info',
+  success:  'bg-success-soft text-success',
+  warning:  'bg-warning-soft text-warning',
+  purple:   'bg-purple-soft text-purple',
+  neutral:  'bg-muted text-muted-foreground',
+};
 
+function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
   return (
-    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-all">
-      <div className={`${cores[cor]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>
+    // ✅ bg-white border-gray-100 → Surface variant="card"
+    <Surface
+      variant="card"
+      padding="lg"
+      className="rounded-[32px] hover:shadow-md transition-all"
+    >
+      <div
+        className={`${ICON_TONE[tone]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}
+      >
         {icone}
       </div>
-      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">{titulo}</p>
-      <h2 className="text-3xl font-black text-gray-800 mb-1">{valor}</h2>
-      {subtitulo && <p className="text-xs text-gray-500 font-medium">{subtitulo}</p>}
-    </div>
+      <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">
+        {titulo}
+      </p>
+      <h2 className="text-3xl font-black text-foreground mb-1">{valor}</h2>
+      {subtitulo && (
+        <p className="text-xs text-muted-foreground font-medium">{subtitulo}</p>
+      )}
+    </Surface>
   );
 }

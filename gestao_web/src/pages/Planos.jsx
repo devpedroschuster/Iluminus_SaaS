@@ -1,23 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { planosService } from '../services/planosService';
-import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react'; 
+import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
-import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
+import Modal, { useModal } from '../components/ui/Modal';
+import { ModalConfirmacao } from '../components/shared/Modal';
+import Input, { Label } from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Surface from '../components/ui/Surface';
+import Badge from '../components/ui/Badge';
+import Skeleton from '../components/ui/Skeleton';
 
 export default function Planos() {
   const [planos, setPlanos] = useState([]);
-  const [loadingList, setLoadingList] = useState(true); 
-  const [creating, setCreating] = useState(false);      
-  const [deletingId, setDeletingId] = useState(null);   
+  const [loadingList, setLoadingList] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  const [novoPlano, setNovoPlano] = useState({ 
+  const [novoPlano, setNovoPlano] = useState({
     nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: []
   });
 
   const modalEdicao = useModal();
   const [savingEdit, setSavingEdit] = useState(false);
   const [planoEmEdicao, setPlanoEmEdicao] = useState(null);
-  
+
   const modalExcluir = useModal();
   const [planoParaExcluir, setPlanoParaExcluir] = useState(null);
 
@@ -36,35 +42,33 @@ export default function Planos() {
 
   async function handleCriarPlano(e) {
     e.preventDefault();
-    if (creating) return; 
-    setCreating(true);    
-
+    if (creating) return;
+    setCreating(true);
     try {
-        await planosService.salvar(novoPlano);
-        showToast.success("Plano criado com sucesso!");
-        setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: [] });
-        fetchPlanos();
+      await planosService.salvar(novoPlano);
+      showToast.success("Plano criado com sucesso!");
+      setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: [] });
+      fetchPlanos();
     } catch (err) {
-        showToast.error("Erro ao criar plano.");
+      showToast.error("Erro ao criar plano.");
     } finally {
-        setCreating(false); 
+      setCreating(false);
     }
   }
 
   async function excluirPlano() {
     if (!planoParaExcluir) return;
-    setDeletingId(planoParaExcluir.id); 
+    setDeletingId(planoParaExcluir.id);
     modalExcluir.fechar();
-
     try {
-        await planosService.excluir(planoParaExcluir.id);
-        showToast.success("Plano removido.");
-        fetchPlanos();
+      await planosService.excluir(planoParaExcluir.id);
+      showToast.success("Plano removido.");
+      fetchPlanos();
     } catch (err) {
-        showToast.error("Erro ao excluir. Verifique se há alunos vinculados a ele.");
+      showToast.error("Erro ao excluir. Verifique se há alunos vinculados a ele.");
     } finally {
-        setDeletingId(null);
-        setPlanoParaExcluir(null);
+      setDeletingId(null);
+      setPlanoParaExcluir(null);
     }
   }
 
@@ -77,7 +81,6 @@ export default function Planos() {
     e.preventDefault();
     if (savingEdit) return;
     setSavingEdit(true);
-
     try {
       await planosService.salvar(planoEmEdicao);
       showToast.success("Plano atualizado com sucesso!");
@@ -92,150 +95,222 @@ export default function Planos() {
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in max-w-full">
-       <div>
-          <h1 className="text-3xl font-black text-gray-800">Planos e Mensalidades</h1>
-          <p className="text-gray-500">Cadastre e edite os pacotes comerciais vendidos no estúdio.</p>
-       </div>
-
-      <div className="bg-white p-6 md:p-8 rounded-[40px] border border-gray-100 shadow-sm w-full">
-        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2"><Package size={20}/> Criar Novo Plano</h3>
-        
-        <form onSubmit={handleCriarPlano} className="space-y-4 w-full">
-          <div className="flex flex-col md:flex-row gap-4 items-end w-full">
-            <div className="flex-1 w-full">
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Nome do Plano</label>
-              <input 
-                required placeholder="Ex: Livre Dança"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-                value={novoPlano.nome} onChange={e => setNovoPlano({...novoPlano, nome: e.target.value})} 
-              />
-            </div>
-            
-            <div className="w-full md:w-32">
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Preço (R$)</label>
-              <input 
-                required type="number" step="0.01" placeholder="0.00"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-                value={novoPlano.preco} onChange={e => setNovoPlano({...novoPlano, preco: e.target.value})} 
-              />
-            </div>
-
-            <div className="w-full md:w-36">
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Freq. Visível</label>
-              <input 
-                required placeholder="Ex: Livre"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-orange-200 border border-transparent transition-colors" 
-                value={novoPlano.frequencia_semanal} onChange={e => setNovoPlano({...novoPlano, frequencia_semanal: e.target.value})} 
-              />
-            </div>
-
-            <div className="w-full md:w-32">
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Duração (Meses)</label>
-              <input 
-                required type="number" min="1" max="24"
-                className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-200 border border-transparent transition-colors" 
-                value={novoPlano.duracao_meses} onChange={e => setNovoPlano({...novoPlano, duracao_meses: e.target.value})} 
-              />
-            </div>
-
-            <button disabled={creating} className="bg-primary text-primary-foreground px-8 py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-70 transition-all hover:scale-[1.02] w-full md:w-auto mt-4 md:mt-0">
-              {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>}
-              {creating ? "Salvando..." : "Salvar"}
-            </button>
-          </div>
-
-          <SeletorRegras 
-            regras={novoPlano.regras_acesso} 
-            setRegras={(novasRegras) => setNovoPlano({...novoPlano, regras_acesso: novasRegras})} 
-          />
-        </form>
+      {/* Cabeçalho */}
+      <div>
+        <h1 className="text-3xl font-black text-foreground tracking-tight">Planos e Mensalidades</h1>
+        <p className="text-muted-foreground">Cadastre e edite os pacotes comerciais vendidos no estúdio.</p>
       </div>
 
+      {/* Formulário de criação */}
+      <Surface variant="card" padding="lg" className="w-full">
+        <h3 className="font-bold text-foreground mb-6 flex items-center gap-2">
+          <Package size={20} className="text-primary" /> Criar Novo Plano
+        </h3>
+
+        <form onSubmit={handleCriarPlano} className="space-y-4 w-full">
+          <div className="flex flex-col md:flex-row gap-4 items-end w-full">
+            {/* Nome */}
+            <div className="flex-1 w-full space-y-1.5">
+              <Label>Nome do Plano</Label>
+              <Input
+                required
+                placeholder="Ex: Livre Dança"
+                value={novoPlano.nome}
+                onChange={e => setNovoPlano({ ...novoPlano, nome: e.target.value })}
+              />
+            </div>
+
+            {/* Preço */}
+            <div className="w-full md:w-32 space-y-1.5">
+              <Label>Preço (R$)</Label>
+              <Input
+                required
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={novoPlano.preco}
+                onChange={e => setNovoPlano({ ...novoPlano, preco: e.target.value })}
+              />
+            </div>
+
+            {/* Frequência */}
+            <div className="w-full md:w-36 space-y-1.5">
+              <Label>Freq. Visível</Label>
+              <Input
+                required
+                placeholder="Ex: Livre"
+                value={novoPlano.frequencia_semanal}
+                onChange={e => setNovoPlano({ ...novoPlano, frequencia_semanal: e.target.value })}
+              />
+            </div>
+
+            {/* Duração */}
+            <div className="w-full md:w-32 space-y-1.5">
+              <Label>Duração (Meses)</Label>
+              <Input
+                required
+                type="number"
+                min="1"
+                max="24"
+                className="font-black text-info"
+                value={novoPlano.duracao_meses}
+                onChange={e => setNovoPlano({ ...novoPlano, duracao_meses: e.target.value })}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="brand"
+              size="lg"
+              loading={creating}
+              leftIcon={!creating ? <Plus size={20} /> : undefined}
+              className="w-full md:w-auto mt-4 md:mt-0"
+            >
+              {creating ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+
+          <SeletorRegras
+            regras={novoPlano.regras_acesso}
+            setRegras={(novasRegras) => setNovoPlano({ ...novoPlano, regras_acesso: novasRegras })}
+          />
+        </form>
+      </Surface>
+
+      {/* Grade de planos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loadingList ? (
-           [1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-3xl animate-pulse" />)
+          [1, 2, 3].map(i => <Skeleton.Card key={i} className="h-24" />)
         ) : planos.map(plano => (
-          <div key={plano.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
+          <Surface
+            key={plano.id}
+            variant="card"
+            padding="md"
+            className="flex justify-between items-center hover:shadow-md hover:-translate-y-0.5 transition-all group"
+          >
             <div className="flex items-center gap-4">
-               <div className="bg-orange-50 p-4 rounded-2xl text-primary"><Package size={24}/></div>
-               <div>
-                 <h3 className="font-black text-lg text-gray-800 leading-tight">{plano.nome}</h3>
-                 <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-400 mt-1">
-                    <span className="text-green-600 font-black">R$ {plano.preco}</span>
-                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <span className="flex items-center gap-1"><Calendar size={12}/> {plano.frequencia_semanal}</span>
-                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <span className="flex items-center gap-1 text-blue-500 font-bold"><Clock size={12}/> {plano.duracao_meses} {plano.duracao_meses > 1 ? 'Meses' : 'Mês'}</span>
-                 </div>
-               </div>
+              {/* Ícone — bg-primary-soft text-primary (substitui bg-orange-50 text-primary) */}
+              <div className="bg-primary-soft p-4 rounded-2xl text-primary shrink-0">
+                <Package size={24} />
+              </div>
+              <div>
+                {/* Cabeçalho — text-foreground (substitui text-gray-800) */}
+                <h3 className="font-black text-lg text-foreground leading-tight">{plano.nome}</h3>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground mt-1">
+                  {/* Preço — text-success (substitui text-green-600 sem semântica) */}
+                  <span className="text-success font-black">R$ {plano.preco}</span>
+                  <span className="w-1 h-1 bg-border rounded-full" />
+                  <span className="flex items-center gap-1">
+                    <Calendar size={12} /> {plano.frequencia_semanal}
+                  </span>
+                  <span className="w-1 h-1 bg-border rounded-full" />
+                  {/* Duração — text-info (substitui text-blue-500 sem semântica) */}
+                  <span className="flex items-center gap-1 text-info font-bold">
+                    <Clock size={12} /> {plano.duracao_meses} {plano.duracao_meses > 1 ? 'Meses' : 'Mês'}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                <button onClick={() => abrirEdicao(plano)} className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Editar Plano">
-                    <Edit2 size={18}/>
-                </button>
-                <button 
-                  onClick={() => { setPlanoParaExcluir(plano); modalExcluir.abrir(); }} 
-                  disabled={deletingId === plano.id} 
-                  className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" 
-                  title="Excluir Plano"
-                >
-                    {deletingId === plano.id ? <RefreshCw className="animate-spin text-red-500" size={18}/> : <Trash2 size={18}/>}
-                </button>
+              {/* Editar — hover:text-info hover:bg-info-soft (substitui hover:text-blue-500 hover:bg-blue-50) */}
+              <button
+                onClick={() => abrirEdicao(plano)}
+                className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all"
+                title="Editar Plano"
+              >
+                <Edit2 size={18} />
+              </button>
+              {/* Excluir — hover:text-destructive hover:bg-destructive-soft (substitui hover:text-red-500 hover:bg-red-50) */}
+              <button
+                onClick={() => { setPlanoParaExcluir(plano); modalExcluir.abrir(); }}
+                disabled={deletingId === plano.id}
+                className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
+                title="Excluir Plano"
+              >
+                {deletingId === plano.id
+                  ? <RefreshCw className="animate-spin text-destructive" size={18} />
+                  : <Trash2 size={18} />}
+              </button>
             </div>
-          </div>
+          </Surface>
         ))}
       </div>
 
-      <Modal isOpen={modalEdicao.isOpen} onClose={modalEdicao.fechar} titulo="Editar Pacote / Plano">
+      {/* Modal de edição — usa ui/Modal (DS) */}
+      <Modal
+        aberto={modalEdicao.aberto}
+        fechar={modalEdicao.fechar}
+        title="Editar Pacote / Plano"
+        size="md"
+      >
         {planoEmEdicao && (
-          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
-            <div>
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Nome Comercial do Plano</label>
-              <input 
-                required className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-300 border border-transparent transition-colors" 
-                value={planoEmEdicao.nome} onChange={e => setPlanoEmEdicao({...planoEmEdicao, nome: e.target.value})} 
+          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-2">
+            <div className="space-y-1.5">
+              <Label>Nome Comercial do Plano</Label>
+              <Input
+                required
+                value={planoEmEdicao.nome}
+                onChange={e => setPlanoEmEdicao({ ...planoEmEdicao, nome: e.target.value })}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Preço de Venda</label>
-                <input 
-                  required type="number" step="0.01" className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-green-600 focus:border-blue-300 border border-transparent transition-colors" 
-                  value={planoEmEdicao.preco} onChange={e => setPlanoEmEdicao({...planoEmEdicao, preco: e.target.value})} 
+              <div className="space-y-1.5">
+                <Label>Preço de Venda</Label>
+                {/* text-success (substitui text-green-600 sem semântica DS) */}
+                <Input
+                  required
+                  type="number"
+                  step="0.01"
+                  className="font-bold text-success"
+                  value={planoEmEdicao.preco}
+                  onChange={e => setPlanoEmEdicao({ ...planoEmEdicao, preco: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Frequência</label>
-                <input 
-                  required className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-300 border border-transparent transition-colors" 
-                  value={planoEmEdicao.frequencia_semanal} onChange={e => setPlanoEmEdicao({...planoEmEdicao, frequencia_semanal: e.target.value})} 
+              <div className="space-y-1.5">
+                <Label>Frequência</Label>
+                <Input
+                  required
+                  value={planoEmEdicao.frequencia_semanal}
+                  onChange={e => setPlanoEmEdicao({ ...planoEmEdicao, frequencia_semanal: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Duração (Meses)</label>
-                <input 
-                  required type="number" min="1" max="24" className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-black text-blue-600 focus:border-blue-300 border border-transparent transition-colors" 
-                  value={planoEmEdicao.duracao_meses} onChange={e => setPlanoEmEdicao({...planoEmEdicao, duracao_meses: e.target.value})} 
+              <div className="space-y-1.5">
+                <Label>Duração (Meses)</Label>
+                {/* text-info (substitui text-blue-600 sem semântica DS) */}
+                <Input
+                  required
+                  type="number"
+                  min="1"
+                  max="24"
+                  className="font-black text-info"
+                  value={planoEmEdicao.duracao_meses}
+                  onChange={e => setPlanoEmEdicao({ ...planoEmEdicao, duracao_meses: e.target.value })}
                 />
               </div>
             </div>
 
-            <SeletorRegras 
-              regras={planoEmEdicao.regras_acesso} 
-              setRegras={(novasRegras) => setPlanoEmEdicao({...planoEmEdicao, regras_acesso: novasRegras})} 
+            <SeletorRegras
+              regras={planoEmEdicao.regras_acesso}
+              setRegras={(novasRegras) => setPlanoEmEdicao({ ...planoEmEdicao, regras_acesso: novasRegras })}
             />
 
-            <button disabled={savingEdit} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-100 hover:scale-[1.02] transition-all disabled:opacity-50">
-              {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Atualizar Plano"}
-            </button>
+            <Modal.Footer>
+              <Button variant="ghost" type="button" onClick={modalEdicao.fechar}>
+                Cancelar
+              </Button>
+              {/* Botão de salvar — variant="brand" (substitui bg-blue-600 hardcoded) */}
+              <Button variant="brand" type="submit" loading={savingEdit}>
+                {savingEdit ? "Salvando..." : "Atualizar Plano"}
+              </Button>
+            </Modal.Footer>
           </form>
         )}
       </Modal>
 
-      <ModalConfirmacao 
-        isOpen={modalExcluir.isOpen}
+      <ModalConfirmacao
+        isOpen={modalExcluir.aberto}
         onClose={modalExcluir.fechar}
         onConfirm={excluirPlano}
         titulo="Remover Pacote / Plano?"
@@ -246,15 +321,16 @@ export default function Planos() {
   );
 }
 
+// ─── SeletorRegras ────────────────────────────────────────────────────────────
+
 function SeletorRegras({ regras, setRegras }) {
   const [mod, setMod] = useState('Dança');
   const [qty, setQty] = useState('1');
 
   const adicionarRegra = () => {
-    // Evita duplicar regras para a mesma área
     if (regras.some(r => r.modalidade === mod)) {
-        showToast.error(`A regra para ${mod} já existe neste plano.`);
-        return;
+      showToast.error(`A regra para ${mod} já existe neste plano.`);
+      return;
     }
     setRegras([...regras, { modalidade: mod, limite: Number(qty) }]);
   };
@@ -266,43 +342,53 @@ function SeletorRegras({ regras, setRegras }) {
   };
 
   return (
-    <div className="space-y-4 border-t border-gray-100 pt-6 mt-6 w-full">
-      <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">
-        Regras de Acesso do Pacote
-      </label>
-      
+    <div className="space-y-4 border-t border-border pt-6 mt-6 w-full">
+      <Label>Regras de Acesso do Pacote</Label>
+
+      {/* Regras já adicionadas */}
       {regras.map((regra, index) => (
-        <div key={index} className="flex gap-2 items-center bg-gray-50 p-3 rounded-2xl animate-in slide-in-from-left-2">
-          <div className="flex-1 font-bold text-gray-700 text-sm">Área: {regra.modalidade}</div>
-          <div className="font-black text-blue-600 bg-white px-3 py-1 rounded-lg border border-gray-100">
+        <div
+          key={index}
+          className="flex gap-2 items-center bg-muted p-3 rounded-2xl animate-in slide-in-from-left-2 border border-border"
+        >
+          <div className="flex-1 font-bold text-foreground text-sm">Área: {regra.modalidade}</div>
+          {/* text-info (substitui text-blue-600 sem semântica DS) */}
+          <div className="font-black text-info bg-card px-3 py-1 rounded-lg border border-border">
             {regra.limite === 999 ? 'Ilimitado (Livre)' : `${regra.limite}x na semana`}
           </div>
-          <button 
+          {/* Remover — text-destructive (substitui text-red-400) */}
+          <button
             type="button"
             onClick={() => removerRegra(index)}
-            className="p-2 text-red-400 hover:text-red-600 transition-colors"
+            className="p-2 text-muted-foreground hover:text-destructive transition-colors"
           >
             <Trash2 size={16} />
           </button>
         </div>
       ))}
 
-      <div className="grid grid-cols-5 gap-2 items-end bg-blue-50/50 p-4 rounded-3xl border border-dashed border-blue-100">
-        <div className="col-span-2">
-          <label className="text-[9px] font-black text-blue-400 uppercase ml-2">Categoria</label>
-          <select 
-            className="w-full p-3 bg-white rounded-xl outline-none text-sm font-bold cursor-pointer"
-            value={mod} onChange={e => setMod(e.target.value)}
+      {/* Painel para adicionar nova regra — bg-info-soft (substitui bg-blue-50/50) */}
+      <div className="grid grid-cols-5 gap-2 items-end bg-info-soft p-4 rounded-3xl border border-dashed border-info/20">
+        <div className="col-span-2 space-y-1.5">
+          {/* text-info (substitui text-blue-400) */}
+          <label className="text-[9px] font-black text-info uppercase ml-2 block">Categoria</label>
+          <Input
+            as="select"
+            value={mod}
+            onChange={e => setMod(e.target.value)}
           >
             <option value="Dança">Dança</option>
             <option value="Funcional">Funcional</option>
-          </select>
+          </Input>
         </div>
-        <div className="col-span-2">
-          <label className="text-[9px] font-black text-blue-400 uppercase ml-2">Limite na Semana</label>
-          <select 
-            className="w-full p-3 bg-white rounded-xl outline-none text-sm font-black cursor-pointer text-blue-700"
-            value={qty} onChange={e => setQty(e.target.value)}
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-[9px] font-black text-info uppercase ml-2 block">Limite na Semana</label>
+          {/* text-info (substitui text-blue-700) */}
+          <Input
+            as="select"
+            className="font-black text-info"
+            value={qty}
+            onChange={e => setQty(e.target.value)}
           >
             <option value="1">1x</option>
             <option value="2">2x</option>
@@ -311,15 +397,17 @@ function SeletorRegras({ regras, setRegras }) {
             <option value="5">5x</option>
             <option value="6">6x</option>
             <option value="999">Ilimitado (Livre)</option>
-          </select>
+          </Input>
         </div>
-        <button 
+        {/* Botão — variant="info" (substitui bg-blue-600 hardcoded) */}
+        <Button
           type="button"
+          variant="info"
+          size="icon"
           onClick={adicionarRegra}
-          className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-colors flex justify-center"
         >
           <Plus size={20} />
-        </button>
+        </Button>
       </div>
     </div>
   );

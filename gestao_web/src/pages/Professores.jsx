@@ -1,30 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Edit2, ShieldAlert, RefreshCw, Mail, Phone, CreditCard, User } from 'lucide-react';
+import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // Serviços
 import { professoresService } from '../services/professoresService';
 import { useDebounce } from '../hooks/useDebounce';
 
-// Componentes
+// Componentes compartilhados (legado — Toast e ModalConfirmacao)
 import { showToast } from '../components/shared/Toast';
-import Modal, { ModalConfirmacao, useModal } from '../components/shared/Modal';
-import { TableSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
+
+// DS — componentes novos
+import Modal, { useModal } from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import Input, { Label } from '../components/ui/Input';
+import Badge from '../components/ui/Badge';
+import Surface from '../components/ui/Surface';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 export default function Professores() {
   const [professores, setProfessores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  
-  const [formProfessor, setFormProfessor] = useState({ 
-    id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null 
+
+  const [formProfessor, setFormProfessor] = useState({
+    id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null,
   });
   const [profSelecionado, setProfSelecionado] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const buscaDebounced = useDebounce(busca, 400);
-  const modalForm = useModal();
+  const modalForm   = useModal();
   const modalStatus = useModal();
 
   useEffect(() => {
@@ -36,8 +42,8 @@ export default function Professores() {
     try {
       const data = await professoresService.listar(buscaDebounced);
       setProfessores(data);
-    } catch (error) {
-      showToast.error("Erro ao carregar lista.");
+    } catch {
+      showToast.error('Erro ao carregar lista.');
     } finally {
       setLoading(false);
     }
@@ -49,13 +55,13 @@ export default function Professores() {
   }
 
   function abrirModalEditar(prof) {
-    setFormProfessor({ 
-      id: prof.id, 
-      nome: prof.nome, 
-      email: prof.email || '', 
-      telefone: prof.telefone || '', 
+    setFormProfessor({
+      id: prof.id,
+      nome: prof.nome,
+      email: prof.email || '',
+      telefone: prof.telefone || '',
       pix_comissao: prof.pix_comissao || '',
-      auth_id: prof.auth_id || null
+      auth_id: prof.auth_id || null,
     });
     modalForm.abrir();
   }
@@ -70,7 +76,6 @@ export default function Professores() {
       let payloadProfessor = { ...formProfessor };
 
       if (payloadProfessor.email && !payloadProfessor.auth_id) {
-        
         const { data: alunoExistente } = await supabase
           .from('alunos')
           .select('auth_id')
@@ -79,18 +84,18 @@ export default function Professores() {
 
         if (alunoExistente) {
           payloadProfessor.auth_id = alunoExistente.auth_id;
-          
         } else {
           const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
-            body: { email: payloadProfessor.email.trim(), nome: payloadProfessor.nome, role: 'professor' }
+            body: { email: payloadProfessor.email.trim(), nome: payloadProfessor.nome, role: 'professor' },
           });
 
-          if (funcError) throw new Error("Falha na comunicação com o servidor seguro.");
-          
+          if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
           if (funcData?.error) {
-             throw new Error(funcData.error === 'User already registered' 
-               ? 'Este e-mail já possui um acesso no sistema.' 
-               : funcData.error);
+            throw new Error(
+              funcData.error === 'User already registered'
+                ? 'Este e-mail já possui um acesso no sistema.'
+                : funcData.error,
+            );
           }
 
           payloadProfessor.auth_id = funcData.user.id;
@@ -99,15 +104,15 @@ export default function Professores() {
       }
 
       await professoresService.salvar(payloadProfessor);
-      
-      showToast.success(isNovoAcesso 
-        ? "Professor cadastrado e Acesso criado!" 
-        : "Professor vinculado ao acesso existente com sucesso!");
-        
+      showToast.success(
+        isNovoAcesso
+          ? 'Professor cadastrado e Acesso criado!'
+          : 'Professor vinculado ao acesso existente com sucesso!',
+      );
       modalForm.fechar();
       carregarProfessores();
     } catch (error) {
-       showToast.error(error.message || "Erro ao salvar dados.");
+      showToast.error(error.message || 'Erro ao salvar dados.');
     } finally {
       setSaving(false);
     }
@@ -116,93 +121,129 @@ export default function Professores() {
   async function alternarStatus() {
     try {
       await professoresService.alternarStatus(profSelecionado.id, !profSelecionado.ativo);
-      showToast.success(profSelecionado.ativo ? "Professor desativado." : "Professor reativado!");
+      showToast.success(profSelecionado.ativo ? 'Professor desativado.' : 'Professor reativado!');
       modalStatus.fechar();
       carregarProfessores();
-    } catch (error) {
-      showToast.error("Erro ao alterar status.");
+    } catch {
+      showToast.error('Erro ao alterar status.');
     }
+  }
+
+  // ─── Skeleton de tabela usando DS ──────────────────────────────────────────
+  function TabelaSkeleton() {
+    return (
+      <div className="divide-y divide-border">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton.Row key={i} className="px-8 py-5" />
+        ))}
+      </div>
+    );
   }
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800">Equipe de Professores</h1>
-          <p className="text-gray-500">Gerencie os profissionais e seus acessos ao sistema.</p>
+          <h1 className="text-3xl font-black text-foreground">Equipe de Professores</h1>
+          <p className="text-muted-foreground">Gerencie os profissionais e seus acessos ao sistema.</p>
         </div>
-        <button 
-          onClick={abrirModalCriar}
-          className="bg-purple-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-purple-100 hover:scale-[1.02] transition-all"
-        >
-          <UserPlus size={20} /> Novo Professor
-        </button>
+        <Button variant="brand" size="lg" leftIcon={<UserPlus size={20} />} onClick={abrirModalCriar}>
+          Novo Professor
+        </Button>
       </div>
 
-      <div className="flex flex-wrap gap-4 bg-white p-4 rounded-[28px] border border-gray-100 shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-          <input 
-            type="text"
-            placeholder="Pesquisar por nome do professor..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-2xl outline-none font-medium text-gray-600"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
-        </div>
-      </div>
+      {/* Barra de busca */}
+      <Surface variant="card" padding="md">
+        <Input
+          leftIcon={<Search size={18} />}
+          placeholder="Pesquisar por nome do professor..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      </Surface>
 
-      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
+      {/* Tabela */}
+      <Surface variant="card" padding="none" className="overflow-hidden">
         {loading ? (
-          <TableSkeleton />
+          <TabelaSkeleton />
         ) : professores.length > 0 ? (
           <table className="w-full text-left">
-            <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest">
-              <tr>
-                <th className="px-8 py-6">Professor</th>
-                <th className="px-8 py-6">Contato</th>
-                <th className="px-8 py-6">Chave PIX</th>
-                <th className="px-8 py-6">Status</th>
-                <th className="px-8 py-6 text-right">Ações</th>
+            <thead className="border-b border-border">
+              <tr className="bg-muted">
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Professor</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contato</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Chave PIX</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {professores.map((prof) => (
-                <tr key={prof.id} className="group hover:bg-gray-50/50 transition-colors">
-                  <td className="px-8 py-6">
+                <tr key={prof.id} className="group hover:bg-muted/40 transition-colors">
+
+                  {/* Professor */}
+                  <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center font-black text-purple-600">
+                      <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
                         {prof.nome.charAt(0)}
                       </div>
                       <div>
-                         <p className="font-bold text-gray-800">{prof.nome}</p>
-                         {prof.auth_id && <span className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Com Acesso</span>}
+                        <p className="font-bold text-foreground">{prof.nome}</p>
+                        {prof.auth_id && (
+                          <Badge tone="info" variant="soft" className="mt-1">
+                            Com Acesso
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-6">
-                    <span className="text-xs font-bold text-gray-600 block">{prof.telefone || 'Sem telefone'}</span>
-                    <span className="text-[10px] font-medium text-gray-400">{prof.email || 'Sem e-mail'}</span>
+
+                  {/* Contato */}
+                  <td className="px-8 py-5">
+                    <span className="text-xs font-bold text-foreground block">
+                      {prof.telefone || 'Sem telefone'}
+                    </span>
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {prof.email || 'Sem e-mail'}
+                    </span>
                   </td>
-                  <td className="px-8 py-6">
-                    <span className="text-xs font-black text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
+
+                  {/* PIX */}
+                  <td className="px-8 py-5">
+                    <span className="text-xs font-black text-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
                       {prof.pix_comissao || 'Não cadastrada'}
                     </span>
                   </td>
-                  <td className="px-8 py-6">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${prof.ativo ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${prof.ativo ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <span className="text-[10px] font-black uppercase">{prof.ativo ? 'Ativo' : 'Inativo'}</span>
-                    </div>
+
+                  {/* Status */}
+                  <td className="px-8 py-5">
+                    <Badge tone={prof.ativo ? 'success' : 'destructive'} variant="soft">
+                      <span className={`w-1.5 h-1.5 rounded-full ${prof.ativo ? 'bg-success' : 'bg-destructive'}`} />
+                      {prof.ativo ? 'Ativo' : 'Inativo'}
+                    </Badge>
                   </td>
-                  <td className="px-8 py-6 text-right">
+
+                  {/* Ações */}
+                  <td className="px-8 py-5">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => abrirModalEditar(prof)} className="p-2 text-gray-300 hover:text-purple-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-purple-200">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Editar"
+                        onClick={() => abrirModalEditar(prof)}
+                      >
                         <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }} className="p-2 text-gray-300 hover:text-orange-600 transition-colors bg-white rounded-lg shadow-sm border border-gray-100 hover:border-primary/30">
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Alterar status"
+                        className="hover:text-primary hover:bg-primary-soft"
+                        onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }}
+                      >
                         <ShieldAlert size={16} />
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -211,80 +252,98 @@ export default function Professores() {
           </table>
         ) : (
           <div className="p-20">
-            <EmptyState titulo="Nenhum professor encontrado" mensagem="Comece cadastrando seu primeiro professor." />
+            <EmptyState
+              icon={<Users size={28} />}
+              title="Nenhum professor encontrado"
+              description="Comece cadastrando seu primeiro professor."
+            />
           </div>
         )}
-      </div>
+      </Surface>
 
-      <Modal isOpen={modalForm.isOpen} onClose={modalForm.fechar} titulo={formProfessor.id ? "Editar Professor" : "Cadastrar Professor"}>
-        <form onSubmit={handleSalvar} className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Nome Completo</label>
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input 
-                required placeholder="Nome do Professor" 
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-purple-100 transition-all font-bold text-gray-700" 
-                value={formProfessor.nome} 
-                onChange={e => setFormProfessor({...formProfessor, nome: e.target.value})} 
-              />
-            </div>
+      {/* Modal Formulário */}
+      <Modal
+        aberto={modalForm.aberto}
+        fechar={modalForm.fechar}
+        title={formProfessor.id ? 'Editar Professor' : 'Cadastrar Professor'}
+        size="md"
+      >
+        <form onSubmit={handleSalvar} className="space-y-5">
+
+          <div>
+            <Label required>Nome Completo</Label>
+            <Input
+              required
+              placeholder="Nome do Professor"
+              value={formProfessor.nome}
+              onChange={(e) => setFormProfessor({ ...formProfessor, nome: e.target.value })}
+            />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">E-mail (Gera acesso automático)</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-              <input 
-                type="email" placeholder="email@exemplo.com" 
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-purple-100 transition-all font-bold text-gray-700" 
-                value={formProfessor.email} 
-                onChange={e => setFormProfessor({...formProfessor, email: e.target.value})} 
-              />
-            </div>
+          <div>
+            <Label>E-mail (Gera acesso automático)</Label>
+            <Input
+              type="email"
+              placeholder="email@exemplo.com"
+              value={formProfessor.email}
+              onChange={(e) => setFormProfessor({ ...formProfessor, email: e.target.value })}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Telefone</label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <input 
-                  placeholder="(00) 00000-0000" 
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-purple-100 transition-all font-bold text-gray-700" 
-                  value={formProfessor.telefone} 
-                  onChange={e => setFormProfessor({...formProfessor, telefone: e.target.value})} 
-                />
-              </div>
+            <div>
+              <Label>Telefone</Label>
+              <Input
+                placeholder="(00) 00000-0000"
+                value={formProfessor.telefone}
+                onChange={(e) => setFormProfessor({ ...formProfessor, telefone: e.target.value })}
+              />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Chave PIX</label>
-              <div className="relative">
-                <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
-                <input 
-                  placeholder="Para repasses" 
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-purple-100 transition-all font-bold text-gray-700" 
-                  value={formProfessor.pix_comissao} 
-                  onChange={e => setFormProfessor({...formProfessor, pix_comissao: e.target.value})} 
-                />
-              </div>
+            <div>
+              <Label>Chave PIX</Label>
+              <Input
+                placeholder="Para repasses"
+                value={formProfessor.pix_comissao}
+                onChange={(e) => setFormProfessor({ ...formProfessor, pix_comissao: e.target.value })}
+              />
             </div>
           </div>
 
-          <button disabled={saving} className="w-full bg-purple-600 text-white py-5 rounded-[22px] font-black shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2 mt-4">
-            {saving ? <RefreshCw className="animate-spin" size={24}/> : null}
-            {saving ? "Processando Seguro..." : (formProfessor.id ? "Atualizar Cadastro" : "Concluir e Criar Acesso")}
-          </button>
+          <Modal.Footer>
+            <Button variant="outline" onClick={modalForm.fechar} type="button">
+              Cancelar
+            </Button>
+            <Button variant="brand" size="lg" loading={saving} fullWidth type="submit">
+              {formProfessor.id ? 'Atualizar Cadastro' : 'Concluir e Criar Acesso'}
+            </Button>
+          </Modal.Footer>
         </form>
       </Modal>
 
-      <ModalConfirmacao 
-        isOpen={modalStatus.isOpen}
-        onClose={modalStatus.fechar}
-        onConfirm={alternarStatus}
-        titulo={profSelecionado?.ativo ? "Desativar Professor?" : "Reativar Professor?"}
-        mensagem={`Tem certeza que deseja ${profSelecionado?.ativo ? 'desativar' : 'reativar'} o acesso de ${profSelecionado?.nome}?`}
-      />
+      {/* Modal Confirmação de Status */}
+      <Modal
+        aberto={modalStatus.aberto}
+        fechar={modalStatus.fechar}
+        title={profSelecionado?.ativo ? 'Desativar Professor?' : 'Reativar Professor?'}
+        size="sm"
+      >
+        <p className="text-sm text-muted-foreground">
+          Tem certeza que deseja{' '}
+          <strong>{profSelecionado?.ativo ? 'desativar' : 'reativar'}</strong> o acesso de{' '}
+          <strong>{profSelecionado?.nome}</strong>?
+        </p>
+        <Modal.Footer>
+          <Button variant="outline" onClick={modalStatus.fechar}>
+            Cancelar
+          </Button>
+          <Button
+            variant={profSelecionado?.ativo ? 'destructive' : 'success'}
+            onClick={alternarStatus}
+          >
+            {profSelecionado?.ativo ? 'Desativar' : 'Reativar'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

@@ -10,30 +10,36 @@ import * as XLSX from 'xlsx';
 // Serviços e Componentes
 import { despesasService } from '../services/despesasService';
 import { showToast } from '../components/shared/Toast';
-import { ModalConfirmacao, useModal } from '../components/shared/Modal';
-import Modal from '../components/shared/Modal';
+import { ModalConfirmacao } from '../components/shared/Modal';
 import { TableSkeleton, CardSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
 import { formatarMoeda, formatarData } from '../lib/utils';
+
+// ─── DS Components ────────────────────────────────────────────────────────────
+import Button from '../components/ui/Button';
+import Input, { Label } from '../components/ui/Input';
+import Badge from '../components/ui/Badge';
+import Surface from '../components/ui/Surface';
+import EmptyState from '../components/ui/EmptyState';
+import Modal, { useModal } from '../components/ui/Modal';
 
 // Categorias de despesas
 const CATEGORIAS_DESPESA = [
-  { valor: 'energia', label: 'Energia Elétrica', icone: <Zap size={16} /> },
-  { valor: 'agua', label: 'Água', icone: <Droplet size={16} /> },
-  { valor: 'internet', label: 'Internet', icone: <Wifi size={16} /> },
-  { valor: 'salarios', label: 'Salários/Comissões', icone: <Users size={16} /> },
-  { valor: 'manutencao', label: 'Manutenção', icone: <Wrench size={16} /> },
-  { valor: 'equipamentos', label: 'Equipamentos', icone: <ShoppingCart size={16} /> },
-  { valor: 'aluguel', label: 'Aluguel', icone: <Home size={16} /> },
-  { valor: 'impostos', label: 'Impostos', icone: <FileText size={16} /> },
-  { valor: 'marketing', label: 'Marketing', icone: <TrendingDown size={16} /> },
-  { valor: 'outros', label: 'Outros', icone: <CreditCard size={16} /> },
+  { valor: 'energia',      label: 'Energia Elétrica',    icone: <Zap size={16} /> },
+  { valor: 'agua',         label: 'Água',                icone: <Droplet size={16} /> },
+  { valor: 'internet',     label: 'Internet',            icone: <Wifi size={16} /> },
+  { valor: 'salarios',     label: 'Salários/Comissões',  icone: <Users size={16} /> },
+  { valor: 'manutencao',   label: 'Manutenção',          icone: <Wrench size={16} /> },
+  { valor: 'equipamentos', label: 'Equipamentos',        icone: <ShoppingCart size={16} /> },
+  { valor: 'aluguel',      label: 'Aluguel',             icone: <Home size={16} /> },
+  { valor: 'impostos',     label: 'Impostos',            icone: <FileText size={16} /> },
+  { valor: 'marketing',    label: 'Marketing',           icone: <TrendingDown size={16} /> },
+  { valor: 'outros',       label: 'Outros',              icone: <CreditCard size={16} /> },
 ];
 
 const STATUS_DESPESA = [
-  { valor: 'pago', label: 'Pago', cor: 'green' },
-  { valor: 'pendente', label: 'Pendente', cor: 'yellow' },
-  { valor: 'atrasado', label: 'Atrasado', cor: 'red' },
+  { valor: 'pago',     label: 'Pago',     tone: 'success' },
+  { valor: 'pendente', label: 'Pendente', tone: 'warning' },
+  { valor: 'atrasado', label: 'Atrasado', tone: 'destructive' },
 ];
 
 export default function Despesas() {
@@ -69,7 +75,8 @@ export default function Despesas() {
   const [despesaEditando, setDespesaEditando] = useState(null);
   const [despesaExcluir, setDespesaExcluir] = useState(null);
 
-  const modalNova = useModal();
+  // ─── Modais DS (useModal do ui/Modal) ────────────────────────────────────
+  const modalNova    = useModal();
   const modalExcluir = useModal();
 
   useEffect(() => {
@@ -102,12 +109,7 @@ export default function Despesas() {
       const total = dados
         .filter(d => d.categoria === cat.valor && d.status === 'pago')
         .reduce((acc, curr) => acc + Number(curr.valor), 0);
-      
-      return {
-        categoria: cat.label,
-        valor: total,
-        icone: cat.icone
-      };
+      return { categoria: cat.label, valor: total, icone: cat.icone };
     }).filter(c => c.valor > 0);
 
     setMetricas({ totalMes, pendentes, porCategoria });
@@ -117,16 +119,10 @@ export default function Despesas() {
     e.preventDefault();
     if (salvando) return;
     setSalvando(true);
-    
     try {
-      const despesaData = {
-        ...formDespesa,
-        valor: Number(formDespesa.valor)
-      };
-
+      const despesaData = { ...formDespesa, valor: Number(formDespesa.valor) };
       await despesasService.salvar(despesaData);
       showToast.success(formDespesa.id ? "Despesa atualizada!" : "Despesa cadastrada!");
-
       modalNova.fechar();
       resetForm();
       fetchDespesas();
@@ -140,7 +136,6 @@ export default function Despesas() {
   async function excluirDespesa() {
     if (processandoAcao || !despesaExcluir) return;
     setProcessandoAcao(true);
-
     try {
       await despesasService.excluir(despesaExcluir.id);
       showToast.success("Despesa excluída!");
@@ -157,7 +152,6 @@ export default function Despesas() {
   async function marcarComoPago(despesa) {
     if (processandoAcao) return;
     setProcessandoAcao(true);
-
     try {
       await despesasService.registrarPagamento(despesa.id);
       showToast.success("Despesa marcada como paga!");
@@ -203,7 +197,6 @@ export default function Despesas() {
       showToast.error("Não há dados para exportar com os filtros atuais.");
       return;
     }
-
     const dadosExport = despesasFiltradas.map(d => ({
       'Descrição': d.descricao,
       'Categoria': CATEGORIAS_DESPESA.find(c => c.valor === d.categoria)?.label || 'Outros',
@@ -214,14 +207,10 @@ export default function Despesas() {
       'Recorrente': d.recorrente ? 'SIM' : 'NÃO',
       'Observações': d.observacoes || '-'
     }));
-
     const ws = XLSX.utils.json_to_sheet(dadosExport);
-    const colWidths = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 }];
-    ws['!cols'] = colWidths;
-
+    ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Despesas');
-    
     const nomeMes = new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' });
     XLSX.writeFile(wb, `Despesas_${nomeMes}_${filtros.ano}.xlsx`);
     showToast.success("Relatório exportado com sucesso!");
@@ -230,145 +219,170 @@ export default function Despesas() {
   // Aplicar filtros
   const despesasFiltradas = despesas.filter(d => {
     const matchCategoria = filtros.categoria === 'todas' || d.categoria === filtros.categoria;
-    
-    // Filtro para status
     let matchStatus = true;
     if (filtros.status === 'pendente') {
       matchStatus = d.status === 'pendente' || d.status === 'atrasado';
     } else if (filtros.status !== 'todos') {
       matchStatus = d.status === filtros.status;
     }
-    
     return matchCategoria && matchStatus;
   });
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Despesas</h1>
-          <p className="text-gray-500">Controle de custos operacionais do estúdio.</p>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">Despesas</h1>
+          <p className="text-muted-foreground">Controle de custos operacionais do estúdio.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button 
+          {/* ── Botão Exportar → variant="outline" ── */}
+          <Button
+            variant="outline"
+            leftIcon={<Download size={18} />}
             onClick={exportarRelatorio}
             disabled={despesasFiltradas.length === 0}
-            className="flex items-center gap-2 bg-white border border-gray-200 px-5 py-3 rounded-2xl font-bold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
           >
-            <Download size={18} /> Exportar Excel
-          </button>
-          <button 
+            Exportar Excel
+          </Button>
+
+          {/* ── Botão Nova Despesa → variant="brand" (CTA principal) ── */}
+          <Button
+            variant="brand"
+            leftIcon={<Plus size={18} />}
             onClick={() => { resetForm(); modalNova.abrir(); }}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all"
           >
-            <Plus size={18} /> Nova Despesa
-          </button>
+            Nova Despesa
+          </Button>
         </div>
       </div>
 
-      {/* Métricas */}
+      {/* ── Métricas ────────────────────────────────────────────────────────── */}
       {loading ? <CardSkeleton /> : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-            <div className="bg-red-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-red-600">
+
+          {/* Card: Total Gasto */}
+          <Surface variant="card" padding="lg">
+            {/* Ícone: destructive-soft (vermelho DS) */}
+            <div className="bg-destructive-soft w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-destructive">
               <TrendingDown />
             </div>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Total Gasto (Pago)</p>
-            <h2 className="text-3xl font-black text-gray-800">{formatarMoeda(metricas.totalMes)}</h2>
-          </div>
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">Total Gasto (Pago)</p>
+            <h2 className="text-3xl font-black text-foreground">{formatarMoeda(metricas.totalMes)}</h2>
+          </Surface>
 
-          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-            <div className="bg-orange-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-orange-600">
+          {/* Card: Pendente / Atrasado — era bg-orange-50 text-orange-600 → warning-soft */}
+          <Surface variant="card" padding="lg">
+            <div className="bg-warning-soft w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-warning">
               <AlertCircle />
             </div>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Pendente / Atrasado</p>
-            <h2 className="text-3xl font-black text-gray-800">{formatarMoeda(metricas.pendentes)}</h2>
-          </div>
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">Pendente / Atrasado</p>
+            <h2 className="text-3xl font-black text-foreground">{formatarMoeda(metricas.pendentes)}</h2>
+          </Surface>
 
-          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-            <div className="bg-blue-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
+          {/* Card: Qtd. Lançamentos */}
+          <Surface variant="card" padding="lg">
+            <div className="bg-info-soft w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-info">
               <FileText />
             </div>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Qtd. de Lançamentos</p>
-            <h2 className="text-3xl font-black text-gray-800">{despesas.length}</h2>
-          </div>
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">Qtd. de Lançamentos</p>
+            <h2 className="text-3xl font-black text-foreground">{despesas.length}</h2>
+          </Surface>
         </div>
       )}
 
-      {/* Distribuição por Categoria */}
+      {/* ── Distribuição por Categoria ──────────────────────────────────────── */}
       {metricas.porCategoria.length > 0 && (
-        <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-6">Gastos por Categoria (Pagos)</h3>
+        <Surface variant="card" padding="xl">
+          <h3 className="font-bold text-foreground mb-6">Gastos por Categoria (Pagos)</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {metricas.porCategoria.map((cat, idx) => (
-              <div key={idx} className="bg-gray-50 p-4 rounded-2xl">
-                <div className="flex items-center gap-2 mb-2 text-gray-600">
+              /* Células internas: variant="muted" (bg-muted) */
+              <Surface key={idx} variant="muted" padding="md" className="rounded-2xl">
+                <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                   {cat.icone}
                   <span className="text-xs font-bold truncate">{cat.categoria}</span>
                 </div>
-                <p className="text-xl font-black text-gray-800">{formatarMoeda(cat.valor)}</p>
-              </div>
+                <p className="text-xl font-black text-foreground">{formatarMoeda(cat.valor)}</p>
+              </Surface>
             ))}
           </div>
-        </div>
+        </Surface>
       )}
 
-      {/* Filtros */}
-      <div className="bg-white p-6 rounded-[28px] border border-gray-100 shadow-sm">
+      {/* ── Filtros ─────────────────────────────────────────────────────────── */}
+      <Surface variant="card" padding="lg">
         <div className="flex flex-wrap gap-4">
           <div className="flex gap-2">
-            <select 
-              className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-transparent outline-none cursor-pointer"
+            {/* Selects nativos → Input as="select" do DS */}
+            <Input
+              as="select"
+              className="cursor-pointer"
               value={filtros.mes}
-              onChange={(e) => setFiltros({...filtros, mes: Number(e.target.value)})}
+              onChange={(e) => setFiltros({ ...filtros, mes: Number(e.target.value) })}
             >
-              {Array.from({length: 12}, (_, i) => (
-                <option key={i} value={i}>{new Date(2024, i, 1).toLocaleDateString('pt-BR', { month: 'long' })}</option>
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i} value={i}>
+                  {new Date(2024, i, 1).toLocaleDateString('pt-BR', { month: 'long' })}
+                </option>
               ))}
-            </select>
-            <select 
-              className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-transparent outline-none cursor-pointer"
+            </Input>
+            <Input
+              as="select"
+              className="cursor-pointer"
               value={filtros.ano}
-              onChange={(e) => setFiltros({...filtros, ano: Number(e.target.value)})}
+              onChange={(e) => setFiltros({ ...filtros, ano: Number(e.target.value) })}
             >
               <option value={2024}>2024</option>
               <option value={2025}>2025</option>
               <option value={2026}>2026</option>
-            </select>
+            </Input>
           </div>
 
-          <select 
-            className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-transparent outline-none cursor-pointer flex-1 min-w-[150px]"
+          <Input
+            as="select"
+            className="cursor-pointer flex-1 min-w-[150px]"
             value={filtros.categoria}
-            onChange={(e) => setFiltros({...filtros, categoria: e.target.value})}
+            onChange={(e) => setFiltros({ ...filtros, categoria: e.target.value })}
           >
             <option value="todas">Todas as Categorias</option>
-            {CATEGORIAS_DESPESA.map(cat => <option key={cat.valor} value={cat.valor}>{cat.label}</option>)}
-          </select>
+            {CATEGORIAS_DESPESA.map(cat => (
+              <option key={cat.valor} value={cat.valor}>{cat.label}</option>
+            ))}
+          </Input>
 
-          <select 
-            className="bg-gray-50 px-4 py-3 rounded-2xl text-sm font-bold border border-transparent outline-none cursor-pointer flex-1 min-w-[150px]"
+          <Input
+            as="select"
+            className="cursor-pointer flex-1 min-w-[150px]"
             value={filtros.status}
-            onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+            onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
           >
             <option value="todos">Todos os Status</option>
             <option value="pago">Apenas Pagos</option>
             <option value="pendente">Pendentes/Atrasados</option>
-          </select>
+          </Input>
         </div>
-      </div>
+      </Surface>
 
-      {/* Tabela de Despesas */}
-      <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
-        {loading ? <TableSkeleton /> : despesasFiltradas.length === 0 ? (
+      {/* ── Tabela de Despesas ──────────────────────────────────────────────── */}
+      <Surface variant="card" padding="none" className="overflow-hidden min-h-[400px]">
+        {loading ? (
+          <TableSkeleton />
+        ) : despesasFiltradas.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-10 mt-10">
-            <EmptyState titulo="Nenhuma despesa encontrada" mensagem="Nenhum lançamento corresponde aos filtros selecionados." />
+            <EmptyState
+              icon={<FileText size={28} />}
+              title="Nenhuma despesa encontrada"
+              description="Nenhum lançamento corresponde aos filtros selecionados."
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400 border-b border-gray-100">
+              {/* Cabeçalho: text-muted-foreground + border-border (tokens DS) */}
+              <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-8 py-5">Descrição</th>
                   <th className="px-8 py-5">Categoria</th>
@@ -378,64 +392,89 @@ export default function Despesas() {
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              {/* Corpo: divide-border */}
+              <tbody className="divide-y divide-border">
                 {despesasFiltradas.map(d => {
-                  const categoria = CATEGORIAS_DESPESA.find(c => c.valor === d.categoria) || { label: 'Outros', icone: <CreditCard size={16}/> };
-                  const statusCor = STATUS_DESPESA.find(s => s.valor === d.status);
+                  const categoria = CATEGORIAS_DESPESA.find(c => c.valor === d.categoria)
+                    || { label: 'Outros', icone: <CreditCard size={16} /> };
+                  const statusItem = STATUS_DESPESA.find(s => s.valor === d.status);
 
                   return (
-                    <tr key={d.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <tr key={d.id} className="hover:bg-muted/40 transition-colors group">
                       <td className="px-8 py-5">
                         <div className="flex flex-col">
-                          <p className="font-bold text-gray-800">{d.descricao}</p>
+                          <p className="font-bold text-foreground">{d.descricao}</p>
                           {d.recorrente && (
-                            <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase w-fit mt-1">
+                            /* Badge DS: tone="info" variant="soft" */
+                            <Badge tone="info" variant="soft" className="mt-1 w-fit text-[9px]">
                               Recorrente
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       </td>
+
                       <td className="px-8 py-5">
-                        <div className="flex items-center gap-2 text-gray-500">
+                        <div className="flex items-center gap-2 text-muted-foreground">
                           {categoria.icone}
                           <span className="text-xs font-bold uppercase">{categoria.label}</span>
                         </div>
                       </td>
-                      <td className="px-8 py-5 font-bold text-gray-600">
+
+                      <td className="px-8 py-5 font-bold text-foreground">
                         {new Date(d.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="px-8 py-5 font-black text-red-500">
+
+                      <td className="px-8 py-5 font-black text-destructive">
                         {formatarMoeda(d.valor)}
                       </td>
+
                       <td className="px-8 py-5">
-                        <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${
-                          statusCor?.cor === 'green' ? 'bg-green-100 text-green-700' :
-                          statusCor?.cor === 'yellow' ? 'bg-orange-100 text-orange-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>
+                        {/* Badge DS com tone semântico do STATUS_DESPESA */}
+                        <Badge tone={statusItem?.tone ?? 'neutral'} variant="soft">
                           {d.status}
-                        </span>
+                        </Badge>
                       </td>
+
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2 items-center">
                           {d.status !== 'pago' ? (
-                            <button 
+                            /* Dar Baixa → variant="success" */
+                            <Button
+                              variant="success"
+                              size="sm"
                               onClick={() => marcarComoPago(d)}
                               disabled={processandoAcao}
-                              className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-700 transition-colors mr-2 shadow-sm disabled:opacity-50"
                             >
                               Dar Baixa
-                            </button>
+                            </Button>
                           ) : (
-                            <span className="text-xs font-bold text-gray-400 mr-4">Pago em {d.data_pagamento ? new Date(d.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</span>
+                            <span className="text-xs font-bold text-muted-foreground mr-4">
+                              Pago em {d.data_pagamento
+                                ? new Date(d.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+                                : '-'}
+                            </span>
                           )}
-                          
-                          <button onClick={() => abrirEdicao(d)} className="p-2 text-gray-400 hover:text-blue-600 bg-white rounded-lg border border-gray-100 shadow-sm transition-colors" title="Editar">
+
+                          {/* Editar → Button variant="outline" size="icon" */}
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            title="Editar"
+                            onClick={() => abrirEdicao(d)}
+                          >
                             <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => { setDespesaExcluir(d); modalExcluir.abrir(); }} className="p-2 text-gray-400 hover:text-red-600 bg-white rounded-lg border border-gray-100 shadow-sm transition-colors" title="Excluir">
+                          </Button>
+
+                          {/* Excluir → Button variant="ghost" size="icon" com destructive hover via className */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Excluir"
+                            className="hover:text-destructive hover:bg-destructive-soft"
+                            onClick={() => { setDespesaExcluir(d); modalExcluir.abrir(); }}
+                          >
                             <Trash2 size={16} />
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -445,100 +484,135 @@ export default function Despesas() {
             </table>
           </div>
         )}
-      </div>
+      </Surface>
 
-      <Modal isOpen={modalNova.isOpen} onClose={() => { modalNova.fechar(); resetForm(); }} titulo={despesaEditando ? "Editar Despesa" : "Nova Despesa"}>
-        <form onSubmit={salvarDespesa} className="space-y-4 pt-2">
-          
-          <input
-            required
-            placeholder="Descrição da conta (ex: Luz, Aluguel)"
-            className="w-full p-4 bg-gray-50 rounded-2xl border border-transparent focus:border-red-200 outline-none font-bold text-gray-700"
-            value={formDespesa.descricao}
-            onChange={e => setFormDespesa({...formDespesa, descricao: e.target.value})}
-          />
+      {/* ── Modal Nova / Editar Despesa ─────────────────────────────────────── */}
+      {/* Usando ui/Modal (DS) em vez do shared/Modal legado */}
+      <Modal
+        aberto={modalNova.aberto}
+        fechar={() => { modalNova.fechar(); resetForm(); }}
+        title={despesaEditando ? "Editar Despesa" : "Nova Despesa"}
+        size="md"
+      >
+        <form onSubmit={salvarDespesa} className="space-y-4">
+
+          {/* Descrição */}
+          <div>
+            <Label required>Descrição</Label>
+            <Input
+              required
+              placeholder="Descrição da conta (ex: Luz, Aluguel)"
+              value={formDespesa.descricao}
+              onChange={e => setFormDespesa({ ...formDespesa, descricao: e.target.value })}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Categoria */}
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Categoria</label>
-              <select
+              <Label required>Categoria</Label>
+              <Input
+                as="select"
                 required
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-red-200 outline-none font-bold text-gray-600 cursor-pointer"
+                className="cursor-pointer"
                 value={formDespesa.categoria}
-                onChange={e => setFormDespesa({...formDespesa, categoria: e.target.value})}
+                onChange={e => setFormDespesa({ ...formDespesa, categoria: e.target.value })}
               >
-                {CATEGORIAS_DESPESA.map(cat => <option key={cat.valor} value={cat.valor}>{cat.label}</option>)}
-              </select>
+                {CATEGORIAS_DESPESA.map(cat => (
+                  <option key={cat.valor} value={cat.valor}>{cat.label}</option>
+                ))}
+              </Input>
             </div>
 
+            {/* Valor */}
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Valor (R$)</label>
-              <input
-                required type="number" step="0.01" placeholder="0,00"
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-red-200 outline-none font-bold text-gray-700"
+              <Label required>Valor (R$)</Label>
+              <Input
+                required
+                type="number"
+                step="0.01"
+                placeholder="0,00"
                 value={formDespesa.valor}
-                onChange={e => setFormDespesa({...formDespesa, valor: e.target.value})}
+                onChange={e => setFormDespesa({ ...formDespesa, valor: e.target.value })}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Vencimento */}
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Vencimento</label>
-              <input
-                required type="date"
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-red-200 outline-none font-bold text-gray-500"
+              <Label required>Vencimento</Label>
+              <Input
+                required
+                type="date"
                 value={formDespesa.data_vencimento}
-                onChange={e => setFormDespesa({...formDespesa, data_vencimento: e.target.value})}
+                onChange={e => setFormDespesa({ ...formDespesa, data_vencimento: e.target.value })}
               />
             </div>
 
+            {/* Status Inicial */}
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Status Inicial</label>
-              <select
-                className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-red-200 outline-none font-bold text-gray-600 cursor-pointer"
+              <Label>Status Inicial</Label>
+              <Input
+                as="select"
+                className="cursor-pointer"
                 value={formDespesa.status}
-                onChange={e => setFormDespesa({...formDespesa, status: e.target.value})}
+                onChange={e => setFormDespesa({ ...formDespesa, status: e.target.value })}
               >
-                {STATUS_DESPESA.map(s => <option key={s.valor} value={s.valor}>{s.label}</option>)}
-              </select>
+                {STATUS_DESPESA.map(s => (
+                  <option key={s.valor} value={s.valor}>{s.label}</option>
+                ))}
+              </Input>
             </div>
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer bg-gray-50 p-4 rounded-2xl mt-2 border border-transparent hover:border-red-100 transition-colors">
+          {/* Recorrente — checkbox estilizado com Surface muted */}
+          <label className="flex items-center gap-3 cursor-pointer bg-muted p-4 rounded-xl border border-border hover:border-ring transition-colors">
             <input
               type="checkbox"
               className="w-5 h-5 rounded accent-primary cursor-pointer"
               checked={formDespesa.recorrente}
-              onChange={e => setFormDespesa({...formDespesa, recorrente: e.target.checked})}
+              onChange={e => setFormDespesa({ ...formDespesa, recorrente: e.target.checked })}
             />
-            <span className="text-sm font-bold text-gray-700">Despesa Recorrente (Mensal)</span>
+            <span className="text-sm font-bold text-foreground">Despesa Recorrente (Mensal)</span>
           </label>
 
+          {/* Observações */}
           <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Observações (opcional)</label>
-            <textarea
+            <Label>Observações (opcional)</Label>
+            <Input
+              as="textarea"
               rows={2}
               placeholder="Detalhes adicionais ou link do boleto..."
-              className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-red-200 outline-none resize-none font-medium text-gray-600"
               value={formDespesa.observacoes}
-              onChange={e => setFormDespesa({...formDespesa, observacoes: e.target.value})}
+              onChange={e => setFormDespesa({ ...formDespesa, observacoes: e.target.value })}
+              className="resize-none"
             />
           </div>
 
-          <button 
-            type="submit" 
-            disabled={salvando} 
-            className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-200 hover:scale-[1.01] flex items-center justify-center gap-2 mt-4 transition-all"
-          >
-            {salvando ? <RefreshCw className="animate-spin" size={20} /> : null}
-            {salvando ? "Salvando..." : (formDespesa.id ? "Salvar Alterações" : "Adicionar Despesa")}
-          </button>
+          <Modal.Footer>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => { modalNova.fechar(); resetForm(); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              type="submit"
+              loading={salvando}
+              fullWidth
+            >
+              {formDespesa.id ? "Salvar Alterações" : "Adicionar Despesa"}
+            </Button>
+          </Modal.Footer>
         </form>
       </Modal>
 
-      <ModalConfirmacao 
-        isOpen={modalExcluir.isOpen}
+      {/* ── Modal Confirmação Exclusão ──────────────────────────────────────── */}
+      <ModalConfirmacao
+        isOpen={modalExcluir.aberto}
         onClose={modalExcluir.fechar}
         onConfirm={excluirDespesa}
         titulo="Excluir Despesa?"

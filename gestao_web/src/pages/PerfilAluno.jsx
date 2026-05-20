@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
+import { showToast } from '../components/shared/Toast';
 import ModalRenovarPlano from '../components/ModalRenovarPlano';
 
 import Surface from '../components/ui/Surface';
@@ -36,6 +37,8 @@ export default function PerfilAluno() {
   const navigate = useNavigate();
   const [abaAtiva, setAbaAtiva] = useState('resumo');
   const [modalRenovarAberto, setModalRenovarAberto] = useState(false);
+  const [observacoesMedicas, setObservacoesMedicas] = useState('');
+  const [salvandoMedico, setSalvandoMedico] = useState(false);
 
   const { data: aluno, isLoading: loadingAluno } = useQuery({
     queryKey: ['aluno', id],
@@ -53,6 +56,26 @@ export default function PerfilAluno() {
     queryFn: () => alunosService.buscarHistoricoFrequencia(id),
     enabled: !!aluno,
   });
+
+  React.useEffect(() => {
+   if (aluno?.observacoes_medicas !== undefined) {
+     setObservacoesMedicas(aluno.observacoes_medicas ?? '');
+   }
+ }, [aluno?.observacoes_medicas]);
+
+ const handleSalvarObservacoesMedicas = async () => {
+   if (salvandoMedico) return;
+   setSalvandoMedico(true);
+   try {
+     await alunosService.atualizar(id, { observacoes_medicas: observacoesMedicas });
+     showToast.success('Resumo médico salvo com sucesso!');
+   } catch (err) {
+     console.error('[PerfilAluno] Erro ao salvar observações médicas:', err);
+     showToast.error('Erro ao salvar. Tente novamente.');
+   } finally {
+     setSalvandoMedico(false);
+   }
+ };
 
   const handleRenovacaoSucesso = () => window.location.reload();
 
@@ -432,11 +455,12 @@ export default function PerfilAluno() {
                 as="textarea"
                 rows={6}
                 placeholder="Ex: Aluno possui hérnia de disco, evitar impactos..."
-                defaultValue={aluno?.observacoes_medicas}
+                value={observacoesMedicas}
+                onChange={(e) => setObservacoesMedicas(e.target.value)}
                 className="resize-none"
               />
-              <Button variant="brand" size="lg">
-                Salvar Resumo Médico
+              <Button variant="brand" size="lg" onClick={handleSalvarObservacoesMedicas} disabled={salvandoMedico}>
+                {salvandoMedico ? 'Salvando...' : 'Salvar Resumo Médico'}
               </Button>
             </Surface>
           </div>

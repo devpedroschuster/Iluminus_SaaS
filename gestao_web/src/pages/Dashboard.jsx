@@ -76,7 +76,10 @@ export default function Dashboard() {
   });
   const dadosFaturamento = useMemo(() => {
     const faturamentoPorMes = historicoFinanceiro.reduce((acc, m) => {
-      const mesFormatado = format(new Date(m.data_pagamento), 'MMM', { locale: ptBR });
+      const dataSegura = m.data_pagamento?.length === 10
+  ? m.data_pagamento + 'T12:00:00'
+  : m.data_pagamento;
+const mesFormatado = format(new Date(dataSegura), 'MMM', { locale: ptBR });
       const mes = mesFormatado.charAt(0).toUpperCase() + mesFormatado.slice(1);
       acc[mes] = (acc[mes] || 0) + Number(m.valor_pago);
       return acc;

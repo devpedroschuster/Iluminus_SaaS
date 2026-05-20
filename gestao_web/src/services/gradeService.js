@@ -2,13 +2,20 @@ import { supabase } from '../lib/supabase';
 
 export const gradeService = {
   async listarProfessores() {
-    const { data, error } = await supabase.from('professores').select('*').eq('ativo', true).order('nome');
+    const { data, error } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
     if (error) throw error;
     return data;
   },
 
   async listarModalidades() {
-    const { data, error } = await supabase.from('modalidades').select('*').order('nome');
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*')
+      .order('nome');
     if (error) throw error;
     return data;
   },
@@ -16,32 +23,74 @@ export const gradeService = {
   async listarGrade() {
     const { data: { session } } = await supabase.auth.getSession();
     const authId = session?.user?.id;
-    const userRole = session?.user?.user_metadata?.role;
+    const email = session?.user?.email;
+
+    if (!authId) return [];
+
+    const { data: usuarioAluno } = await supabase
+      .from('alunos')
+      .select('id, role')
+      .eq('email', email)
+      .maybeSingle();
+
+    const { data: usuarioProf } = await supabase
+      .from('professores')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    const isAdmin =
+      (usuarioAluno?.role === 'admin') ||
+      (!usuarioAluno && !usuarioProf);
+
+    if (!isAdmin) {
+      if (!usuarioProf) return [];
+
+      const professorId = usuarioProf.id;
+
+      const { data: modalidadesDoProf } = await supabase
+        .from('modalidades')
+        .select('id')
+        .eq('professor_id', professorId);
+
+      const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
+
+      const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
+        await Promise.all([
+          supabase
+            .from('agenda')
+            .select('*, professores(nome), modalidades(id, nome)')
+            .eq('professor_id', professorId)
+            .order('horario', { ascending: true }),
+
+          idsModsDoProf.length > 0
+            ? supabase
+                .from('agenda')
+                .select('*, professores(nome), modalidades(id, nome)')
+                .is('professor_id', null)
+                .in('modalidade_id', idsModsDoProf)
+                .order('horario', { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+      if (errDiretas) throw errDiretas;
+      if (errMod) throw errMod;
+
+      const todas = [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])];
+      const vistas = new Set();
+      return todas.filter((a) => {
+        if (vistas.has(a.id)) return false;
+        vistas.add(a.id);
+        return true;
+      });
+    }
 
     const { data: aulas, error } = await supabase
       .from('agenda')
       .select('*, professores(nome), modalidades(id, nome)')
       .order('horario', { ascending: true });
-      
     if (error) throw error;
-    if (userRole === 'admin') return aulas;
-
-    let professorId = null;
-    if (authId) {
-      const { data: prof } = await supabase.from('professores').select('id').eq('auth_id', authId).maybeSingle();
-      if (prof) professorId = prof.id;
-    }
-
-    if (!professorId) return aulas;
-
-    const { data: modalidadesDoProf } = await supabase.from('modalidades').select('id').eq('professor_id', professorId);
-    const idsModsDoProf = modalidadesDoProf ? modalidadesDoProf.map(m => m.id) : [];
-
-    return aulas.filter(aula => {
-      if (aula.professor_id === professorId) return true;
-      if (!aula.professor_id && aula.modalidade_id && idsModsDoProf.includes(aula.modalidade_id)) return true;
-      return false;
-    });
+    return aulas;
   },
 
   async salvarAula(aula) {
@@ -58,17 +107,13 @@ export const gradeService = {
   async excluirAula(id) {
     try {
       await supabase.from('agenda_fixa').delete().eq('aula_id', id);
-      
       await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
-      
       await supabase.from('presencas').delete().eq('aula_id', id);
-
       const { error } = await supabase.from('agenda').delete().eq('id', id);
       if (error) throw error;
-      
       return true;
     } catch (error) {
-      console.error("Erro ao excluir aula em cascata:", error);
+      console.error('Erro ao excluir aula em cascata:', error);
       throw error;
     }
   },
@@ -83,7 +128,11 @@ export const gradeService = {
   },
 
   async listarFeriados() {
-    const { data, error } = await supabase.from('feriados').select('*').gte('data', new Date().toISOString().split('T')[0]).order('data', { ascending: true });
+    const { data, error } = await supabase
+      .from('feriados')
+      .select('*')
+      .gte('data', new Date().toISOString().split('T')[0])
+      .order('data', { ascending: true });
     if (error) throw error;
     return data;
   },
@@ -100,12 +149,14 @@ export const gradeService = {
     return true;
   },
 
-async listarMatriculasFixas() {
-    const { data, error } = await supabase.from('agenda_fixa').select('aula_id, alunos (*)');
+  async listarMatriculasFixas() {
+    const { data, error } = await supabase
+      .from('agenda_fixa')
+      .select('aula_id, alunos (*)');
     if (error) {
-      console.error("Erro ao buscar alunos fixos:", error);
+      console.error('Erro ao buscar alunos fixos:', error);
       return [];
     }
     return data;
-  }
+  },
 };

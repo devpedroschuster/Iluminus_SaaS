@@ -198,7 +198,7 @@ export default function Despesas() {
       'Valor': `R$ ${Number(d.valor).toFixed(2).replace('.', ',')}`,
       'Vencimento': new Date(d.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR'),
       'Status': d.status.toUpperCase(),
-      'Data Pagamento': d.data_pagamento ? new Date(d.data_pagamento).toLocaleDateString('pt-BR') : '-',
+      'Data Pagamento': d.data_pagamento ? new Date(d.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR') : '-',
       'Recorrente': d.recorrente ? 'SIM' : 'NÃO',
       'Observações': d.observacoes || '-'
     }));

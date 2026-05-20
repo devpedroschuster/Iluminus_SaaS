@@ -261,7 +261,7 @@ export default function PerfilAluno() {
                   titulo="Nascimento"
                   valor={
                     aluno?.data_nascimento &&
-                    new Date(aluno.data_nascimento).toLocaleDateString('pt-BR')
+                    new Date(aluno.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')
                   }
                 />
                 <LabelDado titulo="Profissão"  valor={aluno?.profissao} />
@@ -386,8 +386,8 @@ export default function PerfilAluno() {
                       </td>
                       <td className="p-5">
                         <p className="font-bold text-foreground">
-                          {new Date(p.data_inicio).toLocaleDateString('pt-BR')} até{' '}
-                          {new Date(p.data_fim).toLocaleDateString('pt-BR')}
+                          {new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR')} até{' '}
+                          {new Date(p.data_fim + 'T12:00:00').toLocaleDateString('pt-BR')}
                         </p>
                       </td>
                       <td className="p-5">

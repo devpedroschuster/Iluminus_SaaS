@@ -37,9 +37,12 @@ export default function Leads() {
   }
 
   function formatarData(dataIso) {
-    if (!dataIso) return '';
-    return new Date(dataIso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
+  if (!dataIso) return '';
+  const dataSegura = typeof dataIso === 'string' && dataIso.length === 10
+    ? dataIso + 'T12:00:00'
+    : dataIso;
+  return new Date(dataSegura).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
   function formatarDataHora(dataIso) {
     if (!dataIso) return '';

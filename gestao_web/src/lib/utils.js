@@ -17,7 +17,10 @@ export const formatarData = (data, comHora = false) => {
     options.hour = '2-digit';
     options.minute = '2-digit';
   }
-  return new Intl.DateTimeFormat('pt-BR', options).format(new Date(data));
+  const dataSegura = typeof data === 'string' && data.length === 10
+    ? data + 'T12:00:00'
+    : data;
+  return new Intl.DateTimeFormat('pt-BR', options).format(new Date(dataSegura));
 };
 
 export const paraUTC = (ano, mes, dia = 1) => {

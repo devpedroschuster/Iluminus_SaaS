@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCw, Trash2 } from 'lucide-react';
-import { ModalConfirmacao } from '../../../components/shared/Modal';
+import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
 

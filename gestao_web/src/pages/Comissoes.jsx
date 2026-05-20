@@ -7,11 +7,10 @@ import * as XLSX from 'xlsx';
 import { comissoesService } from '../services/comissoesService';
 import { showToast } from '../components/shared/Toast';
 import { TableSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
-import Modal, { ModalConfirmacao, useModal } from '../components/shared/Modal';
+import EmptyState from '../components/ui/EmptyState';
+import Modal, { ModalConfirmacao, useModal } from '../components/ui/Modal';
 import { formatarMoeda } from '../lib/utils';
 
-// Componentes do Design System
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';

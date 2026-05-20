@@ -16,9 +16,9 @@ import Button from '../components/ui/Button';
 
 // Componentes
 import { showToast } from '../components/shared/Toast';
-import { ModalConfirmacao, useModal } from '../components/shared/Modal';
+import { ModalConfirmacao, useModal } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
+import EmptyState from '../components/ui/EmptyState';
 import ModalMatricula from '../components/ModalMatricula';
 
 export default function Alunos() {

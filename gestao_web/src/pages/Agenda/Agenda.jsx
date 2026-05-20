@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { gradeService } from '../../services/gradeService';
 import { useAgenda } from '../../hooks/useAgenda';
 import { useAlunos } from '../../hooks/useAlunos';
-import Modal, { useModal, ModalConfirmacao } from '../../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../../components/ui/Modal';
 import { TableSkeleton } from '../../components/shared/Loading';
 import { showToast } from '../../components/shared/Toast';
 

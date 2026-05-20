@@ -17,9 +17,9 @@ import { TIPOS_AULA } from '../lib/constants';
 
 // Componentes Compartilhados
 import { showToast } from '../components/shared/Toast';
-import Modal, { useModal, ModalConfirmacao } from '../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/shared/EmptyState';
+import EmptyState from '../components/ui/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
 import { formatarMoeda } from '../lib/utils';
 

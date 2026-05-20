@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { planosService } from '../services/planosService';
 import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
-import Modal, { useModal } from '../components/ui/Modal';
-import { ModalConfirmacao } from '../components/shared/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import Input, { Label } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
@@ -189,22 +188,18 @@ export default function Planos() {
             className="flex justify-between items-center hover:shadow-md hover:-translate-y-0.5 transition-all group"
           >
             <div className="flex items-center gap-4">
-              {/* Ícone — bg-primary-soft text-primary (substitui bg-orange-50 text-primary) */}
               <div className="bg-primary-soft p-4 rounded-2xl text-primary shrink-0">
                 <Package size={24} />
               </div>
               <div>
-                {/* Cabeçalho — text-foreground (substitui text-gray-800) */}
                 <h3 className="font-black text-lg text-foreground leading-tight">{plano.nome}</h3>
                 <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground mt-1">
-                  {/* Preço — text-success (substitui text-green-600 sem semântica) */}
                   <span className="text-success font-black">R$ {plano.preco}</span>
                   <span className="w-1 h-1 bg-border rounded-full" />
                   <span className="flex items-center gap-1">
                     <Calendar size={12} /> {plano.frequencia_semanal}
                   </span>
                   <span className="w-1 h-1 bg-border rounded-full" />
-                  {/* Duração — text-info (substitui text-blue-500 sem semântica) */}
                   <span className="flex items-center gap-1 text-info font-bold">
                     <Clock size={12} /> {plano.duracao_meses} {plano.duracao_meses > 1 ? 'Meses' : 'Mês'}
                   </span>
@@ -213,7 +208,6 @@ export default function Planos() {
             </div>
 
             <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-              {/* Editar — hover:text-info hover:bg-info-soft (substitui hover:text-blue-500 hover:bg-blue-50) */}
               <button
                 onClick={() => abrirEdicao(plano)}
                 className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all"
@@ -221,7 +215,6 @@ export default function Planos() {
               >
                 <Edit2 size={18} />
               </button>
-              {/* Excluir — hover:text-destructive hover:bg-destructive-soft (substitui hover:text-red-500 hover:bg-red-50) */}
               <button
                 onClick={() => { setPlanoParaExcluir(plano); modalExcluir.abrir(); }}
                 disabled={deletingId === plano.id}
@@ -237,7 +230,6 @@ export default function Planos() {
         ))}
       </div>
 
-      {/* Modal de edição — usa ui/Modal (DS) */}
       <Modal
         aberto={modalEdicao.aberto}
         fechar={modalEdicao.fechar}
@@ -258,7 +250,6 @@ export default function Planos() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label>Preço de Venda</Label>
-                {/* text-success (substitui text-green-600 sem semântica DS) */}
                 <Input
                   required
                   type="number"
@@ -278,7 +269,6 @@ export default function Planos() {
               </div>
               <div className="space-y-1.5">
                 <Label>Duração (Meses)</Label>
-                {/* text-info (substitui text-blue-600 sem semântica DS) */}
                 <Input
                   required
                   type="number"
@@ -300,7 +290,6 @@ export default function Planos() {
               <Button variant="ghost" type="button" onClick={modalEdicao.fechar}>
                 Cancelar
               </Button>
-              {/* Botão de salvar — variant="brand" (substitui bg-blue-600 hardcoded) */}
               <Button variant="brand" type="submit" loading={savingEdit}>
                 {savingEdit ? "Salvando..." : "Atualizar Plano"}
               </Button>
@@ -320,8 +309,6 @@ export default function Planos() {
     </div>
   );
 }
-
-// ─── SeletorRegras ────────────────────────────────────────────────────────────
 
 function SeletorRegras({ regras, setRegras }) {
   const [mod, setMod] = useState('Dança');
@@ -345,18 +332,15 @@ function SeletorRegras({ regras, setRegras }) {
     <div className="space-y-4 border-t border-border pt-6 mt-6 w-full">
       <Label>Regras de Acesso do Pacote</Label>
 
-      {/* Regras já adicionadas */}
       {regras.map((regra, index) => (
         <div
           key={index}
           className="flex gap-2 items-center bg-muted p-3 rounded-2xl animate-in slide-in-from-left-2 border border-border"
         >
           <div className="flex-1 font-bold text-foreground text-sm">Área: {regra.modalidade}</div>
-          {/* text-info (substitui text-blue-600 sem semântica DS) */}
           <div className="font-black text-info bg-card px-3 py-1 rounded-lg border border-border">
             {regra.limite === 999 ? 'Ilimitado (Livre)' : `${regra.limite}x na semana`}
           </div>
-          {/* Remover — text-destructive (substitui text-red-400) */}
           <button
             type="button"
             onClick={() => removerRegra(index)}
@@ -367,10 +351,8 @@ function SeletorRegras({ regras, setRegras }) {
         </div>
       ))}
 
-      {/* Painel para adicionar nova regra — bg-info-soft (substitui bg-blue-50/50) */}
       <div className="grid grid-cols-5 gap-2 items-end bg-info-soft p-4 rounded-3xl border border-dashed border-info/20">
         <div className="col-span-2 space-y-1.5">
-          {/* text-info (substitui text-blue-400) */}
           <label className="text-[9px] font-black text-info uppercase ml-2 block">Categoria</label>
           <Input
             as="select"
@@ -383,7 +365,6 @@ function SeletorRegras({ regras, setRegras }) {
         </div>
         <div className="col-span-2 space-y-1.5">
           <label className="text-[9px] font-black text-info uppercase ml-2 block">Limite na Semana</label>
-          {/* text-info (substitui text-blue-700) */}
           <Input
             as="select"
             className="font-black text-info"
@@ -399,7 +380,6 @@ function SeletorRegras({ regras, setRegras }) {
             <option value="999">Ilimitado (Livre)</option>
           </Input>
         </div>
-        {/* Botão — variant="info" (substitui bg-blue-600 hardcoded) */}
         <Button
           type="button"
           variant="info"

@@ -7,22 +7,18 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// Serviços e Componentes
 import { despesasService } from '../services/despesasService';
 import { showToast } from '../components/shared/Toast';
-import { ModalConfirmacao } from '../components/shared/Modal';
 import { TableSkeleton, CardSkeleton } from '../components/shared/Loading';
 import { formatarMoeda, formatarData } from '../lib/utils';
 
-// ─── DS Components ────────────────────────────────────────────────────────────
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import Surface from '../components/ui/Surface';
 import EmptyState from '../components/ui/EmptyState';
-import Modal, { useModal } from '../components/ui/Modal';
+import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 
-// Categorias de despesas
 const CATEGORIAS_DESPESA = [
   { valor: 'energia',      label: 'Energia Elétrica',    icone: <Zap size={16} /> },
   { valor: 'agua',         label: 'Água',                icone: <Droplet size={16} /> },
@@ -75,7 +71,6 @@ export default function Despesas() {
   const [despesaEditando, setDespesaEditando] = useState(null);
   const [despesaExcluir, setDespesaExcluir] = useState(null);
 
-  // ─── Modais DS (useModal do ui/Modal) ────────────────────────────────────
   const modalNova    = useModal();
   const modalExcluir = useModal();
 
@@ -486,8 +481,6 @@ export default function Despesas() {
         )}
       </Surface>
 
-      {/* ── Modal Nova / Editar Despesa ─────────────────────────────────────── */}
-      {/* Usando ui/Modal (DS) em vez do shared/Modal legado */}
       <Modal
         aberto={modalNova.aberto}
         fechar={() => { modalNova.fechar(); resetForm(); }}

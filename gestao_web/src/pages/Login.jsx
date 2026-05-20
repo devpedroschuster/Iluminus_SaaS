@@ -5,7 +5,7 @@ import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-re
 
 // Componentes e Utils
 import { showToast } from '../components/shared/Toast';
-import Modal, { useModal } from '../components/shared/Modal';
+import Modal, { useModal } from '../components/ui/Modal';
 
 export default function Login() {
   const [email, setEmail] = useState('');

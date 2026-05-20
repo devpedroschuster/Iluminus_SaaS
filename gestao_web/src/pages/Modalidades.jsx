@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
 import { showToast } from '../components/shared/Toast';
-import Modal from '../components/shared/Modal';
+import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';

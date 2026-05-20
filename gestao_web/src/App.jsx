@@ -32,8 +32,8 @@ import AreaAluno from './pages/AreaAluno';
 import ConfiguracoesFeriados from './pages/ConfiguracoesFeriados';
 import Notificacoes from './pages/Notificacoes';
 import ConfiguracoesRepasse from './pages/ConfiguracoesRepasse';
-import ProfessorAlunos   from './pages/professor/ProfessorAlunos';
-import ProfessorComissoes from './pages/professor/ProfessorComissoes';
+import ProfessorAlunos   from './pages/Professor/ProfessorAlunos';
+import ProfessorComissoes from './pages/Professor/ProfessorComissoes';
 
 const queryClient = new QueryClient({
   defaultOptions: {

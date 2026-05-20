@@ -32,6 +32,8 @@ import AreaAluno from './pages/AreaAluno';
 import ConfiguracoesFeriados from './pages/ConfiguracoesFeriados';
 import Notificacoes from './pages/Notificacoes';
 import ConfiguracoesRepasse from './pages/ConfiguracoesRepasse';
+import ProfessorAlunos   from './pages/professor/ProfessorAlunos';
+import ProfessorComissoes from './pages/professor/ProfessorComissoes';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,10 +119,12 @@ export default function App() {
             </Route>
             {/* Rotas Compartilhadas (Admin e Professor) */}
             <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin', 'professor']} />}>
-              <Route element={<LayoutComSidebar perfil={perfil} />}>
-                <Route path="/agenda" element={<Agenda />} />
-              </Route>
-            </Route>
+  <Route element={<LayoutComSidebar perfil={perfil} />}>
+    <Route path="/agenda"               element={<Agenda />} />
+    <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
+    <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
+  </Route>
+</Route>
             {/* Rotas Exclusivas do Admin */}
             <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin']} />}>
               <Route element={<LayoutComSidebar perfil={perfil} />}>

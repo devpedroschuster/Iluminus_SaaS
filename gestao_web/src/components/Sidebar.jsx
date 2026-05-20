@@ -47,13 +47,13 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   ];
 
   const menuProfessor = [
-    { label: 'Menu Professor' },
-    { name: 'Minha Agenda', path: '/agenda', icon: Calendar },
-    { name: 'Meus Alunos', path: '/alunos', icon: Users },
-    { name: 'Minhas Comissões', path: '/comissoes', icon: Percent },
-  ];
+  { label: 'Menu Professor' },
+  { name: 'Minha Agenda',      path: '/agenda',             icon: Calendar },
+  { name: 'Meus Alunos',       path: '/professor/alunos',   icon: Users    },
+  { name: 'Minhas Comissões',  path: '/professor/comissoes', icon: Percent  },
+];
 
-  const isProfessor = perfil?.role === 'professor' || perfil?.tipo === 'professor';
+  const isProfessor = perfil === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
 
   return (

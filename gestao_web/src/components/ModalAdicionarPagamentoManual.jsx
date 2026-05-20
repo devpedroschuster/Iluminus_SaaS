@@ -116,7 +116,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
                   ...form, 
                   aluno_id: e.target.value,
                   plano_id: defaultPlano,
-                  valor_pago: planoObj ? planoObj.valor_mensal : form.valor_pago
+                  valor_pago: planoObj ? planoObj.preco : form.valor_pago
                 });
               }}
               required
@@ -155,13 +155,13 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               value={form.plano_id} 
               onChange={e => {
                 const p = planos.find(pl => pl.id === e.target.value);
-                setForm({...form, plano_id: e.target.value, valor_pago: p ? p.valor_mensal : ''});
+                setForm({...form, plano_id: e.target.value, valor_pago: p ? p.preco : ''});
               }}
               required
             >
               <option value="">Selecione o plano...</option>
               {planos.map(p => (
-                <option key={p.id} value={p.id}>{p.nome} - R$ {p.valor_mensal}</option>
+                <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>
               ))}
             </Input>
           </div>

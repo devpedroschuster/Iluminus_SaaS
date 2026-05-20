@@ -4,7 +4,6 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Save, RefreshCw, Calculator, Percent, DollarSign } from 'lucide-react';
 
-// Componentes do Design System
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
@@ -47,7 +46,6 @@ export default function ConfiguracoesRepasse() {
 
   const onSubmit = (data) => mutation.mutate(data);
 
-  // Mini-componente Field refatorado para usar o Design System
   const Field = ({ label, name, suffix, icon: Icon }) => (
     <div className="space-y-1.5">
       <label className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
@@ -148,7 +146,6 @@ export default function ConfiguracoesRepasse() {
           </div>
         </Surface>
 
-        {/* Mensagem Global de Erro (se houver) */}
         {errors[''] && (
           <Surface variant="subtle" className="md:col-span-2 border border-destructive/20 p-4 rounded-2xl">
              <p className="text-sm text-destructive font-black text-center">{errors[''].message}</p>

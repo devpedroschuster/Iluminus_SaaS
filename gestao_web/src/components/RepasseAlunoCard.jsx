@@ -1,10 +1,5 @@
 import { formatarMoeda } from '../lib/utils';
 
-/**
- * Exibe a distribuição calculada de uma mensalidade.
- * Props: { aluno, mensalidade, resultado }
- *   resultado = saída de calcularRepasses
- */
 export default function RepasseAlunoCard({ aluno, mensalidade, resultado }) {
   if (!resultado) return null;
   const formaLabels = {

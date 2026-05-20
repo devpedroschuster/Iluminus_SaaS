@@ -1,21 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-/**
- * Botão padronizado do sistema.
- *
- * variants:
- *  - brand       : CTA principal (amarelo da Iluminus)
- *  - primary     : ação principal neutra escura
- *  - secondary   : ação alternativa, fundo muted
- *  - outline     : borda + transparente
- *  - ghost       : só hover
- *  - destructive : ações perigosas
- *  - success     : confirmações positivas (ex.: "Agendar")
- *  - info        : ações informativas (ex.: "Chamada")
- *
- * sizes: sm | md | lg | icon
- */
 const VARIANTS = {
   brand:
     'bg-primary text-primary-foreground hover:opacity-95 shadow-brand active:scale-[0.99]',

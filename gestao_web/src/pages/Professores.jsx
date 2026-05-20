@@ -2,14 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-// Serviços
 import { professoresService } from '../services/professoresService';
 import { useDebounce } from '../hooks/useDebounce';
 
-// Componentes compartilhados (legado — Toast e ModalConfirmacao)
 import { showToast } from '../components/shared/Toast';
 
-// DS — componentes novos
 import Modal, { useModal } from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
@@ -129,7 +126,6 @@ export default function Professores() {
     }
   }
 
-  // ─── Skeleton de tabela usando DS ──────────────────────────────────────────
   function TabelaSkeleton() {
     return (
       <div className="divide-y divide-border">

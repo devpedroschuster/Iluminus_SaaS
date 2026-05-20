@@ -115,7 +115,6 @@ export default function Notificacoes() {
         )}
       </div>
 
-      {/* NOTIFICAÇÕES RESOLVIDAS */}
       {concluidas.length > 0 && (
         <div className="space-y-3 pt-8 border-t border-border">
           <h2 className="text-base font-black text-muted-foreground">

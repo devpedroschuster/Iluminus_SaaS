@@ -241,7 +241,7 @@ export default function Modalidades() {
         </form>
       </Surface>
 
-      {/* GRADE DE MODALIDADES */}
+      {/* GRADE MODALIDADES */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loadingList ? (
            [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)

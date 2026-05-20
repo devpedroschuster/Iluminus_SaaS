@@ -3,10 +3,6 @@ import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../../providers/ThemeProvider';
 import { cn } from '../../lib/cn';
 
-/**
- * Toggle de tema com 3 estados (light / dark / system).
- * Coloque no header/sidebar — UMA única instância no app.
- */
 export default function ThemeToggle({ className }) {
   const { theme, setTheme } = useTheme();
 

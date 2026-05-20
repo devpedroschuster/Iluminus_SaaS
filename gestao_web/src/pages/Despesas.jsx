@@ -211,7 +211,6 @@ export default function Despesas() {
     showToast.success("Relatório exportado com sucesso!");
   }
 
-  // Aplicar filtros
   const despesasFiltradas = despesas.filter(d => {
     const matchCategoria = filtros.categoria === 'todas' || d.categoria === filtros.categoria;
     let matchStatus = true;
@@ -226,14 +225,14 @@ export default function Despesas() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-foreground tracking-tight">Despesas</h1>
           <p className="text-muted-foreground">Controle de custos operacionais do estúdio.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {/* ── Botão Exportar → variant="outline" ── */}
+          {/* Botão Exportar */}
           <Button
             variant="outline"
             leftIcon={<Download size={18} />}
@@ -243,7 +242,7 @@ export default function Despesas() {
             Exportar Excel
           </Button>
 
-          {/* ── Botão Nova Despesa → variant="brand" (CTA principal) ── */}
+          {/* Botão Nova Despesa */}
           <Button
             variant="brand"
             leftIcon={<Plus size={18} />}
@@ -254,13 +253,12 @@ export default function Despesas() {
         </div>
       </div>
 
-      {/* ── Métricas ────────────────────────────────────────────────────────── */}
+      {/* Métricas */}
       {loading ? <CardSkeleton /> : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
           {/* Card: Total Gasto */}
           <Surface variant="card" padding="lg">
-            {/* Ícone: destructive-soft (vermelho DS) */}
             <div className="bg-destructive-soft w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-destructive">
               <TrendingDown />
             </div>
@@ -268,7 +266,7 @@ export default function Despesas() {
             <h2 className="text-3xl font-black text-foreground">{formatarMoeda(metricas.totalMes)}</h2>
           </Surface>
 
-          {/* Card: Pendente / Atrasado — era bg-orange-50 text-orange-600 → warning-soft */}
+          {/* Card: Pendente / Atrasado */}
           <Surface variant="card" padding="lg">
             <div className="bg-warning-soft w-12 h-12 rounded-2xl flex items-center justify-center mb-4 text-warning">
               <AlertCircle />
@@ -288,13 +286,12 @@ export default function Despesas() {
         </div>
       )}
 
-      {/* ── Distribuição por Categoria ──────────────────────────────────────── */}
+      {/* Distribuição por Categoria */}
       {metricas.porCategoria.length > 0 && (
         <Surface variant="card" padding="xl">
           <h3 className="font-bold text-foreground mb-6">Gastos por Categoria (Pagos)</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {metricas.porCategoria.map((cat, idx) => (
-              /* Células internas: variant="muted" (bg-muted) */
               <Surface key={idx} variant="muted" padding="md" className="rounded-2xl">
                 <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                   {cat.icone}
@@ -307,11 +304,10 @@ export default function Despesas() {
         </Surface>
       )}
 
-      {/* ── Filtros ─────────────────────────────────────────────────────────── */}
+      {/* Filtros */}
       <Surface variant="card" padding="lg">
         <div className="flex flex-wrap gap-4">
           <div className="flex gap-2">
-            {/* Selects nativos → Input as="select" do DS */}
             <Input
               as="select"
               className="cursor-pointer"
@@ -361,7 +357,7 @@ export default function Despesas() {
         </div>
       </Surface>
 
-      {/* ── Tabela de Despesas ──────────────────────────────────────────────── */}
+      {/* Tabela Despesas */}
       <Surface variant="card" padding="none" className="overflow-hidden min-h-[400px]">
         {loading ? (
           <TableSkeleton />
@@ -376,7 +372,6 @@ export default function Despesas() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
-              {/* Cabeçalho: text-muted-foreground + border-border (tokens DS) */}
               <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-8 py-5">Descrição</th>
@@ -387,7 +382,6 @@ export default function Despesas() {
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
-              {/* Corpo: divide-border */}
               <tbody className="divide-y divide-border">
                 {despesasFiltradas.map(d => {
                   const categoria = CATEGORIAS_DESPESA.find(c => c.valor === d.categoria)
@@ -400,7 +394,6 @@ export default function Despesas() {
                         <div className="flex flex-col">
                           <p className="font-bold text-foreground">{d.descricao}</p>
                           {d.recorrente && (
-                            /* Badge DS: tone="info" variant="soft" */
                             <Badge tone="info" variant="soft" className="mt-1 w-fit text-[9px]">
                               Recorrente
                             </Badge>
@@ -424,7 +417,6 @@ export default function Despesas() {
                       </td>
 
                       <td className="px-8 py-5">
-                        {/* Badge DS com tone semântico do STATUS_DESPESA */}
                         <Badge tone={statusItem?.tone ?? 'neutral'} variant="soft">
                           {d.status}
                         </Badge>
@@ -433,7 +425,7 @@ export default function Despesas() {
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2 items-center">
                           {d.status !== 'pago' ? (
-                            /* Dar Baixa → variant="success" */
+                            /* Dar Baixa */
                             <Button
                               variant="success"
                               size="sm"
@@ -450,7 +442,7 @@ export default function Despesas() {
                             </span>
                           )}
 
-                          {/* Editar → Button variant="outline" size="icon" */}
+                          {/* Editar */}
                           <Button
                             variant="outline"
                             size="icon"
@@ -460,7 +452,7 @@ export default function Despesas() {
                             <Edit2 size={16} />
                           </Button>
 
-                          {/* Excluir → Button variant="ghost" size="icon" com destructive hover via className */}
+                          {/* Excluir */}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -559,7 +551,7 @@ export default function Despesas() {
             </div>
           </div>
 
-          {/* Recorrente — checkbox estilizado com Surface muted */}
+          {/* Recorrente */}
           <label className="flex items-center gap-3 cursor-pointer bg-muted p-4 rounded-xl border border-border hover:border-ring transition-colors">
             <input
               type="checkbox"
@@ -603,7 +595,7 @@ export default function Despesas() {
         </form>
       </Modal>
 
-      {/* ── Modal Confirmação Exclusão ──────────────────────────────────────── */}
+      {/* Modal Confirmação Exclusão */}
       <ModalConfirmacao
         isOpen={modalExcluir.aberto}
         onClose={modalExcluir.fechar}

@@ -1,9 +1,6 @@
 import React from 'react';
 import { X, AlertTriangle, Trash2, CheckCircle, Info } from 'lucide-react';
 
-/**
- * Modal base reutilizável
- */
 export default function Modal({ 
   isOpen, 
   onClose, 
@@ -62,9 +59,7 @@ export default function Modal({
   );
 }
 
-/**
- * Modal de Confirmação
- */
+/* Modal de Confirmação */
 export function ModalConfirmacao({ 
   isOpen, 
   onClose, 

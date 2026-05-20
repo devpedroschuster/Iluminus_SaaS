@@ -13,7 +13,7 @@ import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/Toast';
-// ✅ Design System
+
 import Modal from '../components/ui/Modal';
 import Input, { Label } from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -341,12 +341,8 @@ export default function NovoAluno() {
   const modalidadesUnicasIDs = [...new Set(modalidadesSelecionadas)];
   const listaModalidadesAgenda = modalidadesUnicasIDs.map(id => modalidades.find(m => m.id === id)).filter(Boolean);
 
-  // ─────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Voltar */}
       <button
         onClick={() => navigate('/alunos')}
         className="flex items-center gap-2 text-muted-foreground hover:text-primary font-bold mb-6 transition-colors"
@@ -360,7 +356,7 @@ export default function NovoAluno() {
           {alunoParaEditar ? 'Perfil do Membro' : 'Novo Cadastro'}
         </h1>
 
-        {/* ── Abas ── */}
+        {/* Abas */}
         <div className="flex gap-6 border-b border-border mb-8 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setAbaAtiva('dados')}
@@ -383,7 +379,7 @@ export default function NovoAluno() {
           </button>
         </div>
 
-        {/* ══════════════════════════ ABA: DADOS ══════════════════════════ */}
+        {/* ABA: DADOS */}
         {abaAtiva === 'dados' && (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in">
 
@@ -515,13 +511,11 @@ export default function NovoAluno() {
                 {/* Datas do contrato + seleção de modalidades */}
                 {planoSelecionado && roleAtual === 'aluno' && (
                   <>
-                    {/* Início do contrato */}
                     <div className="animate-in fade-in space-y-1">
                       <Label>Início do Contrato</Label>
                       <Input {...register('data_inicio_plano')} type="date" />
                     </div>
 
-                    {/* Fim calculado */}
                     <div className="animate-in fade-in space-y-1">
                       <Label className="text-primary flex items-center gap-1">
                         Fim (Calculado) <RefreshCw size={10} />
@@ -533,7 +527,6 @@ export default function NovoAluno() {
                       />
                     </div>
 
-                    {/* Regras do plano + seleção de slots */}
                     <div className="md:col-span-2 mt-4 animate-in slide-in-from-top-4 space-y-6">
 
                       {/* Resumo das regras */}
@@ -571,7 +564,6 @@ export default function NovoAluno() {
                         )}
                       </Surface>
 
-                      {/* Seleção de modalidades agrupadas por área */}
                       <div className="space-y-6">
                         {Object.entries(modalidadesAgrupadas).map(([areaNome, modsArea]) => {
                           const regra = getRegraDaArea(areaNome);
@@ -671,7 +663,7 @@ export default function NovoAluno() {
           </form>
         )}
 
-        {/* ══════════════════════════ ABA: AGENDA ══════════════════════════ */}
+        {/* ABA: AGENDA */}
         {abaAtiva === 'agenda' && (
           <div className="space-y-6 animate-in fade-in">
 

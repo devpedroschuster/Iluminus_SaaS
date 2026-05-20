@@ -6,16 +6,13 @@ import {
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 
-// Hooks e Serviços
 import { financeiroService } from '../services/financeiroService';
 import { useFinanceiro } from '../hooks/useFinanceiro';
 
-// Componentes Novos e Constantes
 import SelectFormaPagamento from '../components/SelectFormaPagamento';
 import RepasseAlunoCard from '../components/RepasseAlunoCard';
 import { TIPOS_AULA } from '../lib/constants';
 
-// Componentes Compartilhados
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -23,7 +20,6 @@ import EmptyState from '../components/ui/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
 import { formatarMoeda } from '../lib/utils';
 
-// Design System
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -39,13 +35,11 @@ export default function Financeiro() {
   const { mensalidades, loading, refetch } = useFinanceiro(filtros);
   const [busca, setBusca] = useState('');
   
-  // Modais
   const modalPagamento = useModal();
   const modalResultado = useModal();
   const modalGerarMensalidades = useModal();
   const [modalAddOpen, setModalAddOpen] = useState(false);
 
-  // Estados do Formulário
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
   const [valorPago, setValorPago] = useState('');
   const [formaPagamento, setFormaPagamento] = useState('');
@@ -393,8 +387,6 @@ export default function Financeiro() {
     </div>
   );
 }
-
-// Card de Métrica
 
 const ICON_TONE = {
   success:     'bg-success-soft text-success',

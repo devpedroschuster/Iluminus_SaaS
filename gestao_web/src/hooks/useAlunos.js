@@ -4,7 +4,6 @@ import { showToast } from '../components/shared/Toast';
 
 export function useAlunos(filtros = {}) {
   const query = useQuery({
-    // A chave inclui os filtros para que o React Query saiba quando buscar novos dados
     queryKey: ['alunos', filtros],
     queryFn: async () => {
       try {
@@ -14,8 +13,8 @@ export function useAlunos(filtros = {}) {
         throw err;
       }
     },
-    keepPreviousData: true, // Mantém a lista antiga na tela enquanto carrega a nova
-    staleTime: 1000 * 60 * 5, // Cache válido por 5 minutos (evita requisições desnecessárias)
+    keepPreviousData: true,
+    staleTime: 1000 * 60 * 5,
   });
 
   return { 

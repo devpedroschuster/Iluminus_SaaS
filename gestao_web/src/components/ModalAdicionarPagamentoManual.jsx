@@ -57,14 +57,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         data_pagamento: new Date().toISOString().split('T')[0]
       };
 
-      // Auto-preenche modalidade_nome se for plano regular
       if (form.tipo_aula === 'regular' && form.plano_id) {
         payload.plano_id = form.plano_id;
         const planoSelecionado = planos.find(p => p.id === form.plano_id);
         if (planoSelecionado) payload.modalidade_nome = planoSelecionado.modalidade_nome;
       }
 
-      // Atribui professor se for avulsa
       if (form.tipo_aula === 'avulsa') {
         payload.professor_id = form.professor_id;
         payload.modalidade_nome = form.modalidade_nome;
@@ -149,7 +147,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           </Input>
         </div>
 
-        {/* Campos Dinâmicos: Plano Regular */}
+        {/* Campos Plano Regular */}
         {form.tipo_aula === 'regular' && (
           <div>
             <Label className="block mb-1.5">Plano Referente</Label>
@@ -171,7 +169,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           </div>
         )}
 
-        {/* Campos Dinâmicos: Aula Avulsa */}
+        {/* Campos Aula Avulsa */}
         {form.tipo_aula === 'avulsa' && (
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -242,7 +240,6 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           </Input>
         </div>
 
-        {/* Botão padronizado (No lugar do Modal.Footer para ficar Full Width como você pediu) */}
         <div className="pt-4">
           <Button 
             type="submit" 

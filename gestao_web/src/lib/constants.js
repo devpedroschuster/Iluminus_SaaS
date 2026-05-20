@@ -1,10 +1,3 @@
-// src/lib/constants.js
-
-/**
- * CONSTANTES GLOBAIS DO ESPAÇO ILUMINUS
- */
-
-// Cores do tema
 export const CORES = {
   amarelo: '#FFD600',
   texto: '#2D2D2D',
@@ -13,21 +6,18 @@ export const CORES = {
   bege: '#F0E5DE',
 };
 
-// Status de mensalidades
 export const STATUS_MENSALIDADE = {
   PAGO: 'pago',
   PENDENTE: 'pendente',
   ATRASADO: 'atrasado',
 };
 
-// Roles de usuário
 export const ROLES = {
   ADMIN: 'admin',
   PROFESSOR: 'professor',
   ALUNO: 'aluno',
 };
 
-// Dias da semana
 export const DIAS_SEMANA = [
   { valor: 'segunda-feira', label: 'Segunda-feira', abrev: 'Seg' },
   { valor: 'terça-feira', label: 'Terça-feira', abrev: 'Ter' },
@@ -38,7 +28,6 @@ export const DIAS_SEMANA = [
   { valor: 'domingo', label: 'Domingo', abrev: 'Dom' },
 ];
 
-// Configurações de paginação
 export const PAGINACAO = {
   ITENS_POR_PAGINA: 20,
   ITENS_POR_PAGINA_MOBILE: 10,
@@ -60,7 +49,6 @@ export const TIPOS_AULA = [
 ];
 
 
-// Limites de campos
 export const LIMITES = {
   NOME_MIN: 3,
   NOME_MAX: 100,
@@ -71,7 +59,6 @@ export const LIMITES = {
   VALOR_PLANO_MAX: 10000,
 };
 
-// Mensagens padrão
 export const MENSAGENS = {
   erro: {
     generico: 'Ocorreu um erro inesperado. Tente novamente.',
@@ -89,7 +76,6 @@ export const MENSAGENS = {
   },
 };
 
-// Configurações de data
 export const CONFIG_DATA = {
   FORMATO_BR: 'DD/MM/YYYY',
   FORMATO_ISO: 'YYYY-MM-DD',
@@ -97,12 +83,10 @@ export const CONFIG_DATA = {
   DIA_VENCIMENTO_PADRAO: 10,
 };
 
-// Endpoints da API
 export const API_ENDPOINTS = {
   BASE_URL: import.meta.env.VITE_API_URL || '',
 };
 
-// Validação
 export const REGEX = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   TELEFONE: /^\(\d{2}\)\s\d{4,5}-\d{4}$/,
@@ -110,7 +94,6 @@ export const REGEX = {
   APENAS_NUMEROS: /^\d+$/,
 };
 
-// Links úteis
 export const LINKS = {
   SUPORTE: 'mailto:suporte@espacoiluminus.com',
   DOCUMENTACAO: '/docs',
@@ -118,7 +101,6 @@ export const LINKS = {
   PRIVACIDADE: '/politica-privacidade',
 };
 
-// Mapeamento de ícones por tipo
 export const ICONES_STATUS = {
   ativo: 'CheckCircle',
   inativo: 'XCircle',
@@ -127,7 +109,6 @@ export const ICONES_STATUS = {
   atrasado: 'AlertCircle',
 };
 
-// Configurações de gráficos
 export const CORES_GRAFICOS = ['#FFD600', '#8A9A5B', 'hsl(var(--muted))', '#2D2D2D'];
 
 export const PALETA_CORES = [

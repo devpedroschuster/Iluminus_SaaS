@@ -181,8 +181,6 @@ export default function Comissoes() {
                 {!dados.fechamento && dados.resumo.total_comissao > 0 && (
                   <Button 
                     onClick={modalFechamento.abrir}
-                    // Mantivemos o botão verde vibrante para "Aprovar" (ação destrutiva/sucesso), 
-                    // injetando tokens puros para garantir a leitura perfeita
                     className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
                   >
                     <CheckCircle size={20} /> Aprovar Fechamento

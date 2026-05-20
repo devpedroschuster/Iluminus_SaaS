@@ -8,7 +8,6 @@ export default function ModalNovaAula({
   novaAula, setNovaAula, modalidades, professores, savingAula, salvarAula
 }) {
 
-  // Lógica de seleção inteligente de modalidade
   const handleModalidadeChange = (e) => {
     const id = e.target.value;
     const mod = modalidades.find(m => m.id === id);

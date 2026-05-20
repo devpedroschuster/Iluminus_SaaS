@@ -149,13 +149,10 @@ Modal.Footer = function ModalFooter({ className, children }) {
 export default Modal;
 
 export function ModalConfirmacao({
-  // API nova
   aberto,
   fechar,
-  // API legada
   isOpen,
   onClose,
-  // Props comuns
   onConfirm,
   titulo          = 'Confirmar ação',
   mensagem,

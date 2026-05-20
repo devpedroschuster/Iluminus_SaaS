@@ -4,17 +4,14 @@ import {
   Search, UserPlus, Edit2, ShieldAlert, Trash2, Package
 } from 'lucide-react';
 
-// Serviços e Hooks
 import { alunosService } from '../services/alunosService';
 import { useDebounce } from '../hooks/useDebounce';
 import { useAlunos } from '../hooks/useAlunos';
 
-// Design System
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 
-// Componentes
 import { showToast } from '../components/shared/Toast';
 import { ModalConfirmacao, useModal } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -83,7 +80,6 @@ export default function Alunos() {
           </p>
         </div>
 
-        {/* ✅ Substituído por <Button> do DS — bg-primary + restante do visual já embutidos no variant="brand" */}
         <Button
           variant="brand"
           size="lg"
@@ -150,7 +146,6 @@ export default function Alunos() {
                             className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"
                           />
                         ) : (
-                          // ✅ bg-orange-100 → bg-primary-soft (token DS)
                           <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
                             {aluno.nome_completo?.charAt(0)}
                           </div>
@@ -193,7 +188,6 @@ export default function Alunos() {
                     </td>
                     <td className="px-6 md:px-8 py-4 md:py-6 text-right">
                       <div className="flex justify-end gap-2">
-                        {/* ✅ hover:text-green-600 → hover:text-success | hover:border-green-200 → hover:border-success/30 */}
                         <button
                           onClick={() => {
                             setAlunoSelecionado(aluno);
@@ -213,7 +207,6 @@ export default function Alunos() {
                           <Edit2 size={16} />
                         </button>
 
-                        {/* ✅ hover:text-orange-600 → hover:text-primary (token DS) */}
                         <button
                           onClick={() => {
                             setAlunoSelecionado(aluno);

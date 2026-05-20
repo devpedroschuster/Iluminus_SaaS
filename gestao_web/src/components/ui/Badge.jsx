@@ -1,12 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-/**
- * Badge tematizado por tom semântico. Funciona em light + dark sem ajuste.
- *
- * tone: brand | info | success | warning | destructive | purple | neutral
- * variant: soft (default) | solid | outline
- */
 const SOFT = {
   brand: 'bg-primary-soft text-primary',
   info: 'bg-info-soft text-info',

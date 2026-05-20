@@ -1,12 +1,10 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
 
-// Spinner simples para botões ou telas inteiras
 export function Spinner({ size = 24, className = "text-primary" }) {
   return <RefreshCw className={`animate-spin ${className}`} size={size} />;
 }
 
-// Esqueleto para Tabelas
 export function TableSkeleton() {
   return (
     <div className="w-full animate-pulse space-y-4 p-4">
@@ -23,7 +21,6 @@ export function TableSkeleton() {
   );
 }
 
-// Esqueleto para Cards de Métricas
 export function CardSkeleton() {
   return (
     <div className="bg-white dark:bg-[#1A1A1A] p-8 rounded-[40px] border border-gray-100 dark:border-zinc-800 shadow-sm h-[180px] flex flex-col justify-between animate-pulse transition-colors">
@@ -39,7 +36,6 @@ export function CardSkeleton() {
   );
 }
 
-// Esqueleto para Gráficos
 export function ChartSkeleton() {
   return (
     <div className="bg-white dark:bg-[#1A1A1A] p-8 rounded-[40px] border border-gray-100 dark:border-zinc-800 shadow-sm h-[400px] animate-pulse transition-colors">

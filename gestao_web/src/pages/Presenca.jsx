@@ -8,7 +8,6 @@ import {
 import { showToast } from '../components/shared/Toast';
 import { formatarData } from '../lib/utils';
 
-// ✅ Componentes do Design System
 import Modal, { useModal } from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -38,7 +37,6 @@ export default function Presenca() {
   const [busca, setBusca] = useState('');
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
 
-  // ✅ useModal do DS (aberto/abrir/fechar em vez de isOpen/abrir/fechar misto)
   const modalCheckin = useModal();
   const modalQRCode = useModal();
   const modalDetalhes = useModal();
@@ -264,7 +262,7 @@ export default function Presenca() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
 
-      {/* ── Cabeçalho ─────────────────────────────────────────────── */}
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-foreground tracking-tight">
@@ -275,7 +273,6 @@ export default function Presenca() {
           </p>
         </div>
 
-        {/* ✅ Botões nativos → Button DS */}
         <div className="flex gap-3">
           <Button
             variant="outline"
@@ -304,7 +301,7 @@ export default function Presenca() {
         </div>
       </div>
 
-      {/* ── KPI Cards ─────────────────────────────────────────────── */}
+      {/* KPI Cards */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => <Skeleton.Card key={i} />)}
@@ -328,7 +325,6 @@ export default function Presenca() {
             titulo="Alunos Ativos"
             valor={metricas.alunosAtivos}
             icone={<Users />}
-            // ✅ orange hardcoded → token brand (primary = amarelo Iluminus)
             tone="brand"
           />
           <CardMetrica
@@ -341,9 +337,8 @@ export default function Presenca() {
         </div>
       )}
 
-      {/* ── Gráfico de barras semanal ──────────────────────────────── */}
+      {/* Gráfico de barras semanal */}
       {metricas.presencaSemana.length > 0 && (
-        // ✅ bg-white border-gray-100 → Surface variant="card"
         <Surface variant="card" padding="xl" className="rounded-[40px]">
           <h3 className="font-bold text-foreground mb-6">
             Distribuição Semanal
@@ -383,13 +378,11 @@ export default function Presenca() {
         </Surface>
       )}
 
-      {/* ── Filtros ───────────────────────────────────────────────── */}
-      {/* ✅ bg-white border-gray-100 → Surface variant="card" */}
+      {/* Filtros */}
       <Surface variant="card" padding="lg" className="rounded-[28px]">
         <div className="flex flex-wrap gap-4">
 
           {/* Pills de período */}
-          {/* ✅ bg-gray-50 border-gray-200 → bg-muted border-border */}
           <div className="flex gap-2 bg-muted p-1 rounded-2xl border border-border">
             {['hoje', 'semana', 'mes'].map(periodo => (
               <button
@@ -406,7 +399,6 @@ export default function Presenca() {
             ))}
           </div>
 
-          {/* ✅ select raw bg-gray-50 border-gray-200 → Input as="select" DS */}
           <Input
             as="select"
             className="w-auto"
@@ -437,15 +429,13 @@ export default function Presenca() {
         </div>
       </Surface>
 
-      {/* ── Tabela de presenças ───────────────────────────────────── */}
-      {/* ✅ bg-white border-gray-100 → Surface variant="card" */}
+      {/* Tabela de presenças */}
       <Surface variant="card" padding="none" className="rounded-[40px] overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <Skeleton.Row key={i} />)}
           </div>
         ) : presencasFiltradas.length === 0 ? (
-          // ✅ EmptyState shared → EmptyState DS
           <EmptyState
             icon={<Users size={28} />}
             title="Nenhuma presença registrada"
@@ -453,7 +443,6 @@ export default function Presenca() {
           />
         ) : (
           <table className="w-full text-left">
-            {/* ✅ bg-gray-50/50 text-gray-400 border-gray-100 → tokens DS */}
             <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-8 py-5">Aluno</th>
@@ -463,12 +452,10 @@ export default function Presenca() {
                 <th className="px-8 py-5 text-right">Ação</th>
               </tr>
             </thead>
-            {/* ✅ divide-gray-50 hover:bg-gray-50/30 → tokens DS */}
             <tbody className="divide-y divide-border">
               {presencasFiltradas.map(p => (
                 <tr
                   key={p.id}
-                  // ✅ hover:bg-orange-50/30 → hover:bg-primary-soft/30
                   className="hover:bg-primary-soft/30 transition-colors"
                 >
                   <td className="px-8 py-5">
@@ -495,7 +482,6 @@ export default function Presenca() {
                     {new Date(p.data_checkin).toLocaleString('pt-BR')}
                   </td>
                   <td className="px-8 py-5">
-                    {/* ✅ span raw bg-blue-100/bg-gray-100 → Badge DS */}
                     <Badge
                       tone={p.tipo === 'aula' ? 'info' : 'neutral'}
                       variant="soft"
@@ -504,7 +490,6 @@ export default function Presenca() {
                     </Badge>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    {/* ✅ button nativo bg-white border-gray-100 → Button outline */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -523,15 +508,13 @@ export default function Presenca() {
         )}
       </Surface>
 
-      {/* ── Modal Check-in ───────────────────────────────────────── */}
-      {/* ✅ Modal shared → Modal DS (aberto/fechar em vez de isOpen/onClose) */}
+      {/* Modal Check-in */}
       <Modal
         aberto={modalCheckin.aberto}
         fechar={modalCheckin.fechar}
         title="Fazer Check-in"
       >
         <div className="space-y-6 pt-2">
-          {/* ✅ div raw bg-gray-50 border-gray-200 → Input DS com ícone */}
           <Input
             leftIcon={<Search size={20} />}
             type="text"
@@ -550,7 +533,6 @@ export default function Presenca() {
                 <button
                   key={aluno.id}
                   onClick={() => realizarCheckin(aluno)}
-                  // ✅ hover:bg-orange-50/30 → hover:bg-primary-soft/30
                   className="w-full p-4 bg-card border border-border rounded-2xl hover:border-primary hover:bg-primary-soft/30 transition-all text-left"
                 >
                   <div className="flex items-center justify-between">
@@ -571,7 +553,7 @@ export default function Presenca() {
         </div>
       </Modal>
 
-      {/* ── Modal Detalhes do Aluno ───────────────────────────────── */}
+      {/* Modal Detalhes Aluno */}
       {alunoSelecionado && (
         <Modal
           aberto={modalDetalhes.aberto}
@@ -580,7 +562,6 @@ export default function Presenca() {
         >
           <div className="space-y-6 pt-2">
             <div className="grid grid-cols-2 gap-4">
-              {/* ✅ bg-green-50 → Surface muted + Badge para cor semântica */}
               <Surface variant="muted" padding="md" className="rounded-2xl">
                 <p className="text-xs font-black text-success uppercase mb-1">
                   Total (30 dias)
@@ -589,7 +570,6 @@ export default function Presenca() {
                   {alunoSelecionado.historico?.length || 0}
                 </p>
               </Surface>
-              {/* ✅ bg-blue-50 → Surface muted */}
               <Surface variant="muted" padding="md" className="rounded-2xl">
                 <p className="text-xs font-black text-info uppercase mb-1">
                   Frequência
@@ -611,7 +591,6 @@ export default function Presenca() {
                   </p>
                 ) : (
                   alunoSelecionado.historico?.map(h => (
-                    // ✅ bg-gray-50 → Surface muted
                     <Surface
                       key={h.id}
                       variant="muted"
@@ -641,14 +620,12 @@ export default function Presenca() {
         </Modal>
       )}
 
-      {/* ── Modal QR Code ─────────────────────────────────────────── */}
       <Modal
         aberto={modalQRCode.aberto}
         fechar={modalQRCode.fechar}
         title="QR Code para Check-in"
       >
         <div className="text-center py-8">
-          {/* ✅ bg-gray-100 → Surface muted */}
           <Surface
             variant="muted"
             padding="none"
@@ -668,12 +645,6 @@ export default function Presenca() {
   );
 }
 
-// ── CardMetrica ────────────────────────────────────────────────────────────────
-/**
- * ✅ Objeto cores hardcoded (orange: "bg-orange-50 text-orange-600" etc.)
- *    → mapeado para tones semânticos do Badge/DS.
- *    tone: "brand" | "info" | "success" | "purple"
- */
 const ICON_TONE = {
   brand:    'bg-primary-soft text-primary',
   info:     'bg-info-soft text-info',
@@ -685,7 +656,6 @@ const ICON_TONE = {
 
 function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
   return (
-    // ✅ bg-white border-gray-100 → Surface variant="card"
     <Surface
       variant="card"
       padding="lg"

@@ -1,13 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-/**
- * Skeleton genérico (para listas, cards, KPIs).
- * Usa cor `subtle` que se adapta light/dark.
- *
- *   <Skeleton className="h-4 w-32" />
- *   <Skeleton.Card />
- */
 export default function Skeleton({ className }) {
   return (
     <div

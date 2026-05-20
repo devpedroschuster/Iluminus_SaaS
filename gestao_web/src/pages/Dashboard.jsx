@@ -8,12 +8,10 @@ import { Users, Activity, TrendingUp, Wallet, MessageCircle, AlertCircle } from 
 import { subMonths, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Utilitários
 import { showToast } from '../components/shared/Toast';
 import { formatarMoeda } from '../lib/utils';
-import { CORES } from '../lib/constants'; // mantido para fill do recharts (SVG não aceita CSS vars)
+import { CORES } from '../lib/constants';
 
-// ✅ Novos componentes do design system
 import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
@@ -22,9 +20,8 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 
 export default function Dashboard() {
-  const modalInadimplencia = useModal(); // retorna { aberto, abrir, fechar }
+  const modalInadimplencia = useModal();
 
-  // Datas Base
   const agora = new Date();
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
   const hojeIso = agora.toISOString().split('T')[0];
@@ -189,7 +186,6 @@ export default function Dashboard() {
                     }}
                     formatter={(value) => [formatarMoeda(value), 'Receita']}
                   />
-                  {/* CORES.amarelo mantido pois SVG do recharts não suporta CSS vars */}
                   <Bar dataKey="valor" fill={CORES.amarelo} radius={[12, 12, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
@@ -330,7 +326,6 @@ export default function Dashboard() {
                   </span>
                 </div>
               </div>
-              {/* Botão WhatsApp mantém cor de marca (#25D366) — fora do sistema de tokens */}
               <button
                 onClick={() => handleEnviarCobranca(item.alunos, item.data_vencimento, item.valor_pago)}
                 className="w-full sm:w-auto bg-[#25D366] text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-colors shadow-sm"

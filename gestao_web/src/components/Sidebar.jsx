@@ -23,7 +23,6 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     }
   }
 
-  // Menu completo restaurado com Aniversariantes e configurações extras
   const menuAdmin = [
     { label: 'Visão Geral' },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -37,6 +36,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { name: 'Professores', path: '/professores', icon: UserCheck },
     { name: 'Modalidades', path: '/modalidades', icon: Package },
     { name: 'Agenda', path: '/agenda', icon: Calendar },
+    { name: 'Presença', path: '/presenca', icon: Clock },
     { name: 'Feriados', path: '/configuracoes/feriados', icon: TableConfigIcon },
     
     { label: 'Financeiro' },
@@ -53,7 +53,6 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { name: 'Minhas Comissões', path: '/comissoes', icon: Percent },
   ];
 
-  // Lógica correta: se não for explicitamente professor, mostra o menu Admin
   const isProfessor = perfil?.role === 'professor' || perfil?.tipo === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
 
@@ -144,7 +143,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
           
           <div className="px-4 py-2">
             <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">
-              v2.1.0 • Design System Ativo
+              v3.0
             </p>
           </div>
         </div>

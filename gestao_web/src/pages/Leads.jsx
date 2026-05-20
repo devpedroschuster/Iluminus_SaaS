@@ -5,7 +5,6 @@ import { showToast } from '../components/shared/Toast';
 
 import { useLeadsPendentes, useHistoricoLeads, useAtualizarStatusLead } from '../hooks/useLeads';
 
-// ─── Design System ────────────────────────────────────────────────────────────
 import Badge   from '../components/ui/Badge';
 import Button  from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
@@ -69,18 +68,16 @@ export default function Leads() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in">
 
-      {/* ── Cabeçalho e Alternador de Visão ─────────────────────────────── */}
+      {/* Cabeçalho e Alternador de Visão */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
-            {/* ✅ Ícone usa text-primary em vez de text-orange-500 */}
             <Clock className="text-primary" size={32} />
             CRM de Experimentais
           </h1>
           <p className="text-muted-foreground mt-2">Converta visitantes em alunos e acompanhe o histórico.</p>
         </div>
 
-        {/* ✅ Toggler usa tokens bg-muted / bg-card em vez de bg-gray-100 / bg-white */}
         <div className="flex bg-muted p-1 rounded-2xl border border-border">
           <button
             onClick={() => setVisaoAtiva('cards')}
@@ -105,19 +102,17 @@ export default function Leads() {
         </div>
       </div>
 
-      {/* ── Conteúdo Principal ───────────────────────────────────────────── */}
+      {/* Conteúdo Principal */}
       {loading ? (
         <div className="flex justify-center py-20">
-          {/* ✅ Spinner usa text-primary */}
           <RefreshCw className="animate-spin text-primary" size={40} />
         </div>
 
       ) : visaoAtiva === 'cards' ? (
 
-        /* ── Visão Cards (Ação) ─────────────────────────────────────────── */
+        /* Visão Cards */
         leadsPendentes.length === 0 ? (
 
-          /* ✅ EmptyState do Design System */
           <EmptyState
             icon={<CheckCircle size={28} />}
             title="Caixa de Entrada Zerada!"
@@ -128,13 +123,11 @@ export default function Leads() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {leadsPendentes.map(lead => (
 
-              /* ✅ Surface variant="card" substitui bg-white com border e shadow hardcoded */
               <Surface key={lead.id} variant="card" padding="lg" className="flex flex-col relative group hover:shadow-brand transition-all">
 
-                {/* ── Popover de Confirmação / Botão Descartar ─────────── */}
+                {/* Popover de Confirmação / Descartar */}
                 {confirmandoId === lead.id ? (
                   <div className="absolute top-3 right-3 flex items-center gap-1 bg-card p-1 rounded-xl shadow-card border border-destructive/20 animate-in fade-in zoom-in-95 z-10">
-                    {/* ✅ Button variant="destructive" size="sm" */}
                     <Button
                       variant="destructive"
                       size="sm"
@@ -142,7 +135,6 @@ export default function Leads() {
                     >
                       Excluir?
                     </Button>
-                    {/* ✅ Button variant="ghost" size="icon" */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -153,7 +145,6 @@ export default function Leads() {
                     </Button>
                   </div>
                 ) : (
-                  /* ✅ Button variant="ghost" size="icon" */
                   <Button
                     variant="ghost"
                     size="icon"
@@ -169,9 +160,8 @@ export default function Leads() {
                   </Button>
                 )}
 
-                {/* ── Dados do Lead ─────────────────────────────────────── */}
+                {/* Dados Lead */}
                 <div className="mb-4">
-                  {/* ✅ Badge tone="brand" variant="soft" substitui classes bg-orange-50/text-orange-600 */}
                   <Badge tone="brand" variant="soft" className="mb-3 rounded-lg">
                     {lead.agenda?.atividade}
                   </Badge>
@@ -179,7 +169,6 @@ export default function Leads() {
                   <p className="text-xs font-bold text-muted-foreground mt-1">Realizou em: {formatarData(lead.data_checkin)}</p>
                 </div>
 
-                {/* ✅ Surface variant="muted" substitui bg-gray-50 com border hardcoded */}
                 <Surface variant="muted" padding="sm" className="mb-6 flex items-center gap-3 rounded-xl border border-border">
                   <MessageCircle size={18} className={lead.telefone_visitante ? "text-success" : "text-muted-foreground"} />
                   <span className={`text-sm font-bold ${lead.telefone_visitante ? "text-foreground" : "text-muted-foreground italic"}`}>
@@ -187,9 +176,8 @@ export default function Leads() {
                   </span>
                 </Surface>
 
-                {/* ── Ações do Card ─────────────────────────────────────── */}
+                {/* Ações do Card */}
                 <div className="flex gap-2 mt-auto">
-                  {/* ✅ Button variant="success" substitui bg-green-500 hardcoded */}
                   <Button
                     variant="success"
                     size="md"
@@ -200,7 +188,6 @@ export default function Leads() {
                   >
                     Contatar
                   </Button>
-                  {/* ✅ Button variant="info" substitui bg-blue-600 hardcoded */}
                   <Button
                     variant="info"
                     size="md"
@@ -218,13 +205,11 @@ export default function Leads() {
 
       ) : (
 
-        /* ── Visão Histórico (Tabela) ───────────────────────────────────── */
-        /* ✅ Surface variant="card" padding="none" substitui bg-white com border e shadow */
+        /* Visão Histórico */
         <Surface variant="card" padding="none" className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                {/* ✅ bg-muted substitui bg-gray-50 */}
                 <tr className="bg-muted text-muted-foreground text-[11px] uppercase tracking-wider border-b border-border">
                   <th className="p-4 font-black">Data da Aula</th>
                   <th className="p-4 font-black">Visitante</th>
@@ -240,13 +225,11 @@ export default function Leads() {
                     <td className="p-4 text-sm font-black text-foreground">{lead.nome_visitante}</td>
                     <td className="p-4 text-sm font-medium text-muted-foreground">{lead.telefone_visitante || '-'}</td>
                     <td className="p-4">
-                      {/* ✅ Badge tone="neutral" para modalidade */}
                       <Badge tone="neutral" variant="soft" className="rounded-md">
                         {lead.agenda?.atividade}
                       </Badge>
                     </td>
                     <td className="p-4">
-                      {/* ✅ Badge com tone semântico substitui classes hardcoded */}
                       {lead.status_conversao === 'convertido' && (
                         <Badge tone="success" variant="soft">
                           <CheckCircle size={12} /> Convertido
@@ -278,7 +261,6 @@ export default function Leads() {
                 <tfoot>
                   <tr>
                     <td colSpan="5" className="p-4 bg-muted/40 text-center border-t border-border">
-                      {/* ✅ Button variant="outline" size="sm" */}
                       <Button
                         variant="outline"
                         size="sm"

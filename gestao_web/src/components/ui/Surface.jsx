@@ -1,15 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-/**
- * Superfície semântica. Substitui bg-white / bg-gray-50 espalhados.
- *
- * variant:
- *  - card     : superfície principal (bg-card, com sombra suave)
- *  - muted    : superfície secundária (bg-muted, sem sombra)
- *  - elevated : card com sombra mais marcada
- *  - flat     : sem sombra, sem fundo (apenas borda)
- */
 const VARIANTS = {
   card: 'bg-card text-card-foreground border border-border shadow-card',
   muted: 'bg-muted text-foreground',

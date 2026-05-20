@@ -46,7 +46,6 @@ export default function Agenda() {
   const { perfil } = useOutletContext();
   const isAdmin = perfil === 'admin';
 
-  // 1. Estados e Hooks
   const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
@@ -59,13 +58,11 @@ export default function Agenda() {
   const pageState = useAgendaPage();
   const dadosMes = useAgendaDadosMes(pageState.currentDate);
 
-  // 2. Modais
   const modais = {
     novaAula: useModal(), agendamento: useModal(), lista: useModal(),
     acoesEvento: useModal(), feriados: useModal(), excluir: useModal(), encerrar: useModal(),
   };
 
-  // 3. Handlers de Domínio
   const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados);
   const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen);
   const hookFeriados = useFeriados(refetch);
@@ -78,7 +75,6 @@ export default function Agenda() {
     },
   });
 
-  // 4. Efeitos
   useEffect(() => {
     Promise.all([gradeService.listarProfessores(), gradeService.listarModalidades(), gradeService.listarMatriculasFixas()])
       .then(([professores, modalidades, matriculasFixas]) =>
@@ -103,7 +99,6 @@ export default function Agenda() {
     modais.novaAula.abrir();
   };
 
-  // Tokens semânticos para botões (mantém botões nativos para preservar comportamento)
   const btnBase = 'px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-colors disabled:opacity-50';
   const btnSecondary = `${btnBase} bg-muted text-muted-foreground hover:bg-subtle`;
   const btnInfo = `${btnBase} bg-info text-info-foreground hover:bg-info/90`;

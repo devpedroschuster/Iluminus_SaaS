@@ -12,7 +12,7 @@ const fim    = paraUTC(filtros.ano, filtros.mes,     0);
       return await financeiroService.listarMensalidades(inicio, fim);
     },
     keepPreviousData: true,
-    staleTime: 1000 * 60 * 5, // Cache de 5 minutos
+    staleTime: 1000 * 60 * 5,
   });
 
   return { 

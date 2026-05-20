@@ -4,13 +4,13 @@ import { supabase } from './lib/supabase';
 import { RefreshCw, Menu } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-// Hooks e Componentes
+
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
-// Páginas do Painel Administrativo
+
 import Login from './pages/Login';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/Dashboard';
@@ -41,7 +41,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-// LAYOUT HEADER MOBILE
 const LayoutComSidebar = ({ perfil }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
@@ -67,7 +66,6 @@ const LayoutComSidebar = ({ perfil }) => {
     </div>
   );
 };
-// PROTEÇÃO DE ROTAS
 const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
   if (!sessao) return <Navigate to="/" replace />;
   if (allowedRoles && !allowedRoles.includes(perfil)) {

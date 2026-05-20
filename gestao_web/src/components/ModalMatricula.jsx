@@ -51,7 +51,6 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     try {
       const planoAtivo = planos.find(p => p.id === planoSelecionado);
       
-      // 1. Atualizar Aluno com o novo Plano e Modalidades
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
@@ -63,7 +62,6 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
 
       if (errAluno) throw errAluno;
 
-      // 2. Gerar a primeira Fatura com a Data Combinada
       const { error: errFatura } = await supabase
         .from('faturas')
         .insert([{
@@ -89,7 +87,6 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
     }
   };
 
-  // Estado de Carregamento integrado ao Design System
   if (loading) {
     return (
       <Modal aberto={true} fechar={onClose} hideClose size="sm">

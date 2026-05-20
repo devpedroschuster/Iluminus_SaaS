@@ -7,8 +7,6 @@ import {
 
 export function useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
   
-  // 1. Memorizar os Dicionários (Indexes) isoladamente.
-  // Só serão refeitos se os dados do banco mudarem, e NÃO ao navegar nas semanas.
   const indexes = useMemo(() => {
     return {
       presencasMap: buildPresencasIndex(presencasCalendario || []),
@@ -17,12 +15,10 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     };
   }, [presencasCalendario, matriculasFixas, excecoesCalendario]);
 
-  // 2. Memorizar os Feriados
   const eventosFeriados = useMemo(() => {
     return gerarEventosFeriados(feriados || []);
   }, [feriados]);
 
-  // 3. Memorizar apenas as Aulas Filtradas
   const aulasFiltradas = useMemo(() => {
     if (!aulas) return [];
     return aulas.filter(aula => {
@@ -33,7 +29,6 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     });
   }, [aulas, filtroProf, filtroEspaco]);
 
-  // 4. Memorizar os Limites de Data da Visão Atual
   const limitesVisiveis = useMemo(() => {
     if (currentView === 'day') {
       return { inicio: currentDate, fim: currentDate };
@@ -50,7 +45,6 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     }
   }, [currentDate, currentView]);
 
-  // 5. Geração final dos eventos (apenas recalcula quando muda a semana ou os filtros)
   return useMemo(() => {
     if (!aulasFiltradas.length) return eventosFeriados;
 

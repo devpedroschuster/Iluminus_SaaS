@@ -91,7 +91,7 @@ export default function Aniversariantes() {
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
-      {/* ── Cabeçalho da página ── */}
+      {/* Cabeçalho da página */}
       <div>
         <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
           <PartyPopper className="text-primary" size={32} /> Aniversariantes
@@ -101,7 +101,7 @@ export default function Aniversariantes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── COLUNA ESQUERDA: próximos aniversários ── */}
+        {/* COLUNA ESQUERDA */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-gradient-to-br from-primary to-primary/80 rounded-[32px] p-6 text-primary-foreground shadow-brand">
             <div className="flex items-center gap-3 mb-6">
@@ -138,7 +138,6 @@ export default function Aniversariantes() {
                     </div>
                     <div className="text-right">
                       {aluno.isHoje ? (
-                        /* Badge "É Hoje!" — usa tokens do card: bg-card text-primary */
                         <span className="bg-card text-primary font-black text-[10px] uppercase px-2 py-1 rounded-lg animate-pulse">
                           É Hoje!
                         </span>
@@ -155,7 +154,7 @@ export default function Aniversariantes() {
           </div>
         </div>
 
-        {/* ── COLUNA DIREITA: calendário anual ── */}
+        {/* COLUNA DIREITA */}
         <Surface
           variant="card"
           padding="none"
@@ -239,7 +238,6 @@ export default function Aniversariantes() {
                           >
                             {aluno.nome_completo}
                           </h4>
-                          {/* Badge de idade — usa o componente Badge do DS */}
                           <Badge tone="brand" variant="soft" className="mt-1">
                             {aluno.anosFazendo} anos
                           </Badge>
@@ -257,7 +255,7 @@ export default function Aniversariantes() {
                         {aluno.planos?.nome || 'Sem plano'}
                       </span>
 
-                      {/* Botão WhatsApp — usa Button do DS */}
+                      {/* Botão WhatsApp */}
                       <Button
                         variant="success"
                         size="sm"

@@ -1,4 +1,3 @@
-// src/services/alunosService.js
 import { supabase } from '../lib/supabase';
 
 export const alunosService = {
@@ -143,14 +142,12 @@ async buscarPerfilCompleto(alunoId) {
 
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
-      // 1. Finaliza o plano antigo no histórico
       await supabase
         .from('historico_planos')
         .update({ status: 'finalizado' })
         .eq('aluno_id', alunoId)
         .eq('status', 'ativo');
 
-      // 2. Registra o novo período no histórico
       const { error: errHist } = await supabase
         .from('historico_planos')
         .insert([{
@@ -164,7 +161,6 @@ async buscarPerfilCompleto(alunoId) {
       
       if (errHist) throw errHist;
 
-      // 3. Atualiza o cadastro principal do aluno
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
@@ -175,7 +171,6 @@ async buscarPerfilCompleto(alunoId) {
 
       if (errAluno) throw errAluno;
 
-      // O vencimento é definido como a data de início do novo plano
       const { error: errMensalidade } = await supabase
         .from('mensalidades')
         .insert([{

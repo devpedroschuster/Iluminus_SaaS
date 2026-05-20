@@ -1,6 +1,4 @@
-/* ══════════════════════════════════════════
-   RESET & BASE (Blindado contra vazamentos)
-══════════════════════════════════════════ */
+/* RESET & BASE */
 :root {
   --pri:   #D98E73;
   --pri-d: #C07558;
@@ -30,7 +28,6 @@
   --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
-/* O "body" e "*" foram substituídos pelo escopo exato das nossas páginas */
 :is(#page-landing, #page-dashboard) {
   font-family: var(--font-body);
   background: var(--bg);
@@ -43,16 +40,10 @@
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* ══════════════════════════════════════════
-   TYPOGRAPHY
-══════════════════════════════════════════ */
+/* TIPOGRAFIA */
 :is(#page-landing, #page-dashboard) .display { font-family: var(--font-display); }
 
-/* (Utilitários como .flex e .hidden foram removidos pois o Tailwind já os possui) */
-
-/* ══════════════════════════════════════════
-   COMPONENTS (Com Prefixo de Segurança)
-══════════════════════════════════════════ */
+/* COMPONENTS */
 :is(#page-landing, #page-dashboard) .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 28px; border-radius: var(--r-sm);
@@ -113,9 +104,7 @@
 .inp.error { border-color: var(--err); background: #FFF5F2; }
 .inp-err { font-size: 12px; color: var(--err); font-weight: 600; margin-top: 6px; }
 
-/* ══════════════════════════════════════════
-   ANIMATIONS
-══════════════════════════════════════════ */
+/* ANIMATIONS */
 @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 @keyframes slideUp { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
@@ -131,9 +120,7 @@
 .s1 { animation-delay: .05s; } .s2 { animation-delay: .1s; }
 .s3 { animation-delay: .15s; } .s4 { animation-delay: .2s; }
 
-/* ══════════════════════════════════════════
-   LANDING — ESPECÍFICOS (Seguros)
-══════════════════════════════════════════ */
+/* LANDING — ESPECÍFICOS */
 #page-landing { min-height: 100vh; }
 .navbar { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; background: rgba(253,248,245,.92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
 .nav-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
@@ -215,12 +202,9 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 6
 .modal-footer { text-align: center; margin-top: 20px; font-size: 14px; color: var(--muted); }
 .modal-footer a { color: var(--pri); font-weight: 700; cursor: pointer; }
 
-/* ══════════════════════════════════════════
-   DASHBOARD LAYOUT (Blindado contra vazamentos)
-══════════════════════════════════════════ */
+/* DASHBOARD LAYOUT */
 #page-dashboard { display: flex; height: 100vh; overflow: hidden; }
 
-/* O prefixo impede que essas classes alterem o painel administrativo */
 :is(#page-landing, #page-dashboard) .sidebar {
   width: 268px; background: var(--white); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 24px 14px; flex-shrink: 0;
@@ -268,7 +252,6 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 6
 :is(#page-landing, #page-dashboard) .main-header-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 :is(#page-landing, #page-dashboard) .main-body { padding: 36px 40px; }
 
-/* ... o resto do CSS permanece igualzinho ... */
 .day-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
 .day-tab { padding: 10px 22px; border-radius: var(--r-sm); border: 1.5px solid var(--border); font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; background: var(--white); transition: all .18s; }
 .day-tab:hover { border-color: var(--pri-l); color: var(--txt); }

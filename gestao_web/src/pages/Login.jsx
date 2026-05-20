@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
-// Componentes e Utils
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal } from '../components/ui/Modal';
 
@@ -16,7 +15,7 @@ export default function Login() {
   const navigate = useNavigate();
   const modalRecuperar = useModal();
 
-  // LÓGICA DE LOGIN
+  // LOGIN
   async function handleLogin(e) {
     e.preventDefault();
     if (loading) return;

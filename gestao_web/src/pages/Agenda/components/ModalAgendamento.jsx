@@ -12,7 +12,6 @@ export default function ModalAgendamento({
   return (
     <>
       <form onSubmit={(e) => handleAgendarAluno(e)} className="space-y-4 pt-2">
-        {/* Toggle de Tipo de Aluno */}
         <div className="flex bg-muted p-1 rounded-2xl mb-4 border border-border">
           <button 
             type="button" 
@@ -84,7 +83,6 @@ export default function ModalAgendamento({
           />
         </div>
 
-        {/* Feedback de Vagas Integrado aos Tokens */}
         <div className="min-h-[60px] animate-in fade-in">
           {verificandoVaga ? (
             <div className="flex items-center justify-center p-3 text-muted-foreground text-xs font-bold gap-2"><RefreshCw size={14} className="animate-spin"/> Verificando créditos e vagas...</div>

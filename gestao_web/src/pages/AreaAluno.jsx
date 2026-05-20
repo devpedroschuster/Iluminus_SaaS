@@ -355,7 +355,6 @@ export default function AreaAluno() {
                     const lotado = vagasRestantes <= 0;
                     const estaProcessando = processandoId === aula.id;
 
-                    // Lógica de limite
                     const aulaArea = aula.modalidades?.area;
                     const regraDestaAula = regrasPlano.find(r => r.modalidade === aulaArea);
                     

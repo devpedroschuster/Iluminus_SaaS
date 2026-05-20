@@ -1,16 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-/**
- * Wrapper único para inputs/selects/textareas.
- * Resolve cor de fundo, borda, foco, placeholder em light + dark de uma vez.
- *
- * Uso:
- *   <Input value={...} onChange={...} placeholder="Email" />
- *   <Input as="select"><option/></Input>
- *   <Input as="textarea" rows={4} />
- *   <Input leftIcon={<Mail size={16}/>} />
- */
 export const inputBaseClass = cn(
   'w-full rounded-xl border border-border bg-input text-foreground',
   'placeholder:text-muted-foreground',
@@ -55,7 +45,6 @@ const Input = React.forwardRef(function Input(
 
 export default Input;
 
-/** Atalho útil para labels de formulário */
 export function Label({ children, htmlFor, className, required }) {
   return (
     <label

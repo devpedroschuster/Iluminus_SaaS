@@ -5,18 +5,15 @@ serve(async (req) => {
   try {
     console.log("🤖 Robô de Lembretes Iniciado!");
 
-    // Conecta no banco de dados
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Calcula a data de amanhã
     const amanha = new Date();
     amanha.setDate(amanha.getDate() + 1);
     const dataIso = amanha.toISOString().split('T')[0];
     console.log(`📅 Buscando aulas para o dia: ${dataIso}`);
 
-    // Busca quem tem aula amanhã
     const { data: agendamentos, error } = await supabase
       .from('presencas')
       .select(`
@@ -34,11 +31,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({ message: "Nenhuma aula para amanhã" }), { status: 200 });
     }
 
-    // Prepara a lista de mensagens para o Expo
     const notificacoes = [];
 
     for (const ag of agendamentos) {
-      // Só cria a mensagem se o aluno tiver o token salvo
       if (ag.alunos?.push_token) {
         const primeiroNome = ag.alunos.nome_completo.split(' ')[0];
         const horario = ag.agenda.horario.substring(0, 5);
@@ -52,7 +47,6 @@ serve(async (req) => {
       }
     }
 
-    // Dispara tudo de uma vez para os servidores do Expo
     if (notificacoes.length > 0) {
       console.log(`🚀 Enviando ${notificacoes.length} notificações...`);
       await fetch('https://exp.host/--/api/v2/push/send', {

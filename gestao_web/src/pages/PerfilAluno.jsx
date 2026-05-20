@@ -8,7 +8,7 @@ import {
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
 import ModalRenovarPlano from '../components/ModalRenovarPlano';
-// Design System
+
 import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -121,7 +121,6 @@ export default function PerfilAluno() {
     }
   }
 
-  // Abas
   const abas = [
     { id: 'resumo',    label: 'Dados Gerais',    icon: <FileText size={18} /> },
     { id: 'planos',    label: 'Histórico',        icon: <CreditCard size={18} /> },

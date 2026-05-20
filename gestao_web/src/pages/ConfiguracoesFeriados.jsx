@@ -44,7 +44,7 @@ export default function ConfiguracoesFeriados() {
   return (
     <div className="max-w-4xl mx-auto p-8 animate-in fade-in">
 
-      {/* ── Cabeçalho ── */}
+      {/* Cabeçalho */}
       <div className="mb-8">
         <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
           <Calendar className="text-primary" />
@@ -55,10 +55,10 @@ export default function ConfiguracoesFeriados() {
         </p>
       </div>
 
-      {/* ── Card principal ── */}
+      {/* Card principal */}
       <Surface variant="card" padding="xl" className="flex flex-col md:flex-row items-center gap-8">
 
-        {/* Coluna esquerda — controles */}
+        {/* Coluna esquerda */}
         <div className="flex-1 space-y-4">
           <h2 className="text-lg font-bold text-foreground">
             Importação Automática (Brasil API)
@@ -70,7 +70,6 @@ export default function ConfiguracoesFeriados() {
           </p>
 
           <div className="flex items-center gap-4 pt-4">
-            {/* Select DS */}
             <Input
               as="select"
               value={ano}
@@ -82,7 +81,6 @@ export default function ConfiguracoesFeriados() {
               ))}
             </Input>
 
-            {/* Botão DS brand */}
             <Button
               variant="brand"
               size="lg"
@@ -95,7 +93,7 @@ export default function ConfiguracoesFeriados() {
           </div>
         </div>
 
-        {/* Coluna direita — bloco informativo (tokens DS) */}
+        {/* Coluna direita */}
         <div className="w-full md:w-1/3 bg-primary-soft rounded-3xl p-6 border border-primary/20">
           <div className="flex items-center gap-2 text-foreground font-black mb-2">
             <AlertCircle size={20} className="text-primary" />
@@ -108,7 +106,7 @@ export default function ConfiguracoesFeriados() {
         </div>
       </Surface>
 
-      {/* ── Resultado da importação ── */}
+      {/* Resultado da importação */}
       {feriadosImportados.length > 0 && (
         <Surface
           variant="card"

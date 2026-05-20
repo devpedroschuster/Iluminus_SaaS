@@ -57,7 +57,6 @@ export default {
           soft: 'hsl(var(--purple-soft))',
         },
 
-        // Apelido legado
         'iluminus-amarelo': 'hsl(var(--primary))',
         'iluminus-fundo': 'hsl(var(--background))',
       },

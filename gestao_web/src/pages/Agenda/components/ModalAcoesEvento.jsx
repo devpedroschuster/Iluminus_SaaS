@@ -8,12 +8,10 @@ import Button from '../../../components/ui/Button';
 export default function ModalAcoesEvento({ evento, isAdmin, onAgendar, onChamada, onEditar, onEncerrar, onExcluir }) {
   if (!evento) return null;
 
-  // brand colors — not themed by design (Cores de conteúdo da agenda)
   const corTema = PALETA_CORES.find(c => c.id === (evento.dadosOriginais.cor || 'laranja')) || PALETA_CORES[0];
 
   return (
     <div className="space-y-4 pt-2">
-      {/* Banner Temático da Aula */}
       <div className="p-5 rounded-2xl border" style={{ backgroundColor: corTema.bg, borderColor: corTema.border }}>
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-black text-xl" style={{ color: corTema.text }}>{evento.title}</h3>

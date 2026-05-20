@@ -68,7 +68,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         payload.modalidade_nome = form.modalidade_nome;
       }
 
-      await financeiroService.adicionarTransacao(payload);
+      await financeiroService.adicionarPagamentoManual(payload);
       showToast.success("Recebimento registrado com sucesso!");
       onSucesso();
       onClose();

@@ -33,7 +33,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
   async function carregarDados() {
     const { data: a } = await supabase.from('alunos').select('id, nome_completo, plano_id').order('nome_completo');
-    const { data: p } = await supabase.from('planos').select('id, nome, valor_mensal, modalidade_nome');
+    const { data: p } = await supabase.from('planos').select('id, nome, preco');
     const { data: profs } = await supabase.from('professores').select('id, nome');
     
     if (a) setAlunos(a);
@@ -59,8 +59,6 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
       if (form.tipo_aula === 'regular' && form.plano_id) {
         payload.plano_id = form.plano_id;
-        const planoSelecionado = planos.find(p => p.id === form.plano_id);
-        if (planoSelecionado) payload.modalidade_nome = planoSelecionado.modalidade_nome;
       }
 
       if (form.tipo_aula === 'avulsa') {

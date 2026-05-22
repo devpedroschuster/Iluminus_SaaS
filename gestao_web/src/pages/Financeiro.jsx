@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DollarSign, TrendingUp, CreditCard, Smartphone, 
-  Banknote, Clock, CheckCircle, Search, RefreshCw, AlertCircle, Calendar, FileSpreadsheet, Plus
+  Banknote, Clock, CheckCircle, Search, RefreshCw, AlertCircle, Calendar, FileSpreadsheet, Plus,
+  Pencil, Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
@@ -39,6 +40,14 @@ export default function Financeiro() {
   const modalResultado = useModal();
   const modalGerarMensalidades = useModal();
   const [modalAddOpen, setModalAddOpen] = useState(false);
+
+  const modalEditar = useModal();
+  const modalExcluir = useModal();
+  const [lancamentoEditando, setLancamentoEditando] = useState(null);
+  const [lancamentoExcluindo, setLancamentoExcluindo] = useState(null);
+  const [formEdicao, setFormEdicao] = useState({});
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
   const [valorPago, setValorPago] = useState('');
@@ -125,6 +134,73 @@ export default function Financeiro() {
       showToast.error('Erro ao gerar cobranças');
     } finally {
       setGerando(false);
+    }
+  };
+
+  const handleAbrirEdicao = (item) => {
+    setLancamentoEditando(item);
+    setFormEdicao({
+      valor_pago: item.valor_pago !== null ? item.valor_pago : (item.planos?.preco || ''),
+      forma_pagamento: item.forma_pagamento || '',
+      data_vencimento: item.data_vencimento || '',
+      status: item.status || 'pendente',
+    });
+    modalEditar.abrir();
+  };
+
+  const handleSalvarEdicao = async (e) => {
+    e.preventDefault();
+    setSalvandoEdicao(true);
+    try {
+      const payload = {
+        data_vencimento: formEdicao.data_vencimento,
+        status: formEdicao.status,
+        forma_pagamento: formEdicao.forma_pagamento || null,
+        valor_pago: formEdicao.valor_pago !== '' ? parseFloat(String(formEdicao.valor_pago).replace(/\./g, '').replace(',', '.')) : null,
+      };
+      // Se voltando para pendente, limpa dados de pagamento
+      if (formEdicao.status === 'pendente') {
+        payload.valor_pago = null;
+        payload.forma_pagamento = null;
+        payload.data_pagamento = null;
+      }
+      const { error } = await supabase
+        .from('mensalidades')
+        .update(payload)
+        .eq('id', lancamentoEditando.id);
+      if (error) throw error;
+      showToast.success('Lançamento atualizado com sucesso!');
+      refetch();
+      modalEditar.fechar();
+    } catch (error) {
+      showToast.error('Erro ao atualizar lançamento');
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  };
+
+  const handleAbrirExclusao = (item) => {
+    setLancamentoExcluindo(item);
+    modalExcluir.abrir();
+  };
+
+  const handleConfirmarExclusao = async () => {
+    setExcluindo(true);
+    try {
+      // Remove repasses vinculados primeiro
+      await supabase.from('repasses').delete().eq('mensalidade_id', lancamentoExcluindo.id);
+      const { error } = await supabase
+        .from('mensalidades')
+        .delete()
+        .eq('id', lancamentoExcluindo.id);
+      if (error) throw error;
+      showToast.success('Lançamento excluído com sucesso!');
+      refetch();
+      modalExcluir.fechar();
+    } catch (error) {
+      showToast.error('Erro ao excluir lançamento');
+    } finally {
+      setExcluindo(false);
     }
   };
 
@@ -224,7 +300,7 @@ export default function Financeiro() {
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Pagamento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
-                <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ação</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -259,15 +335,34 @@ export default function Financeiro() {
                     </Badge>
                   </td>
                   <td className="p-4 text-right">
-                    {item.status !== 'pago' && (
+                    <div className="flex items-center justify-end gap-1">
+                      {item.status !== 'pago' && (
+                        <Button
+                          variant="brand"
+                          size="sm"
+                          onClick={() => handleAbrirPagamento(item)}
+                        >
+                          Receber
+                        </Button>
+                      )}
                       <Button
-                        variant="brand"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleAbrirPagamento(item)}
+                        onClick={() => handleAbrirEdicao(item)}
+                        title="Editar lançamento"
                       >
-                        Receber
+                        <Pencil size={15} />
                       </Button>
-                    )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAbrirExclusao(item)}
+                        title="Excluir lançamento"
+                        className="text-destructive hover:text-destructive hover:bg-destructive-soft"
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -383,6 +478,102 @@ export default function Financeiro() {
         isOpen={modalAddOpen} 
         onClose={() => setModalAddOpen(false)}
         onSucesso={refetch} 
+      />
+
+      {/* Modal Editar Lançamento */}
+      <Modal isOpen={modalEditar.isOpen} onClose={modalEditar.fechar} titulo="Editar Lançamento">
+        {lancamentoEditando && (
+          <form onSubmit={handleSalvarEdicao} className="space-y-5">
+            <Surface variant="muted" padding="md">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Aluno</p>
+              <p className="font-black text-foreground text-lg mt-0.5">
+                {lancamentoEditando.alunos?.nome_completo || lancamentoEditando.nome_visitante || 'Visitante'}
+              </p>
+            </Surface>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Status
+                </label>
+                <Input
+                  as="select"
+                  value={formEdicao.status}
+                  onChange={(e) => setFormEdicao({ ...formEdicao, status: e.target.value })}
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                </Input>
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Vencimento
+                </label>
+                <Input
+                  type="date"
+                  value={formEdicao.data_vencimento}
+                  onChange={(e) => setFormEdicao({ ...formEdicao, data_vencimento: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Valor Pago (R$)
+                </label>
+                <Input
+                  type="text"
+                  value={formEdicao.valor_pago}
+                  onChange={(e) => setFormEdicao({ ...formEdicao, valor_pago: e.target.value })}
+                  placeholder="0,00"
+                  disabled={formEdicao.status === 'pendente'}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Forma de Pagamento
+                </label>
+                <SelectFormaPagamento
+                  value={formEdicao.forma_pagamento}
+                  onChange={(v) => setFormEdicao({ ...formEdicao, forma_pagamento: v })}
+                  disabled={formEdicao.status === 'pendente'}
+                />
+              </div>
+            </div>
+
+            {formEdicao.status === 'pendente' && (
+              <Surface variant="muted" padding="sm">
+                <p className="text-xs text-muted-foreground">
+                  Ao definir como <strong>Pendente</strong>, os dados de pagamento serão removidos.
+                </p>
+              </Surface>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="secondary" fullWidth onClick={modalEditar.fechar}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="brand" fullWidth disabled={salvandoEdicao}>
+                {salvandoEdicao ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Modal Confirmar Exclusão */}
+      <ModalConfirmacao
+        isOpen={modalExcluir.isOpen}
+        onClose={modalExcluir.fechar}
+        onConfirm={handleConfirmarExclusao}
+        titulo="Excluir Lançamento"
+        mensagem={
+          lancamentoExcluindo
+            ? `Deseja excluir o lançamento de ${lancamentoExcluindo.alunos?.nome_completo || lancamentoExcluindo.nome_visitante || 'Visitante'}? Esta ação também removerá os repasses vinculados e não pode ser desfeita.`
+            : 'Deseja excluir este lançamento?'
+        }
       />
     </div>
   );

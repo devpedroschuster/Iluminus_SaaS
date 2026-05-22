@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, DownloadCloud, AlertCircle, CheckCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { feriadosService } from '../services/feriadosService';
 import { showToast } from '../components/shared/Toast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -14,25 +14,9 @@ export default function ConfiguracoesFeriados() {
   const importarDaBrasilAPI = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${ano}`);
-      if (!response.ok) throw new Error('Erro na Brasil API');
-
-      const dadosApi = await response.json();
-
-      const feriadosFormatados = dadosApi.map(f => ({
-        data: f.date,
-        descricao: f.name + ' (Feriado Nacional)',
-        bloqueia_agenda: true,
-      }));
-
-      const { error } = await supabase
-        .from('feriados')
-        .upsert(feriadosFormatados, { onConflict: 'data', ignoreDuplicates: true });
-
-      if (error) throw error;
-
-      setFeriadosImportados(dadosApi);
-      showToast.success(`${dadosApi.length} feriados nacionais de ${ano} importados para a agenda!`);
+      const feriadosInseridos = await feriadosService.importarFeriadosNacionais(ano);
+      setFeriadosImportados(feriadosInseridos);
+      showToast.success(`${feriadosInseridos.length} feriados nacionais de ${ano} importados para a agenda!`);
     } catch (error) {
       console.error(error);
       showToast.error('Não foi possível importar os feriados. Tente novamente.');
@@ -126,10 +110,10 @@ export default function ConfiguracoesFeriados() {
                 {feriadosImportados.map((f, i) => (
                   <tr key={i} className="hover:bg-muted/50 transition-colors">
                     <td className="p-4 pl-6 font-bold text-foreground w-32">
-                      {new Date(f.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      {new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR')}
                     </td>
                     <td className="p-4 font-medium text-muted-foreground">
-                      {f.name}
+                      {f.descricao}
                     </td>
                     <td className="p-4 pr-6 text-right">
                       <span className="bg-muted text-muted-foreground text-[10px] font-black uppercase px-3 py-1 rounded-full border border-border">

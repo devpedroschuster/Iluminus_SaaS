@@ -43,6 +43,15 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function Spinner() {
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-background">
+      <RefreshCw className="animate-spin text-primary" size={48} />
+    </div>
+  );
+}
+
 const LayoutComSidebar = ({ perfil }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
@@ -68,8 +77,10 @@ const LayoutComSidebar = ({ perfil }) => {
     </div>
   );
 };
-const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
-  if (!sessao) return <Navigate to="/" replace />;
+
+const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
+  if (loading) return <Spinner />;
+  if (!sessao || perfil === null) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(perfil)) {
     if (perfil === 'aluno') return <Navigate to="/area-aluno" replace />;
     if (perfil === 'professor') return <Navigate to="/agenda" replace />;
@@ -80,13 +91,9 @@ const RotaPrivada = ({ sessao, perfil, allowedRoles }) => {
 
 export default function App() {
   const { sessao, perfil, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <RefreshCw className="animate-spin text-primary" size={48} />
-      </div>
-    );
-  }
+
+  if (loading) return <Spinner />;
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
@@ -114,19 +121,19 @@ export default function App() {
             } />
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
             {/* Rotas de Aluno */}
-            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['aluno']} />}>
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['aluno']} />}>
                <Route path="/area-aluno" element={<AreaAluno />} />
             </Route>
             {/* Rotas Compartilhadas (Admin e Professor) */}
-            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin', 'professor']} />}>
-  <Route element={<LayoutComSidebar perfil={perfil} />}>
-    <Route path="/agenda"               element={<Agenda />} />
-    <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
-    <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
-  </Route>
-</Route>
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin', 'professor']} />}>
+              <Route element={<LayoutComSidebar perfil={perfil} />}>
+                <Route path="/agenda"               element={<Agenda />} />
+                <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
+                <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
+              </Route>
+            </Route>
             {/* Rotas Exclusivas do Admin */}
-            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} allowedRoles={['admin']} />}>
+            <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin']} />}>
               <Route element={<LayoutComSidebar perfil={perfil} />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/leads" element={<Leads />} />
@@ -151,7 +158,7 @@ export default function App() {
         </BrowserRouter>
         </ThemeProvider>
       </ErrorBoundary>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

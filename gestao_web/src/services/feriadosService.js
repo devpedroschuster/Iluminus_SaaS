@@ -10,8 +10,8 @@ export const feriadosService = {
 
       const feriadosFormatados = feriadosApi.map(f => ({
         data: f.date,
-        nome: f.name,
-        tipo: 'nacional'
+        descricao: `${f.name} (Feriado Nacional)`,
+        bloqueia_agenda: true,
       }));
 
       const { data, error } = await supabase
@@ -37,6 +37,6 @@ export const feriadosService = {
       .order('data', { ascending: true });
 
     if (error) throw error;
-    return data;
+    return data ?? [];
   }
 };

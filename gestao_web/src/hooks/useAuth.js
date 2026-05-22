@@ -48,11 +48,12 @@ export function useAuth() {
         }
 
         perfilJaCarregado.current = true;
-        setPerfil('admin');
+        console.warn("Nenhum perfil encontrado para:", email);
+        setPerfil(null);
       } catch (error) {
         console.error("Erro fatal ao carregar perfil:", error);
         perfilJaCarregado.current = true;
-        setPerfil('admin'); 
+        setPerfil(null);
       } finally {
         setLoading(false);
       }
@@ -67,6 +68,9 @@ export function useAuth() {
         perfilJaCarregado.current = false;
         setSessao(null);
         setPerfil(null);
+      } else if (event === 'SIGNED_IN') {
+        perfilJaCarregado.current = false;
+        carregarPerfilUsuario(session);
       } else {
         carregarPerfilUsuario(session);
       }

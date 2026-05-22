@@ -21,7 +21,7 @@ import ModalMatricula from '../components/ModalMatricula';
 export default function Alunos() {
   const navigate = useNavigate();
   const [busca, setBusca] = useState('');
-  const [filtroRole, setFiltroRole] = useState('todos');
+  const [filtroRole, setFiltroRole] = useState('aluno');
 
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const [modalMatriculaAberto, setModalMatriculaAberto] = useState(false);

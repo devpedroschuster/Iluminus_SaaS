@@ -117,7 +117,7 @@ export default function Financeiro() {
   const handleGerarMensalidades = async () => {
     setGerando(true);
     try {
-      await financeiroService.gerarMensalidades(filtros.mes - 1, filtros.ano);
+      await financeiroService.gerarMensalidades(filtros.mes, filtros.ano);
       showToast.success('Cobranças geradas para os alunos ativos!');
       refetch();
       modalGerarMensalidades.fechar();

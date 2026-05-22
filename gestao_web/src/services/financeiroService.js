@@ -18,7 +18,22 @@ export const financeiroService = {
     return data;
   },
 
-  async gerarMensalidades(mes, ano) {
+  /**
+   * Gera mensalidades para um determinado mês/ano.
+   *
+   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
+   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
+   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
+   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
+   */
+  async gerarMensalidades(mesNumero, ano) {
+    if (mesNumero < 1 || mesNumero > 12) {
+      throw new Error(
+        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
+        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
+      );
+    }
+
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, plano_id')
@@ -43,15 +58,16 @@ export const financeiroService = {
 
     alunos.forEach(aluno => {
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
-      
+
       if (ultimaDataStr) {
         const d = new Date(ultimaDataStr + 'T12:00:00');
         d.setDate(d.getDate() + 30);
-        
+
         const proximaData = d.toISOString().split('T')[0];
+
         const [pAno, pMes] = proximaData.split('-').map(Number);
 
-        if (pAno === ano && pMes === (mes + 1)) {
+        if (pAno === ano && pMes === mesNumero) {
           novasCobrancas.push({
             aluno_id: aluno.id,
             plano_id: aluno.plano_id,
@@ -68,24 +84,24 @@ export const financeiroService = {
         .insert(novasCobrancas);
       if (errInsert) throw errInsert;
     }
-    
+
     return true;
   },
 
   async adicionarPagamentoManual(dados) {
     const payload = {
-      aluno_id: dados.aluno_id ? dados.aluno_id : null, 
+      aluno_id: dados.aluno_id ? dados.aluno_id : null,
       nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
       plano_id: dados.plano_id ? dados.plano_id : null,
       professor_id: dados.professor_id ? dados.professor_id : null,
       modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
-      
+
       tipo_aula: dados.tipo_aula,
       valor_pago: Number(dados.valor_pago),
       status: dados.status || 'pago',
-      
+
       forma_pagamento: dados.forma_pagamento,
-      
+
       data_vencimento: dados.data_vencimento,
       data_pagamento: dados.status === 'pago' ? dados.data_vencimento : null,
     };
@@ -109,24 +125,23 @@ export const financeiroService = {
   },
 
   async confirmarPagamento(id, dados) {
-      const payload = {
-        status: 'pago',
-        valor_pago: dados.valor_pago,
-        forma_pagamento: dados.forma_pagamento,
-        metodo_pagamento: dados.forma_pagamento,
-        tipo_aula: dados.tipo_aula || 'regular',
-        professor_id: dados.professor_id || null,
-        modalidade_nome: dados.modalidade_nome || null,
-        data_pagamento: new Date().toISOString().split('T')[0],
-      };
-  
-      const { error } = await supabase
-        .from('mensalidades')
-        .update(payload)
-        .eq('id', id);
-      if (error) throw error;
-  
-      const resultado = await gerarRepassesDaMensalidade(id);
-      return { ok: true, resultado };
-    },
-  };
+    const payload = {
+      status: 'pago',
+      valor_pago: dados.valor_pago,
+      forma_pagamento: dados.forma_pagamento,
+      tipo_aula: dados.tipo_aula || 'regular',
+      professor_id: dados.professor_id || null,
+      modalidade_nome: dados.modalidade_nome || null,
+      data_pagamento: new Date().toISOString().split('T')[0],
+    };
+
+    const { error } = await supabase
+      .from('mensalidades')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+
+    const resultado = await gerarRepassesDaMensalidade(id);
+    return { ok: true, resultado };
+  },
+};

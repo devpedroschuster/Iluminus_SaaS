@@ -15,9 +15,9 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   
   const [isVisitante, setIsVisitante] = useState(false);
 
-  const [form, setForm] = useState({
+  const initialForm = {
     aluno_id: '',
-    nome_visitante: '', 
+    nome_visitante: '',
     tipo_aula: 'regular',
     plano_id: '',
     valor_pago: '',
@@ -25,10 +25,17 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     data_vencimento: new Date().toISOString().split('T')[0],
     professor_id: '',
     modalidade_nome: ''
-  });
+  };
+
+  const [form, setForm] = useState(initialForm);
 
   useEffect(() => {
-    if (isOpen) carregarDados();
+    if (isOpen) {
+      carregarDados();
+    } else {
+      setForm(initialForm);
+      setIsVisitante(false);
+    }
   }, [isOpen]);
 
   async function carregarDados() {

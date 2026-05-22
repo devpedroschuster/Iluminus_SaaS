@@ -153,7 +153,7 @@ export function expandirEventoUnico(aula, feriados, indexes) {
   const todosFixosDaTurma = indexes.fixasMap[aula.id] || [];
 
   return [{
-    idUnico: `${aula.id}-unico`, 
+    idUnico: `${aula.id}-${aula.data_especifica}`, 
     title: `⭐ ${aula.atividade}`,
     start: inicio, 
     end: fim, 

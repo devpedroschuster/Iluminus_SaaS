@@ -9,6 +9,13 @@ import {
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
 
+function resolverPerfil(perfil) {
+  if (!perfil) return 'admin';
+  if (typeof perfil === 'string') return perfil.toLowerCase().trim();
+  const valor = perfil.role ?? perfil.tipo ?? 'admin';
+  return String(valor).toLowerCase().trim();
+}
+
 function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -16,7 +23,9 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   async function handleLogout() {
     try {
       await supabase.auth.signOut();
-      localStorage.clear();
+      Object.keys(localStorage)
+        .filter(key => key.startsWith('supabase.'))
+        .forEach(key => localStorage.removeItem(key));
       navigate('/login');
     } catch (error) {
       console.error('Erro ao sair:', error);
@@ -53,7 +62,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   { name: 'Minhas Comissões',  path: '/professor/comissoes', icon: Percent  },
 ];
 
-  const isProfessor = perfil === 'professor';
+  const isProfessor = resolverPerfil(perfil) === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
 
   return (

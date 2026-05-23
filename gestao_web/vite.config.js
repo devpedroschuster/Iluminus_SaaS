@@ -7,13 +7,23 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'supabase': ['@supabase/supabase-js'],
-          'query': ['@tanstack/react-query'],
-          'ui': ['lucide-react', 'react-hot-toast'],
-          'calendar': ['react-big-calendar', 'date-fns'],
-          'charts': ['recharts'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (
+              id.includes('react-router-dom') ||
+              id.includes('react-dom') ||
+              (id.includes('react') &&
+                !id.includes('react-big-calendar') &&
+                !id.includes('react-hot-toast'))
+            ) {
+              return 'react-vendor';
+            }
+            if (id.includes('@supabase')) return 'supabase';
+            if (id.includes('@tanstack')) return 'query';
+            if (id.includes('lucide-react') || id.includes('react-hot-toast')) return 'ui';
+            if (id.includes('react-big-calendar') || id.includes('date-fns')) return 'calendar';
+            if (id.includes('recharts')) return 'charts';
+          }
         },
       },
     },

@@ -26,7 +26,7 @@ export default function ModalListaPresenca({
       </div>
       <div>
         <div className="flex justify-between items-center mb-3">
-          <h5 className="font-bold text-sm text-foreground">Membros da Turma</h5>
+          <h5 className="font-bold text-sm text-foreground">Alunos da Turma</h5>
         </div>
         {loadingLista ? (
           <div className="flex justify-center p-6"><RefreshCw className="animate-spin text-muted-foreground" size={24} /></div>

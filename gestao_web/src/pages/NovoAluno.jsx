@@ -833,7 +833,7 @@ export default function NovoAluno() {
 
       <Surface variant="card" padding="xl" className="w-full">
         <h1 className="text-2xl md:text-3xl font-black text-foreground mb-8">
-          {alunoParaEditar ? 'Perfil do Membro' : 'Novo Cadastro'}
+          {alunoParaEditar ? 'Perfil do Aluno' : 'Novo Cadastro'}
         </h1>
 
         <StepperHeader

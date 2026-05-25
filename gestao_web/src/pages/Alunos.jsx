@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, UserPlus, Edit2, ShieldAlert, Trash2, Package
+  Search, UserPlus, Edit2, ShieldAlert, Trash2, Package, Calendar
 } from 'lucide-react';
 
 import { alunosService } from '../services/alunosService';
@@ -11,12 +11,59 @@ import { useAlunos } from '../hooks/useAlunos';
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 import { showToast } from '../components/shared/Toast';
 import { ModalConfirmacao, useModal } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import ModalMatricula from '../components/ModalMatricula';
+
+/**
+ * Calcula o status de vencimento do plano a partir de data_fim_plano.
+ *
+ * @param {string|null} dataFim  formato 'YYYY-MM-DD'
+ * @returns {{ tone: string, label: string, dias: number|null }}
+ */
+function calcularStatusVencimento(dataFim) {
+  if (!dataFim) {
+    return { tone: 'neutral', label: 'Sem data', dias: null };
+  }
+
+  // Comparação em UTC puro: evita fusos alterando o dia
+  const hoje = new Date();
+  const hojeUTC = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+
+  const [ano, mes, dia] = dataFim.split('-').map(Number);
+  const fimUTC = Date.UTC(ano, mes - 1, dia);
+
+  const dias = Math.round((fimUTC - hojeUTC) / (1000 * 60 * 60 * 24));
+
+  const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${String(ano).slice(-2)}`;
+
+  if (dias < 0) {
+    const atraso = Math.abs(dias);
+    return {
+      tone: 'destructive',
+      label: dataFormatada,
+      dias,
+    };
+  }
+
+  if (dias <= 7) {
+    return {
+      tone: 'warning',
+      label: dataFormatada,
+      dias,
+    };
+  }
+
+  return {
+    tone: 'success',
+    label: dataFormatada,
+    dias,
+  };
+}
 
 export default function Alunos() {
   const navigate = useNavigate();
@@ -41,7 +88,7 @@ export default function Alunos() {
     try {
       const novoStatus = !alunoSelecionado.ativo;
       await alunosService.alterarStatus(alunoSelecionado.id, novoStatus);
-      showToast.success(`Membro ${novoStatus ? 'reativado' : 'desativado'} com sucesso!`);
+      showToast.success(`Aluno ${novoStatus ? 'reativado' : 'desativado'} com sucesso!`);
       modalStatus.fechar();
       refetch();
     } catch (err) {
@@ -53,7 +100,7 @@ export default function Alunos() {
     if (!alunoSelecionado) return;
     try {
       await alunosService.excluir(alunoSelecionado.id);
-      showToast.success('Membro excluído permanentemente!');
+      showToast.success('Aluno excluído permanentemente!');
       modalExcluir.fechar();
       refetch();
     } catch (err) {
@@ -118,156 +165,206 @@ export default function Alunos() {
           <TableSkeleton />
         ) : alunos.length > 0 ? (
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left min-w-[800px]">
+            <table className="w-full text-left min-w-[900px]">
               <thead className="bg-muted text-[10px] font-black uppercase text-muted-foreground tracking-widest">
                 <tr>
-                  <th className="px-6 md:px-8 py-4 md:py-6">Membro</th>
+                  <th className="px-6 md:px-8 py-4 md:py-6">Aluno</th>
                   <th className="px-6 md:px-8 py-4 md:py-6">Plano / Cargo</th>
                   <th className="px-6 md:px-8 py-4 md:py-6">Status</th>
+                  <th className="px-6 md:px-8 py-4 md:py-6">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar size={11} />
+                      Vencimento
+                    </span>
+                  </th>
                   <th className="px-6 md:px-8 py-4 md:py-6 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {alunos.map((aluno) => (
-                  <tr
-                    key={aluno.id}
-                    className="group hover:bg-subtle transition-colors"
-                  >
-                    <td className="px-6 md:px-8 py-4 md:py-6">
-                      <div
-                        className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => navigate(`/alunos/${aluno.id}`)}
-                        title="Ver Perfil do Aluno"
-                      >
-                        {aluno.avatar_url ? (
-                          <img
-                            src={aluno.avatar_url}
-                            alt={aluno.nome_completo}
-                            className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
-                            {aluno.nome_completo?.charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-foreground hover:text-primary transition-colors">
-                            {aluno.nome_completo}
-                          </p>
-                          <p className="text-xs text-muted-foreground font-medium">
-                            {aluno.email}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-6">
-                      <span className="text-xs font-bold text-foreground block">
-                        {aluno.planos?.nome || 'Sem Plano'}
-                      </span>
-                      <span className="text-[10px] font-black uppercase text-muted-foreground">
-                        {aluno.role}
-                      </span>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-6">
-                      <div
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${
-                          aluno.ativo
-                            ? 'bg-success-soft text-success'
-                            : 'bg-destructive-soft text-destructive'
-                        }`}
-                      >
+                {alunos.map((aluno) => {
+                  const vencimento = calcularStatusVencimento(aluno.data_fim_plano);
+
+                  return (
+                    <tr
+                      key={aluno.id}
+                      className="group hover:bg-subtle transition-colors"
+                    >
+                      {/* ALUNO */}
+                      <td className="px-6 md:px-8 py-4 md:py-6">
                         <div
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            aluno.ativo ? 'bg-success' : 'bg-destructive'
-                          }`}
-                        />
-                        <span className="text-[10px] font-black uppercase">
-                          {aluno.ativo ? 'Ativo' : 'Inativo'}
+                          className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => navigate(`/alunos/${aluno.id}`)}
+                          title="Ver Perfil do Aluno"
+                        >
+                          {aluno.avatar_url ? (
+                            <img
+                              src={aluno.avatar_url}
+                              alt={aluno.nome_completo}
+                              className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
+                              {aluno.nome_completo?.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-bold text-foreground hover:text-primary transition-colors">
+                              {aluno.nome_completo}
+                            </p>
+                            <p className="text-xs text-muted-foreground font-medium">
+                              {aluno.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Plano / Cargo */}
+                      <td className="px-6 md:px-8 py-4 md:py-6">
+                        <span className="text-xs font-bold text-foreground block">
+                          {aluno.planos?.nome || 'Sem Plano'}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-6 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setAlunoSelecionado(aluno);
-                            setModalMatriculaAberto(true);
-                          }}
-                          className="p-2 text-muted-foreground hover:text-success transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-success/30 hover:bg-subtle"
-                          title="Matricular/Alterar Plano"
-                        >
-                          <Package size={16} />
-                        </button>
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">
+                          {aluno.role}
+                        </span>
+                      </td>
 
-                        <button
-                          onClick={() => handleEditar(aluno)}
-                          className="p-2 text-muted-foreground hover:text-info transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-info/30 hover:bg-subtle"
-                          title="Editar"
+                      {/* Status ativo/inativo */}
+                      <td className="px-6 md:px-8 py-4 md:py-6">
+                        <div
+                          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${
+                            aluno.ativo
+                              ? 'bg-success-soft text-success'
+                              : 'bg-destructive-soft text-destructive'
+                          }`}
                         >
-                          <Edit2 size={16} />
-                        </button>
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              aluno.ativo ? 'bg-success' : 'bg-destructive'
+                            }`}
+                          />
+                          <span className="text-[10px] font-black uppercase">
+                            {aluno.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                      </td>
 
-                        <button
-                          onClick={() => {
-                            setAlunoSelecionado(aluno);
-                            modalStatus.abrir();
-                          }}
-                          className="p-2 text-muted-foreground hover:text-primary transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-primary/30 hover:bg-subtle"
-                          title="Ativar/Desativar"
-                        >
-                          <ShieldAlert size={16} />
-                        </button>
+                      {/* Vencimento do plano */}
+                      <td className="px-6 md:px-8 py-4 md:py-6">
+                        {aluno.role === 'admin' || !aluno.plano_id ? (
+                          <Badge tone="neutral" variant="soft">—</Badge>
+                        ) : (
+                          <Badge tone={vencimento.tone} variant="soft">
+                            {vencimento.label}
+                          </Badge>
+                        )}
+                      </td>
 
-                        <button
-                          onClick={() => {
-                            setAlunoSelecionado(aluno);
-                            modalExcluir.abrir();
-                          }}
-                          className="p-2 text-muted-foreground hover:text-destructive transition-colors bg-card rounded-lg shadow-sm border border-border hover:border-destructive/30 hover:bg-subtle"
-                          title="Excluir"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      {/* Ações */}
+                      <td className="px-6 md:px-8 py-4 md:py-6 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleEditar(aluno)}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary-soft transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setAlunoSelecionado(aluno);
+                              setModalMatriculaAberto(true);
+                            }}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-info hover:bg-info-soft transition-colors"
+                            title="Matricular / Renovar Plano"
+                          >
+                            <Package size={16} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setAlunoSelecionado(aluno);
+                              modalStatus.abrir();
+                            }}
+                            className={`p-2 rounded-xl transition-colors ${
+                              aluno.ativo
+                                ? 'text-muted-foreground hover:text-warning hover:bg-warning-soft'
+                                : 'text-muted-foreground hover:text-success hover:bg-success-soft'
+                            }`}
+                            title={aluno.ativo ? 'Desativar' : 'Reativar'}
+                          >
+                            <ShieldAlert size={16} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setAlunoSelecionado(aluno);
+                              modalExcluir.abrir();
+                            }}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive-soft transition-colors"
+                            title="Excluir permanentemente"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <EmptyState
-            titulo="Nenhum resultado encontrado"
-            mensagem={busca ? `Não encontramos ninguém com "${busca}".` : 'Lista vazia.'}
+            icon={<Search size={40} />}
+            title="Nenhum aluno encontrado"
+            description="Tente ajustar os filtros ou cadastre um novo aluno."
           />
         )}
       </Surface>
 
-      {modalMatriculaAberto && (
+      {/* Modal: Alterar Status */}
+      <ModalConfirmacao
+        aberto={modalStatus.isOpen}
+        fechar={modalStatus.fechar}
+        titulo={alunoSelecionado?.ativo ? 'Desativar Aluno' : 'Reativar Aluno'}
+        descricao={
+          alunoSelecionado?.ativo
+            ? `Deseja desativar ${alunoSelecionado?.nome_completo}? O acesso será revogado.`
+            : `Deseja reativar ${alunoSelecionado?.nome_completo}? O acesso será restaurado.`
+        }
+        textoBotao={alunoSelecionado?.ativo ? 'Desativar' : 'Reativar'}
+        variante={alunoSelecionado?.ativo ? 'destructive' : 'success'}
+        onConfirmar={alternarStatus}
+      />
+
+      {/* Modal: Excluir */}
+      <ModalConfirmacao
+        aberto={modalExcluir.isOpen}
+        fechar={modalExcluir.fechar}
+        titulo="Excluir Aluno Permanentemente"
+        descricao={`Tem certeza que deseja excluir ${alunoSelecionado?.nome_completo}? Esta ação não pode ser desfeita.`}
+        textoBotao="Excluir"
+        variante="destructive"
+        onConfirmar={excluirAluno}
+      />
+
+      {/* Modal: Matrícula / Renovação */}
+      {modalMatriculaAberto && alunoSelecionado && (
         <ModalMatricula
+          isOpen={modalMatriculaAberto}
+          onClose={() => {
+            setModalMatriculaAberto(false);
+            setAlunoSelecionado(null);
+          }}
           aluno={alunoSelecionado}
-          onClose={() => setModalMatriculaAberto(false)}
-          onMatriculaSucesso={refetch}
+          onSucesso={() => {
+            refetch();
+            setModalMatriculaAberto(false);
+            setAlunoSelecionado(null);
+          }}
         />
       )}
-
-      <ModalConfirmacao
-        isOpen={modalStatus.isOpen}
-        onClose={modalStatus.fechar}
-        onConfirm={alternarStatus}
-        titulo={alunoSelecionado?.ativo ? 'Desativar Membro?' : 'Reativar Membro?'}
-        mensagem={`Confirmar alteração para ${alunoSelecionado?.nome_completo}? O histórico dele será mantido.`}
-        tipo={alunoSelecionado?.ativo ? 'danger' : 'primary'}
-      />
-
-      <ModalConfirmacao
-        isOpen={modalExcluir.isOpen}
-        onClose={modalExcluir.fechar}
-        onConfirm={excluirAluno}
-        titulo="Excluir Permanentemente?"
-        mensagem={`Tem certeza que deseja apagar o registro de ${alunoSelecionado?.nome_completo}? Esta ação não pode ser desfeita.`}
-        tipo="danger"
-      />
     </div>
   );
 }

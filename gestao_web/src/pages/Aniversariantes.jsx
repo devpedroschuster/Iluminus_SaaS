@@ -96,7 +96,7 @@ export default function Aniversariantes() {
         <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
           <PartyPopper className="text-primary" size={32} /> Aniversariantes
         </h1>
-        <p className="text-muted-foreground">Acompanhe as datas comemorativas e fidelize seus membros.</p>
+        <p className="text-muted-foreground">Acompanhe as datas comemorativas e fidelize seus alunos.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

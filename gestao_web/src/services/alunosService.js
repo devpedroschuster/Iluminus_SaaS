@@ -13,8 +13,10 @@ export const alunosService = {
       }
 
       if (filtros.busca) {
-        query = query.ilike('nome_completo', `%${filtros.busca}%`);
-      }
+  query = query.or(
+    `nome_completo.ilike.%${filtros.busca}%,email.ilike.%${filtros.busca}%`
+  );
+}
 
       const { data, error } = await query;
       if (error) throw error;

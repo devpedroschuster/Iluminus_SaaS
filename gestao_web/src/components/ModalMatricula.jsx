@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle2, Package, Loader2 } from 'lucide-react';
+import { CheckCircle2, Package, Loader2, ClipboardList, CalendarDays, Tag, Dumbbell, AlertTriangle } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
 import { alunosService } from '../services/alunosService';
 import Modal from './ui/Modal';
@@ -20,6 +20,16 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const planoDetalhes = planos.find(p => p.id === planoSelecionado) || null;
+
+  const dataVencimentoFormatada = dataVencimento
+    ? new Date(dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '—';
 
   useEffect(() => {
     carregarDados();
@@ -176,6 +186,101 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
           </p>
         </div>
 
+        {/* Resumo de Confirmação */}
+        {planoDetalhes ? (
+          <div className="rounded-2xl border-2 border-primary/30 bg-primary-soft overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-3 bg-primary/10 border-b border-primary/20">
+              <ClipboardList size={16} className="text-primary" />
+              <span className="text-sm font-bold text-primary uppercase tracking-wide">
+                Resumo da Matrícula
+              </span>
+            </div>
+
+            {/* Itens */}
+            <div className="p-4 space-y-3">
+              {/* Plano */}
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Tag size={14} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Plano</p>
+                  <p className="font-bold text-foreground">
+                    {planoDetalhes.nome}
+                    <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary uppercase">
+                      {planoDetalhes.duracao_meses} {planoDetalhes.duracao_meses === 1 ? 'mês' : 'meses'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Valor */}
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-success font-black text-[11px]">R$</span>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Valor</p>
+                  <p className="font-black text-lg text-foreground leading-tight">
+                    R$ {planoDetalhes.preco.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Data de Vencimento */}
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-info/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <CalendarDays size={14} className="text-info" />
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">1º Pagamento</p>
+                  <p className="font-bold text-foreground">{dataVencimentoFormatada}</p>
+                </div>
+              </div>
+
+              {/* Modalidades */}
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Dumbbell size={14} className="text-warning" />
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Modalidades</p>
+                  {modalidadesSelecionadas.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {modalidadesSelecionadas.map(mod => (
+                        <span
+                          key={mod}
+                          className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-warning/10 text-warning-foreground border border-warning/20"
+                        >
+                          {mod}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">Nenhuma selecionada</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Alerta de confirmação */}
+            <div className="mx-4 mb-4 flex items-center gap-2 bg-warning/10 border border-warning/25 rounded-xl px-3 py-2">
+              <AlertTriangle size={14} className="text-warning shrink-0" />
+              <p className="text-[11px] text-warning-foreground font-medium">
+                Confira os dados acima antes de confirmar. Essa ação registrará a matrícula.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-dashed border-border bg-muted/40 px-4 py-5 flex items-center gap-3 text-muted-foreground">
+            <ClipboardList size={18} className="shrink-0" />
+            <p className="text-sm font-medium">
+              Selecione um plano acima para ver o resumo antes de confirmar.
+            </p>
+          </div>
+        )}
+
         {/* Ação */}
         <div className="pt-2">
           <Button
@@ -186,7 +291,7 @@ export default function ModalMatricula({ aluno, onClose, onMatriculaSucesso }) {
             loading={saving}
             disabled={saving || !planoSelecionado}
           >
-            {saving ? 'Processando...' : 'Confirmar Matrícula e Cobrar'}
+            {saving ? 'Processando...' : 'Registrar Matrícula'}
           </Button>
         </div>
       </form>

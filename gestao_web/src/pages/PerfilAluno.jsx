@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   User, CreditCard, Calendar, Activity,
-  ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin
+  ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -155,21 +155,33 @@ export default function PerfilAluno() {
     <div className="p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-500">
 
       {/* HEADER */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-          aria-label="Voltar"
-        >
-          <ArrowLeft size={24} />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">
-            {aluno?.nome_completo}
-          </h1>
-          <p className="text-muted-foreground font-medium">Gestão de Aluno</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            aria-label="Voltar"
+          >
+            <ArrowLeft size={24} />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-black text-foreground tracking-tight">
+              {aluno?.nome_completo}
+            </h1>
+            <p className="text-muted-foreground font-medium">Gestão de Aluno</p>
+          </div>
         </div>
+
+        {/* ── BOTÃO EDITAR ── */}
+        <Button
+          variant="outline"
+          size="md"
+          leftIcon={<Edit2 size={16} />}
+          onClick={() => navigate('/alunos/novo', { state: { alunoParaEditar: aluno } })}
+        >
+          Editar Cadastro
+        </Button>
       </div>
 
       {/* CARDS SUPERIORES */}

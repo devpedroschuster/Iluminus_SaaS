@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown } from 'lucide-react';
+import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
-
 import { useLeadsPendentes, useHistoricoLeads, useAtualizarStatusLead } from '../hooks/useLeads';
-
 import Badge   from '../components/ui/Badge';
 import Button  from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
 import EmptyState from '../components/ui/EmptyState';
+
+// Média histórica de referência para comparação (pode ser ajustada conforme o negócio)
+const MEDIA_HISTORICA = 0.55;
 
 export default function Leads() {
   const navigate = useNavigate();
@@ -16,7 +17,6 @@ export default function Leads() {
   const [confirmandoId, setConfirmandoId] = useState(null);
 
   const { data: leadsPendentes = [], isLoading: loadingPendentes } = useLeadsPendentes();
-
   const {
     data: historicoData,
     isLoading: loadingHistorico,
@@ -24,10 +24,37 @@ export default function Leads() {
     hasNextPage,
     fetchNextPage,
   } = useHistoricoLeads();
-
   const mutationStatus = useAtualizarStatusLead();
-
   const leadsHistorico = historicoData?.pages.flatMap(page => page) || [];
+
+  // ── Métricas do mês atual ──────────────────────────────────────────
+  const metricas = useMemo(() => {
+    const agora = new Date();
+    const anoAtual = agora.getFullYear();
+    const mesAtual = agora.getMonth();
+
+    const doMes = leadsHistorico.filter(lead => {
+      const d = new Date(lead.data_checkin);
+      return d.getFullYear() === anoAtual && d.getMonth() === mesAtual;
+    });
+
+    const total = doMes.length;
+    const convertidos = doMes.filter(l => l.status_conversao === 'convertido').length;
+    const taxa = total > 0 ? convertidos / total : null;
+
+    return { total, convertidos, taxa };
+  }, [leadsHistorico]);
+
+  const comparacaoMedia =
+    metricas.taxa === null
+      ? null
+      : metricas.taxa > MEDIA_HISTORICA
+      ? 'acima'
+      : metricas.taxa < MEDIA_HISTORICA
+      ? 'abaixo'
+      : 'igual';
+
+  // ──────────────────────────────────────────────────────────────────
 
   function marcarComoPerdido(leadId) {
     setConfirmandoId(null);
@@ -37,12 +64,12 @@ export default function Leads() {
   }
 
   function formatarData(dataIso) {
-  if (!dataIso) return '';
-  const dataSegura = typeof dataIso === 'string' && dataIso.length === 10
-    ? dataIso + 'T12:00:00'
-    : dataIso;
-  return new Date(dataSegura).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+    if (!dataIso) return '';
+    const dataSegura = typeof dataIso === 'string' && dataIso.length === 10
+      ? dataIso + 'T12:00:00'
+      : dataIso;
+    return new Date(dataSegura).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
   function formatarDataHora(dataIso) {
     if (!dataIso) return '';
@@ -70,7 +97,6 @@ export default function Leads() {
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in">
-
       {/* Cabeçalho e Alternador de Visão */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -80,7 +106,6 @@ export default function Leads() {
           </h1>
           <p className="text-muted-foreground mt-2">Converta visitantes em alunos e acompanhe o histórico.</p>
         </div>
-
         <div className="flex bg-muted p-1 rounded-2xl border border-border">
           <button
             onClick={() => setVisaoAtiva('cards')}
@@ -105,29 +130,78 @@ export default function Leads() {
         </div>
       </div>
 
+      {/* ── Banner de Taxa de Conversão ─────────────────────────────── */}
+      {!loadingHistorico && metricas.taxa !== null && (
+        <div
+          className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border px-5 py-4 ${
+            comparacaoMedia === 'acima'
+              ? 'bg-success/10 border-success/30'
+              : comparacaoMedia === 'abaixo'
+              ? 'bg-warning/10 border-warning/30'
+              : 'bg-muted border-border'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">📊</span>
+            <span className="text-sm font-bold text-foreground">
+              Este mês:{' '}
+              <span className="font-black">{metricas.total} experimentais</span>
+              {' → '}
+              <span className="font-black">{metricas.convertidos} convertidos</span>
+              {'  '}
+              <span
+                className={`text-base font-black ${
+                  comparacaoMedia === 'acima'
+                    ? 'text-success'
+                    : comparacaoMedia === 'abaixo'
+                    ? 'text-warning'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                ({Math.round(metricas.taxa * 100)}% conversão)
+              </span>
+            </span>
+          </div>
+
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-black uppercase tracking-wide ${
+              comparacaoMedia === 'acima'
+                ? 'bg-success/20 text-success'
+                : comparacaoMedia === 'abaixo'
+                ? 'bg-warning/20 text-warning'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {comparacaoMedia === 'acima' && <TrendingUp size={13} />}
+            {comparacaoMedia === 'abaixo' && <TrendingDown size={13} />}
+            {comparacaoMedia === 'igual' && <Minus size={13} />}
+            {comparacaoMedia === 'acima'
+              ? 'Melhor que a média'
+              : comparacaoMedia === 'abaixo'
+              ? 'Abaixo da média'
+              : 'Na média'}
+          </span>
+        </div>
+      )}
+      {/* ────────────────────────────────────────────────────────────── */}
+
       {/* Conteúdo Principal */}
       {loading ? (
         <div className="flex justify-center py-20">
           <RefreshCw className="animate-spin text-primary" size={40} />
         </div>
-
       ) : visaoAtiva === 'cards' ? (
-
         /* Visão Cards */
         leadsPendentes.length === 0 ? (
-
           <EmptyState
             icon={<CheckCircle size={28} />}
             title="Caixa de Entrada Zerada!"
             description="Todos os leads já foram contatados ou convertidos."
           />
-
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {leadsPendentes.map(lead => (
-
               <Surface key={lead.id} variant="card" padding="lg" className="flex flex-col relative group hover:shadow-brand transition-all">
-
                 {/* Popover de Confirmação / Descartar */}
                 {confirmandoId === lead.id ? (
                   <div className="absolute top-3 right-3 flex items-center gap-1 bg-card p-1 rounded-xl shadow-card border border-destructive/20 animate-in fade-in zoom-in-95 z-10">
@@ -136,7 +210,7 @@ export default function Leads() {
                       size="sm"
                       onClick={() => marcarComoPerdido(lead.id)}
                     >
-                      Excluir?
+                      Marcar como perdido
                     </Button>
                     <Button
                       variant="ghost"
@@ -162,7 +236,6 @@ export default function Leads() {
                     }
                   </Button>
                 )}
-
                 {/* Dados Lead */}
                 <div className="mb-4">
                   <Badge tone="brand" variant="soft" className="mb-3 rounded-lg">
@@ -171,14 +244,12 @@ export default function Leads() {
                   <h3 className="font-black text-foreground text-xl leading-tight">{lead.nome_visitante}</h3>
                   <p className="text-xs font-bold text-muted-foreground mt-1">Realizou em: {formatarData(lead.data_checkin)}</p>
                 </div>
-
                 <Surface variant="muted" padding="sm" className="mb-6 flex items-center gap-3 rounded-xl border border-border">
                   <MessageCircle size={18} className={lead.telefone_visitante ? "text-success" : "text-muted-foreground"} />
                   <span className={`text-sm font-bold ${lead.telefone_visitante ? "text-foreground" : "text-muted-foreground italic"}`}>
                     {lead.telefone_visitante || "Sem telefone cadastrado"}
                   </span>
                 </Surface>
-
                 {/* Ações do Card */}
                 <div className="flex gap-2 mt-auto">
                   <Button
@@ -205,9 +276,7 @@ export default function Leads() {
             ))}
           </div>
         )
-
       ) : (
-
         /* Visão Histórico */
         <Surface variant="card" padding="none" className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -259,7 +328,6 @@ export default function Leads() {
                   </tr>
                 )}
               </tbody>
-
               {visaoAtiva === 'lista' && hasNextPage && (
                 <tfoot>
                   <tr>

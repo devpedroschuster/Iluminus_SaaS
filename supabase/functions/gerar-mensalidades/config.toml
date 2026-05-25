@@ -1,0 +1,7 @@
+[functions.gerar-mensalidades]
+verify_jwt = false  # Permite chamada do cron sem auth
+
+[[cron]]
+name = "cobrancas-mensais"
+schedule = "0 8 1 * *"   # Dia 1 de cada mês, às 08h
+command = "POST https://<spmvrzftyqxalprpceqn>.supabase.co/functions/v1/gerar-mensalidades"

@@ -187,5 +187,80 @@ async buscarPerfilCompleto(alunoId) {
       console.error('[alunosService.renovarPlano]', error);
       throw error;
     }
-  }
+  },
+
+  /**
+   * Matricula um aluno em um plano de forma canônica.
+   * Deve ser o único ponto de entrada para matrícula — substitui a lógica
+   * duplicada de salvarEtapa2 (NovoAluno.jsx) e handleMatricular (ModalMatricula.jsx).
+   *
+   * @param {string} alunoId
+   * @param {string} planoId
+   * @param {object} opcoes
+   * @param {string}   opcoes.dataVencimento
+   * @param {Array}    opcoes.modalidades
+   * @param {boolean} [opcoes.isNovaMatricula]
+   */
+  async matricular(alunoId, planoId, { dataVencimento, modalidades = [], isNovaMatricula = true }) {
+    try {
+      const { data: plano, error: errPlano } = await supabase
+        .from('planos')
+        .select('id, nome, preco, duracao_meses')
+        .eq('id', planoId)
+        .single();
+
+      if (errPlano) throw errPlano;
+
+      const dataInicio = new Date().toISOString().split('T')[0];
+      const dataFimObj = new Date(dataVencimento + 'T12:00:00');
+      dataFimObj.setMonth(dataFimObj.getMonth() + (plano.duracao_meses || 1));
+      dataFimObj.setDate(dataFimObj.getDate() - 1);
+      const dataFim = dataFimObj.toISOString().split('T')[0];
+
+      const { error: errAluno } = await supabase
+        .from('alunos')
+        .update({
+          plano_id: planoId,
+          modalidades_selecionadas: modalidades,
+          status: 'ativo',
+          data_inicio_plano: dataInicio,
+          data_fim_plano: dataFim,
+        })
+        .eq('id', alunoId);
+
+      if (errAluno) throw errAluno;
+
+      if (isNovaMatricula) {
+        const { error: errHist } = await supabase
+          .from('historico_planos')
+          .insert([{
+            aluno_id: alunoId,
+            plano_id: planoId,
+            data_inicio: dataInicio,
+            data_fim: dataFim,
+            status: 'ativo',
+            valor_pago: plano.preco || 0,
+          }]);
+
+        if (errHist) throw errHist;
+      }
+
+      const { error: errMens } = await supabase
+        .from('mensalidades')
+        .insert([{
+          aluno_id: alunoId,
+          plano_id: planoId,
+          data_vencimento: dataVencimento,
+          status: 'pendente',
+          descricao: `Matrícula: ${plano.nome} (${plano.duracao_meses} ${plano.duracao_meses === 1 ? 'mês' : 'meses'})`,
+        }]);
+
+      if (errMens) throw errMens;
+
+      return { plano, dataInicio, dataFim };
+    } catch (error) {
+      console.error('[alunosService.matricular]', error);
+      throw error;
+    }
+  },
 };

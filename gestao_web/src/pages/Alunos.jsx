@@ -328,14 +328,14 @@ export default function Alunos() {
         aberto={modalStatus.isOpen}
         fechar={modalStatus.fechar}
         titulo={alunoSelecionado?.ativo ? 'Desativar Aluno' : 'Reativar Aluno'}
-        descricao={
+        mensagem={
           alunoSelecionado?.ativo
             ? `Deseja desativar ${alunoSelecionado?.nome_completo}? O acesso será revogado.`
             : `Deseja reativar ${alunoSelecionado?.nome_completo}? O acesso será restaurado.`
         }
-        textoBotao={alunoSelecionado?.ativo ? 'Desativar' : 'Reativar'}
-        variante={alunoSelecionado?.ativo ? 'destructive' : 'success'}
-        onConfirmar={alternarStatus}
+        textoConfirmar={alunoSelecionado?.ativo ? 'Desativar' : 'Reativar'}
+        tipo={alunoSelecionado?.ativo ? 'danger' : 'success'}
+        onConfirm={alternarStatus}
       />
 
       {/* Modal: Excluir */}
@@ -343,10 +343,10 @@ export default function Alunos() {
         aberto={modalExcluir.isOpen}
         fechar={modalExcluir.fechar}
         titulo="Excluir Aluno Permanentemente"
-        descricao={`Tem certeza que deseja excluir ${alunoSelecionado?.nome_completo}? Esta ação não pode ser desfeita.`}
-        textoBotao="Excluir"
-        variante="destructive"
-        onConfirmar={excluirAluno}
+        mensagem={`Tem certeza que deseja excluir ${alunoSelecionado?.nome_completo}? Esta ação não pode ser desfeita.`}
+        textoConfirmar="Excluir"
+        tipo="danger"
+        onConfirm={excluirAluno}
       />
 
       {/* Modal: Matrícula / Renovação */}
@@ -358,7 +358,7 @@ export default function Alunos() {
             setAlunoSelecionado(null);
           }}
           aluno={alunoSelecionado}
-          onSucesso={() => {
+          onMatriculaSucesso={() => {
             refetch();
             setModalMatriculaAberto(false);
             setAlunoSelecionado(null);

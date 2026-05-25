@@ -222,7 +222,7 @@ async buscarPerfilCompleto(alunoId) {
         .update({
           plano_id: planoId,
           modalidades_selecionadas: modalidades,
-          status: 'ativo',
+          ativo: 'true',
           data_inicio_plano: dataInicio,
           data_fim_plano: dataFim,
         })

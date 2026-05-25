@@ -76,20 +76,21 @@ export default function Dashboard() {
   }), [listaInadimplentes]);
 
   const { totalComissoes, dadosComissoes } = useMemo(() => {
-    let total = 0;
-    const porProfessor = presencasComissao.reduce((acc, p) => {
-      const nomeProf = p.agenda?.professores?.nome || 'Professor Desconhecido';
-      const valorAula = Number(p.agenda?.valor_por_aluno) || 0;
-      const comissao = valorAula * 0.5;
-      total += comissao;
-      acc[nomeProf] = (acc[nomeProf] || 0) + comissao;
-      return acc;
-    }, {});
-    const formatadas = Object.entries(porProfessor)
-      .map(([nome, tot]) => ({ nome, total: tot }))
-      .sort((a, b) => b.total - a.total);
-    return { totalComissoes: total, dadosComissoes: formatadas };
-  }, [presencasComissao]);
+  let total = 0;
+  const porProfessor = presencasComissao.reduce((acc, p) => {
+    const nomeProf = p.professores?.nome || 'Professor Desconhecido';
+    const valor = Number(p.valor) || 0;
+    total += valor;
+    acc[nomeProf] = (acc[nomeProf] || 0) + valor;
+    return acc;
+  }, {});
+
+  const formatadas = Object.entries(porProfessor)
+    .map(([nome, tot]) => ({ nome, total: tot }))
+    .sort((a, b) => b.total - a.total);
+
+  return { totalComissoes: total, dadosComissoes: formatadas };
+}, [presencasComissao]);
 
   // ── Histórico por mês (AreaChart) ────────────────────────────────────────
   const dadosFaturamento = useMemo(() => {

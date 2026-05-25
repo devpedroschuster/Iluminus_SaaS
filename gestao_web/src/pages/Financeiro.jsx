@@ -26,6 +26,31 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Deriva o status real de exibição a partir de `item.status` + `item.data_vencimento`.
+ * O BD só armazena 'pago' | 'pendente', mas "atrasado" é calculado no front-end.
+ *
+ * @returns {{ tipo: 'pago'|'pendente'|'atrasado', diasAtraso: number }}
+ */
+function calcularStatusReal(item) {
+  if (item.status === 'pago') return { tipo: 'pago', diasAtraso: 0 };
+
+  const hoje = new Date().toISOString().split('T')[0];
+  if (item.data_vencimento < hoje) {
+    const venc = new Date(item.data_vencimento + 'T12:00:00');
+    const diasAtraso = Math.max(1, Math.floor((Date.now() - venc.getTime()) / 86_400_000));
+    return { tipo: 'atrasado', diasAtraso };
+  }
+
+  return { tipo: 'pendente', diasAtraso: 0 };
+}
+
+const ORDEM_STATUS = { atrasado: 0, pendente: 1, pago: 2 };
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function Financeiro() {
   const dataAtual = new Date();
   const [filtros, setFiltros] = useState({
@@ -204,10 +229,30 @@ export default function Financeiro() {
     }
   };
 
-  const alunosFiltrados = mensalidades?.filter(m => {
-    const nomeBase = m.alunos?.nome_completo || m.nome_visitante || '';
-    return nomeBase.toLowerCase().includes(busca.toLowerCase());
-  });
+  const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos' | 'atrasado' | 'pendente' | 'pago'
+
+  const alunosFiltrados = useMemo(() => {
+    if (!mensalidades) return [];
+
+    let lista = mensalidades.filter(m => {
+      const nomeBase = m.alunos?.nome_completo || m.nome_visitante || '';
+      if (!nomeBase.toLowerCase().includes(busca.toLowerCase())) return false;
+      if (filtroStatus === 'todos') return true;
+      return calcularStatusReal(m).tipo === filtroStatus;
+    });
+
+    // Atrasados primeiro (mais antigos no topo), depois pendentes, depois pagos
+    lista.sort((a, b) => {
+      const sa = calcularStatusReal(a);
+      const sb = calcularStatusReal(b);
+      const diff = ORDEM_STATUS[sa.tipo] - ORDEM_STATUS[sb.tipo];
+      if (diff !== 0) return diff;
+      if (sa.tipo === 'atrasado') return sb.diasAtraso - sa.diasAtraso;
+      return 0;
+    });
+
+    return lista;
+  }, [mensalidades, busca, filtroStatus]);
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
@@ -285,6 +330,31 @@ export default function Financeiro() {
           onChange={(e) => setBusca(e.target.value)}
           wrapperClassName="flex-1"
         />
+
+        {/* Filtro rápido de status */}
+        <div className="flex gap-1.5 shrink-0">
+          {[
+            { valor: 'todos',    label: 'Todos',    tone: 'neutral'      },
+            { valor: 'atrasado', label: 'Atrasados', tone: 'destructive' },
+            { valor: 'pendente', label: 'Pendentes', tone: 'warning'     },
+            { valor: 'pago',     label: 'Pagos',    tone: 'success'      },
+          ].map(({ valor, label, tone }) => (
+            <button
+              key={valor}
+              onClick={() => setFiltroStatus(valor)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                filtroStatus === valor
+                  ? tone === 'destructive' ? 'bg-destructive text-destructive-foreground border-destructive'
+                  : tone === 'warning'     ? 'bg-warning text-warning-foreground border-warning'
+                  : tone === 'success'     ? 'bg-success text-success-foreground border-success'
+                  : 'bg-foreground text-background border-foreground'
+                  : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </Surface>
 
       {/* Tabela Mensalidades */}
@@ -304,16 +374,30 @@ export default function Financeiro() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {alunosFiltrados.map((item) => (
-                <tr key={item.id} className="hover:bg-primary-soft/20 transition-colors">
+              {alunosFiltrados.map((item) => {
+                const { tipo: statusReal, diasAtraso } = calcularStatusReal(item);
+                return (
+                <tr
+                  key={item.id}
+                  className={`hover:bg-primary-soft/20 transition-colors ${
+                    statusReal === 'atrasado' ? 'bg-destructive-soft/20' : ''
+                  }`}
+                >
                   <td className="p-4 font-bold text-foreground flex items-center gap-2">
                     {item.alunos?.nome_completo || item.nome_visitante || 'Visitante'}
                     {!item.alunos && item.nome_visitante && (
                       <Badge tone="neutral" variant="soft" className="text-[9px]">Avulso</Badge>
                     )}
                   </td>
-                  <td className="p-4 text-muted-foreground font-medium">
-                    {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                  <td className="p-4 font-medium">
+                    <span className={statusReal === 'atrasado' ? 'text-destructive font-bold' : 'text-muted-foreground'}>
+                      {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </span>
+                    {statusReal === 'atrasado' && (
+                      <p className="text-[10px] text-destructive font-bold mt-0.5">
+                        há {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}
+                      </p>
+                    )}
                   </td>
                   <td className="p-4 font-bold text-foreground">
                     {item.status === 'pago'
@@ -330,8 +414,15 @@ export default function Financeiro() {
                     )}
                   </td>
                   <td className="p-4">
-                    <Badge tone={item.status === 'pago' ? 'success' : 'warning'}>
-                      {item.status.toUpperCase()}
+                    <Badge
+                      tone={
+                        statusReal === 'pago'     ? 'success'     :
+                        statusReal === 'atrasado' ? 'destructive' : 'warning'
+                      }
+                    >
+                      {statusReal === 'atrasado' ? 'ATRASADO'
+                        : statusReal === 'pago'  ? 'PAGO'
+                        : 'PENDENTE'}
                     </Badge>
                   </td>
                   <td className="p-4 text-right">
@@ -365,7 +456,8 @@ export default function Financeiro() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </Surface>

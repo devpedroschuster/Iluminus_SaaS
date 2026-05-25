@@ -32,14 +32,19 @@ export const dashboardService = {
     return data || [];
   },
 
-  async obterComissoes(inicioMes) {
-    const { data, error } = await supabase
-      .from('presencas')
-      .select('id, data_checkin, agenda!inner(id, valor_por_aluno, professores(nome))')
-      .gte('data_checkin', inicioMes);
-    if (error) throw error;
-    return data || [];
-  },
+async obterComissoes(inicioMes) {
+  const [ano, mes] = inicioMes.substring(0, 7).split('-');
+  const fim = new Date(Number(ano), Number(mes), 0).toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('repasses_lancamentos')
+    .select('id, valor, professor_id, professores(nome)')
+    .gte('created_at', `${inicioMes.substring(0, 7)}-01T00:00:00`)
+    .lte('created_at', `${fim}T23:59:59`);
+
+  if (error) throw error;
+  return data || [];
+},
 
   async obterHistorico(dataLimite) {
     const { data, error } = await supabase

@@ -51,7 +51,7 @@ export default function Despesas() {
   });
 
   const [filtros, setFiltros] = useState({
-    mes: new Date().getMonth(),
+    mes: new Date().getMonth() + 1,
     ano: new Date().getFullYear(),
     categoria: 'todas',
     status: 'todos'
@@ -81,6 +81,7 @@ export default function Despesas() {
   async function fetchDespesas() {
     setLoading(true);
     try {
+      await despesasService.replicarRecorrentes(filtros.mes, filtros.ano);
       const dados = await despesasService.listar(filtros.mes, filtros.ano);
       setDespesas(dados || []);
       calcularMetricas(dados || []);
@@ -206,7 +207,7 @@ export default function Despesas() {
     ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Despesas');
-    const nomeMes = new Date(0, filtros.mes).toLocaleString('pt-BR', { month: 'long' });
+    const nomeMes = new Date(0, filtros.mes - 1).toLocaleString('pt-BR', { month: 'long' });
     XLSX.writeFile(wb, `Despesas_${nomeMes}_${filtros.ano}.xlsx`);
     showToast.success("Relatório exportado com sucesso!");
   }
@@ -315,7 +316,7 @@ export default function Despesas() {
               onChange={(e) => setFiltros({ ...filtros, mes: Number(e.target.value) })}
             >
               {Array.from({ length: 12 }, (_, i) => (
-                <option key={i} value={i}>
+                <option key={i + 1} value={i + 1}>
                   {new Date(2024, i, 1).toLocaleDateString('pt-BR', { month: 'long' })}
                 </option>
               ))}

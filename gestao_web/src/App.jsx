@@ -35,6 +35,7 @@ import Notificacoes from './pages/Notificacoes';
 import ConfiguracoesRepasse from './pages/ConfiguracoesRepasse';
 import ProfessorAlunos   from './pages/Professor/ProfessorAlunos';
 import ProfessorComissoes from './pages/Professor/ProfessorComissoes';
+import ResultadoFinanceiro from './pages/ResultadoFinanceiro';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -152,6 +153,7 @@ export default function App() {
                   <Route path="/professores"                element={<Professores />} />
                   <Route path="/financeiro"                 element={<Financeiro />} />
                   <Route path="/despesas"                   element={<Despesas />} />
+                  <Route path="/resultado-financeiro"       element={<ResultadoFinanceiro />} />
                   <Route path="/planos"                     element={<Planos />} />
                   <Route path="/modalidades"                element={<Modalidades />} />
                   <Route path="/presenca"                   element={<Presenca />} />

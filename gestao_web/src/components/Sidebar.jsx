@@ -34,7 +34,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
   const menuAdmin = [
     { label: 'Visão Geral' },
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Painel Avisos', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Notificações', path: '/notificacoes', icon: Bell },
     { name: 'Leads', path: '/leads', icon: Clock },
     { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
@@ -51,6 +51,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
     { label: 'Financeiro' },
     { name: 'Mensalidades', path: '/financeiro', icon: DollarSign },
     { name: 'Despesas', path: '/despesas', icon: TrendingDown },
+    { name: 'Resultado Financeiro', path: '/resultado-financeiro', icon: Calculator },
     { name: 'Comissões', path: '/comissoes', icon: Percent },
     { name: 'Repasse Regras', path: '/configuracoes/repasse', icon: Calculator },
   ];

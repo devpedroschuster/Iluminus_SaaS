@@ -426,15 +426,15 @@ export default function Despesas() {
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2 items-center">
                           {d.status !== 'pago' ? (
-                            /* Dar Baixa */
-                            <Button
-                              variant="success"
-                              size="sm"
-                              onClick={() => marcarComoPago(d)}
-                              disabled={processandoAcao}
-                            >
-                              Dar Baixa
-                            </Button>
+                            /* Marcar como pago */
+                          <Button
+                             variant="success"
+                             size="sm"
+                             onClick={() => marcarComoPago(d)}
+                             disabled={processandoAcao}
+                         >
+                            Marcar como pago
+                          </Button>
                           ) : (
                             <span className="text-xs font-bold text-muted-foreground mr-4">
                               Pago em {d.data_pagamento

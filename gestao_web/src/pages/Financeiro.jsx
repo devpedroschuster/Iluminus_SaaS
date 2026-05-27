@@ -6,28 +6,23 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
-
 import { financeiroService } from '../services/financeiroService';
 import { useFinanceiro } from '../hooks/useFinanceiro';
-
 import SelectFormaPagamento from '../components/SelectFormaPagamento';
 import RepasseAlunoCard from '../components/RepasseAlunoCard';
 import { TIPOS_AULA } from '../lib/constants';
-
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
 import { formatarMoeda } from '../lib/utils';
-
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
 /**
  * Deriva o status real de exibição a partir de `item.status` + `item.data_vencimento`.
  * O BD só armazena 'pago' | 'pendente', mas "atrasado" é calculado no front-end.
@@ -36,7 +31,6 @@ import Badge from '../components/ui/Badge';
  */
 function calcularStatusReal(item) {
   if (item.status === 'pago') return { tipo: 'pago', diasAtraso: 0 };
-
   // Usa data local (não UTC) para evitar que pagamentos do dia apareçam como atrasados
   // em fusos como o do Brasil, onde o UTC já virou para o dia seguinte à noite.
   const d = new Date();
@@ -46,12 +40,10 @@ function calcularStatusReal(item) {
     const diasAtraso = Math.max(1, Math.floor((Date.now() - venc.getTime()) / 86_400_000));
     return { tipo: 'atrasado', diasAtraso };
   }
-
   return { tipo: 'pendente', diasAtraso: 0 };
 }
 
 const ORDEM_STATUS = { atrasado: 0, pendente: 1, pago: 2 };
-
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function Financeiro() {
@@ -61,14 +53,17 @@ export default function Financeiro() {
     ano: dataAtual.getFullYear()
   });
 
+  const nomeMesFiltro = new Date(0, filtros.mes - 1)
+    .toLocaleString('pt-BR', { month: 'long' });
+  const nomeMesCapitalizado =
+    nomeMesFiltro.charAt(0).toUpperCase() + nomeMesFiltro.slice(1);
+
   const { mensalidades, loading, refetch } = useFinanceiro(filtros);
   const [busca, setBusca] = useState('');
-  
   const modalPagamento = useModal();
   const modalResultado = useModal();
   const modalGerarMensalidades = useModal();
   const [modalAddOpen, setModalAddOpen] = useState(false);
-
   const modalEditar = useModal();
   const modalExcluir = useModal();
   const [lancamentoEditando, setLancamentoEditando] = useState(null);
@@ -76,17 +71,17 @@ export default function Financeiro() {
   const [formEdicao, setFormEdicao] = useState({});
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
-
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
   const [valorPago, setValorPago] = useState('');
   const [formaPagamento, setFormaPagamento] = useState('');
   const [tipoAula, setTipoAula] = useState('regular');
   const [professorId, setProfessorId] = useState('');
   const [modalidadeNome, setModalidadeNome] = useState('');
-  
   const [professores, setProfessores] = useState([]);
   const [resultadoRepasse, setResultadoRepasse] = useState(null);
+  const [dadosPagamento, setDadosPagamento] = useState(null);
   const [gerando, setGerando] = useState(false);
+  const [totalAtivos, setTotalAtivos] = useState(null);
 
   useEffect(() => {
     async function carregarProfessores() {
@@ -101,12 +96,9 @@ export default function Financeiro() {
     // Usa data local (não UTC) — mesma lógica de calcularStatusReal
     const _d = new Date();
     const hoje = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
-
-    
     return mensalidades.reduce((acc, m) => {
       const valorOriginal = Number(m.planos?.preco) || 0;
       const valorReal = m.valor_pago !== null ? Number(m.valor_pago) : valorOriginal;
-      
       if (m.status === 'pago') {
         acc.recebido += valorReal;
         acc.total += valorReal;
@@ -132,40 +124,54 @@ export default function Financeiro() {
   };
 
   const handleConfirmarPagamento = async (e) => {
-    e.preventDefault();
-    try {
-      const valorFormatado = parseFloat(valorPago.replace(/\./g, '').replace(',', '.'));
-      const payload = {
-        valor_pago: valorFormatado,
-        forma_pagamento: formaPagamento,
-        tipo_aula: tipoAula,
-        professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
-        modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null
-      };
-
-      const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
-      showToast.success('Pagamento processado com sucesso!');
-      refetch();
-      modalPagamento.fechar();
-      setResultadoRepasse(res.resultado);
-      modalResultado.abrir();
-    } catch (error) {
-      showToast.error("Erro ao processar pagamento");
-    }
-  };
+  e.preventDefault();
+  try {
+    const valorFormatado = parseFloat(valorPago.replace(/\./g, '').replace(',', '.'));
+    const payload = {
+      valor_pago: valorFormatado,
+      forma_pagamento: formaPagamento,
+      tipo_aula: tipoAula,
+      professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
+      modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null
+    };
+    const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
+    showToast.success('Pagamento processado com sucesso!');
+    refetch();
+    modalPagamento.fechar();
+    setResultadoRepasse(res.resultado);
+    setDadosPagamento({
+      valor_pago:      valorFormatado,
+      forma_pagamento: formaPagamento,
+      data_pagamento:  new Date().toISOString(),
+    });
+    modalResultado.abrir();
+  } catch (error) {
+    showToast.error("Erro ao processar pagamento");
+  }
+};
 
   const handleGerarMensalidades = async () => {
     setGerando(true);
     try {
       await financeiroService.gerarMensalidades(filtros.mes, filtros.ano);
-      showToast.success('Cobranças geradas para os alunos ativos!');
+      showToast.success('Mensalidades criadas com sucesso!');
       refetch();
       modalGerarMensalidades.fechar();
     } catch (error) {
-      showToast.error('Erro ao gerar cobranças');
+      showToast.error('Erro ao criar mensalidades');
     } finally {
       setGerando(false);
     }
+  };
+
+  const handleAbrirGerarMensalidades = async () => {
+    setTotalAtivos(null);
+    modalGerarMensalidades.abrir();
+    const { count } = await supabase
+      .from('alunos')
+      .select('id', { count: 'exact', head: true })
+      .eq('ativo', true);
+    setTotalAtivos(count ?? 0);
   };
 
   const handleAbrirEdicao = (item) => {
@@ -239,14 +245,12 @@ export default function Financeiro() {
 
   const alunosFiltrados = useMemo(() => {
     if (!mensalidades) return [];
-
     let lista = mensalidades.filter(m => {
       const nomeBase = m.alunos?.nome_completo || m.nome_visitante || '';
       if (!nomeBase.toLowerCase().includes(busca.toLowerCase())) return false;
       if (filtroStatus === 'todos') return true;
       return calcularStatusReal(m).tipo === filtroStatus;
     });
-
     // Atrasados primeiro (mais antigos no topo), depois pendentes, depois pagos
     lista.sort((a, b) => {
       const sa = calcularStatusReal(a);
@@ -256,9 +260,19 @@ export default function Financeiro() {
       if (sa.tipo === 'atrasado') return sb.diasAtraso - sa.diasAtraso;
       return 0;
     });
-
     return lista;
   }, [mensalidades, busca, filtroStatus]);
+
+  // ── Rodapé da tabela: soma os valores do subconjunto filtrado ──────────────
+  const totalFiltrado = useMemo(() => {
+    return alunosFiltrados.reduce((acc, item) => {
+      const valor =
+        item.status === 'pago'
+          ? (item.valor_pago !== null ? Number(item.valor_pago) : Number(item.planos?.preco))
+          : Number(item.planos?.preco) || 0;
+      return acc + valor;
+    }, 0);
+  }, [alunosFiltrados]);
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
@@ -273,11 +287,11 @@ export default function Financeiro() {
         <div className="flex gap-2 w-full md:w-auto">
           <Button
             variant="secondary"
-            onClick={modalGerarMensalidades.abrir}
+            onClick={handleAbrirGerarMensalidades}
             leftIcon={<RefreshCw size={18} />}
             className="flex-1 md:flex-none"
           >
-            Gerar Cobranças
+            Criar mensalidades de {nomeMesCapitalizado}
           </Button>
           <Button
             variant="success"
@@ -313,7 +327,6 @@ export default function Financeiro() {
               </option>
             ))}
           </Input>
-
           {/* Ano */}
           <Input
             as="select"
@@ -326,7 +339,6 @@ export default function Financeiro() {
             ))}
           </Input>
         </div>
-
         {/* Busca */}
         <Input
           leftIcon={<Search size={18} />}
@@ -336,14 +348,13 @@ export default function Financeiro() {
           onChange={(e) => setBusca(e.target.value)}
           wrapperClassName="flex-1"
         />
-
         {/* Filtro rápido de status */}
         <div className="flex gap-1.5 shrink-0">
           {[
-            { valor: 'todos',    label: 'Todos',    tone: 'neutral'      },
-            { valor: 'atrasado', label: 'Atrasados', tone: 'destructive' },
-            { valor: 'pendente', label: 'Pendentes', tone: 'warning'     },
-            { valor: 'pago',     label: 'Pagos',    tone: 'success'      },
+            { valor: 'todos',    label: 'Todos',     tone: 'neutral'      },
+            { valor: 'atrasado', label: 'Atrasados', tone: 'destructive'  },
+            { valor: 'pendente', label: 'Pendentes', tone: 'warning'      },
+            { valor: 'pago',     label: 'Pagos',     tone: 'success'      },
           ].map(({ valor, label, tone }) => (
             <button
               key={valor}
@@ -383,88 +394,106 @@ export default function Financeiro() {
               {alunosFiltrados.map((item) => {
                 const { tipo: statusReal, diasAtraso } = calcularStatusReal(item);
                 return (
-                <tr
-                  key={item.id}
-                  className={`hover:bg-primary-soft/20 transition-colors ${
-                    statusReal === 'atrasado' ? 'bg-destructive-soft/20' : ''
-                  }`}
-                >
-                  <td className="p-4 font-bold text-foreground flex items-center gap-2">
-                    {item.alunos?.nome_completo || item.nome_visitante || 'Visitante'}
-                    {!item.alunos && item.nome_visitante && (
-                      <Badge tone="neutral" variant="soft" className="text-[9px]">Avulso</Badge>
-                    )}
-                  </td>
-                  <td className="p-4 font-medium">
-                    <span className={statusReal === 'atrasado' ? 'text-destructive font-bold' : 'text-muted-foreground'}>
-                      {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
-                    </span>
-                    {statusReal === 'atrasado' && (
-                      <p className="text-[10px] text-destructive font-bold mt-0.5">
-                        há {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}
-                      </p>
-                    )}
-                  </td>
-                  <td className="p-4 font-bold text-foreground">
-                    {item.status === 'pago'
-                      ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco)
-                      : formatarMoeda(item.planos?.preco)}
-                  </td>
-                  <td className="p-4">
-                    {item.status === 'pago' && item.forma_pagamento ? (
-                      <Badge tone="neutral" variant="soft" className="capitalize">
-                        {item.forma_pagamento}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <Badge
-                      tone={
-                        statusReal === 'pago'     ? 'success'     :
-                        statusReal === 'atrasado' ? 'destructive' : 'warning'
-                      }
-                    >
-                      {statusReal === 'atrasado' ? 'ATRASADO'
-                        : statusReal === 'pago'  ? 'PAGO'
-                        : 'PENDENTE'}
-                    </Badge>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {item.status !== 'pago' && (
-                        <Button
-                          variant="brand"
-                          size="sm"
-                          onClick={() => handleAbrirPagamento(item)}
-                        >
-                          Receber
-                        </Button>
+                  <tr
+                    key={item.id}
+                    className={`hover:bg-primary-soft/20 transition-colors ${
+                      statusReal === 'atrasado' ? 'bg-destructive-soft/20' : ''
+                    }`}
+                  >
+                    <td className="p-4 font-bold text-foreground flex items-center gap-2">
+                      {item.alunos?.nome_completo || item.nome_visitante || 'Visitante'}
+                      {!item.alunos && item.nome_visitante && (
+                        <Badge tone="neutral" variant="soft" className="text-[9px]">Avulso</Badge>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAbrirEdicao(item)}
-                        title="Editar lançamento"
+                    </td>
+                    <td className="p-4 font-medium">
+                      <span className={statusReal === 'atrasado' ? 'text-destructive font-bold' : 'text-muted-foreground'}>
+                        {new Date(item.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      </span>
+                      {statusReal === 'atrasado' && (
+                        <p className="text-[10px] text-destructive font-bold mt-0.5">
+                          há {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}
+                        </p>
+                      )}
+                    </td>
+                    <td className="p-4 font-bold text-foreground">
+                      {item.status === 'pago'
+                        ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco)
+                        : formatarMoeda(item.planos?.preco)}
+                    </td>
+                    <td className="p-4">
+                      {item.status === 'pago' && item.forma_pagamento ? (
+                        <Badge tone="neutral" variant="soft" className="capitalize">
+                          {item.forma_pagamento}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <Badge
+                        tone={
+                          statusReal === 'pago'     ? 'success'     :
+                          statusReal === 'atrasado' ? 'destructive' : 'warning'
+                        }
                       >
-                        <Pencil size={15} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAbrirExclusao(item)}
-                        title="Excluir lançamento"
-                        className="text-destructive hover:text-destructive hover:bg-destructive-soft"
-                      >
-                        <Trash2 size={15} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+                        {statusReal === 'atrasado' ? 'ATRASADO'
+                          : statusReal === 'pago'  ? 'PAGO'
+                          : 'PENDENTE'}
+                      </Badge>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {item.status !== 'pago' && (
+                          <Button
+                            variant="brand"
+                            size="sm"
+                            onClick={() => handleAbrirPagamento(item)}
+                          >
+                            Receber
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAbrirEdicao(item)}
+                          title="Editar lançamento"
+                        >
+                          <Pencil size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAbrirExclusao(item)}
+                          title="Excluir lançamento"
+                          className="text-destructive hover:text-destructive hover:bg-destructive-soft"
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
+            {/* ── Rodapé: contagem + total do subconjunto filtrado ── */}
+            <tfoot>
+              <tr className="bg-muted border-t-2 border-border">
+                <td className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                  {alunosFiltrados.length}{' '}
+                  {alunosFiltrados.length === 1 ? 'registro' : 'registros'}
+                </td>
+                <td colSpan={4} />
+                <td className="p-4 text-right">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mr-2">
+                    Total
+                  </span>
+                  <span className="text-base font-black text-foreground">
+                    {formatarMoeda(totalFiltrado)}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </Surface>
       ) : (
@@ -482,7 +511,6 @@ export default function Financeiro() {
                 {pagamentoSelecionado.alunos?.nome_completo || pagamentoSelecionado.nome_visitante || 'Visitante'}
               </p>
             </Surface>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
@@ -502,7 +530,6 @@ export default function Financeiro() {
                 <SelectFormaPagamento value={formaPagamento} onChange={setFormaPagamento} required />
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
                 Tipo de Aula
@@ -517,7 +544,6 @@ export default function Financeiro() {
                 ))}
               </Input>
             </div>
-
             {(tipoAula === 'experimental' || tipoAula === 'avulsa') && (
               <Surface variant="muted" padding="md" className="grid grid-cols-2 gap-4">
                 <Input
@@ -540,7 +566,6 @@ export default function Financeiro() {
                 />
               </Surface>
             )}
-
             <Button type="submit" variant="brand" size="lg" fullWidth>
               Confirmar Recebimento
             </Button>
@@ -548,14 +573,15 @@ export default function Financeiro() {
         )}
       </Modal>
 
-      {/* Modal Sucesso e Repasse */}
-      <Modal isOpen={modalResultado.isOpen} onClose={modalResultado.fechar} titulo="Repasse Processado">
+      {/* Modal Comprovante de Pagamento */}
+      <Modal isOpen={modalResultado.isOpen} onClose={modalResultado.fechar} titulo="Comprovante de Pagamento">
         {resultadoRepasse && pagamentoSelecionado && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <RepasseAlunoCard
               aluno={pagamentoSelecionado.alunos || { nome_completo: pagamentoSelecionado.nome_visitante || 'Visitante' }}
-              mensalidade={{ tipo_aula: tipoAula }}
+              mensalidade={{ tipo_aula: tipoAula, planos: pagamentoSelecionado.planos }}
               resultado={resultadoRepasse}
+              pagamento={dadosPagamento}
             />
             <Button variant="secondary" fullWidth onClick={modalResultado.fechar}>
               Fechar
@@ -564,18 +590,22 @@ export default function Financeiro() {
         )}
       </Modal>
 
-      <ModalConfirmacao 
+      <ModalConfirmacao
         isOpen={modalGerarMensalidades.isOpen}
         onClose={modalGerarMensalidades.fechar}
         onConfirm={handleGerarMensalidades}
-        titulo="Gerar Cobranças"
-        mensagem="Deseja gerar as cobranças para todos os alunos ativos deste mês?"
+        titulo={`Criar mensalidades de ${nomeMesCapitalizado}/${filtros.ano}`}
+        mensagem={
+          totalAtivos !== null
+            ? `Serão criadas mensalidades para ${totalAtivos} aluno${totalAtivos !== 1 ? 's' : ''} ativo${totalAtivos !== 1 ? 's' : ''}. Alunos que já possuem lançamento neste mês não serão duplicados.`
+            : 'Carregando contagem de alunos ativos...'
+        }
       />
 
-      <ModalAdicionarPagamentoManual 
-        isOpen={modalAddOpen} 
+      <ModalAdicionarPagamentoManual
+        isOpen={modalAddOpen}
         onClose={() => setModalAddOpen(false)}
-        onSucesso={refetch} 
+        onSucesso={refetch}
       />
 
       {/* Modal Editar Lançamento */}
@@ -588,7 +618,6 @@ export default function Financeiro() {
                 {lancamentoEditando.alunos?.nome_completo || lancamentoEditando.nome_visitante || 'Visitante'}
               </p>
             </Surface>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
@@ -615,7 +644,6 @@ export default function Financeiro() {
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
@@ -640,7 +668,6 @@ export default function Financeiro() {
                 />
               </div>
             </div>
-
             {formEdicao.status === 'pendente' && (
               <Surface variant="muted" padding="sm">
                 <p className="text-xs text-muted-foreground">
@@ -648,7 +675,6 @@ export default function Financeiro() {
                 </p>
               </Surface>
             )}
-
             <div className="flex gap-2 pt-1">
               <Button type="button" variant="secondary" fullWidth onClick={modalEditar.fechar}>
                 Cancelar

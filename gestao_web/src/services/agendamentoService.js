@@ -44,9 +44,10 @@ export const agendamentoService = {
       payload.status_conversao = 'pendente';
       payload.aluno_id = null;
     } else {
-      payload.aluno_id = dados.aluno_id;
-      payload.nome_visitante = null;
-    }
+  payload.aluno_id = dados.aluno_id;
+  payload.nome_visitante = null;
+  payload.tipo = 'agendado';
+}
     const { error } = await supabase.from('presencas').insert([payload]);
     if (error && error.code === '23505') throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
     else if (error) throw error;

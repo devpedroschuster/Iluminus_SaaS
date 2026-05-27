@@ -48,6 +48,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     plano_id: '',
     valor_pago: '',
     forma_pagamento: 'pix',
+    data_pagamento: new Date().toISOString().split('T')[0],
     data_vencimento: new Date().toISOString().split('T')[0],
     professor_id: '',
     modalidade_nome: '',
@@ -85,7 +86,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         forma_pagamento: form.forma_pagamento,
         data_vencimento: form.data_vencimento,
         status: 'pago',
-        data_pagamento: new Date().toISOString().split('T')[0],
+        data_pagamento: form.data_pagamento,
       };
 
       if (form.tipo_aula === 'regular' && form.plano_id) {
@@ -245,6 +246,17 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               required
             />
           </div>
+
+          <div>
+  <Label className="block mb-1.5">Data do Pagamento</Label>
+  <Input
+    type="date"
+    leftIcon={<Calendar size={18} />}
+    value={form.data_pagamento}
+    onChange={e => setForm({ ...form, data_pagamento: e.target.value })}
+    required
+  />
+</div>
           <div>
             <Label className="block mb-1.5">Data do Vencimento</Label>
             <Input

@@ -103,7 +103,7 @@ export const financeiroService = {
       forma_pagamento: dados.forma_pagamento,
 
       data_vencimento: dados.data_vencimento,
-      data_pagamento: dados.status === 'pago' ? dados.data_vencimento : null,
+      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
     };
 
     const { data, error } = await supabase
@@ -118,10 +118,13 @@ export const financeiroService = {
     }
 
     if (dados.status === 'pago') {
-      await gerarRepassesDaMensalidade(data.id);
-    }
-
-    return data;
+  try {
+    await gerarRepassesDaMensalidade(data.id);
+  } catch (repasseError) {
+    console.warn('[financeiroService] Aviso: erro ao gerar repasses. Pagamento já registrado.', repasseError);
+  }
+}
+return data;
   },
 
   async confirmarPagamento(id, dados) {

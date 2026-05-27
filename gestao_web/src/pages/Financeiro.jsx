@@ -37,7 +37,10 @@ import Badge from '../components/ui/Badge';
 function calcularStatusReal(item) {
   if (item.status === 'pago') return { tipo: 'pago', diasAtraso: 0 };
 
-  const hoje = new Date().toISOString().split('T')[0];
+  // Usa data local (não UTC) para evitar que pagamentos do dia apareçam como atrasados
+  // em fusos como o do Brasil, onde o UTC já virou para o dia seguinte à noite.
+  const d = new Date();
+  const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (item.data_vencimento < hoje) {
     const venc = new Date(item.data_vencimento + 'T12:00:00');
     const diasAtraso = Math.max(1, Math.floor((Date.now() - venc.getTime()) / 86_400_000));
@@ -95,7 +98,10 @@ export default function Financeiro() {
 
   const metricas = useMemo(() => {
     if (!mensalidades) return { recebido: 0, pendente: 0, atrasado: 0, total: 0 };
-    const hoje = new Date().toISOString().split('T')[0];
+    // Usa data local (não UTC) — mesma lógica de calcularStatusReal
+    const _d = new Date();
+    const hoje = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
+
     
     return mensalidades.reduce((acc, m) => {
       const valorOriginal = Number(m.planos?.preco) || 0;

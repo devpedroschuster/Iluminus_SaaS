@@ -29,7 +29,7 @@ export function useGradeMutations({ onSuccess }) {
         espaco: novaAula.espaco,
         valor_por_aluno: Number(novaAula.valorPorAluno) || 0,
         cor: novaAula.cor || 'laranja',
-        ativa: true
+        ativa: true,
       };
 
       if (novaAula.id) {
@@ -37,23 +37,30 @@ export function useGradeMutations({ onSuccess }) {
       }
 
       if (novaAula.ehRecorrente) {
+        // Aula recorrente: modalidade e dia da semana são obrigatórios
+        if (!payload.modalidade_id) throw new Error('Selecione uma Modalidade.');
+        if (!novaAula.diaSemana) throw new Error('Selecione o dia da semana.');
         payload.dia_semana = novaAula.diaSemana.toLowerCase();
-        if (!payload.modalidade_id) throw new Error("Selecione uma Modalidade.");
       } else {
-        if (!novaAula.dataEspecifica) throw new Error("Data é obrigatória.");
-        const diaCalculado = format(new Date(novaAula.dataEspecifica + 'T12:00:00'), 'eeee', { locale: ptBR });
+        // Evento único: apenas nome e data são obrigatórios; professor e modalidade são opcionais
+        if (!novaAula.dataEspecifica) throw new Error('Data é obrigatória.');
+        if (!payload.atividade.trim()) throw new Error('Informe o nome do evento.');
+        const diaCalculado = format(
+          new Date(novaAula.dataEspecifica + 'T12:00:00'),
+          'eeee',
+          { locale: ptBR }
+        );
         payload.dia_semana = diaCalculado.toLowerCase();
       }
 
       await gradeService.salvarAula(payload);
-      
       invalidarCacheAgenda();
-      showToast.success("Grade atualizada com sucesso!");
+      showToast.success('Grade atualizada com sucesso!');
       onSuccess?.();
-    } catch (err) { 
-      showToast.error(err.message); 
-    } finally { 
-      setSavingAula(false); 
+    } catch (err) {
+      showToast.error(err.message);
+    } finally {
+      setSavingAula(false);
     }
   };
 
@@ -61,10 +68,10 @@ export function useGradeMutations({ onSuccess }) {
     try {
       await gradeService.excluirAula(eventoId);
       invalidarCacheAgenda();
-      showToast.success("Grade removida com sucesso.");
+      showToast.success('Grade removida com sucesso.');
       onSuccess?.();
     } catch (err) {
-      showToast.error(err.message || "Erro ao excluir.");
+      showToast.error(err.message || 'Erro ao excluir.');
     }
   };
 
@@ -78,12 +85,11 @@ export function useGradeMutations({ onSuccess }) {
     try {
       const { dataClicada } = prepararEncerramento(dataStart);
       await gradeService.encerrarAula(eventoId, dataClicada);
-
       invalidarCacheAgenda();
-      showToast.success("Turma encerrada a partir desta data.");
+      showToast.success('Turma encerrada a partir desta data.');
       onSuccess?.();
     } catch (err) {
-      showToast.error(err.message || "Erro ao encerrar turma.");
+      showToast.error(err.message || 'Erro ao encerrar turma.');
     }
   };
 
@@ -92,6 +98,6 @@ export function useGradeMutations({ onSuccess }) {
     excluirAula,
     encerrarAula,
     prepararEncerramento,
-    savingAula
+    savingAula,
   };
 }

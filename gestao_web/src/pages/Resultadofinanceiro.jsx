@@ -18,7 +18,7 @@ import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import Badge from '../components/ui/Badge';
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// Helpers
 const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -32,7 +32,7 @@ function sinalTendencia(atual, anterior) {
   return ((atual - anterior) / anterior) * 100;
 }
 
-// ── Componentes auxiliares ─────────────────────────────────────────────────────
+// Componentes auxiliares
 function CardKPI({ titulo, valor, subtitulo, icone, cor = 'neutral', tendencia = null }) {
   const TONES = {
     success:     'bg-success-soft text-success',

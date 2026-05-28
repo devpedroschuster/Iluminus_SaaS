@@ -1,33 +1,38 @@
 import { supabase } from '../lib/supabase';
 
 export const alunosService = {
-  async listar(filtros = {}) {
+  async listar(filtros = {}, paginacao = {}) {
     try {
+      const { pagina = 1, tamanho = 25 } = paginacao;
+      const inicio = (pagina - 1) * tamanho;
+      const fim    = inicio + tamanho - 1;
+
       let query = supabase
         .from('alunos')
-        .select('*, planos(nome, preco)')
-        .order('nome_completo');
+        .select('*, planos(nome)', { count: 'exact' });
 
-      if (filtros.role && filtros.role !== 'todos') {
+      if (filtros.role && filtros.role !== 'todos')
         query = query.eq('role', filtros.role);
-      }
 
-      if (filtros.busca) {
-  query = query.or(
-    `nome_completo.ilike.%${filtros.busca}%,email.ilike.%${filtros.busca}%`
-  );
-}
+      if (filtros.busca)
+        query = query.or(`nome_completo.ilike.%${filtros.busca}%,email.ilike.%${filtros.busca}%`);
 
-      const { data, error } = await query;
+      if (filtros.letraInicial)
+        query = query.ilike('nome_completo', `${filtros.letraInicial}%`);
+
+      const { data, error, count } = await query
+        .order('nome_completo')
+        .range(inicio, fim);
+
       if (error) throw error;
-      return data;
+      return { data, count };
     } catch (error) {
       console.error('[alunosService.listar]', error);
       throw error;
     }
   },
 
-    async criar(dados) {
+  async criar(dados) {
     try {
       const { data, error } = await supabase
         .from('alunos')
@@ -60,7 +65,7 @@ export const alunosService = {
     }
   },
 
-    async excluir(id) {
+  async excluir(id) {
     try {
       const { error } = await supabase
         .from('alunos')
@@ -75,7 +80,7 @@ export const alunosService = {
     }
   },
 
-    async alterarStatus(id, novoStatus) {
+  async alterarStatus(id, novoStatus) {
     try {
       const { error } = await supabase
         .from('alunos')
@@ -90,7 +95,7 @@ export const alunosService = {
     }
   },
 
-     async listarAniversariantes() {
+  async listarAniversariantes() {
     const { data, error } = await supabase
       .from('alunos')
       .select('id, nome_completo, data_nascimento, telefone, planos(nome)')
@@ -100,7 +105,7 @@ export const alunosService = {
     return data;
   },
 
-async buscarPerfilCompleto(alunoId) {
+  async buscarPerfilCompleto(alunoId) {
     const { data, error } = await supabase
       .from('alunos')
       .select(`
@@ -109,7 +114,7 @@ async buscarPerfilCompleto(alunoId) {
       `)
       .eq('id', alunoId)
       .single();
-    
+
     if (error) throw error;
     return data;
   },
@@ -123,7 +128,7 @@ async buscarPerfilCompleto(alunoId) {
       `)
       .eq('aluno_id', alunoId)
       .order('data_inicio', { ascending: false });
-    
+
     if (error) throw error;
     return data;
   },
@@ -137,7 +142,7 @@ async buscarPerfilCompleto(alunoId) {
       `)
       .eq('aluno_id', alunoId)
       .order('data_checkin', { ascending: false });
-    
+
     if (error) throw error;
     return data;
   },
@@ -158,16 +163,16 @@ async buscarPerfilCompleto(alunoId) {
           data_inicio: dadosRenovacao.data_inicio,
           data_fim: dadosRenovacao.data_fim,
           valor_pago: dadosRenovacao.valor_pago || 0,
-          status: 'ativo'
+          status: 'ativo',
         }]);
-      
+
       if (errHist) throw errHist;
 
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
           plano_id: dadosRenovacao.plano_id,
-          data_fim_plano: dadosRenovacao.data_fim
+          data_fim_plano: dadosRenovacao.data_fim,
         })
         .eq('id', alunoId);
 
@@ -179,7 +184,7 @@ async buscarPerfilCompleto(alunoId) {
           aluno_id: alunoId,
           plano_id: dadosRenovacao.plano_id,
           data_vencimento: dadosRenovacao.data_inicio,
-          status: 'pendente'
+          status: 'pendente',
         }]);
 
       if (errMensalidade) throw errMensalidade;
@@ -193,17 +198,18 @@ async buscarPerfilCompleto(alunoId) {
 
   /**
    * Matricula um aluno em um plano de forma canônica.
-   * Deve ser o único ponto de entrada para matrícula — substitui a lógica
-   * duplicada de salvarEtapa2 (NovoAluno.jsx) e handleMatricular (ModalMatricula.jsx).
+   * deve delegar aqui, nunca inserir em historico_planos diretamente.
+   *
+   * FIX Bug 2: inserção em historico_planos é sempre feita, sem guard condicional.
+   * Para simples atualização de dados sem novo ciclo, use alunosService.atualizar().
    *
    * @param {string} alunoId
    * @param {string} planoId
    * @param {object} opcoes
    * @param {string}   opcoes.dataVencimento
    * @param {Array}    opcoes.modalidades
-   * @param {boolean} [opcoes.isNovaMatricula]
    */
-  async matricular(alunoId, planoId, { dataVencimento, modalidades = [], isNovaMatricula = true }) {
+  async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
     try {
       const { data: plano, error: errPlano } = await supabase
         .from('planos')
@@ -219,6 +225,7 @@ async buscarPerfilCompleto(alunoId) {
       dataFimObj.setDate(dataFimObj.getDate() - 1);
       const dataFim = dataFimObj.toISOString().split('T')[0];
 
+      // 1. Atualiza o cadastro do aluno
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
@@ -232,21 +239,28 @@ async buscarPerfilCompleto(alunoId) {
 
       if (errAluno) throw errAluno;
 
-      if (isNovaMatricula) {
-        const { error: errHist } = await supabase
-          .from('historico_planos')
-          .insert([{
-            aluno_id: alunoId,
-            plano_id: planoId,
-            data_inicio: dataInicio,
-            data_fim: dataFim,
-            status: 'ativo',
-            valor_pago: plano.preco || 0,
-          }]);
+      // 2. Finaliza ciclo anterior (se houver) antes de criar o novo
+      await supabase
+        .from('historico_planos')
+        .update({ status: 'finalizado' })
+        .eq('aluno_id', alunoId)
+        .eq('status', 'ativo');
 
-        if (errHist) throw errHist;
-      }
+      // 3. Insere SEMPRE em historico_planos — sem guard condicional
+      const { error: errHist } = await supabase
+        .from('historico_planos')
+        .insert([{
+          aluno_id: alunoId,
+          plano_id: planoId,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          status: 'ativo',
+          valor_pago: plano.preco || 0,
+        }]);
 
+      if (errHist) throw errHist;
+
+      // 4. Cria a mensalidade
       const { error: errMens } = await supabase
         .from('mensalidades')
         .insert([{
@@ -264,5 +278,62 @@ async buscarPerfilCompleto(alunoId) {
       console.error('[alunosService.matricular]', error);
       throw error;
     }
+  },
+
+  /**
+   * Migration helper — normaliza registros existentes que possuem plano_id
+   * mas não têm entrada correspondente em historico_planos.
+   * Executar uma única vez via painel admin ou script de migração.
+   */
+  async normalizarHistoricoPlanos() {
+    const { data: alunos, error: errAlunos } = await supabase
+      .from('alunos')
+      .select('id, plano_id, data_inicio_plano, data_fim_plano, created_at')
+      .not('plano_id', 'is', null);
+
+    if (errAlunos) throw errAlunos;
+
+    let normalizados = 0;
+    let ignorados = 0;
+
+    for (const aluno of alunos) {
+      const { data: historico } = await supabase
+        .from('historico_planos')
+        .select('id')
+        .eq('aluno_id', aluno.id)
+        .eq('status', 'ativo')
+        .maybeSingle();
+
+      if (historico) { ignorados++; continue; }
+
+      const dataInicio = aluno.data_inicio_plano ?? aluno.created_at.split('T')[0];
+      let dataFim = aluno.data_fim_plano;
+      if (!dataFim) {
+        const fallback = new Date();
+        fallback.setDate(fallback.getDate() + 30);
+        dataFim = fallback.toISOString().split('T')[0];
+      }
+
+      const { error: errInsert } = await supabase
+        .from('historico_planos')
+        .insert([{
+          aluno_id: aluno.id,
+          plano_id: aluno.plano_id,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          status: 'ativo',
+          valor_pago: 0,
+        }]);
+
+      if (errInsert) {
+        console.warn(`[normalizarHistoricoPlanos] Falha no aluno ${aluno.id}:`, errInsert);
+        ignorados++;
+      } else {
+        normalizados++;
+      }
+    }
+
+    console.info(`[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`);
+    return { normalizados, ignorados };
   },
 };

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User, CreditCard, Calendar, Activity,
-  ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2
+  ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
+  Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -14,6 +15,53 @@ import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
+
+// Paleta de cores avatar
+
+const AVATAR_COLORS = [
+  'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',
+  'bg-amber-500',  'bg-rose-500', 'bg-cyan-500',
+  'bg-pink-500',   'bg-indigo-500',
+];
+
+function hashNome(nome = '') {
+  let h = 0;
+  for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function iniciais(nome = '') {
+  const partes = nome.trim().split(/\s+/);
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+const AVATAR_SIZE = {
+  sm:  { box: 'w-10 h-10 rounded-2xl', text: 'text-sm'  },
+  md:  { box: 'w-16 h-16 rounded-2xl', text: 'text-xl'  },
+  lg:  { box: 'w-24 h-24 rounded-3xl', text: 'text-3xl' },
+};
+
+const AlunoAvatar = ({ nome = '', avatarUrl = null, size = 'lg' }) => {
+  const { box, text } = AVATAR_SIZE[size] ?? AVATAR_SIZE.lg;
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={nome}
+        className={`${box} object-cover shrink-0`}
+      />
+    );
+  }
+  const cor = AVATAR_COLORS[hashNome(nome) % AVATAR_COLORS.length];
+  return (
+    <div className={`${box} ${cor} flex items-center justify-center shrink-0`}>
+      <span className={`${text} font-black text-white select-none`}>
+        {iniciais(nome)}
+      </span>
+    </div>
+  );
+};
 
 const LabelDado = ({ titulo, valor }) => (
   <div className="space-y-1">
@@ -32,13 +80,783 @@ const Th = ({ children, className = '' }) => (
   </th>
 );
 
+// Helpers de WhatsApp
+function gerarLinkWhatsApp(telefone, mensagem) {
+  const num = (telefone || '').replace(/\D/g, '');
+  if (!num) return null;
+  // Adiciona DDI 55 (Brasil) se não tiver
+  const numCompleto = num.startsWith('55') ? num : `55${num}`;
+  return `https://wa.me/${numCompleto}?text=${encodeURIComponent(mensagem)}`;
+}
+
+// Botão WhatsApp
+function BotaoWhatsApp({ aluno }) {
+  const telefone = aluno?.telefone;
+  const nome = aluno?.nome_completo?.split(' ')[0] || 'aluno(a)';
+  const mensagem = `Olá ${nome}, tudo bem? Passando aqui pelo Iluminus para falar com você! 😊`;
+  const link = gerarLinkWhatsApp(telefone, mensagem);
+
+  if (!link) {
+    return (
+      <Button
+        variant="ghost"
+        size="md"
+        leftIcon={<MessageCircle size={16} />}
+        disabled
+        title="Telefone não cadastrado"
+        className="opacity-40 cursor-not-allowed"
+      >
+        WhatsApp
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      as="a"
+      href={link}
+      target="_blank"
+      rel="noreferrer"
+      variant="outline"
+      size="md"
+      leftIcon={<MessageCircle size={16} className="text-emerald-500" />}
+      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950"
+    >
+      WhatsApp
+    </Button>
+  );
+}
+
+// Modal de Edição de Cadastro
+function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
+  const [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState({
+    nome_completo:      aluno?.nome_completo      ?? '',
+    email:              aluno?.email              ?? '',
+    telefone:           aluno?.telefone           ?? '',
+    cpf:                aluno?.cpf                ?? '',
+    data_nascimento:    aluno?.data_nascimento    ?? '',
+    contato_emergencia: aluno?.contato_emergencia ?? '',
+
+    // Endereço
+    cep:          aluno?.cep          ?? '',
+    rua:          aluno?.rua          ?? '',
+    numero:       aluno?.numero       ?? '',
+    complemento:  aluno?.complemento  ?? '',
+    bairro:       aluno?.bairro       ?? '',
+    cidade:       aluno?.cidade       ?? '',
+  });
+
+  const set = (campo) => (e) => setForm(f => ({ ...f, [campo]: e.target.value }));
+
+  const handleSalvar = async () => {
+    if (!form.nome_completo.trim()) {
+      showToast.error('Nome completo é obrigatório.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      await alunosService.atualizar(alunoId, {
+        nome_completo:      form.nome_completo.trim(),
+        email:              form.email.trim()              || null,
+        telefone:           form.telefone.trim()           || null,
+        cpf:                form.cpf.trim()                || null,
+        data_nascimento:    form.data_nascimento           || null,
+        contato_emergencia: form.contato_emergencia.trim() || null,
+        cep:                form.cep.trim()                || null,
+        rua:                form.rua.trim()                || null,
+        numero:             form.numero.trim()             || null,
+        complemento:        form.complemento.trim()        || null,
+        bairro:             form.bairro.trim()             || null,
+        cidade:             form.cidade.trim()             || null,
+      });
+      queryClient.invalidateQueries(['aluno', alunoId]);
+      showToast.success('Cadastro atualizado com sucesso!');
+      onClose();
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao salvar cadastro:', err);
+      showToast.error('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const buscarCep = async (cep) => {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setForm(f => ({
+          ...f,
+          rua:    data.logradouro || f.rua,
+          bairro: data.bairro     || f.bairro,
+          cidade: data.localidade || f.cidade,
+        }));
+      }
+    } catch {
+    }
+  };
+
+  const labelClass = 'text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-1.5';
+  const inputClass = 'w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground';
+
+  return (
+    /* Overlay */
+
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Modal */}
+
+      <div className="bg-background rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+
+        {/* Header do modal */}
+
+        <div className="flex items-center justify-between px-8 py-6 border-b border-border shrink-0">
+          <div>
+            <h2 className="text-xl font-black text-foreground">Editar Cadastro</h2>
+            <p className="text-muted-foreground text-sm font-medium mt-0.5">
+              {aluno?.nome_completo}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Corpo scrollável */}
+
+        <div className="overflow-y-auto flex-1 px-8 py-6 space-y-8">
+
+          {/* Seção: Dados Pessoais */}
+
+          <div className="space-y-5">
+            <h3 className="font-black text-foreground flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <User size={16} /> Dados Pessoais
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className={labelClass}>Nome Completo *</label>
+                <input
+                  className={inputClass}
+                  value={form.nome_completo}
+                  onChange={set('nome_completo')}
+                  placeholder="Nome completo do aluno"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Data de Nascimento</label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={form.data_nascimento}
+                  onChange={set('data_nascimento')}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>CPF</label>
+                <input
+                  className={inputClass}
+                  value={form.cpf}
+                  onChange={set('cpf')}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>Contato de Emergência</label>
+              <input
+                className={inputClass}
+                value={form.contato_emergencia}
+                onChange={set('contato_emergencia')}
+                placeholder="Nome — (51) 9 0000-0000"
+              />
+            </div>
+          </div>
+
+          {/* Seção: Contato */}
+
+          <div className="space-y-5">
+            <h3 className="font-black text-foreground flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <Phone size={16} /> Contato
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>E-mail</label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  value={form.email}
+                  onChange={set('email')}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Telefone / WhatsApp</label>
+                <input
+                  className={inputClass}
+                  value={form.telefone}
+                  onChange={set('telefone')}
+                  placeholder="(51) 9 0000-0000"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Seção: Endereço */}
+
+          <div className="space-y-5">
+            <h3 className="font-black text-foreground flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <MapPin size={16} /> Endereço
+            </h3>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>CEP</label>
+                <input
+                  className={inputClass}
+                  value={form.cep}
+                  onChange={set('cep')}
+                  onBlur={(e) => buscarCep(e.target.value)}
+                  placeholder="00000-000"
+                  maxLength={9}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Logradouro</label>
+                <input
+                  className={inputClass}
+                  value={form.rua}
+                  onChange={set('rua')}
+                  placeholder="Rua, Avenida..."
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>Número</label>
+                <input
+                  className={inputClass}
+                  value={form.numero}
+                  onChange={set('numero')}
+                  placeholder="123"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Complemento</label>
+                <input
+                  className={inputClass}
+                  value={form.complemento}
+                  onChange={set('complemento')}
+                  placeholder="Apto, Bloco..."
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Bairro</label>
+                <input
+                  className={inputClass}
+                  value={form.bairro}
+                  onChange={set('bairro')}
+                  placeholder="Bairro"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Cidade</label>
+                <input
+                  className={inputClass}
+                  value={form.cidade}
+                  onChange={set('cidade')}
+                  placeholder="Cidade"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer do modal */}
+        <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-border shrink-0">
+          <Button variant="ghost" size="md" onClick={onClose} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button
+            variant="brand"
+            size="md"
+            leftIcon={<Save size={16} />}
+            onClick={handleSalvar}
+            disabled={salvando}
+          >
+            {salvando ? 'Salvando...' : 'Salvar Alterações'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Card de Uso do Plano com 3 estados explícitos
+function CardUsoPlan({ aluno, planos, frequencia }) {
+  if (!aluno?.plano_id) {
+    return (
+      <div className="bg-muted p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center min-h-[140px] border border-border">
+        <div className="relative z-10">
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-2">Uso do Plano</p>
+          <h3 className="text-2xl font-black text-muted-foreground">Sem plano</h3>
+          <p className="text-muted-foreground/60 text-xs font-medium mt-2">Nenhum plano ativo vinculado</p>
+        </div>
+      </div>
+    );
+  }
+
+  const planoAtivo = planos?.find(p => p.status === 'ativo') ?? null;
+
+  if (!planoAtivo) {
+    return (
+      <div className="bg-warning/10 border border-warning/30 p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center min-h-[140px]">
+        <div className="relative z-10">
+          <p className="text-warning text-xs font-bold uppercase tracking-wider mb-2">Uso do Plano</p>
+          <h3 className="text-xl font-black text-warning leading-tight">Histórico pendente</h3>
+          <p className="text-warning/70 text-xs font-medium mt-2">
+            Acesse "Histórico" e clique em Renovar para registrar o ciclo atual
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const inicio = new Date(planoAtivo.data_inicio + 'T00:00:00');
+  const fim    = new Date(planoAtivo.data_fim    + 'T23:59:59');
+  const diffDays     = Math.ceil(Math.abs(fim - inicio) / (1000 * 60 * 60 * 24));
+  const totalSemanas = Math.ceil(diffDays / 7) || 1;
+
+  let limiteSemanal = 0;
+  let isLivre       = false;
+  const regras = planoAtivo.planos?.regras_acesso;
+  if (Array.isArray(regras)) {
+    regras.forEach(r => {
+      const l = parseInt(r.limite);
+      if (l >= 99) isLivre = true;
+      else limiteSemanal += l;
+    });
+  }
+
+  const aulasUsadas = (frequencia ?? []).filter(f => {
+    const d = new Date(f.data_checkin);
+    return d >= inicio && d <= fim;
+  }).length;
+
+  let textoFrequencia, subtituloFrequencia, percentualUso;
+
+  if (isLivre) {
+    textoFrequencia     = `${aulasUsadas} aulas`;
+    subtituloFrequencia = 'Acesso Livre / Ilimitado';
+    percentualUso       = 100;
+  } else {
+    const totalAulas = limiteSemanal * totalSemanas;
+    textoFrequencia     = `${aulasUsadas} de ${totalAulas}`;
+    subtituloFrequencia = `Ciclo de ${totalSemanas} sem. • ${limiteSemanal}×/sem`;
+    percentualUso       = totalAulas > 0 ? Math.min((aulasUsadas / totalAulas) * 100, 100) : 0;
+  }
+
+  const [num, ...rest] = textoFrequencia.split(' ');
+
+  return (
+    <div className="bg-primary p-8 rounded-3xl text-primary-foreground relative overflow-hidden flex flex-col justify-center min-h-[140px]">
+      <div className="relative z-10">
+        <p className="text-primary-foreground/70 text-xs font-bold uppercase tracking-wider">Uso do Plano</p>
+        <h3 className="text-4xl font-black mt-1 flex items-baseline gap-2">
+          {num}
+          <span className="text-lg font-medium text-primary-foreground/60">
+            {rest.join(' ')}
+          </span>
+        </h3>
+        <p className="text-primary-foreground/60 text-xs font-medium mt-2">{subtituloFrequencia}</p>
+      </div>
+      <div className="absolute bottom-0 left-0 w-full h-2 bg-black/10">
+        <div
+          className="h-full bg-white/40 transition-all duration-1000 ease-out"
+          style={{ width: `${percentualUso}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeatmapFrequencia({ frequencia, planoAtivo }) {
+  const hoje      = new Date();
+  const SEMANAS   = 12;
+  const totalDias = SEMANAS * 7;
+
+  const ancor = new Date(hoje);
+  ancor.setDate(hoje.getDate() - totalDias + 1);
+  ancor.setDate(ancor.getDate() - ancor.getDay());
+
+  const datasComPresenca = new Set(
+    (frequencia ?? []).map(f => new Date(f.data_checkin).toISOString().split('T')[0])
+  );
+
+  // Gera as células
+  const cells = Array.from({ length: SEMANAS * 7 }, (_, i) => {
+    const d   = new Date(ancor);
+    d.setDate(ancor.getDate() + i);
+    const iso = d.toISOString().split('T')[0];
+    return {
+      iso,
+      hasPresence: datasComPresenca.has(iso),
+      isToday:     iso === hoje.toISOString().split('T')[0],
+      isFuture:    d > hoje,
+    };
+  });
+
+  // Rótulo de mês por coluna de semana
+  const mesesLabel = Array.from({ length: SEMANAS }, (_, s) => {
+    const d = new Date(ancor);
+    d.setDate(ancor.getDate() + s * 7);
+    return s === 0 || d.getDate() <= 7
+      ? d.toLocaleString('pt-BR', { month: 'short' })
+      : '';
+  });
+
+  // Badge Em dia / Atenção / Abaixo da meta
+  let badgeTone  = 'neutral';
+  let badgeLabel = 'Sem dados de plano';
+  let BadgeIcon  = Minus;
+
+  if (planoAtivo?.data_inicio && planoAtivo?.data_fim) {
+    const pInicio = new Date(planoAtivo.data_inicio + 'T00:00:00');
+    const pFim    = new Date(planoAtivo.data_fim    + 'T23:59:59');
+    const regras  = planoAtivo.planos?.regras_acesso;
+
+    let limiteSemanal = 0;
+    let isLivre       = false;
+    if (Array.isArray(regras)) {
+      regras.forEach(r => {
+        const l = parseInt(r.limite);
+        if (l >= 99) isLivre = true;
+        else limiteSemanal += l;
+      });
+    }
+
+    if (isLivre) {
+      badgeTone  = 'success';
+      badgeLabel = 'Acesso Livre';
+      BadgeIcon  = TrendingUp;
+    } else if (limiteSemanal > 0) {
+      const quatroSemanas = new Date(hoje);
+      quatroSemanas.setDate(hoje.getDate() - 28);
+      const aulasRecentes = (frequencia ?? []).filter(f => {
+        const d = new Date(f.data_checkin);
+        return d >= quatroSemanas && d <= hoje && d >= pInicio && d <= pFim;
+      }).length;
+      const meta = limiteSemanal * 4;
+      const taxa = meta > 0 ? aulasRecentes / meta : 0;
+
+      if (taxa >= 0.85)      { badgeTone = 'success'; badgeLabel = 'Em dia';          BadgeIcon = TrendingUp;   }
+      else if (taxa >= 0.5)  { badgeTone = 'warning'; badgeLabel = 'Atenção';         BadgeIcon = Minus;        }
+      else                   { badgeTone = 'danger';  badgeLabel = 'Abaixo da meta';  BadgeIcon = TrendingDown; }
+    }
+  }
+
+  const toneClass = {
+    success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    danger:  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+    neutral: 'bg-muted text-muted-foreground',
+  };
+
+  const diasLabel = ['D','S','T','Q','Q','S','S'];
+
+  return (
+    <div className="space-y-3">
+      {/* Cabeçalho com badge */}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">
+          Últimas {SEMANAS} semanas
+        </p>
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${toneClass[badgeTone]}`}>
+          <BadgeIcon size={12} />
+          {badgeLabel}
+        </span>
+      </div>
+
+      {/* Grid heatmap */}
+      <div className="overflow-x-auto">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `20px repeat(${SEMANAS}, 1fr)`,
+            gap: '3px',
+            minWidth: 340,
+          }}
+        >
+          {/* Coluna de rótulos de dia-da-semana */}
+          <div className="flex flex-col gap-[3px]">
+            <div style={{ height: 14 }} />
+            {diasLabel.map((d, i) => (
+              <div
+                key={i}
+                style={{ height: 14 }}
+                className="text-[9px] font-bold text-muted-foreground flex items-center justify-end pr-1"
+              >
+                {i % 2 === 1 ? d : ''}
+              </div>
+            ))}
+          </div>
+
+          {/* Colunas de semana */}
+          {Array.from({ length: SEMANAS }, (_, s) => (
+            <div key={s} className="flex flex-col gap-[3px]">
+              {/* Rótulo de mês */}
+              <div style={{ height: 14 }} className="text-[9px] font-bold text-muted-foreground truncate">
+                {mesesLabel[s]}
+              </div>
+              {/* 7 células */}
+              {Array.from({ length: 7 }, (_, dow) => {
+                const cell = cells[s * 7 + dow];
+                if (!cell) return <div key={dow} style={{ height: 14, borderRadius: 3 }} />;
+                return (
+                  <div
+                    key={dow}
+                    title={cell.iso}
+                    style={{ height: 14, borderRadius: 3 }}
+                    className={`transition-colors ${
+                      cell.isFuture
+                        ? 'bg-muted/30'
+                        : cell.hasPresence
+                          ? 'bg-primary opacity-90'
+                          : 'bg-muted'
+                    } ${cell.isToday ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : ''}`}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Legenda */}
+
+      <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-medium">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-muted" /> Sem aula
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-primary opacity-90" /> Presente
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AbaAnamnese({ aluno, alunoId, queryClient, observacoesMedicas, setObservacoesMedicas, salvandoMedico, setSalvandoMedico }) {
+  const [editandoLink, setEditandoLink] = useState(false);
+  const [novoLink, setNovoLink]         = useState(aluno?.link_anamnese ?? '');
+  const [salvandoLink, setSalvandoLink] = useState(false);
+
+  React.useEffect(() => {
+    setNovoLink(aluno?.link_anamnese ?? '');
+  }, [aluno?.link_anamnese]);
+
+  const handleSalvarLink = async () => {
+    if (salvandoLink) return;
+    setSalvandoLink(true);
+    try {
+      await alunosService.atualizar(alunoId, { link_anamnese: novoLink.trim() || null });
+      queryClient.invalidateQueries(['aluno', alunoId]);
+      showToast.success('Link da anamnese atualizado!');
+      setEditandoLink(false);
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao salvar link_anamnese:', err);
+      showToast.error('Erro ao salvar o link. Tente novamente.');
+    } finally {
+      setSalvandoLink(false);
+    }
+  };
+
+  const handleSalvarObservacoesMedicas = async () => {
+    if (salvandoMedico) return;
+    setSalvandoMedico(true);
+    try {
+      await alunosService.atualizar(alunoId, { observacoes_medicas: observacoesMedicas });
+      showToast.success('Resumo médico salvo com sucesso!');
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao salvar observações médicas:', err);
+      showToast.error('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvandoMedico(false);
+    }
+  };
+
+  const linkValido = novoLink.trim() && /^https?:\/\/.+/.test(novoLink.trim());
+
+  return (
+    <div className="max-w-2xl space-y-6 animate-in slide-in-from-bottom-4">
+
+      {/* Card do link da anamnese */}
+
+      <Surface variant="card" padding="lg" className="bg-primary-soft border-primary/20 space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-black text-primary mb-1">Ficha Médica Externa (Forms)</h3>
+            <p className="text-primary/70 text-sm leading-relaxed">
+              Link para o formulário de anamnese preenchido pelo aluno.
+            </p>
+          </div>
+          <button
+            onClick={() => setEditandoLink(v => !v)}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-primary border border-primary/30 hover:bg-primary/10 transition-colors"
+          >
+            <Link2 size={13} />
+            {editandoLink ? 'Cancelar' : (aluno?.link_anamnese ? 'Editar link' : 'Vincular link')}
+          </button>
+        </div>
+
+        {/* Modo edição */}
+
+        {editandoLink && (
+          <div className="space-y-3 animate-in slide-in-from-top-2">
+            <input
+              type="url"
+              placeholder="https://forms.google.com/..."
+              value={novoLink}
+              onChange={e => setNovoLink(e.target.value)}
+              className="w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
+            />
+            {novoLink && !linkValido && (
+              <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                <AlertTriangle size={12} /> URL inválida — deve começar com https://
+              </p>
+            )}
+            {/* Preview da URL */}
+            {linkValido && (
+              <div className="flex items-center gap-2 p-3 bg-muted rounded-xl text-xs font-medium text-muted-foreground border border-border">
+                <ExternalLink size={12} className="shrink-0 text-primary" />
+                <span className="truncate">{novoLink.trim()}</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <Button
+                variant="brand"
+                size="sm"
+                leftIcon={<Save size={14} />}
+                onClick={handleSalvarLink}
+                disabled={salvandoLink || (!!novoLink && !linkValido)}
+              >
+                {salvandoLink ? 'Salvando...' : 'Salvar link'}
+              </Button>
+              {aluno?.link_anamnese && (
+                <button
+                  onClick={() => setNovoLink('')}
+                  className="text-xs font-bold text-destructive hover:underline"
+                >
+                  Remover link
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modo visualização */}
+
+        {!editandoLink && (
+          aluno?.link_anamnese ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 p-3 bg-muted/60 rounded-xl text-xs font-medium text-muted-foreground border border-border">
+                <Link2 size={12} className="shrink-0 text-primary" />
+                <span className="truncate flex-1">{aluno.link_anamnese}</span>
+              </div>
+              <div className="relative group inline-block">
+                <Button
+                  as="a"
+                  href={aluno.link_anamnese}
+                  target="_blank"
+                  rel="noreferrer"
+                  variant="outline"
+                  size="lg"
+                  rightIcon={<ExternalLink size={18} />}
+                >
+                  Visualizar Ficha Completa
+                </Button>
+                <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background opacity-0 transition-opacity group-hover:opacity-100">
+                  Abre em nova aba
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Link2 size={22} className="text-primary/40" />
+              </div>
+              <div>
+                <p className="font-bold text-primary/80 text-sm">Nenhum link vinculado</p>
+                <p className="text-primary/50 text-xs mt-1 max-w-xs">
+                  Clique em <strong>"Vincular link"</strong> acima para colar o endereço do Google Forms de anamnese deste aluno.
+                </p>
+              </div>
+            </div>
+          )
+        )}
+      </Surface>
+
+      <Surface variant="card" padding="xl" className="space-y-4">
+        <h3 className="font-black text-foreground flex items-center gap-2">
+          <Activity size={20} className="text-destructive" />
+          Observações Médicas Rápidas
+        </h3>
+        <Input
+          as="textarea"
+          rows={6}
+          placeholder="Lesões, restrições, alergias, medicamentos em uso..."
+          value={observacoesMedicas}
+          onChange={(e) => setObservacoesMedicas(e.target.value)}
+        />
+        <Button
+          variant="brand"
+          size="sm"
+          leftIcon={<Save size={14} />}
+          onClick={handleSalvarObservacoesMedicas}
+          disabled={salvandoMedico}
+        >
+          {salvandoMedico ? 'Salvando...' : 'Salvar Observações'}
+        </Button>
+      </Surface>
+    </div>
+  );
+}
+
+// Componente principal
+
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [abaAtiva, setAbaAtiva] = useState('resumo');
   const [modalRenovarAberto, setModalRenovarAberto] = useState(false);
+  const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
+
+  const hoje = new Date();
+  const noventa = new Date(hoje);
+  noventa.setDate(hoje.getDate() - 90);
+  const fmt = (d) => d.toISOString().split('T')[0];
+  const [filtroInicio, setFiltroInicio] = useState(fmt(noventa));
+  const [filtroFim,    setFiltroFim]    = useState(fmt(hoje));
 
   const { data: aluno, isLoading: loadingAluno } = useQuery({
     queryKey: ['aluno', id],
@@ -58,97 +876,26 @@ export default function PerfilAluno() {
   });
 
   React.useEffect(() => {
-   if (aluno?.observacoes_medicas !== undefined) {
-     setObservacoesMedicas(aluno.observacoes_medicas ?? '');
-   }
- }, [aluno?.observacoes_medicas]);
+    if (aluno?.observacoes_medicas !== undefined) {
+      setObservacoesMedicas(aluno.observacoes_medicas ?? '');
+    }
+  }, [aluno?.observacoes_medicas]);
 
- const handleSalvarObservacoesMedicas = async () => {
-   if (salvandoMedico) return;
-   setSalvandoMedico(true);
-   try {
-     await alunosService.atualizar(id, { observacoes_medicas: observacoesMedicas });
-     showToast.success('Resumo médico salvo com sucesso!');
-   } catch (err) {
-     console.error('[PerfilAluno] Erro ao salvar observações médicas:', err);
-     showToast.error('Erro ao salvar. Tente novamente.');
-   } finally {
-     setSalvandoMedico(false);
-   }
- };
-
-  const handleRenovacaoSucesso = () => window.location.reload();
+  const handleRenovacaoSucesso = () => {
+    queryClient.invalidateQueries(['aluno', id]);
+    queryClient.invalidateQueries(['aluno-planos', id]);
+  };
 
   if (loadingAluno) return <TableSkeleton />;
 
-  let planoAtivo = planos?.find(p => p.status === 'ativo');
-
-  if (!planoAtivo && aluno?.planos) {
-    let dataFim = aluno.data_vencimento;
-    let dataInicio = aluno.created_at;
-
-    if (dataFim) {
-      const dInicio = new Date(dataFim + 'T00:00:00');
-      dInicio.setDate(dInicio.getDate() - 30);
-      dataInicio = dInicio.toISOString().split('T')[0];
-    }
-
-    planoAtivo = {
-      data_inicio: dataInicio,
-      data_fim: dataFim || new Date().toISOString().split('T')[0],
-      planos: aluno.planos,
-    };
-  }
-
-  let textoFrequencia = '0 aulas';
-  let percentualUso = 0;
-  let tituloFrequencia = 'Uso do Plano';
-  let subtituloFrequencia = 'Sem plano vigente encontrado';
-
-  if (planoAtivo?.data_inicio && planoAtivo?.data_fim) {
-    const inicio = new Date(planoAtivo.data_inicio + 'T00:00:00');
-    const fim = new Date(planoAtivo.data_fim + 'T23:59:59');
-
-    const diffTime = Math.abs(fim - inicio);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const totalSemanas = Math.ceil(diffDays / 7) || 1;
-
-    let limiteSemanal = 0;
-    let isLivre = false;
-    const regras = planoAtivo.planos?.regras_acesso;
-
-    if (Array.isArray(regras)) {
-      regras.forEach(r => {
-        const l = parseInt(r.limite);
-        if (l >= 99) isLivre = true;
-        else limiteSemanal += l;
-      });
-    }
-
-    const aulasUsadas =
-      frequencia?.filter(f => {
-        const d = new Date(f.data_checkin);
-        return d >= inicio && d <= fim;
-      }).length || 0;
-
-    if (isLivre) {
-      textoFrequencia = `${aulasUsadas} aulas`;
-      subtituloFrequencia = 'Acesso Livre / Ilimitado';
-      percentualUso = 100;
-    } else {
-      const totalAulasNoPeriodo = limiteSemanal * totalSemanas;
-      textoFrequencia = `${aulasUsadas} de ${totalAulasNoPeriodo}`;
-      subtituloFrequencia = `Ciclo de ${totalSemanas} semanas • ${limiteSemanal}x por semana`;
-      percentualUso =
-        totalAulasNoPeriodo > 0 ? (aulasUsadas / totalAulasNoPeriodo) * 100 : 0;
-    }
-  }
+  const planoAtivo  = planos?.find(p => p.status === 'ativo') ?? null;
+  const semHistorico = Array.isArray(planos) && planos.length === 0 && aluno?.plano_id;
 
   const abas = [
-    { id: 'resumo',    label: 'Dados Gerais',    icon: <FileText size={18} /> },
-    { id: 'planos',    label: 'Histórico',        icon: <CreditCard size={18} /> },
-    { id: 'frequencia',label: 'Frequência',       icon: <Calendar size={18} /> },
-    { id: 'anamnese',  label: 'Saúde/Anamnese',  icon: <Activity size={18} /> },
+    { id: 'resumo',     label: 'Dados Gerais',   icon: <FileText size={18} /> },
+    { id: 'planos',     label: 'Histórico',       icon: <CreditCard size={18} /> },
+    { id: 'frequencia', label: 'Frequência',      icon: <Calendar size={18} /> },
+    { id: 'anamnese',   label: 'Saúde/Anamnese', icon: <Activity size={18} /> },
   ];
 
   return (
@@ -173,25 +920,44 @@ export default function PerfilAluno() {
           </div>
         </div>
 
-        {/* ── BOTÃO EDITAR ── */}
-        <Button
-          variant="outline"
-          size="md"
-          leftIcon={<Edit2 size={16} />}
-          onClick={() => navigate('/alunos/novo', { state: { alunoParaEditar: aluno } })}
-        >
-          Editar Cadastro
-        </Button>
+        {/* Ações do header */}
+        <div className="flex items-center gap-3">
+          {/* Botão WhatsApp */}
+          <BotaoWhatsApp aluno={aluno} />
+
+          {/* Botão Editar */}
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<Edit2 size={16} />}
+            onClick={() => setModalEditarAberto(true)}
+          >
+            Editar Cadastro
+          </Button>
+        </div>
       </div>
+
+      {/* Aviso de histórico ausente */}
+      {semHistorico && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-warning-foreground">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" />
+          <div>
+            <p className="font-bold text-sm">Histórico de plano não registrado</p>
+            <p className="text-xs font-medium mt-0.5 text-muted-foreground">
+              Este aluno possui um plano vinculado, mas nenhum ciclo foi gravado em{' '}
+              <code className="font-mono">historico_planos</code>. Use o botão{' '}
+              <strong>Renovar / Alterar Plano</strong> na aba Histórico para registrar o ciclo atual.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* CARDS SUPERIORES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Card de identidade */}
         <Surface variant="card" padding="lg" className="lg:col-span-2 flex items-center gap-6">
-          <div className="w-24 h-24 bg-primary-soft rounded-3xl flex items-center justify-center text-primary shrink-0">
-            <User size={48} />
-          </div>
+          <AlunoAvatar nome={aluno?.nome_completo} avatarUrl={aluno?.avatar_url} size="lg" />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span
@@ -212,32 +978,7 @@ export default function PerfilAluno() {
           </div>
         </Surface>
 
-        {/* Card de frequência */}
-        <div className="bg-primary p-8 rounded-3xl text-primary-foreground relative overflow-hidden flex flex-col justify-center min-h-[140px]">
-          <div className="relative z-10">
-            <p className="text-primary-foreground/70 text-xs font-bold uppercase tracking-wider">
-              {tituloFrequencia}
-            </p>
-            <h3 className="text-4xl font-black mt-1 flex items-baseline gap-2">
-              {textoFrequencia.split(' ')[0]}
-              <span className="text-lg font-medium text-primary-foreground/60">
-                {textoFrequencia.includes(' de ')
-                  ? `de ${textoFrequencia.split(' de ')[1]}`
-                  : textoFrequencia.split(' ')[1]}
-              </span>
-            </h3>
-            <p className="text-primary-foreground/60 text-xs font-medium mt-2">
-              {subtituloFrequencia}
-            </p>
-          </div>
-          {/* Barra de progresso */}
-          <div className="absolute bottom-0 left-0 w-full h-2 bg-black/10">
-            <div
-              className="h-full bg-white/40 transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(percentualUso, 100)}%` }}
-            />
-          </div>
-        </div>
+        <CardUsoPlan aluno={aluno} planos={planos} frequencia={frequencia} />
       </div>
 
       {/* ABAS */}
@@ -263,7 +1004,6 @@ export default function PerfilAluno() {
         {abaAtiva === 'resumo' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4">
 
-            {/* Informações pessoais */}
             <Surface variant="card" padding="xl" className="space-y-8">
               <h3 className="font-black text-foreground flex items-center gap-2">
                 <User size={20} className="text-primary" /> Informações Pessoais
@@ -276,16 +1016,13 @@ export default function PerfilAluno() {
                     new Date(aluno.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')
                   }
                 />
-                <LabelDado titulo="Profissão"  valor={aluno?.profissao} />
-                <LabelDado titulo="CPF"         valor={aluno?.cpf} />
-                <LabelDado titulo="RG"          valor={aluno?.rg} />
+                <LabelDado titulo="CPF" valor={aluno?.cpf} />
                 <div className="col-span-2">
                   <LabelDado titulo="Contato de Emergência" valor={aluno?.contato_emergencia} />
                 </div>
               </div>
             </Surface>
 
-            {/* Contato e localização */}
             <Surface variant="card" padding="xl" className="space-y-8">
               <h3 className="font-black text-foreground flex items-center gap-2">
                 <MapPin size={20} className="text-primary" /> Contato e Localização
@@ -298,12 +1035,12 @@ export default function PerfilAluno() {
                   <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-2">
                     Endereço Registrado
                   </label>
-                  {aluno?.endereco ? (
+                  {aluno?.rua ? (
                     <p className="text-foreground font-bold leading-relaxed">
-                      {aluno.endereco}, {aluno.numero}
+                      {aluno.rua}, {aluno.numero}
                       {aluno.complemento && ` - ${aluno.complemento}`}
                       <br />
-                      {aluno.bairro}, {aluno.cidade} - {aluno.estado}
+                      {aluno.bairro}{aluno.cidade && `, ${aluno.cidade}`}
                       <br />
                       <span className="text-sm font-medium text-muted-foreground">
                         CEP {aluno.cep}
@@ -321,43 +1058,95 @@ export default function PerfilAluno() {
         )}
 
         {/* ABA: Frequência */}
-        {abaAtiva === 'frequencia' && (
-          <Surface variant="card" padding="none" className="overflow-hidden animate-in slide-in-from-bottom-4">
-            <table className="w-full text-left">
-              <thead className="bg-muted/50">
-                <tr>
-                  <Th>Data da Aula</Th>
-                  <Th>Modalidade</Th>
-                  <Th className="text-right">Status</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {frequencia?.map(item => (
-                  <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-5 font-bold text-foreground">
-                      {new Date(item.data_checkin).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="p-5 font-medium text-muted-foreground">
-                      {item.agenda?.atividade}
-                    </td>
-                    <td className="p-5 text-right">
-                      <Badge tone="success" variant="soft">
-                        <CheckCircle size={12} /> Confirmada
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-                {(!frequencia || frequencia.length === 0) && (
-                  <tr>
-                    <td colSpan="3" className="p-8 text-center text-muted-foreground font-medium">
-                      Nenhuma frequência registrada ainda.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Surface>
-        )}
+        {abaAtiva === 'frequencia' && (() => {
+          const inicio = new Date(filtroInicio + 'T00:00:00');
+          const fim    = new Date(filtroFim    + 'T23:59:59');
+          const registros = (frequencia ?? []).filter(item => {
+            const d = new Date(item.data_checkin);
+            return d >= inicio && d <= fim;
+          });
+          return (
+            <div className="space-y-4 animate-in slide-in-from-bottom-4">
+
+              {/* Heatmap 12 semanas */}
+              <Surface variant="card" padding="lg">
+                <HeatmapFrequencia frequencia={frequencia} planoAtivo={planoAtivo} />
+              </Surface>
+
+              {/* Filtros de período */}
+              <Surface variant="card" padding="md" className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest block">
+                    De
+                  </label>
+                  <input
+                    type="date"
+                    value={filtroInicio}
+                    onChange={e => setFiltroInicio(e.target.value)}
+                    className="border border-border rounded-xl px-3 py-2 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest block">
+                    Até
+                  </label>
+                  <input
+                    type="date"
+                    value={filtroFim}
+                    onChange={e => setFiltroFim(e.target.value)}
+                    className="border border-border rounded-xl px-3 py-2 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setFiltroInicio(fmt(noventa)); setFiltroFim(fmt(hoje)); }}
+                >
+                  Últimos 90 dias
+                </Button>
+                <span className="ml-auto text-xs font-bold text-muted-foreground self-center">
+                  {registros.length} registro{registros.length !== 1 ? 's' : ''} no período
+                </span>
+              </Surface>
+
+              <Surface variant="card" padding="none" className="overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <Th>Data da Aula</Th>
+                      <Th>Modalidade</Th>
+                      <Th className="text-right">Status</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {registros.map(item => (
+                      <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-5 font-bold text-foreground">
+                          {new Date(item.data_checkin).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="p-5 font-medium text-muted-foreground">
+                          {item.agenda?.atividade}
+                        </td>
+                        <td className="p-5 text-right">
+                          <Badge tone="success" variant="soft">
+                            <CheckCircle size={12} /> Confirmada
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                    {registros.length === 0 && (
+                      <tr>
+                        <td colSpan="3" className="p-8 text-center text-muted-foreground font-medium">
+                          Nenhuma frequência no período selecionado.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </Surface>
+            </div>
+          );
+        })()}
 
         {/* ABA: Planos / Histórico */}
         {abaAtiva === 'planos' && (
@@ -431,61 +1220,35 @@ export default function PerfilAluno() {
 
         {/* ABA: Saúde / Anamnese */}
         {abaAtiva === 'anamnese' && (
-          <div className="max-w-2xl space-y-6 animate-in slide-in-from-bottom-4">
-
-            <Surface variant="card" padding="lg" className="bg-primary-soft border-primary/20">
-              <h3 className="font-black text-primary mb-2">
-                Ficha Médica Externa (Forms)
-              </h3>
-              <p className="text-primary/80 text-sm mb-6 leading-relaxed">
-                Este aluno possui um formulário de saúde preenchido no Google Forms.
-                Clique abaixo para abrir as respostas detalhadas.
-              </p>
-              {aluno?.link_anamnese ? (
-                <Button
-                  as="a"
-                  href={aluno.link_anamnese}
-                  target="_blank"
-                  rel="noreferrer"
-                  variant="outline"
-                  size="lg"
-                  rightIcon={<ExternalLink size={18} />}
-                >
-                  Visualizar Ficha Completa
-                </Button>
-              ) : (
-                <p className="text-primary/40 italic font-bold">Nenhum link vinculado.</p>
-              )}
-            </Surface>
-
-            <Surface variant="card" padding="xl" className="space-y-4">
-              <h3 className="font-black text-foreground flex items-center gap-2">
-                <Activity size={20} className="text-destructive" />
-                Observações Médicas Rápidas
-              </h3>
-              <Input
-                as="textarea"
-                rows={6}
-                placeholder="Ex: Aluno possui hérnia de disco, evitar impactos..."
-                value={observacoesMedicas}
-                onChange={(e) => setObservacoesMedicas(e.target.value)}
-                className="resize-none"
-              />
-              <Button variant="brand" size="lg" onClick={handleSalvarObservacoesMedicas} disabled={salvandoMedico}>
-                {salvandoMedico ? 'Salvando...' : 'Salvar Resumo Médico'}
-              </Button>
-            </Surface>
-          </div>
+          <AbaAnamnese
+            aluno={aluno}
+            alunoId={id}
+            queryClient={queryClient}
+            observacoesMedicas={observacoesMedicas}
+            setObservacoesMedicas={setObservacoesMedicas}
+            salvandoMedico={salvandoMedico}
+            setSalvandoMedico={setSalvandoMedico}
+          />
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL: Renovar Plano */}
       <ModalRenovarPlano
         isOpen={modalRenovarAberto}
         onClose={() => setModalRenovarAberto(false)}
         alunoId={id}
         onSucesso={handleRenovacaoSucesso}
       />
+
+      {/* MODAL: Editar Cadastro */}
+      {modalEditarAberto && aluno && (
+        <ModalEditarCadastro
+          aluno={aluno}
+          alunoId={id}
+          queryClient={queryClient}
+          onClose={() => setModalEditarAberto(false)}
+        />
+      )}
     </div>
   );
 }

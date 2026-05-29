@@ -16,13 +16,11 @@ export function usePWA() {
       e.preventDefault();
       window.__pwaInstallPrompt = e;
       deferredPrompt.current = e;
-      setCanInstall(true);
-      console.log('[PWA] beforeinstallprompt capturado ✅');
-    };
+      setCanInstall((prev) => (prev ? prev : true));
+};
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     const handleAppInstalled = () => {
-      console.log('[PWA] App instalado ✅');
       setCanInstall(false);
       deferredPrompt.current = null;
       window.__pwaInstallPrompt = null;
@@ -37,36 +35,30 @@ export function usePWA() {
       };
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
-      navigator.serviceWorker
-        .register('/sw.js', { scope: '/' })
-        .then((registration) => {
-          swRegistration.current = registration;
-          console.log('[SW] Registrado ✅', registration.scope);
+      navigator.serviceWorker.ready.then((registration) => {
+        swRegistration.current = registration;
 
-          if (registration.waiting) {
-            console.log('[SW] Update já disponível na montagem');
-            setUpdateAvailable(true);
-          }
+        if (registration.waiting) {
+          setUpdateAvailable(true);
+        }
 
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (!newWorker) return;
-            console.log('[SW] Novo SW encontrado, aguardando instalação...');
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
 
-            newWorker.addEventListener('statechange', () => {
-              console.log('[SW] Estado do novo SW:', newWorker.state);
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[SW] Update disponível ✅');
-                setUpdateAvailable(true);
-              }
-            });
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              setUpdateAvailable(true);
+            }
           });
-        })
-        .catch((err) => {
-          console.error('[SW] Erro ao registrar ❌', err);
         });
-    } else {
-      console.warn('[PWA] Service Worker não suportado neste browser');
+      });
+
+      return () => {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      };
     }
 
     return () => {
@@ -84,7 +76,6 @@ export function usePWA() {
     try {
       prompt.prompt();
       const { outcome } = await prompt.userChoice;
-      console.log('[PWA] Resultado da instalação:', outcome);
       deferredPrompt.current = null;
       window.__pwaInstallPrompt = null;
       setCanInstall(false);

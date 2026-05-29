@@ -1,14 +1,22 @@
+// gestao_web/src/hooks/usePWA.js
 import { useState, useEffect, useRef } from 'react';
 
 export function usePWA() {
   const [canInstall, setCanInstall] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  );
   const deferredPrompt = useRef(window.__pwaInstallPrompt ?? null);
   const swRegistration = useRef(null);
   const shouldReload = useRef(false);
 
   useEffect(() => {
+    if (isInstalled) return;
+
     if (window.__pwaInstallPrompt) {
+      deferredPrompt.current = window.__pwaInstallPrompt;
       setCanInstall(true);
     }
 
@@ -18,10 +26,11 @@ export function usePWA() {
       deferredPrompt.current = e;
       setCanInstall(true);
     };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt, { once: true });
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     const handleAppInstalled = () => {
       setCanInstall(false);
+      setIsInstalled(true);
       deferredPrompt.current = null;
       window.__pwaInstallPrompt = null;
     };
@@ -29,23 +38,16 @@ export function usePWA() {
 
     if ('serviceWorker' in navigator) {
       const handleControllerChange = () => {
-        if (shouldReload.current) {
-          window.location.reload();
-        }
+        if (shouldReload.current) window.location.reload();
       };
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
       navigator.serviceWorker.ready.then((registration) => {
         swRegistration.current = registration;
-
-        if (registration.waiting) {
-          setUpdateAvailable(true);
-        }
-
+        if (registration.waiting) setUpdateAvailable(true);
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (!newWorker) return;
-
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               setUpdateAvailable(true);
@@ -65,7 +67,7 @@ export function usePWA() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [isInstalled]);
 
   const install = async () => {
     const prompt = deferredPrompt.current ?? window.__pwaInstallPrompt;
@@ -93,10 +95,6 @@ export function usePWA() {
       sw.postMessage({ type: 'SKIP_WAITING' });
     }
   };
-
-  const isInstalled =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true;
 
   return { canInstall, install, updateAvailable, applyUpdate, isInstalled };
 }

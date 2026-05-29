@@ -9,7 +9,6 @@ export function usePWA() {
   );
   const deferredPrompt = useRef(window.__pwaInstallPrompt ?? null);
   const swRegistration = useRef(null);
-  const didRequestSkip = useRef(false);
 
   useEffect(() => {
     if (isInstalled) return;
@@ -35,13 +34,6 @@ export function usePWA() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     if ('serviceWorker' in navigator) {
-      const handleControllerChange = () => {
-        if (didRequestSkip.current) {
-          window.location.reload();
-        }
-      };
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-
       navigator.serviceWorker.ready.then((registration) => {
         swRegistration.current = registration;
 
@@ -59,12 +51,6 @@ export function usePWA() {
           });
         });
       });
-
-      return () => {
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        window.removeEventListener('appinstalled', handleAppInstalled);
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-      };
     }
 
     return () => {
@@ -92,7 +78,9 @@ export function usePWA() {
   const applyUpdate = () => {
     const sw = swRegistration.current?.waiting;
     if (sw) {
-      didRequestSkip.current = true;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      }, { once: true });
       sw.postMessage({ type: 'SKIP_WAITING' });
     }
   };

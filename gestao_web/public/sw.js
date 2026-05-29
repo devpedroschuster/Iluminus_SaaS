@@ -1,5 +1,5 @@
-const CACHE_NAME = 'iluminus-v1';
-const STATIC_CACHE_NAME = 'iluminus-static-v1';
+const CACHE_NAME = 'iluminus-v2';
+const STATIC_CACHE_NAME = 'iluminus-static-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -8,20 +8,20 @@ const PRECACHE_URLS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS);
-    })
+    caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    caches.keys().then((cacheNames) =>
+      Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE_NAME)
           .map((name) => caches.delete(name))
-      );
+      )
+    ).then(() => {
+      return self.clients.claim();
     })
   );
 });
@@ -69,7 +69,6 @@ self.addEventListener('fetch', (event) => {
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
-
   try {
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
@@ -99,23 +98,3 @@ async function networkFirst(request) {
     });
   }
 }
-
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  const data = event.data.json();
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Iluminus', {
-      body: data.body || '',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-72x72.png',
-      data: data.url ? { url: data.url } : undefined,
-    })
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  if (event.notification.data?.url) {
-    event.waitUntil(clients.openWindow(event.notification.data.url));
-  }
-});

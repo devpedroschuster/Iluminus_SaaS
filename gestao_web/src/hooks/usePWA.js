@@ -2,60 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 
 export function usePWA() {
   const [canInstall, setCanInstall] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [isInstalled] = useState(
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
-  );
-  const deferredPrompt = useRef(window.__pwaInstallPrompt ?? null);
-  const swRegistration = useRef(null);
+  const deferredPrompt = useRef(null);
 
   useEffect(() => {
-    if (isInstalled) return;
-
-    if (window.__pwaInstallPrompt) {
-      deferredPrompt.current = window.__pwaInstallPrompt;
-      setCanInstall(true);
-    }
-
+    // 1. Intercepta e bloqueia a instalação automática do navegador
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
-      window.__pwaInstallPrompt = e;
       deferredPrompt.current = e;
-      setCanInstall(true);
+      setCanInstall(true); // Avisa a interface que o botão pode aparecer
     };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     const handleAppInstalled = () => {
       setCanInstall(false);
       deferredPrompt.current = null;
-      window.__pwaInstallPrompt = null;
     };
     window.addEventListener('appinstalled', handleAppInstalled);
 
+    // 2. Registro simples e silencioso do Service Worker (sem forçar reloads)
     if ('serviceWorker' in navigator) {
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-      });
-
-      navigator.serviceWorker.ready.then((registration) => {
-        swRegistration.current = registration;
-
-        if (registration.waiting) {
-          setUpdateAvailable(true);
-        }
-
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              setUpdateAvailable(true);
-            }
-          });
-        });
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('Falha ao registrar SW:', err);
       });
     }
 
@@ -63,17 +31,20 @@ export function usePWA() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [isInstalled]);
+  }, []);
 
+  // 3. Função que será chamada APENAS quando o usuário clicar no seu botão
   const install = async () => {
-    const prompt = deferredPrompt.current ?? window.__pwaInstallPrompt;
-    if (!prompt) return false;
+    if (!deferredPrompt.current) return false;
+    
     try {
-      prompt.prompt();
-      const { outcome } = await prompt.userChoice;
+      deferredPrompt.current.prompt();
+      const { outcome } = await deferredPrompt.current.userChoice;
+      
+      if (outcome === 'accepted') {
+        setCanInstall(false);
+      }
       deferredPrompt.current = null;
-      window.__pwaInstallPrompt = null;
-      setCanInstall(false);
       return outcome === 'accepted';
     } catch (err) {
       console.error('[PWA] Erro ao instalar:', err);
@@ -81,15 +52,6 @@ export function usePWA() {
     }
   };
 
-  const applyUpdate = () => {
-    const sw = swRegistration.current?.waiting;
-    if (sw) {
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      }, { once: true });
-      sw.postMessage({ type: 'SKIP_WAITING' });
-    }
-  };
-
-  return { canInstall, install, updateAvailable, applyUpdate, isInstalled };
+  // Retorna apenas o necessário para o botão funcionar
+  return { canInstall, install };
 }

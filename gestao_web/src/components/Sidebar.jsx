@@ -1,13 +1,14 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Calendar, LogOut, 
+  LayoutDashboard, Users, Calendar, Download, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
   CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
+import { usePWA } from '../hooks/usePWA';
 
 function resolverPerfil(perfil) {
   if (!perfil) return 'admin';
@@ -65,6 +66,7 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
   const isProfessor = resolverPerfil(perfil) === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
+  const { canInstall, install } = usePWA();
 
   return (
     <>
@@ -142,6 +144,16 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
           <div className="flex justify-center w-full pb-2">
             <ThemeToggle />
           </div>
+
+          {canInstall && (
+    <button 
+      onClick={install}
+      className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
+    >
+      <Download size={20} />
+      <span className="text-sm">Instalar Aplicativo</span>
+    </button>
+  )}
 
           <button 
             onClick={handleLogout}

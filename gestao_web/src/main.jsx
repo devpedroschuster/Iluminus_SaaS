@@ -6,7 +6,7 @@ import './index.css'
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   window.__pwaInstallPrompt = e;
-});
+}, { once: true });
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

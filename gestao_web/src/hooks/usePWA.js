@@ -16,9 +16,9 @@ export function usePWA() {
       e.preventDefault();
       window.__pwaInstallPrompt = e;
       deferredPrompt.current = e;
-      setCanInstall((prev) => (prev ? prev : true));
-};
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      setCanInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt, { once: true });
 
     const handleAppInstalled = () => {
       setCanInstall(false);

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'iluminus-v2';
-const STATIC_CACHE_NAME = 'iluminus-static-v2';
+const CACHE_NAME = 'iluminus-v3';
+const STATIC_CACHE_NAME = 'iluminus-static-v3';
 
 const PRECACHE_URLS = [
   '/',
@@ -7,6 +7,8 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
@@ -69,12 +71,15 @@ self.addEventListener('fetch', (event) => {
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
+  
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    
+    if (networkResponse.status === 200) {
       const cache = await caches.open(STATIC_CACHE_NAME);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).catch(() => { /* silencia falha se ocorrer */ });
     }
+    
     return networkResponse;
   } catch {
     return new Response('Asset não disponível offline', { status: 503 });
@@ -84,10 +89,12 @@ async function cacheFirst(request) {
 async function networkFirst(request) {
   try {
     const networkResponse = await fetch(request);
+    
     if (networkResponse.status === 200) {
       const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).catch(() => { /* silencia falha se ocorrer */ });
     }
+    
     return networkResponse;
   } catch {
     const cached = await caches.match(request);

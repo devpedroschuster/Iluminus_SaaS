@@ -34,6 +34,12 @@ export function usePWA() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+      });
+
       navigator.serviceWorker.ready.then((registration) => {
         swRegistration.current = registration;
 

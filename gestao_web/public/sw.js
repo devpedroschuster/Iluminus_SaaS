@@ -1,30 +1,19 @@
-// ============================================================
-// Service Worker — Espaço Iluminus
-// Estratégia: Network First para API/Supabase,
-//             Cache First para assets estáticos.
-// ============================================================
-
 const CACHE_NAME = 'iluminus-v1';
 const STATIC_CACHE_NAME = 'iluminus-static-v1';
 
-// Assets que queremos pré-cachear no install
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
 ];
 
-// ── Install ──────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_URLS);
     })
   );
-  // Ativa imediatamente sem esperar abas antigas fecharem
-  self.skipWaiting();
 });
 
-// ── Activate ─────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -35,26 +24,21 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Toma controle de todas as abas imediatamente
   self.clients.claim();
 });
 
-// ── Fetch ─────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Ignora requisições não-GET e extensões de browser
   if (request.method !== 'GET') return;
   if (url.protocol === 'chrome-extension:') return;
 
-  // ── Supabase / API → Network First ─────────────────────────
   if (url.hostname.includes('supabase.co') || url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  // ── Assets JS/CSS/Fonts/Images → Cache First ───────────────
   if (
     request.destination === 'script' ||
     request.destination === 'style' ||
@@ -65,7 +49,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── Navegação (HTML) → Network First com fallback ──────────
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() =>
@@ -75,11 +58,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── Demais → Network First ─────────────────────────────────
   event.respondWith(networkFirst(request));
 });
-
-// ── Estratégias ───────────────────────────────────────────────
 
 async function cacheFirst(request) {
   const cached = await caches.match(request);
@@ -115,7 +95,6 @@ async function networkFirst(request) {
   }
 }
 
-// ── Push Notifications (opcional, para uso futuro) ───────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();

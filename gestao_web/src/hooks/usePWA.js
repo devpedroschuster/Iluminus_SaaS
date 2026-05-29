@@ -1,32 +1,17 @@
-/**
- * usePWA — Espaço Iluminus
- *
- * CORREÇÃO PRINCIPAL:
- * O evento `beforeinstallprompt` dispara muito cedo no carregamento da página,
- * antes do React terminar de montar os componentes. Se o addEventListener for
- * registrado dentro do useEffect, o evento já passou e nunca é capturado.
- *
- * Solução: capturar o evento em uma variável global ANTES do React iniciar,
- * direto no main.jsx (ou num script inline no index.html), e ler essa variável
- * dentro do hook.
- */
-
 import { useState, useEffect, useRef } from 'react';
 
 export function usePWA() {
-  // Lê o prompt que foi capturado globalmente antes do React montar
   const [canInstall, setCanInstall] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const deferredPrompt = useRef(window.__pwaInstallPrompt ?? null);
   const swRegistration = useRef(null);
+  const shouldReload = useRef(false);
 
   useEffect(() => {
-    // ── Se o prompt já foi capturado antes do React montar ────
     if (window.__pwaInstallPrompt) {
       setCanInstall(true);
     }
 
-    // ── Listener para capturar prompts futuros (hot-reload, etc.) ──
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       window.__pwaInstallPrompt = e;
@@ -36,7 +21,6 @@ export function usePWA() {
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // ── Esconde o botão se o app já foi instalado ─────────────
     const handleAppInstalled = () => {
       console.log('[PWA] App instalado ✅');
       setCanInstall(false);
@@ -45,21 +29,25 @@ export function usePWA() {
     };
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // ── Registrar Service Worker ───────────────────────────────
     if ('serviceWorker' in navigator) {
+      const handleControllerChange = () => {
+        if (shouldReload.current) {
+          window.location.reload();
+        }
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
         .then((registration) => {
           swRegistration.current = registration;
           console.log('[SW] Registrado ✅', registration.scope);
 
-          // Verifica se há um SW em espera logo ao registrar
           if (registration.waiting) {
             console.log('[SW] Update já disponível na montagem');
             setUpdateAvailable(true);
           }
 
-          // Detecta novo SW durante a sessão
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             if (!newWorker) return;
@@ -110,9 +98,9 @@ export function usePWA() {
   const applyUpdate = () => {
     const sw = swRegistration.current?.waiting;
     if (sw) {
+      shouldReload.current = true;
       sw.postMessage({ type: 'SKIP_WAITING' });
     }
-    window.location.reload();
   };
 
   const isInstalled =

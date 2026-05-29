@@ -64,6 +64,7 @@ export function useAuth() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🚨 Evento do Supabase disparado:', event);
  
       if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 

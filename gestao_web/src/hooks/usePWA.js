@@ -1,16 +1,15 @@
-// gestao_web/src/hooks/usePWA.js
 import { useState, useEffect, useRef } from 'react';
 
 export function usePWA() {
   const [canInstall, setCanInstall] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(
+  const [isInstalled] = useState(
     window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true
   );
   const deferredPrompt = useRef(window.__pwaInstallPrompt ?? null);
   const swRegistration = useRef(null);
-  const shouldReload = useRef(false);
+  const didRequestSkip = useRef(false);
 
   useEffect(() => {
     if (isInstalled) return;
@@ -30,7 +29,6 @@ export function usePWA() {
 
     const handleAppInstalled = () => {
       setCanInstall(false);
-      setIsInstalled(true);
       deferredPrompt.current = null;
       window.__pwaInstallPrompt = null;
     };
@@ -38,13 +36,19 @@ export function usePWA() {
 
     if ('serviceWorker' in navigator) {
       const handleControllerChange = () => {
-        if (shouldReload.current) window.location.reload();
+        if (didRequestSkip.current) {
+          window.location.reload();
+        }
       };
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
       navigator.serviceWorker.ready.then((registration) => {
         swRegistration.current = registration;
-        if (registration.waiting) setUpdateAvailable(true);
+
+        if (registration.waiting) {
+          setUpdateAvailable(true);
+        }
+
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (!newWorker) return;
@@ -71,10 +75,7 @@ export function usePWA() {
 
   const install = async () => {
     const prompt = deferredPrompt.current ?? window.__pwaInstallPrompt;
-    if (!prompt) {
-      console.warn('[PWA] Nenhum prompt de instalação disponível');
-      return false;
-    }
+    if (!prompt) return false;
     try {
       prompt.prompt();
       const { outcome } = await prompt.userChoice;
@@ -91,7 +92,7 @@ export function usePWA() {
   const applyUpdate = () => {
     const sw = swRegistration.current?.waiting;
     if (sw) {
-      shouldReload.current = true;
+      didRequestSkip.current = true;
       sw.postMessage({ type: 'SKIP_WAITING' });
     }
   };

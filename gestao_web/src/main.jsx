@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
+console.log('[main.jsx] v2 carregado ✅');
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   window.__pwaInstallPrompt = e;

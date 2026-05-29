@@ -64,19 +64,22 @@ export function useAuth() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') {
-    perfilJaCarregado.current = false;
-    setSessao(null);
-    setPerfil(null);
-    setLoading(false);
-  } else if (event === 'SIGNED_IN') {
-    perfilJaCarregado.current = false;
-    setLoading(true);
-    carregarPerfilUsuario(session);
-  } else {
-    carregarPerfilUsuario(session);
-  }
-});
+ 
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
+
+      if (event === 'SIGNED_OUT') {
+        perfilJaCarregado.current = false;
+        setSessao(null);
+        setPerfil(null);
+        setLoading(false);
+      } else if (event === 'SIGNED_IN') {
+        perfilJaCarregado.current = false;
+        setLoading(true);
+        carregarPerfilUsuario(session);
+      } else {
+        carregarPerfilUsuario(session);
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, []);

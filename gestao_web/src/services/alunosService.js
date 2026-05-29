@@ -32,6 +32,23 @@ export const alunosService = {
     }
   },
 
+  async listarAtivos() {
+    try {
+      const { data, error } = await supabase
+        .from('alunos')
+        .select('id, nome_completo')
+        .eq('ativo', true)
+        .eq('role', 'aluno')
+        .order('nome_completo');
+ 
+      if (error) throw error;
+      return data ?? [];
+    } catch (error) {
+      console.error('[alunosService.listarAtivos]', error);
+      throw error;
+    }
+  },
+
   async criar(dados) {
     try {
       const { data, error } = await supabase
@@ -197,12 +214,6 @@ export const alunosService = {
   },
 
   /**
-   * Matricula um aluno em um plano de forma canônica.
-   * deve delegar aqui, nunca inserir em historico_planos diretamente.
-   *
-   * FIX Bug 2: inserção em historico_planos é sempre feita, sem guard condicional.
-   * Para simples atualização de dados sem novo ciclo, use alunosService.atualizar().
-   *
    * @param {string} alunoId
    * @param {string} planoId
    * @param {object} opcoes
@@ -225,7 +236,6 @@ export const alunosService = {
       dataFimObj.setDate(dataFimObj.getDate() - 1);
       const dataFim = dataFimObj.toISOString().split('T')[0];
 
-      // 1. Atualiza o cadastro do aluno
       const { error: errAluno } = await supabase
         .from('alunos')
         .update({
@@ -239,14 +249,12 @@ export const alunosService = {
 
       if (errAluno) throw errAluno;
 
-      // 2. Finaliza ciclo anterior (se houver) antes de criar o novo
       await supabase
         .from('historico_planos')
         .update({ status: 'finalizado' })
         .eq('aluno_id', alunoId)
         .eq('status', 'ativo');
 
-      // 3. Insere SEMPRE em historico_planos — sem guard condicional
       const { error: errHist } = await supabase
         .from('historico_planos')
         .insert([{
@@ -260,7 +268,6 @@ export const alunosService = {
 
       if (errHist) throw errHist;
 
-      // 4. Cria a mensalidade
       const { error: errMens } = await supabase
         .from('mensalidades')
         .insert([{
@@ -280,11 +287,6 @@ export const alunosService = {
     }
   },
 
-  /**
-   * Migration helper — normaliza registros existentes que possuem plano_id
-   * mas não têm entrada correspondente em historico_planos.
-   * Executar uma única vez via painel admin ou script de migração.
-   */
   async normalizarHistoricoPlanos() {
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')

@@ -3,10 +3,11 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus, Ban, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
 
 import { gradeService } from '../../services/gradeService';
+import { alunosService } from '../../services/alunosService';
 import { useAgenda } from '../../hooks/useAgenda';
-import { useAlunos } from '../../hooks/useAlunos';
 import Modal, { useModal, ModalConfirmacao } from '../../components/ui/Modal';
 import { TableSkeleton } from '../../components/shared/Loading';
 import { showToast } from '../../components/shared/Toast';
@@ -54,7 +55,13 @@ export default function Agenda() {
   const [dadosIniciais, setDadosIniciais] = useState({ professores: [], modalidades: [], matriculasFixas: [] });
 
   const { aulas, feriados, loading, refetch } = useAgenda();
-  const { alunos: listaAlunos } = useAlunos({ role: 'aluno' });
+
+  const { data: listaAlunos = [] } = useQuery({
+    queryKey: ['alunos', 'ativos-agendamento'],
+    queryFn: () => alunosService.listarAtivos(),
+    staleTime: 1000 * 60 * 5,
+  });
+
   const pageState = useAgendaPage();
   const dadosMes = useAgendaDadosMes(pageState.currentDate);
 

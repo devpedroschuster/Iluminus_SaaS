@@ -5,6 +5,28 @@ import { ptBR } from 'date-fns/locale';
 import { agendamentoService } from '../../../services/agendamentoService';
 import { showToast } from '../../../components/shared/Toast';
 
+// Classifica o motivo do bloqueio a partir da mensagem de erro do service/RPC.
+// Retorna 'lotacao' | 'plano' | null
+function classificarMotivoAviso(msgErro) {
+  if (!msgErro) return null;
+  if (msgErro.includes('lotada') || msgErro.includes('atingiu o limite')) {
+    return 'lotacao';
+  }
+  // Mensagens que indicam restrição de plano: limite semanal esgotado ou
+  // modalidade fora do plano do aluno (vindas do RPC via avisoCritico).
+  if (
+    msgErro.includes('limite semanal') ||
+    msgErro.includes('fora do plano') ||
+    msgErro.includes('não está no plano') ||
+    msgErro.includes('plano do aluno') ||
+    msgErro.includes('modalidade') ||
+    msgErro.includes('plano')
+  ) {
+    return 'plano';
+  }
+  return null;
+}
+
 export function useAgendamento(onSucesso, feriados = []) {
   const queryClient = useQueryClient();
 
@@ -23,7 +45,10 @@ export function useAgendamento(onSucesso, feriados = []) {
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [infoVaga, setInfoVaga] = useState(null);
   const [verificandoVaga, setVerificandoVaga] = useState(false);
-  const [modalLotacao, setModalLotacao] = useState({ isOpen: false, msg: '' });
+
+  // Estado unificado para qualquer modal de aviso que permite prosseguir.
+  // tipo: 'lotacao' | 'plano' | ''
+  const [modalLotacao, setModalLotacao] = useState({ isOpen: false, msg: '', tipo: '' });
 
   useEffect(() => {
     async function checarDisponibilidadeLive() {
@@ -98,8 +123,11 @@ export function useAgendamento(onSucesso, feriados = []) {
       return true;
     } catch (err) {
       const msgErro = err.message || '';
-      if (msgErro.includes('lotada') || msgErro.includes('atingiu o limite')) {
-        setModalLotacao({ isOpen: true, msg: msgErro });
+      const motivo = classificarMotivoAviso(msgErro);
+
+      if (motivo === 'lotacao' || motivo === 'plano') {
+        // Abre o modal de confirmação com contexto adequado.
+        setModalLotacao({ isOpen: true, msg: msgErro, tipo: motivo });
         setSavingAgendamento(false);
         return false;
       } else if (msgErro.includes('já possui um agendamento')) {
@@ -114,12 +142,12 @@ export function useAgendamento(onSucesso, feriados = []) {
   };
 
   const confirmarAgendamentoLotado = () => {
-    setModalLotacao({ isOpen: false, msg: '' });
+    setModalLotacao({ isOpen: false, msg: '', tipo: '' });
     handleAgendarAluno(null, true);
   };
 
   const cancelarAgendamentoLotado = () => {
-    setModalLotacao({ isOpen: false, msg: '' });
+    setModalLotacao({ isOpen: false, msg: '', tipo: '' });
     setSavingAgendamento(false);
   };
 

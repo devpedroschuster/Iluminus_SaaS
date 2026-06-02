@@ -4,11 +4,30 @@ import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
 
+// Configuração do modal de aviso conforme o tipo de bloqueio.
+function resolverConfigModal(tipo, msg) {
+  if (tipo === 'plano') {
+    return {
+      titulo: 'Fora do plano do aluno',
+      mensagem: `${msg} Você tem ciência que este agendamento está fora do plano contratado pelo aluno. Deseja prosseguir mesmo assim?`,
+      textoBotaoConfirmar: 'Sim, agendar mesmo assim',
+    };
+  }
+  // tipo === 'lotacao' ou fallback
+  return {
+    titulo: 'Turma lotada',
+    mensagem: `${msg} Deseja agendar mesmo assim?`,
+    textoBotaoConfirmar: 'Agendar mesmo assim',
+  };
+}
+
 export default function ModalAgendamento({
   agendamentoForm, setAgendamentoForm, aulas, listaAlunos, handleAgendarAluno,
   savingAgendamento, infoVaga, verificandoVaga,
   modalLotacao, confirmarAgendamentoLotado, cancelarAgendamentoLotado
 }) {
+  const configModal = resolverConfigModal(modalLotacao?.tipo, modalLotacao?.msg);
+
   return (
     <>
       <form onSubmit={(e) => handleAgendarAluno(e)} className="space-y-4 pt-2">
@@ -119,16 +138,16 @@ export default function ModalAgendamento({
         </div>
       </form>
 
-      {/* Modal de turma lotada */}
-      {modalLotacao.isOpen && (
+      {/* Modal de aviso — cobre turma lotada E restrições de plano */}
+      {modalLotacao?.isOpen && (
         <ModalConfirmacao
           aberto={modalLotacao.isOpen}
-          titulo="Turma lotada"
-          mensagem={`${modalLotacao.msg} Deseja agendar mesmo assim?`}
-          textoBotaoConfirmar="Agendar mesmo assim"
-          textoBotaoCancelar="Cancelar"
-          onConfirmar={confirmarAgendamentoLotado}
-          onCancelar={cancelarAgendamentoLotado}
+          titulo={configModal.titulo}
+          mensagem={configModal.mensagem}
+          textoConfirmar={configModal.textoBotaoConfirmar}
+          textoCancelar="Cancelar"
+          onConfirm={confirmarAgendamentoLotado}
+          onClose={cancelarAgendamentoLotado}
         />
       )}
     </>

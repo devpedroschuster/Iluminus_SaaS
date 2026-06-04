@@ -137,16 +137,19 @@ export const gradeService = {
     return data;
   },
 
-  async cadastrarFeriado(feriado) {
-    const { error } = await supabase.from('feriados').insert([feriado]);
-    if (error) throw error;
-    return true;
-  },
+   async cadastrarFeriado(dados) {
+  const { error } = await supabase.from('feriados').insert([dados]);
+  if (error) throw error;
 
-  async excluirFeriado(id) {
-    const { error } = await supabase.from('feriados').delete().eq('id', id);
-    if (error) throw error;
-    return true;
+  if (dados.bloqueia_agenda) {
+    const inicioDia = `${dados.data}T00:00:00`;
+    const fimDia    = `${dados.data}T23:59:59`;
+    await supabase
+      .from('presencas')
+      .delete()
+      .gte('data_checkin', inicioDia)
+      .lte('data_checkin', fimDia);
+  }
   },
 
   async listarMatriculasFixas() {

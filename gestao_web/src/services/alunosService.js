@@ -241,7 +241,7 @@ export const alunosService = {
         .update({
           plano_id: planoId,
           modalidades_selecionadas: modalidades,
-          ativo: 'true',
+          ativo: true,
           data_inicio_plano: dataInicio,
           data_fim_plano: dataFim,
         })

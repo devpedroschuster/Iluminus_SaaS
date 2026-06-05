@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
+import { rotaPorPerfil } from '../lib/navigation';
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal } from '../components/ui/Modal';
 
@@ -29,34 +30,24 @@ export default function Login() {
 
       if (error) throw error;
 
-      const user = authData.user;
-      const metadata = user.user_metadata || {};
-      const role = metadata.role || 'aluno';
+      // Verificar primeiro_acesso diretamente no banco — fonte de verdade confiável.
+      // Busca por auth_id (não por email) para evitar colisão caso exista
+      // mais de um registro com o mesmo e-mail em situações de migração.
+      const { data: alunoData } = await supabase
+        .from('alunos')
+        .select('primeiro_acesso, nome_completo')
+        .eq('auth_id', authData.user.id)
+        .maybeSingle();
 
-      if (role === 'aluno' || role === 'admin') {
-        const { data: alunoData } = await supabase
-          .from('alunos')
-          .select('primeiro_acesso')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-        if (alunoData?.primeiro_acesso) {
-          const primeiroNome = (metadata.nome_completo || metadata.nome || 'Usuário').split(' ')[0];
-          showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
-          navigate('/redefinir-senha'); 
-          return;
-        }
+      if (alunoData?.primeiro_acesso) {
+        const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
+        showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
+        navigate('/redefinir-senha');
+        return;
       }
 
       showToast.success("Login realizado com sucesso!");
-      
-      if (role === 'professor') {
-        navigate('/agenda');
-      } else if (role === 'admin') {
-        navigate('/dashboard');
-      } else {
-        navigate('/area-aluno');
-      }
+      navigate('/');
 
     } catch (err) {
       if (err.message.includes("Invalid login")) {

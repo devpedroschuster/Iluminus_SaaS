@@ -27,7 +27,8 @@ function aulaEmAndamento(aula) {
   const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const [h, m] = aula.horario.split(':').map(Number);
   const inicioAula = h * 60 + m;
-  const fimAula = inicioAula + 60;
+  const duracaoMin = aula.duracao_minutos ?? 60;
+  const fimAula = inicioAula + duracaoMin;
   return horaAtual >= inicioAula - 30 && horaAtual <= fimAula;
 }
 
@@ -201,36 +202,45 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
 
   function calcularMetricas(presencasData, alunosData) {
     const hoje = new Date().toISOString().split('T')[0];
-    const checkinsHoje = presencasData.filter(
-      p => p.data_checkin?.split('T')[0] === hoje
-    ).length;
     const alunosAtivos = alunosData.length;
     const semanaAtras = new Date();
     semanaAtras.setDate(semanaAtras.getDate() - 7);
-    const presencasSemana = presencasData.filter(
-      p => new Date(p.data_checkin) >= semanaAtras
-    );
-    const taxasIndividuais = alunosData.map(aluno => {
-  const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
-  const real = presencasSemana.filter(p => p.aluno_id === aluno.id).length;
-  return Math.min(real / esperado, 1);
-});
 
-const frequenciaMedia =
-  alunosAtivos > 0
-    ? (
-        (taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100
-      ).toFixed(1)
-    : 0;
+    // O(n) — single pass: conta check-ins de hoje, por aluno e por dia da semana
+    let checkinsHoje = 0;
+    const presencasPorAluno = new Map();
+    const presencasPorDia   = new Array(7).fill(0);
+
+    for (const p of presencasData) {
+      if (!p.data_checkin) continue;
+      if (p.data_checkin.split('T')[0] === hoje) checkinsHoje++;
+      if (new Date(p.data_checkin) >= semanaAtras) {
+        if (p.aluno_id != null) {
+          presencasPorAluno.set(p.aluno_id, (presencasPorAluno.get(p.aluno_id) || 0) + 1);
+        }
+        presencasPorDia[new Date(p.data_checkin).getDay()]++;
+      }
+    }
+
+    const taxasIndividuais = alunosData.map(aluno => {
+      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
+      const real     = presencasPorAluno.get(aluno.id) || 0;
+      return Math.min(real / esperado, 1);
+    });
+
+    const frequenciaMedia =
+      alunosAtivos > 0
+        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
+        : 0;
+
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => ({
       dia,
-      total: presencasSemana.filter(
-        p => new Date(p.data_checkin).getDay() === idx
-      ).length
+      total: presencasPorDia[idx],
     }));
-    const totalSemana = presencaPorDia.reduce((acc, d) => acc + d.total, 0);
-    const mediaDiaria = Math.round(totalSemana / 7);
+
+    const totalSemana  = presencasPorDia.reduce((acc, v) => acc + v, 0);
+    const mediaDiaria  = Math.round(totalSemana / 7);
     setMetricas({ checkinsHoje, frequenciaMedia, alunosAtivos, presencaSemana: presencaPorDia, mediaDiaria });
   }
 
@@ -238,45 +248,42 @@ const frequenciaMedia =
   async function realizarCheckin(aluno, aulaId = null) {
   setLoadingCheckin(aluno.id);
   try {
-    const hoje = new Date().toISOString().split('T')[0];
+    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
 
-    let queryDuplicata = supabase
-      .from('presencas')
-      .select('id, tipo')
-      .eq('aluno_id', aluno.id)
-      .gte('data_checkin', hoje + 'T00:00:00')
-      .lte('data_checkin', hoje + 'T23:59:59');
-
-    if (aulaId) {
-      queryDuplicata = queryDuplicata.eq('aula_id', aulaId);
-    } else {
-      queryDuplicata = queryDuplicata.is('aula_id', null);
-    }
-
-    const { data: checkinExistente } = await queryDuplicata.maybeSingle();
-
-    if (checkinExistente) {
-      if (checkinExistente.tipo === 'agendado') {
-        const { error } = await supabase
-          .from('presencas')
-          .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
-          .eq('id', checkinExistente.id);
-        if (error) throw error;
-      } else {
-        const msg = aulaId
-          ? `${aluno.nome_completo} já fez check-in nessa aula hoje!`
-          : `${aluno.nome_completo} já fez check-in livre hoje!`;
-        showToast.error(msg);
-        return;
-      }
-    } else {
-      const { error } = await supabase.from('presencas').insert([{
-        aluno_id: aluno.id,
-        aula_id: aulaId,
-        tipo: aulaId ? 'aula' : 'livre',
-        data_checkin: new Date().toISOString()
-      }]);
+    if (agendadoId) {
+      // Confirma agendamento existente — UPDATE pontual, sem risco de duplicata
+      const { error } = await supabase
+        .from('presencas')
+        .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
+        .eq('id', agendadoId);
       if (error) throw error;
+    } else {
+      // INSERT atômico: a constraint única (aluno_id, aula_id, data_aula) no banco
+      // garante que dois cliques simultâneos não criem duas linhas.
+      // ignoreDuplicates:true suprime o erro quando a linha já existe.
+      const payload = {
+        aluno_id:    aluno.id,
+        aula_id:     aulaId,
+        tipo:        aulaId ? 'aula' : 'livre',
+        data_checkin: new Date().toISOString(),
+        ...(aulaId ? { data_aula: new Date().toISOString().split('T')[0] } : {}),
+      };
+
+      const { error } = await supabase
+        .from('presencas')
+        .upsert([payload], {
+          onConflict:       'aluno_id,aula_id,data_aula',
+          ignoreDuplicates: true,
+        });
+
+      if (error) {
+        // Duplicata em checkin livre (sem aula_id / data_aula) cai aqui
+        if (error.code === '23505') {
+          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
+          return;
+        }
+        throw error;
+      }
     }
 
     showToast.success(`✅ ${aluno.nome_completo}`);

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 import { useAuth } from './hooks/useAuth';
+import { rotaPorPerfil } from './lib/navigation';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -89,9 +90,7 @@ const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
   if (loading) return <Spinner />;
   if (!sessao || perfil === null) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(perfil)) {
-    if (perfil === 'aluno') return <Navigate to="/area-aluno" replace />;
-    if (perfil === 'professor') return <Navigate to="/agenda" replace />;
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={rotaPorPerfil(perfil)} replace />;
   }
   return <Outlet />;
 };
@@ -111,20 +110,12 @@ export default function App() {
               <Route path="/" element={
                 !sessao
                   ? <Landing />
-                  : (perfil === 'aluno'
-                      ? <Navigate to="/area-aluno" replace />
-                      : (perfil === 'professor'
-                          ? <Navigate to="/agenda" replace />
-                          : <Navigate to="/dashboard" replace />))
+                  : <Navigate to={rotaPorPerfil(perfil)} replace />
               } />
               <Route path="/login" element={
                 !sessao
                   ? <Login />
-                  : (perfil === 'aluno'
-                      ? <Navigate to="/area-aluno" replace />
-                      : (perfil === 'professor'
-                          ? <Navigate to="/agenda" replace />
-                          : <Navigate to="/dashboard" replace />))
+                  : <Navigate to={rotaPorPerfil(perfil)} replace />
               } />
               <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 

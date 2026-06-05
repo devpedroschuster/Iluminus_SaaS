@@ -40,7 +40,7 @@ export const alunosService = {
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
- 
+
       if (error) throw error;
       return data ?? [];
     } catch (error) {
@@ -164,48 +164,28 @@ export const alunosService = {
     return data;
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // BP-01 FIX: operações encadeadas substituídas por RPC atômica.
+  // Todas as escritas ocorrem dentro de uma única transação
+  // Postgres — se qualquer etapa falhar, o banco faz rollback
+  // automático e nenhuma escrita parcial é persistida.
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Renova o plano de um aluno de forma atômica via RPC.
+   * Função SQL correspondente: renovar_plano_aluno()
+   */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
-      await supabase
-        .from('historico_planos')
-        .update({ status: 'finalizado' })
-        .eq('aluno_id', alunoId)
-        .eq('status', 'ativo');
+      const { error } = await supabase.rpc('renovar_plano_aluno', {
+        p_aluno_id:    alunoId,
+        p_plano_id:    dadosRenovacao.plano_id,
+        p_data_inicio: dadosRenovacao.data_inicio,
+        p_data_fim:    dadosRenovacao.data_fim,
+        p_valor_pago:  dadosRenovacao.valor_pago ?? 0,
+      });
 
-      const { error: errHist } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: dadosRenovacao.plano_id,
-          data_inicio: dadosRenovacao.data_inicio,
-          data_fim: dadosRenovacao.data_fim,
-          valor_pago: dadosRenovacao.valor_pago || 0,
-          status: 'ativo',
-        }]);
-
-      if (errHist) throw errHist;
-
-      const { error: errAluno } = await supabase
-        .from('alunos')
-        .update({
-          plano_id: dadosRenovacao.plano_id,
-          data_fim_plano: dadosRenovacao.data_fim,
-        })
-        .eq('id', alunoId);
-
-      if (errAluno) throw errAluno;
-
-      const { error: errMensalidade } = await supabase
-        .from('mensalidades')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: dadosRenovacao.plano_id,
-          data_vencimento: dadosRenovacao.data_inicio,
-          status: 'pendente',
-        }]);
-
-      if (errMensalidade) throw errMensalidade;
-
+      if (error) throw error;
       return true;
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
@@ -214,6 +194,9 @@ export const alunosService = {
   },
 
   /**
+   * Matricula um aluno em um plano de forma atômica via RPC.
+   * Função SQL correspondente: matricular_aluno()
+   *
    * @param {string} alunoId
    * @param {string} planoId
    * @param {object} opcoes
@@ -222,6 +205,8 @@ export const alunosService = {
    */
   async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
     try {
+      // Busca os dados do plano antes de iniciar a transação —
+      // leitura pura, sem efeito colateral, portanto fora do RPC.
       const { data: plano, error: errPlano } = await supabase
         .from('planos')
         .select('id, nome, preco, duracao_meses')
@@ -231,55 +216,27 @@ export const alunosService = {
       if (errPlano) throw errPlano;
 
       const dataInicio = new Date().toISOString().split('T')[0];
-      const dataFimObj = new Date(dataVencimento + 'T12:00:00');
+      const dataFimObj = new Date(`${dataVencimento}T12:00:00`);
       dataFimObj.setMonth(dataFimObj.getMonth() + (plano.duracao_meses || 1));
       dataFimObj.setDate(dataFimObj.getDate() - 1);
       const dataFim = dataFimObj.toISOString().split('T')[0];
 
-      const { error: errAluno } = await supabase
-        .from('alunos')
-        .update({
-          plano_id: planoId,
-          modalidades_selecionadas: modalidades,
-          ativo: true,
-          data_inicio_plano: dataInicio,
-          data_fim_plano: dataFim,
-        })
-        .eq('id', alunoId);
+      const descricao = `Matrícula: ${plano.nome} (${plano.duracao_meses} ${
+        plano.duracao_meses === 1 ? 'mês' : 'meses'
+      })`;
 
-      if (errAluno) throw errAluno;
+      const { error } = await supabase.rpc('matricular_aluno', {
+        p_aluno_id:    alunoId,
+        p_plano_id:    planoId,
+        p_data_inicio: dataInicio,
+        p_data_fim:    dataFim,
+        p_vencimento:  dataVencimento,
+        p_modalidades: modalidades,
+        p_valor_pago:  plano.preco ?? 0,
+        p_descricao:   descricao,
+      });
 
-      await supabase
-        .from('historico_planos')
-        .update({ status: 'finalizado' })
-        .eq('aluno_id', alunoId)
-        .eq('status', 'ativo');
-
-      const { error: errHist } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: planoId,
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          status: 'ativo',
-          valor_pago: plano.preco || 0,
-        }]);
-
-      if (errHist) throw errHist;
-
-      const { error: errMens } = await supabase
-        .from('mensalidades')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: planoId,
-          data_vencimento: dataVencimento,
-          status: 'pendente',
-          descricao: `Matrícula: ${plano.nome} (${plano.duracao_meses} ${plano.duracao_meses === 1 ? 'mês' : 'meses'})`,
-        }]);
-
-      if (errMens) throw errMens;
-
+      if (error) throw error;
       return { plano, dataInicio, dataFim };
     } catch (error) {
       console.error('[alunosService.matricular]', error);
@@ -294,48 +251,52 @@ export const alunosService = {
       .not('plano_id', 'is', null);
 
     if (errAlunos) throw errAlunos;
+    if (!alunos?.length) return { normalizados: 0, ignorados: 0 };
 
-    let normalizados = 0;
-    let ignorados = 0;
+    const { data: historicosAtivos, error: errHistoricos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id')
+      .eq('status', 'ativo')
+      .in('aluno_id', alunos.map(a => a.id));
 
-    for (const aluno of alunos) {
-      const { data: historico } = await supabase
-        .from('historico_planos')
-        .select('id')
-        .eq('aluno_id', aluno.id)
-        .eq('status', 'ativo')
-        .maybeSingle();
+    if (errHistoricos) throw errHistoricos;
 
-      if (historico) { ignorados++; continue; }
+    const comHistorico = new Set(historicosAtivos?.map(h => h.aluno_id));
 
-      const dataInicio = aluno.data_inicio_plano ?? aluno.created_at.split('T')[0];
-      let dataFim = aluno.data_fim_plano;
-      if (!dataFim) {
-        const fallback = new Date();
-        fallback.setDate(fallback.getDate() + 30);
-        dataFim = fallback.toISOString().split('T')[0];
-      }
+    const hoje = new Date();
+    const calcularDataFimFallback = () => {
+      const fallback = new Date(hoje);
+      fallback.setDate(fallback.getDate() + 30);
+      return fallback.toISOString().split('T')[0];
+    };
 
-      const { error: errInsert } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: aluno.id,
-          plano_id: aluno.plano_id,
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          status: 'ativo',
-          valor_pago: 0,
-        }]);
+    const alunosSemHistorico = alunos.filter(a => !comHistorico.has(a.id));
+    const ignorados = alunos.length - alunosSemHistorico.length;
 
-      if (errInsert) {
-        console.warn(`[normalizarHistoricoPlanos] Falha no aluno ${aluno.id}:`, errInsert);
-        ignorados++;
-      } else {
-        normalizados++;
-      }
+    if (!alunosSemHistorico.length) {
+      console.info('[normalizarHistoricoPlanos] Nenhum aluno sem histórico ativo.');
+      return { normalizados: 0, ignorados };
     }
 
-    console.info(`[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`);
+    const inserts = alunosSemHistorico.map(a => ({
+      aluno_id:    a.id,
+      plano_id:    a.plano_id,
+      data_inicio: a.data_inicio_plano ?? a.created_at.split('T')[0],
+      data_fim:    a.data_fim_plano    ?? calcularDataFimFallback(),
+      status:      'ativo',
+      valor_pago:  0,
+    }));
+
+    const { error: errInsert } = await supabase
+      .from('historico_planos')
+      .insert(inserts);
+
+    if (errInsert) throw errInsert;
+
+    const normalizados = inserts.length;
+    console.info(
+      `[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`
+    );
     return { normalizados, ignorados };
   },
 };

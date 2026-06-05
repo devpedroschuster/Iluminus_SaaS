@@ -91,6 +91,64 @@ function StepIndicator({ stepAtual }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Campos extraídos para fora do componente principal para evitar
+// desmontagem/remontagem a cada re-render (perda de foco no input)
+// ─────────────────────────────────────────────────────────────
+function CpfField({ cpfDisplay, cpfErro, onChange }) {
+  return (
+    <div>
+      <div className="relative">
+        <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+        <input
+          value={cpfDisplay}
+          onChange={onChange}
+          placeholder="CPF (Opcional)"
+          maxLength={14}
+          className={`w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border outline-none font-medium
+            text-gray-700 transition-colors focus:border-orange-200
+            ${cpfErro ? 'border-red-300 bg-red-50/30' : 'border-transparent'}`}
+        />
+      </div>
+      {cpfErro && (
+        <p className="text-xs text-red-500 mt-1.5 ml-1 font-medium flex items-center gap-1">
+          <AlertCircle size={12} /> {cpfErro}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CepField({ register, buscandoCep, cepErro, onBlur, className = '' }) {
+  return (
+    <div className={className}>
+      <div className="relative">
+        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+        <input
+          {...register('cep')}
+          onBlur={onBlur}
+          placeholder="CEP"
+          maxLength={9}
+          className={`w-full pl-12 pr-10 py-4 bg-gray-50 rounded-2xl border outline-none font-medium
+            text-gray-700 transition-colors focus:border-orange-200
+            ${cepErro ? 'border-orange-300' : 'border-transparent'}`}
+        />
+        {buscandoCep && (
+          <RefreshCw
+            className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-gray-300"
+            size={16}
+          />
+        )}
+      </div>
+      {cepErro && (
+        <p className="text-xs text-orange-600 mt-1.5 ml-1 font-medium flex items-center gap-1">
+          <AlertCircle size={12} /> {cepErro}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────
 export default function NovoAluno() {
@@ -110,6 +168,10 @@ export default function NovoAluno() {
   const [matriculasAluno,         setMatriculasAluno]         = useState([]);
   const [loadingAgenda,           setLoadingAgenda]           = useState(false);
   const [modalOpen,               setModalOpen]               = useState(false);
+
+  // ── BP-01 – substituição de window.confirm ──────────────────
+  const [confirmModal, setConfirmModal] = useState(null);
+  // confirmModal: { mensagem, onConfirmar } | null
   const [copiado,                 setCopiado]                 = useState(false);
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
@@ -167,7 +229,7 @@ export default function NovoAluno() {
       setStepAtual(1);
       setCadastroSalvo(false);
     }
-  }, [location.pathname]);
+  }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
   useEffect(() => {
     if (planoSelecionadoObj && dataInicioPlano) {
@@ -347,34 +409,44 @@ export default function NovoAluno() {
       aulasGrade.find(a => a.id === aulaId)?.modalidades?.id === modId
     ).length;
 
-  async function toggleMatriculaFixa(aula) {
+  async function executarMatricula(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .insert({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno matriculado na turma!');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao matricular na turma.'); }
+  }
+
+  async function executarRemocao(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .delete().match({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno removido da turma.');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao remover da turma.'); }
+  }
+
+  function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
     if (!isMatriculado) {
       const limiteSelecionado = getCountModEspecifca(aula.modalidades?.id);
       const usado             = countUsoModNaGrade(aula.modalidades?.id);
       if (usado >= limiteSelecionado) {
-        const ok = window.confirm(
-          `ATENÇÃO: Você selecionou apenas ${limiteSelecionado}x de ${aula.modalidades?.nome} no perfil do aluno.\n\n` +
-          `Deseja abrir uma exceção e matricular na ${usado + 1}ª turma?`
-        );
-        if (!ok) return;
+        setConfirmModal({
+          mensagem: `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª turma?`,
+          onConfirmar: () => executarMatricula(aula),
+        });
+        return;
       }
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .insert({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno matriculado na turma!');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao matricular na turma.'); }
+      executarMatricula(aula);
     } else {
-      if (!window.confirm(`Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`)) return;
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .delete().match({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno removido da turma.');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao remover da turma.'); }
+      setConfirmModal({
+        mensagem: `Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`,
+        onConfirmar: () => executarRemocao(aula),
+      });
     }
   }
 
@@ -391,12 +463,15 @@ export default function NovoAluno() {
   // ─────────────────────────────────────────────────────────
   async function onSubmit(data) {
     try {
-      const planoFinal = (data.role === 'aluno' && data.plano_id) ? data.plano_id : null;
+      // SEC-01 — nunca aceitar role do formulário; fixar sempre como 'aluno'.
+      // Promoção a admin deve ocorrer via console Supabase ou Edge Function dedicada.
+      const roleSanitizado = 'aluno';
+      const planoFinal = (roleSanitizado === 'aluno' && data.plano_id) ? data.plano_id : null;
       let planoInfos = null;
 
       const payloadBase = {
         plano_id:                  planoFinal,
-        modalidades_selecionadas:  data.role === 'aluno' ? modalidadesSelecionadas : [],
+        modalidades_selecionadas:  roleSanitizado === 'aluno' ? modalidadesSelecionadas : [],
         data_inicio_plano:         data.data_inicio_plano || null,
         data_fim_plano:            data.data_fim_plano    || null,
         cpf:                       data.cpf               || null,
@@ -560,59 +635,7 @@ export default function NovoAluno() {
   // ─────────────────────────────────────────────────────────
   // Shared sub-renderers
   // ─────────────────────────────────────────────────────────
-  function CepField({ className = '' }) {
-    return (
-      <div className={className}>
-        <div className="relative">
-          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-          <input
-            {...register('cep')}
-            onBlur={e => buscarCep(e.target.value)}
-            placeholder="CEP"
-            maxLength={9}
-            className={`w-full pl-12 pr-10 py-4 bg-gray-50 rounded-2xl border outline-none font-medium
-              text-gray-700 transition-colors focus:border-orange-200
-              ${cepErro ? 'border-orange-300' : 'border-transparent'}`}
-          />
-          {buscandoCep && (
-            <RefreshCw
-              className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-gray-300"
-              size={16}
-            />
-          )}
-        </div>
-        {cepErro && (
-          <p className="text-xs text-orange-600 mt-1.5 ml-1 font-medium flex items-center gap-1">
-            <AlertCircle size={12} /> {cepErro}
-          </p>
-        )}
-      </div>
-    );
-  }
 
-  function CpfField() {
-    return (
-      <div>
-        <div className="relative">
-          <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-          <input
-            value={cpfDisplay}
-            onChange={handleCpfChange}
-            placeholder="CPF (Opcional)"
-            maxLength={14}
-            className={`w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border outline-none font-medium
-              text-gray-700 transition-colors focus:border-orange-200
-              ${cpfErro ? 'border-red-300 bg-red-50/30' : 'border-transparent'}`}
-          />
-        </div>
-        {cpfErro && (
-          <p className="text-xs text-red-500 mt-1.5 ml-1 font-medium flex items-center gap-1">
-            <AlertCircle size={12} /> {cpfErro}
-          </p>
-        )}
-      </div>
-    );
-  }
 
   function PlanoSlots() {
     return (
@@ -800,7 +823,7 @@ export default function NovoAluno() {
               </p>
             )}
           </div>
-          <CpfField />
+          <CpfField cpfDisplay={cpfDisplay} cpfErro={cpfErro} onChange={handleCpfChange} />
           <div className="relative">
             <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
             <input
@@ -860,7 +883,7 @@ export default function NovoAluno() {
           <MapPin size={16} /> Endereço Residencial
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CepField />
+          <CepField register={register} buscandoCep={buscandoCep} cepErro={cepErro} onBlur={e => buscarCep(e.target.value)} />
           <div className="relative md:col-span-2">
             <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
             <input
@@ -939,7 +962,7 @@ export default function NovoAluno() {
                 text-gray-600 appearance-none cursor-pointer"
             >
               <option value="aluno">Aluno</option>
-              <option value="admin">Administrador</option>
+              {/* SEC-01 — opção "admin" removida; promoção só via console Supabase */}
             </select>
           </div>
           <div className="relative">
@@ -982,7 +1005,7 @@ export default function NovoAluno() {
                   focus:border-orange-200 outline-none font-medium text-gray-700"
               />
             </div>
-            <CpfField />
+            <CpfField cpfDisplay={cpfDisplay} cpfErro={cpfErro} onChange={handleCpfChange} />
             <div className="relative">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
               <input
@@ -1011,7 +1034,7 @@ export default function NovoAluno() {
             <MapPin size={16} /> Endereço Residencial
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <CepField />
+            <CepField register={register} buscandoCep={buscandoCep} cepErro={cepErro} onBlur={e => buscarCep(e.target.value)} />
             <div className="relative md:col-span-2">
               <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
               <input
@@ -1093,7 +1116,7 @@ export default function NovoAluno() {
                   text-gray-600 appearance-none cursor-pointer"
               >
                 <option value="aluno">Aluno</option>
-                <option value="admin">Administrador</option>
+                {/* SEC-01 — opção "admin" removida; promoção só via console Supabase */}
               </select>
             </div>
             <div className="relative">
@@ -1395,6 +1418,34 @@ export default function NovoAluno() {
           </div>
         )}
       </div>
+
+      {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+      <Modal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        titulo="Confirmação"
+      >
+        <p className="text-gray-700 font-medium mb-6 whitespace-pre-line leading-relaxed">
+          {confirmModal?.mensagem}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setConfirmModal(null)}
+            className="flex-1 py-3 rounded-2xl font-black text-gray-500 bg-gray-50 hover:bg-gray-100 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              confirmModal?.onConfirmar();
+              setConfirmModal(null);
+            }}
+            className="flex-1 py-3 rounded-2xl font-black text-white bg-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+          >
+            Confirmar
+          </button>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={modalOpen}

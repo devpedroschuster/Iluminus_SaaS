@@ -804,6 +804,9 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   const [aulasGrade, setAulasGrade]         = useState([]);
   const [matriculasAluno, setMatriculasAluno] = useState([]);
   const [loading, setLoading]               = useState(true);
+  // BP-01 – substituição de window.confirm
+  const [confirmModal, setConfirmModal]     = useState(null);
+  // confirmModal: { mensagem, onConfirmar } | null
   const modalidades = aluno?.modalidades_selecionadas
     ? [...new Set(aluno.modalidades_selecionadas)]
     : [];
@@ -851,34 +854,44 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       aulasGrade.find(a => a.id === aulaId)?.modalidades?.id === modId
     ).length;
 
-  async function toggleMatriculaFixa(aula) {
+  async function executarMatricula(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .insert({ aluno_id: alunoId, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno matriculado na turma!');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao matricular na turma.'); }
+  }
+
+  async function executarRemocao(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .delete().match({ aluno_id: alunoId, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno removido da turma.');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao remover da turma.'); }
+  }
+
+  function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
     if (!isMatriculado) {
       const limiteSelecionado = getCountModEspecifica(aula.modalidades?.id);
       const usado             = countUsoModNaGrade(aula.modalidades?.id);
       if (limiteSelecionado > 0 && usado >= limiteSelecionado) {
-        const ok = window.confirm(
-          `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\n` +
-          `Deseja abrir uma exceção e matricular na ${usado + 1}ª turma?`
-        );
-        if (!ok) return;
+        setConfirmModal({
+          mensagem: `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª turma?`,
+          onConfirmar: () => executarMatricula(aula),
+        });
+        return;
       }
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .insert({ aluno_id: alunoId, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno matriculado na turma!');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao matricular na turma.'); }
+      executarMatricula(aula);
     } else {
-      if (!window.confirm(`Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`)) return;
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .delete().match({ aluno_id: alunoId, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno removido da turma.');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao remover da turma.'); }
+      setConfirmModal({
+        mensagem: `Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`,
+        onConfirmar: () => executarRemocao(aula),
+      });
     }
   }
 
@@ -909,6 +922,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   const semModalidades = modIdsDoAluno.length === 0;
 
   return (
+    <>
     <div className="space-y-6 animate-in slide-in-from-bottom-4">
       <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary-soft border border-primary/20">
         <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
@@ -984,11 +998,38 @@ function AbaAgendaFixa({ aluno, alunoId }) {
         })
       )}
     </div>
+
+    {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+    {confirmModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={(e) => { if (e.target === e.currentTarget) setConfirmModal(null); }}
+      >
+        <div className="bg-background rounded-3xl shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
+          <h3 className="font-black text-foreground text-lg mb-4">Confirmação</h3>
+          <p className="text-muted-foreground font-medium mb-8 whitespace-pre-line leading-relaxed">
+            {confirmModal.mensagem}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmModal(null)}
+              className="flex-1 py-3 rounded-2xl font-black text-muted-foreground bg-muted hover:bg-muted/80 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => { confirmModal.onConfirmar(); setConfirmModal(null); }}
+              className="flex-1 py-3 rounded-2xl font-black text-primary-foreground bg-primary hover:opacity-90 transition-all"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id } = useParams();

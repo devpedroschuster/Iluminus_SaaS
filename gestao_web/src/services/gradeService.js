@@ -20,77 +20,57 @@ export const gradeService = {
     return data;
   },
 
-  async listarGrade() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const authId = session?.user?.id;
-    const email = session?.user?.email;
-
-    if (!authId) return [];
-
-    const { data: usuarioAluno } = await supabase
-      .from('alunos')
-      .select('id, role')
-      .eq('email', email)
-      .maybeSingle();
-
-    const { data: usuarioProf } = await supabase
-      .from('professores')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
-
-    const isAdmin =
-      (usuarioAluno?.role === 'admin') ||
-      (!usuarioAluno && !usuarioProf);
-
-    if (!isAdmin) {
-      if (!usuarioProf) return [];
-
-      const professorId = usuarioProf.id;
-
-      const { data: modalidadesDoProf } = await supabase
-        .from('modalidades')
-        .select('id')
-        .eq('professor_id', professorId);
-
-      const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
-
-      const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
-        await Promise.all([
-          supabase
-            .from('agenda')
-            .select('*, professores(nome), modalidades(id, nome)')
-            .eq('professor_id', professorId)
-            .order('horario', { ascending: true }),
-
-          idsModsDoProf.length > 0
-            ? supabase
-                .from('agenda')
-                .select('*, professores(nome), modalidades(id, nome)')
-                .is('professor_id', null)
-                .in('modalidade_id', idsModsDoProf)
-                .order('horario', { ascending: true })
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-
-      if (errDiretas) throw errDiretas;
-      if (errMod) throw errMod;
-
-      const todas = [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])];
-      const vistas = new Set();
-      return todas.filter((a) => {
-        if (vistas.has(a.id)) return false;
-        vistas.add(a.id);
-        return true;
-      });
+  /**
+   * @param {'admin' | 'professor' | 'aluno'} perfil  — vem do useAuth
+   * @param {string | null} professorId                — id do professor logado (se perfil === 'professor')
+   */
+  async listarGrade(perfil, professorId) {
+    if (perfil === 'admin') {
+      const { data, error } = await supabase
+        .from('agenda')
+        .select('*, professores(nome), modalidades(id, nome)')
+        .order('horario', { ascending: true });
+      if (error) throw error;
+      return data;
     }
 
-    const { data: aulas, error } = await supabase
-      .from('agenda')
-      .select('*, professores(nome), modalidades(id, nome)')
-      .order('horario', { ascending: true });
-    if (error) throw error;
-    return aulas;
+    if (perfil !== 'professor' || !professorId) return [];
+
+    // Busca modalidades do professor e aulas em paralelo
+    const { data: modalidadesDoProf } = await supabase
+      .from('modalidades')
+      .select('id')
+      .eq('professor_id', professorId);
+
+    const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
+
+    const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
+      await Promise.all([
+        supabase
+          .from('agenda')
+          .select('*, professores(nome), modalidades(id, nome)')
+          .eq('professor_id', professorId)
+          .order('horario', { ascending: true }),
+
+        idsModsDoProf.length > 0
+          ? supabase
+              .from('agenda')
+              .select('*, professores(nome), modalidades(id, nome)')
+              .is('professor_id', null)
+              .in('modalidade_id', idsModsDoProf)
+              .order('horario', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+    if (errDiretas) throw errDiretas;
+    if (errMod) throw errMod;
+
+    const vistas = new Set();
+    return [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])].filter((a) => {
+      if (vistas.has(a.id)) return false;
+      vistas.add(a.id);
+      return true;
+    });
   },
 
   async salvarAula(aula) {
@@ -137,25 +117,25 @@ export const gradeService = {
     return data;
   },
 
-   async cadastrarFeriado(dados) {
-  const { error } = await supabase.from('feriados').insert([dados]);
-  if (error) throw error;
+  async cadastrarFeriado(dados) {
+    const { error } = await supabase.from('feriados').insert([dados]);
+    if (error) throw error;
 
-  if (dados.bloqueia_agenda) {
-    const inicioDia = `${dados.data}T00:00:00`;
-    const fimDia    = `${dados.data}T23:59:59`;
-    await supabase
-      .from('presencas')
-      .delete()
-      .gte('data_checkin', inicioDia)
-      .lte('data_checkin', fimDia);
-  }
+    if (dados.bloqueia_agenda) {
+      const inicioDia = `${dados.data}T00:00:00`;
+      const fimDia    = `${dados.data}T23:59:59`;
+      await supabase
+        .from('presencas')
+        .delete()
+        .gte('data_checkin', inicioDia)
+        .lte('data_checkin', fimDia);
+    }
   },
 
   async listarMatriculasFixas() {
     const { data, error } = await supabase
       .from('agenda_fixa')
-      .select('aula_id, alunos (*)');
+      .select('aula_id, alunos (id, nome_completo)');
     if (error) {
       console.error('Erro ao buscar alunos fixos:', error);
       return [];

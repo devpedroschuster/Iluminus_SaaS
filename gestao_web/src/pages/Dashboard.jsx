@@ -114,43 +114,27 @@ export default function Dashboard() {
   const inicioMes    = startOfMonth(agora).toISOString();
   const limite7Dias  = format(addDays(agora, 7), 'yyyy-MM-dd');
 
-  // ── Queries ────────────────────────────────────────────────────────────────
-  const { data: listaInadimplentes = [], isLoading: loadingInadim } = useQuery({
-    queryKey: ['dash-inadimplentes', hojeIso],
-    queryFn: () => dashboardService.obterInadimplentes(hojeIso),
+  // ── Query única — todas as chamadas rodam em paralelo via Promise.all ─────
+  const {
+    data: {
+      totalAlunos        = 0,
+      pagamentosMes      = [],
+      listaInadimplentes = [],
+      alunosPlanosVencendo = [],
+      todosAlunos        = [],
+    } = {},
+    isLoading,
+  } = useQuery({
+    queryKey: ['dashboard', hojeIso, inicioMes, limite7Dias],
+    queryFn:  () => dashboardService.obterTudoDashboard({ hojeIso, inicioMes, limite7Dias }),
+    staleTime: 1000 * 60 * 5,
   });
 
-  const { data: alunosPlanosVencendo = [], isLoading: loadingVencendo } = useQuery({
-    queryKey: ['dash-planos-vencendo', hojeIso, limite7Dias],
-    queryFn: () => dashboardService.obterAlunosPlanosVencendo(hojeIso, limite7Dias),
-  });
-
-  const { data: totalAlunos = 0, isLoading: loadingAlunos } = useQuery({
-    queryKey: ['dash-alunos'],
-    queryFn: dashboardService.obterTotalAlunos,
-  });
-
-  const { data: pagamentosMes = [], isLoading: loadingPag } = useQuery({
-    queryKey: ['dash-pagamentos', inicioMes],
-    queryFn: () => dashboardService.obterPagamentosMes(inicioMes),
-  });
-
-  // Aniversariantes — reutiliza o serviço de alunos via supabase direto
-  // Como não existe endpoint dedicado no dashboardService, fazemos via hook de aniversariantes
-  const { data: todosAlunos = [] } = useQuery({
-    queryKey: ['dash-aniversariantes'],
-    queryFn: async () => {
-      const { supabase } = await import('../lib/supabase');
-      const { data } = await supabase
-        .from('alunos')
-        .select('id, nome_completo, data_nascimento, telefone')
-        .eq('ativo', true)
-        .eq('role', 'aluno')
-        .not('data_nascimento', 'is', null);
-      return data || [];
-    },
-    staleTime: 1000 * 60 * 15,
-  });
+  // Aliases de loading para manter compatibilidade com os Skeletons abaixo
+  const loadingAlunos  = isLoading;
+  const loadingPag     = isLoading;
+  const loadingInadim  = isLoading;
+  const loadingVencendo = isLoading;
 
   // ── Derivações ─────────────────────────────────────────────────────────────
   const faturamentoMes = useMemo(

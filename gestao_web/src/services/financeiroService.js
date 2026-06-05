@@ -42,9 +42,14 @@ export const financeiroService = {
 
     if (errAlunos) throw errAlunos;
 
+    const tresMesesAtras = new Date();
+    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+    const filtroData = tresMesesAtras.toISOString().split('T')[0];
+
     const { data: ultimasMensalidades } = await supabase
       .from('mensalidades')
       .select('aluno_id, data_vencimento')
+      .gte('data_vencimento', filtroData)
       .order('data_vencimento', { ascending: false });
 
     const mapaUltimasDatas = new Map();
@@ -59,22 +64,25 @@ export const financeiroService = {
     alunos.forEach(aluno => {
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
 
+      let proximaData;
       if (ultimaDataStr) {
         const d = new Date(ultimaDataStr + 'T12:00:00');
         d.setDate(d.getDate() + 30);
+        proximaData = d.toISOString().split('T')[0];
+      } else {
+        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
+        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
+      }
 
-        const proximaData = d.toISOString().split('T')[0];
+      const [pAno, pMes] = proximaData.split('-').map(Number);
 
-        const [pAno, pMes] = proximaData.split('-').map(Number);
-
-        if (pAno === ano && pMes === mesNumero) {
-          novasCobrancas.push({
-            aluno_id: aluno.id,
-            plano_id: aluno.plano_id,
-            data_vencimento: proximaData,
-            status: 'pendente'
-          });
-        }
+      if (pAno === ano && pMes === mesNumero) {
+        novasCobrancas.push({
+          aluno_id: aluno.id,
+          plano_id: aluno.plano_id,
+          data_vencimento: proximaData,
+          status: 'pendente'
+        });
       }
     });
 
@@ -118,13 +126,16 @@ export const financeiroService = {
     }
 
     if (dados.status === 'pago') {
-  try {
-    await gerarRepassesDaMensalidade(data.id);
-  } catch (repasseError) {
-    console.warn('[financeiroService] Aviso: erro ao gerar repasses. Pagamento já registrado.', repasseError);
-  }
-}
-return data;
+      try {
+        await gerarRepassesDaMensalidade(data.id);
+      } catch (repasseError) {
+        // Pagamento salvo com sucesso; apenas o repasse falhou.
+        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
+        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
+        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+      }
+    }
+    return data;
   },
 
   async confirmarPagamento(id, dados) {

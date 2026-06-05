@@ -136,6 +136,7 @@ gestao_web/src/hooks/useRepasses.js
 gestao_web/src/index.css
 gestao_web/src/lib/cn.js
 gestao_web/src/lib/constants.js
+gestao_web/src/lib/navigation.js
 gestao_web/src/lib/security.js
 gestao_web/src/lib/supabase.js
 gestao_web/src/lib/utils.js
@@ -218,6 +219,15 @@ supabase/functions/lembretes-aula/index.ts
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="app_mobile/babel.config.js">
+module.exports = function(api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+  };
+};
+</file>
 
 <file path="app_mobile/components/external-link.tsx">
 import { Href, Link } from 'expo-router';
@@ -952,6 +962,22 @@ If you are developing a production application, we recommend using TypeScript wi
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
 </file>
 
+<file path="gestao_web/src/lib/navigation.js">
+/**
+ * Retorna a rota home de cada perfil.
+ * Fonte única de verdade — use em Login, RedefinirSenha, App e qualquer
+ * outro ponto que precise redirecionar com base no perfil do usuário.
+ *
+ * @param {string|null|undefined} perfil - 'admin' | 'professor' | 'aluno' | null
+ * @returns {string} caminho de rota
+ */
+export function rotaPorPerfil(perfil) {
+  if (perfil === 'admin') return '/dashboard';
+  if (perfil === 'professor') return '/agenda';
+  return '/area-aluno'; // aluno ou qualquer valor inesperado
+}
+</file>
+
 <file path="gestao_web/src/lib/security.js">
 export function generateSecurePassword(length = 10) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
@@ -961,6 +987,15 @@ export function generateSecurePassword(length = 10) {
   
   return Array.from(array, (byte) => chars[byte % chars.length]).join('');
 }
+</file>
+
+<file path="gestao_web/src/lib/supabase.js">
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 </file>
 
 <file path=".hintrc">
@@ -1026,15 +1061,6 @@ app-example
 /android
 </file>
 
-<file path="app_mobile/babel.config.js">
-module.exports = function(api) {
-  api.cache(true);
-  return {
-    presets: ['babel-preset-expo'],
-  };
-};
-</file>
-
 <file path="app_mobile/google-services.json">
 {
   "project_info": {
@@ -1065,6 +1091,262 @@ module.exports = function(api) {
   ],
   "configuration_version": "1"
 }
+</file>
+
+<file path="app_mobile/src/components/AgendamentoBottomSheet.js">
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Animated } from 'react-native';
+import Modal from 'react-native-modal';
+import * as Haptics from 'expo-haptics';
+import { supabase } from '../services/supabase';
+
+const { height } = Dimensions.get('window');
+
+// COMPONENTE
+const SkeletonCard = () => {
+  const opacidade = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacidade, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacidade, { toValue: 0.3, duration: 800, useNativeDriver: true })
+      ])
+    ).start();
+  }, [opacidade]);
+
+  return (
+    <Animated.View style={[styles.skeletonContainer, { opacity: opacidade }]}>
+      <View style={styles.skeletonContent}>
+        <View style={styles.skeletonLineFull} />
+        <View style={styles.skeletonLineHalf} />
+      </View>
+      <View style={styles.skeletonBoxRight} />
+    </Animated.View>
+  );
+};
+
+export default function AgendamentoBottomSheet({ 
+  isVisible, 
+  onClose, 
+  aulasDisponiveis, 
+  alunoId, 
+  isLoading = false,
+  isError = false,
+  onRefresh
+}) {
+  const [processandoId, setProcessandoId] = useState(null);
+  const [sucessoId, setSucessoId] = useState(null);
+  
+  const travaClique = useRef(false);
+
+  useEffect(() => {
+    if (isVisible) {
+      setProcessandoId(null);
+      setSucessoId(null);
+      travaClique.current = false;
+    }
+  }, [isVisible]);
+
+  const realizarAgendamentoInline = async (aula) => {
+    if (travaClique.current) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    travaClique.current = true;
+    setProcessandoId(aula.id);
+
+    try {
+      const { error } = await supabase.rpc('agendar_aula', {
+        p_aluno_id: alunoId,
+        p_agenda_id: aula.id
+      });
+
+      if (error) {
+        let msgErro = error.message;
+        if (msgErro.includes(":")) msgErro = msgErro.split(":").pop().trim();
+        throw new Error(msgErro);
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSucessoId(aula.id);
+
+      setTimeout(() => {
+        onClose();
+        if(onRefresh) onRefresh();
+      }, 1500);
+
+    } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      alert(err.message || 'Erro ao garantir a vaga. Tente novamente.');
+      travaClique.current = false;
+    } finally {
+      setProcessandoId(null);
+    }
+  };
+
+  return (
+    <Modal
+      isVisible={isVisible}
+      onBackdropPress={onClose}
+      onSwipeComplete={onClose}
+      swipeDirection="down"
+      style={styles.modalContainer}
+      propagateSwipe={true}
+    >
+      <View style={styles.content}>
+        <View style={styles.dragHandle} />
+
+        <View>
+          <Text style={styles.title}>Agendamento Rápido</Text>
+          <Text style={styles.subtitle}>Toque na aula para garantir sua vaga</Text>
+          
+          <View style={styles.listContainer}>
+            
+            {isLoading ? (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : 
+            
+            isError ? (
+              <View style={styles.centerContainer}>
+                <Text style={styles.errorTitle}>Ops! Algo deu errado.</Text>
+                <Text style={styles.errorSub}>Não conseguimos carregar as aulas de hoje.</Text>
+                <TouchableOpacity style={styles.btnTentar} onPress={onRefresh}>
+                  <Text style={styles.btnTentarTexto}>Tentar Novamente</Text>
+                </TouchableOpacity>
+              </View>
+            ) : 
+            
+            aulasDisponiveis && aulasDisponiveis.length > 0 ? (
+              aulasDisponiveis.map((aula) => {
+                const isProcessando = processandoId === aula.id;
+                const isSucesso = sucessoId === aula.id;
+
+                return (
+                  <TouchableOpacity 
+                    key={aula.id}
+                    style={[
+                      styles.cardAula, 
+                      isSucesso && styles.cardAulaSucesso
+                    ]} 
+                    onPress={() => realizarAgendamentoInline(aula)}
+                    disabled={processandoId !== null || sucessoId !== null}
+                  >
+                    <View>
+                      <Text style={[styles.aulaNome, isSucesso && styles.textoBranco]}>
+                        {aula.atividade}
+                      </Text>
+                      <Text style={[styles.aulaDetalhes, isSucesso && styles.textoBrancoTransparente]}>
+                        {aula.horario ? aula.horario.slice(0, 5) : '--:--'} • {aula.espaco === 'funcional' ? 'Funcional' : 'Dança'}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.actionContainer}>
+                      {isProcessando ? (
+                        <ActivityIndicator color="#D98E73" />
+                      ) : isSucesso ? (
+                        <Text style={styles.iconeSucessoInline}>✅</Text>
+                      ) : (
+                        <Text style={styles.btnSelecionar}>Agendar</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={styles.vazioTexto}>Não há aulas disponíveis para hoje.</Text>
+            )}
+
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    justifyContent: 'flex-end',
+    margin: 0,
+  },
+  content: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    minHeight: height * 0.4,
+    maxHeight: height * 0.8,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 5, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
+  listContainer: { marginTop: 10 },
+  
+  // Estilos da Lista Inline
+  cardAula: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F3F5',
+  },
+  cardAulaSucesso: {
+    backgroundColor: '#8A9A5B',
+    borderColor: '#8A9A5B',
+  },
+  aulaNome: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  aulaDetalhes: { fontSize: 13, color: '#888', marginTop: 4 },
+  textoBranco: { color: '#FFF' },
+  textoBrancoTransparente: { color: 'rgba(255, 255, 255, 0.8)' },
+  
+  actionContainer: {
+    minWidth: 70,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  btnSelecionar: { color: '#D98E73', fontWeight: 'bold' },
+  iconeSucessoInline: { fontSize: 18 },
+  
+  vazioTexto: { textAlign: 'center', color: '#999', marginTop: 20 },
+
+  // Estilos UX
+  skeletonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F3F5',
+  },
+  skeletonContent: { flex: 1 },
+  skeletonLineFull: { height: 16, backgroundColor: '#E0E0E0', borderRadius: 8, width: '70%', marginBottom: 8 },
+  skeletonLineHalf: { height: 12, backgroundColor: '#E0E0E0', borderRadius: 6, width: '40%' },
+  skeletonBoxRight: { width: 70, height: 16, backgroundColor: '#E0E0E0', borderRadius: 8 },
+  
+  centerContainer: { padding: 30, alignItems: 'center', justifyContent: 'center' },
+  errorTitle: { fontSize: 18, fontWeight: 'bold', color: '#E07A5F', marginBottom: 4 },
+  errorSub: { fontSize: 14, color: '#8E8E8E', marginBottom: 20, textAlign: 'center' },
+  btnTentar: { backgroundColor: '#F8F9FA', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5' },
+  btnTentarTexto: { color: '#333', fontWeight: 'bold' },
+});
 </file>
 
 <file path="gestao_web/public/favicon.svg">
@@ -1396,15 +1678,6 @@ import { twMerge } from 'tailwind-merge';
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
-</file>
-
-<file path="gestao_web/src/lib/supabase.js">
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 </file>
 
 <file path="gestao_web/src/pages/Agenda/hooks/useAgendaPage.js">
@@ -1746,6 +2019,7 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { rotaPorPerfil } from '../lib/navigation';
 import { showToast } from '../components/shared/Toast';
 
 export default function RedefinirSenha() {
@@ -1757,10 +2031,18 @@ export default function RedefinirSenha() {
   async function handleUpdatePassword(e) {
     e.preventDefault();
     
-    if (novaSenha.length < 6) {
-      showToast.error("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
+    // ✅ Correto — mínimo 8, com indicador de força
+const SENHA_MIN = 8;
+if (novaSenha.length < SENHA_MIN) {
+  showToast.error(`A senha deve ter pelo menos ${SENHA_MIN} caracteres.`);
+  return;
+}
+// Opcional: verificar presença de número e letra maiúscula
+const temVariedade = /[A-Z]/.test(novaSenha) && /[0-9]/.test(novaSenha);
+if (!temVariedade) {
+  showToast.error('Use ao menos uma letra maiúscula e um número.');
+  return;
+}
 
     if (novaSenha !== confirmarSenha) {
       showToast.error("As senhas não coincidem.");
@@ -1774,7 +2056,7 @@ export default function RedefinirSenha() {
       if (error) throw error;
 
       const { data: { user } } = await supabase.auth.getUser();
-      let rotaDestino = '/dashboard';
+      let rotaDestino = rotaPorPerfil(null); // fallback seguro
 
       if (user) {
         const { data: alunoData } = await supabase
@@ -1785,7 +2067,7 @@ export default function RedefinirSenha() {
 
         if (alunoData) {
           await supabase.from('alunos').update({ primeiro_acesso: false }).eq('auth_id', user.id);
-          rotaDestino = alunoData.role === 'admin' ? '/dashboard' : '/area-aluno';
+          rotaDestino = rotaPorPerfil(alunoData.role);
         } else {
           const { data: profData } = await supabase
             .from('professores')
@@ -1794,7 +2076,7 @@ export default function RedefinirSenha() {
             .maybeSingle();
 
           if (profData) {
-            rotaDestino = '/agenda';
+            rotaDestino = rotaPorPerfil('professor');
           }
         }
       }
@@ -26928,6 +27210,64 @@ out/
 .env*.local
 </file>
 
+<file path="app_mobile/app.json">
+{
+  "expo": {
+    "name": "GestaoStudioApp",
+    "slug": "GestaoStudioApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gestaostudioapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "GestaoStudioApp.com",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "32ede90a-2246-43b1-905a-f273ca02ec56"
+      }
+    }
+  }
+}
+</file>
+
 <file path="app_mobile/eas.json">
 {
   "cli": {
@@ -26958,260 +27298,64 @@ out/
 }
 </file>
 
-<file path="app_mobile/src/components/AgendamentoBottomSheet.js">
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Animated } from 'react-native';
-import Modal from 'react-native-modal';
-import * as Haptics from 'expo-haptics';
-import { supabase } from '../services/supabase';
-
-const { height } = Dimensions.get('window');
-
-// COMPONENTE
-const SkeletonCard = () => {
-  const opacidade = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacidade, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacidade, { toValue: 0.3, duration: 800, useNativeDriver: true })
-      ])
-    ).start();
-  }, [opacidade]);
-
-  return (
-    <Animated.View style={[styles.skeletonContainer, { opacity: opacidade }]}>
-      <View style={styles.skeletonContent}>
-        <View style={styles.skeletonLineFull} />
-        <View style={styles.skeletonLineHalf} />
-      </View>
-      <View style={styles.skeletonBoxRight} />
-    </Animated.View>
-  );
-};
-
-export default function AgendamentoBottomSheet({ 
-  isVisible, 
-  onClose, 
-  aulasDisponiveis, 
-  alunoId, 
-  isLoading = false,
-  isError = false,
-  onRefresh
-}) {
-  const [processandoId, setProcessandoId] = useState(null);
-  const [sucessoId, setSucessoId] = useState(null);
-  
-  const travaClique = useRef(false);
-
-  useEffect(() => {
-    if (isVisible) {
-      setProcessandoId(null);
-      setSucessoId(null);
-      travaClique.current = false;
-    }
-  }, [isVisible]);
-
-  const realizarAgendamentoInline = async (aula) => {
-    if (travaClique.current) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    travaClique.current = true;
-    setProcessandoId(aula.id);
-
-    try {
-      const { error } = await supabase.rpc('agendar_aula', {
-        p_aluno_id: alunoId,
-        p_agenda_id: aula.id
-      });
-
-      if (error) {
-        let msgErro = error.message;
-        if (msgErro.includes(":")) msgErro = msgErro.split(":").pop().trim();
-        throw new Error(msgErro);
-      }
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setSucessoId(aula.id);
-
-      setTimeout(() => {
-        onClose();
-        if(onRefresh) onRefresh();
-      }, 1500);
-
-    } catch (err) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      alert(err.message || 'Erro ao garantir a vaga. Tente novamente.');
-      travaClique.current = false;
-    } finally {
-      setProcessandoId(null);
-    }
-  };
-
-  return (
-    <Modal
-      isVisible={isVisible}
-      onBackdropPress={onClose}
-      onSwipeComplete={onClose}
-      swipeDirection="down"
-      style={styles.modalContainer}
-      propagateSwipe={true}
-    >
-      <View style={styles.content}>
-        <View style={styles.dragHandle} />
-
-        <View>
-          <Text style={styles.title}>Agendamento Rápido</Text>
-          <Text style={styles.subtitle}>Toque na aula para garantir sua vaga</Text>
-          
-          <View style={styles.listContainer}>
-            
-            {isLoading ? (
-              <>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-              </>
-            ) : 
-            
-            isError ? (
-              <View style={styles.centerContainer}>
-                <Text style={styles.errorTitle}>Ops! Algo deu errado.</Text>
-                <Text style={styles.errorSub}>Não conseguimos carregar as aulas de hoje.</Text>
-                <TouchableOpacity style={styles.btnTentar} onPress={onRefresh}>
-                  <Text style={styles.btnTentarTexto}>Tentar Novamente</Text>
-                </TouchableOpacity>
-              </View>
-            ) : 
-            
-            aulasDisponiveis && aulasDisponiveis.length > 0 ? (
-              aulasDisponiveis.map((aula) => {
-                const isProcessando = processandoId === aula.id;
-                const isSucesso = sucessoId === aula.id;
-
-                return (
-                  <TouchableOpacity 
-                    key={aula.id}
-                    style={[
-                      styles.cardAula, 
-                      isSucesso && styles.cardAulaSucesso
-                    ]} 
-                    onPress={() => realizarAgendamentoInline(aula)}
-                    disabled={processandoId !== null || sucessoId !== null}
-                  >
-                    <View>
-                      <Text style={[styles.aulaNome, isSucesso && styles.textoBranco]}>
-                        {aula.atividade}
-                      </Text>
-                      <Text style={[styles.aulaDetalhes, isSucesso && styles.textoBrancoTransparente]}>
-                        {aula.horario ? aula.horario.slice(0, 5) : '--:--'} • {aula.espaco === 'funcional' ? 'Funcional' : 'Dança'}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.actionContainer}>
-                      {isProcessando ? (
-                        <ActivityIndicator color="#D98E73" />
-                      ) : isSucesso ? (
-                        <Text style={styles.iconeSucessoInline}>✅</Text>
-                      ) : (
-                        <Text style={styles.btnSelecionar}>Agendar</Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={styles.vazioTexto}>Não há aulas disponíveis para hoje.</Text>
-            )}
-
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
+<file path="app_mobile/package.json">
+{
+  "name": "gestaostudioapp",
+  "main": "node_modules/expo/AppEntry.js",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "@supabase/supabase-js": "^2.95.3",
+    "date-fns": "^4.1.0",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-dev-client": "~6.0.20",
+    "expo-device": "~8.0.10",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.16",
+    "expo-secure-store": "~15.0.8",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-modal": "^14.0.0-rc.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "react-native-dotenv": "^3.4.11",
+    "typescript": "~5.9.2"
+  },
+  "private": true
 }
-
-const styles = StyleSheet.create({
-  modalContainer: {
-    justifyContent: 'flex-end',
-    margin: 0,
-  },
-  content: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    minHeight: height * 0.4,
-    maxHeight: height * 0.8,
-  },
-  dragHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 5, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
-  listContainer: { marginTop: 10 },
-  
-  // Estilos da Lista Inline
-  cardAula: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F1F3F5',
-  },
-  cardAulaSucesso: {
-    backgroundColor: '#8A9A5B',
-    borderColor: '#8A9A5B',
-  },
-  aulaNome: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  aulaDetalhes: { fontSize: 13, color: '#888', marginTop: 4 },
-  textoBranco: { color: '#FFF' },
-  textoBrancoTransparente: { color: 'rgba(255, 255, 255, 0.8)' },
-  
-  actionContainer: {
-    minWidth: 70,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  btnSelecionar: { color: '#D98E73', fontWeight: 'bold' },
-  iconeSucessoInline: { fontSize: 18 },
-  
-  vazioTexto: { textAlign: 'center', color: '#999', marginTop: 20 },
-
-  // Estilos UX
-  skeletonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F1F3F5',
-  },
-  skeletonContent: { flex: 1 },
-  skeletonLineFull: { height: 16, backgroundColor: '#E0E0E0', borderRadius: 8, width: '70%', marginBottom: 8 },
-  skeletonLineHalf: { height: 12, backgroundColor: '#E0E0E0', borderRadius: 6, width: '40%' },
-  skeletonBoxRight: { width: 70, height: 16, backgroundColor: '#E0E0E0', borderRadius: 8 },
-  
-  centerContainer: { padding: 30, alignItems: 'center', justifyContent: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: 'bold', color: '#E07A5F', marginBottom: 4 },
-  errorSub: { fontSize: 14, color: '#8E8E8E', marginBottom: 20, textAlign: 'center' },
-  btnTentar: { backgroundColor: '#F8F9FA', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5' },
-  btnTentarTexto: { color: '#333', fontWeight: 'bold' },
-});
 </file>
 
 <file path="app_mobile/src/components/TelaPerfil.js">
@@ -27619,6 +27763,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   textoSair: { color: cores.vermelho, fontWeight: "bold" },
+});
+</file>
+
+<file path="app_mobile/src/services/supabase.js">
+import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
+const ExpoSecureStoreAdapter = {
+  getItem: (key) => {
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: (key, value) => {
+    SecureStore.setItemAsync(key, value);
+  },
+  removeItem: (key) => {
+    SecureStore.deleteItemAsync(key);
+  },
+};
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: Platform.OS === 'web' ? localStorage : ExpoSecureStoreAdapter,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
 });
 </file>
 
@@ -28197,11 +28372,15 @@ export default function ThemeToggle({ className }) {
 <file path="gestao_web/src/hooks/useAgenda.js">
 import { useQuery } from '@tanstack/react-query';
 import { gradeService } from '../services/gradeService';
+import { useAuth } from './useAuth';
 
 export function useAgenda() {
+  const { perfil, professorId } = useAuth();
+
   const queryGrade = useQuery({
-    queryKey: ['agenda'],
-    queryFn: () => gradeService.listarGrade()
+    queryKey: ['agenda', perfil, professorId],
+    queryFn: () => gradeService.listarGrade(perfil, professorId),
+    enabled: perfil !== null,
   });
 
   const queryFeriados = useQuery({
@@ -28214,11 +28393,11 @@ export function useAgenda() {
     queryFeriados.refetch();
   };
 
-  return { 
-    aulas: queryGrade.data || [], 
+  return {
+    aulas: queryGrade.data || [],
     feriados: queryFeriados.data || [],
-    loading: queryGrade.isLoading || queryFeriados.isLoading, 
-    refetch 
+    loading: queryGrade.isLoading || queryFeriados.isLoading,
+    refetch
   };
 }
 </file>
@@ -28784,124 +28963,6 @@ serve(async (req) => {
 })
 </file>
 
-<file path="app_mobile/app.json">
-{
-  "expo": {
-    "name": "GestaoStudioApp",
-    "slug": "GestaoStudioApp",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "gestaostudioapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "package": "GestaoStudioApp.com",
-      "googleServicesFile": "./google-services.json",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
-        }
-      ],
-      "expo-secure-store"
-    ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "32ede90a-2246-43b1-905a-f273ca02ec56"
-      }
-    }
-  }
-}
-</file>
-
-<file path="app_mobile/package.json">
-{
-  "name": "gestaostudioapp",
-  "main": "node_modules/expo/AppEntry.js",
-  "version": "1.0.0",
-  "scripts": {
-    "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "expo lint"
-  },
-  "dependencies": {
-    "@expo/metro-runtime": "~6.1.2",
-    "@expo/vector-icons": "^15.0.3",
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-navigation/bottom-tabs": "^7.4.0",
-    "@react-navigation/elements": "^2.6.3",
-    "@react-navigation/native": "^7.1.8",
-    "@supabase/supabase-js": "^2.95.3",
-    "date-fns": "^4.1.0",
-    "expo": "~54.0.33",
-    "expo-constants": "~18.0.13",
-    "expo-dev-client": "~6.0.20",
-    "expo-device": "~8.0.10",
-    "expo-font": "~14.0.11",
-    "expo-haptics": "~15.0.8",
-    "expo-image": "~3.0.11",
-    "expo-linking": "~8.0.11",
-    "expo-notifications": "~0.32.16",
-    "expo-secure-store": "~15.0.8",
-    "expo-splash-screen": "~31.0.13",
-    "expo-status-bar": "~3.0.9",
-    "expo-symbols": "~1.0.8",
-    "expo-system-ui": "~6.0.9",
-    "expo-web-browser": "~15.0.10",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-modal": "^14.0.0-rc.1",
-    "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-url-polyfill": "^3.0.0",
-    "react-native-web": "^0.21.0",
-    "react-native-worklets": "0.5.1"
-  },
-  "devDependencies": {
-    "@types/react": "~19.1.0",
-    "eslint": "^9.25.0",
-    "eslint-config-expo": "~10.0.0",
-    "react-native-dotenv": "^3.4.11",
-    "typescript": "~5.9.2"
-  },
-  "private": true
-}
-</file>
-
 <file path="app_mobile/src/components/CardAula.js">
 import { format } from "date-fns";
 import { useState, useRef } from "react";
@@ -29237,34 +29298,179 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app_mobile/src/services/supabase.js">
-import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+<file path="app_mobile/src/components/TelaLogin.js">
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { supabase } from "../services/supabase";
 
-const ExpoSecureStoreAdapter = {
-  getItem: (key) => {
-    return SecureStore.getItemAsync(key);
-  },
-  setItem: (key, value) => {
-    SecureStore.setItemAsync(key, value);
-  },
-  removeItem: (key) => {
-    SecureStore.deleteItemAsync(key);
-  },
-};
+export default function TelaLogin({ onLogado }) {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  
+  // Estados para feedback visual imediato
+  const [erroEmail, setErroEmail] = useState("");
+  const [erroSenha, setErroSenha] = useState("");
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+  // Validador de E-mail usando Regex
+  const validarEmail = (texto) => {
+    setEmail(texto);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (texto.length > 0 && !emailRegex.test(texto)) {
+      setErroEmail("Por favor, insira um e-mail válido.");
+    } else {
+      setErroEmail("");
+    }
+  };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: Platform.OS === 'web' ? localStorage : ExpoSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
+  // Validador de Senha
+  const validarSenha = (texto) => {
+    setSenha(texto);
+    if (texto.length > 0 && texto.length < 6) {
+      setErroSenha("A senha deve ter no mínimo 6 caracteres.");
+    } else {
+      setErroSenha("");
+    }
+  };
+
+  async function handleLogin() {
+    if (!email || !senha) {
+      Alert.alert("Aviso", "Por favor, preencha seu e-mail e senha.");
+      return;
+    }
+
+    if (erroEmail || erroSenha) {
+      Alert.alert("Aviso", "Por favor, corrija os erros nos campos antes de continuar.");
+      return;
+    }
+
+    try {
+      setCarregando(true);
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: senha,
+      });
+
+      if (authError) throw authError;
+
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", authData.user.id)
+        .single();
+
+      if (alunoError || !aluno) {
+        throw new Error("Perfil de aluno não encontrado.");
+      }
+
+      onLogado(aluno);
+
+    } catch (error) {
+      console.error("Erro no login:", error);
+      Alert.alert(
+        "Falha no Login", 
+        error.message === "Invalid login credentials" 
+          ? "E-mail ou senha incorretos." 
+          : "Não foi possível conectar. Verifique sua internet."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.content}>
+        
+        {/* Cabeçalho */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>ILUMINUS</Text>
+          <Text style={styles.subtitle}>Espaço de Movimento</Text>
+        </View>
+
+        {/* Formulário */}
+        <View style={styles.form}>
+          <Text style={styles.label}>E-mail</Text>
+          <TextInput
+            style={[styles.input, erroEmail ? styles.inputErro : null]}
+            placeholder="Digite seu e-mail"
+            placeholderTextColor="#A0A0A0"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={validarEmail}
+          />
+          {/* Mensagem de Erro do E-mail */}
+          {erroEmail ? <Text style={styles.textoErro}>{erroEmail}</Text> : null}
+
+          <Text style={[styles.label, { marginTop: erroEmail ? 5 : 0 }]}>Senha</Text>
+          <TextInput
+            style={[styles.input, erroSenha ? styles.inputErro : null]}
+            placeholder="Digite sua senha"
+            placeholderTextColor="#A0A0A0"
+            secureTextEntry
+            value={senha}
+            onChangeText={validarSenha}
+          />
+          {/* Mensagem de Erro da Senha */}
+          {erroSenha ? <Text style={styles.textoErro}>{erroSenha}</Text> : null}
+
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              (carregando || erroEmail || erroSenha) && styles.buttonDisabled
+            ]} 
+            onPress={handleLogin}
+            disabled={carregando || !!erroEmail || !!erroSenha}
+          >
+            {carregando ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Acessar Agenda</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FDF8F5" },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30 },
+  
+  logoContainer: { alignItems: "center", marginBottom: 50 },
+  logoText: { fontSize: 36, fontWeight: "900", color: "#D98E73", letterSpacing: 2 },
+  subtitle: { fontSize: 14, color: "#8E8E8E", marginTop: 5, textTransform: "uppercase", letterSpacing: 1, fontWeight: "600" },
+  
+  form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
+  label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
+  
+  // Estilos de Input
+  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
+  inputErro: { borderColor: "#E07A5F", backgroundColor: "#FFF5F2", marginBottom: 5 },
+  
+  // Texto de Feedback
+  textoErro: { color: "#E07A5F", fontSize: 12, marginLeft: 5, marginBottom: 15, fontWeight: "600" },
+
+  button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
 });
 </file>
 
@@ -30054,11 +30260,18 @@ export function ModalConfirmacao({
 
 <file path="gestao_web/src/lib/validation.js">
 import * as yup from 'yup';
+import { validarCPF } from '../lib/utils';
 
 export const alunoSchema = yup.object().shape({
   nome_completo: yup.string().required('O nome completo é obrigatório.'),
   email: yup.string().email('Insira um e-mail válido.').required('O e-mail é obrigatório.'),
-  cpf: yup.string().optional().nullable(),
+  cpf: yup.string()
+  .nullable()
+  .optional()
+  .test('cpf-valido', 'CPF inválido. Verifique os dígitos.', (value) => {
+    if (!value) return true;
+    return validarCPF(value);
+  }),
   role: yup.string().default('aluno'),
   plano_id: yup.string().nullable().optional(),
   data_nascimento: yup.string().nullable().optional(),
@@ -31541,6 +31754,39 @@ async obterComissoes(inicioMes) {
   },
 
   /**
+   * Busca todos os dados do Dashboard em paralelo com Promise.all.
+   * Reduz o tempo de carregamento de ~600 ms (soma sequencial) para
+   * ~150 ms (latência da query mais lenta).
+   *
+   * @param {{ hojeIso: string, inicioMes: string, limite7Dias: string }} params
+   */
+  async obterTudoDashboard({ hojeIso, inicioMes, limite7Dias }) {
+    const { supabase } = await import('../lib/supabase');
+
+    const [
+      totalAlunos,
+      pagamentosMes,
+      listaInadimplentes,
+      alunosPlanosVencendo,
+      todosAlunos,
+    ] = await Promise.all([
+      this.obterTotalAlunos(),
+      this.obterPagamentosMes(inicioMes),
+      this.obterInadimplentes(hojeIso),
+      this.obterAlunosPlanosVencendo(hojeIso, limite7Dias),
+      supabase
+        .from('alunos')
+        .select('id, nome_completo, data_nascimento, telefone')
+        .eq('ativo', true)
+        .eq('role', 'aluno')
+        .not('data_nascimento', 'is', null)
+        .then(({ data }) => data || []),
+    ]);
+
+    return { totalAlunos, pagamentosMes, listaInadimplentes, alunosPlanosVencendo, todosAlunos };
+  },
+
+  /**
    * Retorna alunos cujo plano vence entre `hojeIso` e `limiteIso` (inclusive).
    * Usado para o alerta âmbar de "planos vencendo em ≤7 dias".
    */
@@ -31590,182 +31836,6 @@ export async function listarRepassesProfessor(professorId, mesAno) {
   if (error) throw error;
   return data;
 }
-</file>
-
-<file path="app_mobile/src/components/TelaLogin.js">
-import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { supabase } from "../services/supabase";
-
-export default function TelaLogin({ onLogado }) {
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  
-  // Estados para feedback visual imediato
-  const [erroEmail, setErroEmail] = useState("");
-  const [erroSenha, setErroSenha] = useState("");
-
-  // Validador de E-mail usando Regex
-  const validarEmail = (texto) => {
-    setEmail(texto);
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (texto.length > 0 && !emailRegex.test(texto)) {
-      setErroEmail("Por favor, insira um e-mail válido.");
-    } else {
-      setErroEmail("");
-    }
-  };
-
-  // Validador de Senha
-  const validarSenha = (texto) => {
-    setSenha(texto);
-    if (texto.length > 0 && texto.length < 6) {
-      setErroSenha("A senha deve ter no mínimo 6 caracteres.");
-    } else {
-      setErroSenha("");
-    }
-  };
-
-  async function handleLogin() {
-    if (!email || !senha) {
-      Alert.alert("Aviso", "Por favor, preencha seu e-mail e senha.");
-      return;
-    }
-
-    if (erroEmail || erroSenha) {
-      Alert.alert("Aviso", "Por favor, corrija os erros nos campos antes de continuar.");
-      return;
-    }
-
-    try {
-      setCarregando(true);
-      
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      });
-
-      if (authError) throw authError;
-
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", authData.user.id)
-        .single();
-
-      if (alunoError || !aluno) {
-        throw new Error("Perfil de aluno não encontrado.");
-      }
-
-      onLogado(aluno);
-
-    } catch (error) {
-      console.error("Erro no login:", error);
-      Alert.alert(
-        "Falha no Login", 
-        error.message === "Invalid login credentials" 
-          ? "E-mail ou senha incorretos." 
-          : "Não foi possível conectar. Verifique sua internet."
-      );
-    } finally {
-      setCarregando(false);
-    }
-  }
-
-  return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.content}>
-        
-        {/* Cabeçalho */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>ILUMINUS</Text>
-          <Text style={styles.subtitle}>Espaço de Movimento</Text>
-        </View>
-
-        {/* Formulário */}
-        <View style={styles.form}>
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={[styles.input, erroEmail ? styles.inputErro : null]}
-            placeholder="Digite seu e-mail"
-            placeholderTextColor="#A0A0A0"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={validarEmail}
-          />
-          {/* Mensagem de Erro do E-mail */}
-          {erroEmail ? <Text style={styles.textoErro}>{erroEmail}</Text> : null}
-
-          <Text style={[styles.label, { marginTop: erroEmail ? 5 : 0 }]}>Senha</Text>
-          <TextInput
-            style={[styles.input, erroSenha ? styles.inputErro : null]}
-            placeholder="Digite sua senha"
-            placeholderTextColor="#A0A0A0"
-            secureTextEntry
-            value={senha}
-            onChangeText={validarSenha}
-          />
-          {/* Mensagem de Erro da Senha */}
-          {erroSenha ? <Text style={styles.textoErro}>{erroSenha}</Text> : null}
-
-          <TouchableOpacity 
-            style={[
-              styles.button, 
-              (carregando || erroEmail || erroSenha) && styles.buttonDisabled
-            ]} 
-            onPress={handleLogin}
-            disabled={carregando || !!erroEmail || !!erroSenha}
-          >
-            {carregando ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.buttonText}>Acessar Agenda</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-      </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDF8F5" },
-  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30 },
-  
-  logoContainer: { alignItems: "center", marginBottom: 50 },
-  logoText: { fontSize: 36, fontWeight: "900", color: "#D98E73", letterSpacing: 2 },
-  subtitle: { fontSize: 14, color: "#8E8E8E", marginTop: 5, textTransform: "uppercase", letterSpacing: 1, fontWeight: "600" },
-  
-  form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
-  label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
-  
-  // Estilos de Input
-  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
-  inputErro: { borderColor: "#E07A5F", backgroundColor: "#FFF5F2", marginBottom: 5 },
-  
-  // Texto de Feedback
-  textoErro: { color: "#E07A5F", fontSize: 12, marginLeft: 5, marginBottom: 15, fontWeight: "600" },
-
-  button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
-});
 </file>
 
 <file path="gestao_web/index.html">
@@ -32668,6 +32738,502 @@ export default {
 }
 </file>
 
+<file path="app_mobile/App.js">
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addDays, format, isSameDay, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+// Componentes
+import CardAula from "./src/components/CardAula";
+import TelaLogin from "./src/components/TelaLogin";
+import TelaPerfil from "./src/components/TelaPerfil";
+import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
+import { supabase } from "./src/services/supabase";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+const cores = {
+  fundo: "#FDF8F5",
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  branco: "#FFFFFF",
+  ativo: "#D98E73",
+  inativo: "#C4C4C4",
+};
+
+export default function App() {
+  const [alunoId, setAlunoId] = useState(null);
+  const [nomeAluno, setNomeAluno] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [telaAtual, setTelaAtual] = useState("agenda");
+  const [feriadoMsg, setFeriadoMsg] = useState(null);
+  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
+  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
+  const [aulas, setAulas] = useState([]);
+
+  useEffect(() => {
+    verificarSessao();
+  }, []);
+
+  useEffect(() => {
+    if (!alunoId) return;
+
+    const channel = supabase
+      .channel('mudancas-globais-presencas')
+      .on('postgres_changes', {
+        event: '*', 
+        schema: 'public',
+        table: 'presencas'
+      }, (payload) => {
+        console.log("🔄 Mudança detectada nas vagas!", payload);
+        buscarAulas(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [alunoId]);
+
+  useEffect(() => {
+    if (alunoId && telaAtual === "agenda") buscarAulas(true);
+  }, [dataSelecionada, alunoId, telaAtual]);
+
+  async function verificarSessao() {
+    console.log("🔍 [1] Iniciando verificação de sessão...");
+    try {
+      setCarregando(true);
+      
+      console.log("🔍 [2] Consultando sessão salva no Supabase...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
+
+      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
+
+      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
+
+      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
+      setAlunoId(aluno.id);
+      setNomeAluno(aluno.nome_completo);
+      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
+      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
+
+      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
+      registrarTokenPush(aluno.id);
+
+      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
+    } catch (e) {
+      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
+      await handleLogout();
+    } finally {
+      console.log("🏁 [Final] Desativando o ícone de carregamento.");
+      setCarregando(false);
+    }
+  }
+
+  async function registrarTokenPush(idAluno) {
+    if (!Device.isDevice) {
+      console.log('Push Notifications só funcionam em dispositivos físicos');
+      return;
+    }
+
+    if (Constants.appOwnership === 'expo') {
+      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
+      return;
+    }
+
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permissão para notificações negada!');
+        return;
+      }
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      
+      console.log("Push Token gerado:", token);
+
+      await supabase
+        .from('alunos')
+        .update({ push_token: token })
+        .eq('id', idAluno);
+        
+    } catch (error) {
+      console.error("Erro ao gerar/salvar push token:", error);
+    }
+  }
+
+  async function buscarAulas(mostrarLoading = true) {
+    if (mostrarLoading) setCarregando(true);
+    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+
+    try {
+      const { data: feriados, error: errFeriado } = await supabase
+        .from("feriados")
+        .select("descricao")
+        .eq("data", dataIso);
+
+      if (errFeriado) throw errFeriado;
+
+      if (feriados && feriados.length > 0) {
+        setFeriadoMsg(feriados[0].descricao);
+        setAulas([]); 
+        setCarregando(false);
+        return; 
+      } else {
+        setFeriadoMsg(null); 
+      }
+
+      const { data, error } = await supabase
+        .from("agenda")
+        .select(`*, presencas(*), professores(nome)`)
+        .eq("ativa", true)
+        .order("horario", { ascending: true });
+
+      if (error) throw error;
+
+      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
+      const diasTraduzidos = {
+        "domingo": "Domingo",
+        "segunda-feira": "Segunda-feira",
+        "terça-feira": "Terça-feira",
+        "quarta-feira": "Quarta-feira",
+        "quinta-feira": "Quinta-feira",
+        "sexta-feira": "Sexta-feira",
+        "sábado": "Sábado",
+      };
+      const diaCorreto = diasTraduzidos[diaSemanaAtual];
+
+      const aulasDoDia = (data || []).filter((aula) => {
+        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
+        return aula.dia_semana === diaCorreto;
+      });
+
+      setAulas(aulasDoDia);
+    } catch (err) {
+      console.error("Erro ao buscar aulas:", err);
+      if (err.message.includes("Network")) {
+        Alert.alert("Sem conexão", "Verifique sua internet.");
+      }
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    buscarAulas(false);
+  };
+
+  async function handleLogout() {
+    try {
+      setCarregando(true);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Erro logout:", err);
+    } finally {
+      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
+      setAlunoId(null);
+      setNomeAluno("");
+      setCarregando(false);
+    }
+  }
+
+  // TELA DE CARREGAMENTO INICIAL
+  if (carregando && !alunoId) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={cores.primaria} />
+      </View>
+    );
+  }
+
+  // TELA DE LOGIN
+  if (!alunoId) {
+    return (
+      <TelaLogin
+        onLogado={(perfil) => {
+          setAlunoId(perfil.id);
+          setNomeAluno(perfil.nome_completo);
+          registrarTokenPush(perfil.id);
+        }}
+      />
+    );
+  }
+
+  // APLICATIVO PRINCIPAL
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {telaAtual === "agenda" ? (
+            <>
+              <View style={styles.header}>
+                <View>
+                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
+                  <Text style={styles.titulo}>Sua Agenda</Text>
+                </View>
+              </View>
+
+              <View style={styles.calendarioContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {Array.from({ length: 14 }).map((_, i) => {
+                    const dia = addDays(new Date(), i);
+                    const ativo = isSameDay(dia, dataSelecionada);
+                    return (
+                      <TouchableOpacity
+                        key={dia.toISOString()}
+                        onPress={() => setDataSelecionada(startOfDay(dia))}
+                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
+                      >
+                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
+                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
+                        </Text>
+                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
+                          {format(dia, "d")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {carregando ? (
+                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
+              ) : feriadoMsg ? (
+                <View style={styles.containerFeriado}>
+                  <Text style={styles.emojiFeriado}>🏖️</Text>
+                  <Text style={styles.tituloFeriado}>Feriado</Text>
+                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
+                  <Text style={styles.avisoFeriado}>
+                    O estúdio estará fechado neste dia. Bom descanso!
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={aulas}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <CardAula
+                      aula={item}
+                      alunoId={alunoId}
+                      dataSelecionada={dataSelecionada}
+                      onAgendamentoSucesso={() => buscarAulas(false)}
+                    />
+                  )}
+                  contentContainerStyle={{ paddingBottom: 80 }}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.containerVazio}>
+                      <View style={styles.circuloIconeVazio}>
+                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
+                      </View>
+                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
+                      <Text style={styles.textoVazio}>
+                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.botaoVazio}
+                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
+                      >
+                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Botão Flutuante (FAB) */}
+              <TouchableOpacity 
+                style={styles.fab} 
+                activeOpacity={0.8}
+                onPress={() => setModalAgendamentoVisivel(true)}
+              >
+                <Text style={styles.fabText}>+</Text>
+              </TouchableOpacity>
+
+              <AgendamentoBottomSheet 
+                isVisible={modalAgendamentoVisivel} 
+                onClose={() => setModalAgendamentoVisivel(false)}
+                aulasDisponiveis={aulas} 
+                alunoId={alunoId} 
+                isLoading={carregando} 
+                isError={false}
+                onRefresh={() => buscarAulas(true)} 
+              />
+            </>
+          ) : (
+            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
+          )}
+        </View>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
+            <Text style={{ fontSize: 24 }}>📅</Text>
+            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
+            <Text style={{ fontSize: 24 }}>👤</Text>
+            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
+  container: { flex: 1, backgroundColor: cores.fundo },
+  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
+
+  header: { marginVertical: 20 },
+  saudacao: { fontSize: 14, color: cores.textoSuave },
+  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
+
+  calendarioContainer: { marginBottom: 20, height: 80 },
+  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
+  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
+  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
+  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
+  textoAtivo: { color: cores.branco },
+
+  // Estilos do Feriado
+  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
+  emojiFeriado: { fontSize: 48, marginBottom: 10 },
+  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
+  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
+  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
+
+  // Estilos do FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    backgroundColor: cores.primaria,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabText: {
+    color: cores.branco,
+    fontSize: 32,
+    fontWeight: "300",
+    marginTop: -4,
+  },
+
+  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
+  tabTextAtivo: { color: cores.ativo },
+
+  // ESTILOS DO ESTADO VAZIO
+  containerVazio: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    marginTop: 60,
+  },
+  circuloIconeVazio: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F0E0D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  iconeVazio: {
+    fontSize: 50,
+  },
+  tituloVazio: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textoVazio: {
+    fontSize: 15,
+    color: cores.textoSuave,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  botaoVazio: {
+    backgroundColor: cores.branco,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    elevation: 1,
+    shadowColor: cores.primaria,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  botaoVazioTexto: {
+    color: cores.primaria,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+});
+</file>
+
 <file path="gestao_web/src/main.jsx">
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -33091,551 +33657,6 @@ export default function Aniversariantes() {
 }
 </file>
 
-<file path="gestao_web/src/pages/AreaAluno.jsx">
-import React, { useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
-import { showToast } from '../components/shared/Toast'; 
-
-const gerarProximosDias = () => {
-  const dias = [];
-  const nomesDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const diasBanco = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const ano = d.getFullYear();
-    const mes = String(d.getMonth() + 1).padStart(2, '0');
-    const dia = String(d.getDate()).padStart(2, '0');
-    const dataLocal = `${ano}-${mes}-${dia}`;
-    dias.push({
-      dataIso: dataLocal, 
-      diaSemana: i === 0 ? 'Hoje' : nomesDias[d.getDay()],
-      diaMes: `${dia}/${mes}`,
-      diaBanco: diasBanco[d.getDay()]
-    });
-  }
-  return dias;
-};
-
-export default function AreaAluno() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const fileInputRef = useRef(null);
-  const proximosDias = useMemo(() => gerarProximosDias(), []);
-  const [abaAtiva, setAbaAtiva] = useState('schedule'); 
-  const [diaAtivo, setDiaAtivo] = useState(() => gerarProximosDias()[0].dataIso); 
-  const [modoEdicao, setModoEdicao] = useState(false);
-  const [processandoId, setProcessandoId] = useState(null);
-  const [formEdit, setFormEdit] = useState({ telefone: '', cpf: '', data_nascimento: '' });
-  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  const { data: aluno, isLoading: loadingAluno, isError: erroAluno } = useQuery({
-    queryKey: ['meu-perfil'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não logado");
-      const { data, error } = await supabase
-        .from('alunos')
-        .select(`*, planos (nome, preco, regras_acesso)`)
-        .eq('auth_id', session.user.id)
-        .single();
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  // FIX: busca presenças do mês incluindo data_checkin para cruzar com feriados
-  const { data: presencasMes } = useQuery({
-    queryKey: ['presencas-mes', aluno?.id],
-    enabled: !!aluno?.id,
-    queryFn: async () => {
-      const hoje = new Date();
-      const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-
-      const primeiroDiaStr = primeiroDiaMes.toISOString().split('T')[0];
-      const ultimoDiaStr = ultimoDiaMes.toISOString().split('T')[0];
-
-      // Busca presenças e feriados do mês em paralelo
-      const [{ data: presencas, error }, { data: feriados }] = await Promise.all([
-        supabase
-          .from('presencas')
-          .select(`id, data_checkin, agenda(atividade, espaco, modalidades(area))`)
-          .eq('aluno_id', aluno.id)
-          .gte('data_checkin', primeiroDiaMes.toISOString()),
-        supabase
-          .from('feriados')
-          .select('data')
-          .eq('bloqueia_agenda', true)
-          .gte('data', primeiroDiaStr)
-          .lte('data', ultimoDiaStr)
-      ]);
-
-      if (error) throw error;
-
-      // Monta um Set com as datas de feriado para lookup O(1)
-      const feriadosSet = new Set((feriados || []).map(f => f.data));
-
-      // FIX: exclui presenças que caíram em dias de feriado — não devem contar no limite do plano
-      return (presencas || []).filter(p => {
-        const dataCheckin = p.data_checkin?.split('T')[0];
-        return !feriadosSet.has(dataCheckin);
-      });
-    }
-  }); 
-
-  const { data: mensalidades, isLoading: loadingMensalidades } = useQuery({
-    queryKey: ['minhas-mensalidades', aluno?.id],
-    enabled: !!aluno?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('mensalidades')
-        .select('*')
-        .eq('aluno_id', aluno.id)
-        .order('data_vencimento', { ascending: false });
-      if (error && error.code !== '42P01') throw error;
-      return data || [];
-    }
-  });
-
-  const { data: aulasDoDia, isLoading: loadingAulas } = useQuery({
-    queryKey: ['agenda', diaAtivo],
-    enabled: !!aluno?.id,
-    queryFn: async () => {
-      const diaSelecionado = proximosDias.find(d => d.dataIso === diaAtivo);
-      const diaCurto = diaSelecionado.diaBanco.split('-')[0]; 
-      const { data, error } = await supabase
-        .from('agenda')
-        .select(`*, professores (nome), presencas (aluno_id), modalidades(area)`)
-        .or(`dia_semana.ilike.*${diaCurto}*,data_especifica.eq.${diaSelecionado.dataIso}`)
-        .order('horario', { ascending: true });
-      if (error) throw error;
-      return data || [];
-    }
-  });
-
-  // FIX: busca feriados dos próximos 7 dias para bloquear a listagem de aulas
-  const { data: feriadosDaSemana } = useQuery({
-    queryKey: ['feriados-semana'],
-    queryFn: async () => {
-      const hoje = proximosDias[0].dataIso;
-      const em7dias = proximosDias[proximosDias.length - 1].dataIso;
-      const { data } = await supabase
-        .from('feriados')
-        .select('data, descricao')
-        .eq('bloqueia_agenda', true)
-        .gte('data', hoje)
-        .lte('data', em7dias);
-      return data || [];
-    }
-  });
-
-  const { data: isProfessor } = useQuery({
-    queryKey: ['check-hibrido', aluno?.auth_id],
-    enabled: !!aluno?.auth_id,
-    queryFn: async () => {
-      const { data } = await supabase.from('professores').select('id').eq('auth_id', aluno.auth_id).maybeSingle();
-      return !!data;
-    }
-  });
-
-  const handleAvatarUpload = async (event) => {
-    try {
-      setUploadingAvatar(true);
-      const file = event.target.files[0];
-      if (!file) return;
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${aluno.id}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file);
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-      const { error: updateError } = await supabase
-        .from('alunos')
-        .update({ avatar_url: publicUrl })
-        .eq('id', aluno.id);
-      if (updateError) throw updateError;
-      await queryClient.invalidateQueries(['meu-perfil']);
-      showToast.success("Foto de perfil atualizada!");
-    } catch (error) {
-      console.error("Erro ao fazer upload da imagem:", error);
-      showToast.error("Erro ao enviar a imagem. Verifique se ela é muito grande.");
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
-  const iniciarEdicao = () => {
-    setFormEdit({ telefone: aluno.telefone || '', cpf: aluno.cpf || '', data_nascimento: aluno.data_nascimento || '' });
-    setModoEdicao(true);
-  };
-
-  const handleSalvarPerfil = async () => {
-    setSalvandoPerfil(true);
-    try {
-      const { error } = await supabase.from('alunos').update(formEdit).eq('id', aluno.id);
-      if (error) throw error;
-      await queryClient.invalidateQueries(['meu-perfil']);
-      setModoEdicao(false);
-      showToast.success("Perfil atualizado com sucesso!");
-    } catch (error) {
-      showToast.error("Erro ao atualizar os dados.");
-    } finally {
-      setSalvandoPerfil(false);
-    }
-  };
-
-  const handleAgendar = async (agendaId) => {
-    setProcessandoId(agendaId);
-    try {
-      const { error } = await supabase.rpc('agendar_aula', { p_aluno_id: aluno.id, p_agenda_id: agendaId });
-      if (error) throw error;
-      await queryClient.invalidateQueries(['agenda', diaAtivo]);
-      await queryClient.invalidateQueries(['presencas-mes']);
-      showToast.success("Vaga garantida!");
-    } catch (error) {
-      showToast.error(`Ops! Recusado: ${error.message || error.details || 'Erro desconhecido'}`);
-    } finally {
-      setProcessandoId(null);
-    }
-  };
-
-  const handleCancelar = async (agendaId) => {
-    setProcessandoId(agendaId);
-    try {
-      const { error } = await supabase.rpc('cancelar_agendamento', { p_aluno_id: aluno.id, p_agenda_id: agendaId });
-      if (error) throw error;
-      await queryClient.invalidateQueries(['agenda', diaAtivo]);
-      await queryClient.invalidateQueries(['presencas-mes']);
-      showToast.success("Agendamento cancelado.");
-    } catch (error) {
-      showToast.error("Erro ao cancelar o agendamento.");
-    } finally {
-      setProcessandoId(null);
-    }
-  };
-
-  const doLogout = async () => { await supabase.auth.signOut(); navigate('/'); };
-  const openWhatsApp = (msg) => window.open(`https://wa.me/5551994424348?text=${encodeURIComponent(msg)}`, '_blank');
-  const getInitials = (name) => {
-    if (!name) return 'A';
-    const parts = name.split(' ');
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return parts[0].substring(0, 2).toUpperCase();
-  };
-  const formatarData = (dataStr) => {
-    if (!dataStr) return "--/--/----";
-    const [ano, mes, dia] = dataStr.split('-');
-    return `${dia}/${mes}/${ano}`;
-  };
-  const formatarMoeda = (valor) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const formatarHorario = (horaStr) => horaStr ? horaStr.substring(0, 5) : "--:--";
-  const getStatusTexto = (status, dataVencimento) => status === "pago" ? "Pago" : (dataVencimento && new Date(dataVencimento) < new Date() ? "Atrasado" : "Pendente");
-
-  if (loadingAluno) return <div className="h-screen w-screen flex items-center justify-center bg-[#FDF8F5]"><RefreshCw className="animate-spin text-orange-600" size={48} /></div>;
-  if (erroAluno || !aluno) return <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FDF8F5]"><p className="text-gray-600 mb-4">Erro ao carregar dados do aluno.</p><button onClick={doLogout} className="btn btn-primary">Voltar para o Início</button></div>;
-
-  const regrasPlano = aluno.planos?.regras_acesso || [];
-
-  let aulasPermitidas = [];
-  if (aulasDoDia) {
-    aulasPermitidas = aulasDoDia.filter(aula => {
-      const jaAgendado = aula.presencas?.some(p => p.aluno_id === aluno.id);
-      if (jaAgendado) return true; 
-      if (!aluno.planos || regrasPlano.length === 0) return false;
-      const aulaArea = aula.modalidades?.area;
-      return regrasPlano.some(r => r.modalidade === aulaArea);
-    });
-  }
-
-  // FIX: verifica se o dia selecionado é feriado
-  const feriadoDoDiaAtivo = feriadosDaSemana?.find(f => f.data === diaAtivo);
-
-  return (
-    <div id="page-dashboard">
-      <aside className="sidebar">
-        <div className="sidebar-logo"><div className="logo-mark">I</div><span className="logo-name">ILUMINUS</span></div>
-        <div className="user-card">
-          <div className="avatar overflow-hidden">
-            {aluno.avatar_url ? (
-              <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />
-            ) : (
-              getInitials(aluno.nome_completo)
-            )}
-          </div>
-          <div>
-            <div className="user-card-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{aluno.nome_completo}</div>
-            <div className="user-card-plan">{aluno.planos ? aluno.planos.nome : 'Sem plano ativo'}</div>
-          </div>
-        </div>
-        <div className="nav-section">Menu</div>
-        <button className={`nav-item ${abaAtiva === 'schedule' ? 'active' : ''}`} onClick={() => setAbaAtiva('schedule')}><span className="nav-icon">📅</span> Agendar Aulas</button>
-        <button className={`nav-item ${abaAtiva === 'profile' ? 'active' : ''}`} onClick={() => setAbaAtiva('profile')}><span className="nav-icon">👤</span> Meu Perfil</button>
-        <button className={`nav-item ${abaAtiva === 'payments' ? 'active' : ''}`} onClick={() => setAbaAtiva('payments')}><span className="nav-icon">💳</span> Mensalidades</button>
-        {isProfessor && (
-          <button className="nav-item" onClick={() => navigate('/agenda')} 
-            style={{ marginTop: '20px', backgroundColor: '#EFF6FF', color: '#2563EB', fontWeight: 'bold' }}
-          >
-            <span className="nav-icon"><RefreshCw size={16} /></span> Visão Professor
-          </button>
-        )}
-        <div className="sidebar-footer"><button className="nav-item" onClick={doLogout} style={{ color: 'var(--err)' }}><span className="nav-icon">↩</span> Sair</button></div>
-      </aside>
-      <div className="main-content">
-        {abaAtiva === 'schedule' && (
-          <div>
-            <div className="main-header">
-              <div><div className="main-header-title">Agendar Aulas</div><div className="main-header-sub">Escolha o dia e reserve sua vaga</div></div>
-            </div>
-            <div className="main-body">
-              {aluno.planos && regrasPlano.length > 0 && (
-                <div className="mb-8 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                  <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-orange-400"></span>
-                    Consumo do Plano: {aluno.planos.nome}
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {regrasPlano.map((regra, idx) => {
-                       const usosDaRegra = presencasMes?.filter(p => {
-                          const pArea = p.agenda?.modalidades?.area;
-                          return regra.modalidade === pArea;
-                       }).length || 0;
-                       const limit = regra.limite;
-                       const pct = limit === 999 ? 0 : Math.min((usosDaRegra / limit) * 100, 100);
-                       return (
-                         <div key={idx} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                            <div className="flex justify-between items-end mb-2">
-                              <div>
-                                <p className="font-bold text-gray-700 text-sm">Área: {regra.modalidade}</p>
-                                <p className="text-xs text-gray-400 font-medium mt-0.5">
-                                  Usado: <span className="text-primary font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
-                                </p>
-                              </div>
-                              {limit !== 999 && <span className="text-[10px] font-bold text-gray-400">{Math.floor(pct)}%</span>}
-                            </div>
-                            {limit !== 999 && (
-                              <div className="bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? 'var(--err)' : 'var(--pri)' }}></div>
-                              </div>
-                            )}
-                         </div>
-                       )
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="day-tabs">
-                {proximosDias.map(d => (
-                  <button key={d.dataIso} className={`day-tab ${diaAtivo === d.dataIso ? 'active' : ''}`} onClick={() => setDiaAtivo(d.dataIso)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '8px 16px' }}>
-                    <span style={{ fontSize: '13px' }}>{d.diaSemana}</span>
-                    <span style={{ fontSize: '10px', opacity: 0.8 }}>{d.diaMes}</span>
-                  </button>
-                ))}
-              </div>
-              <div id="class-list">
-                {loadingAulas ? (
-                   <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-gray-400" /></div>
-                ) : !aluno.planos ? (
-                   <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                     <AlertCircle className="mx-auto text-gray-300 mb-3" size={40} />
-                     <p className="text-gray-800 font-bold text-lg mb-1">Sem plano ativo</p>
-                     <p className="text-gray-500 text-sm">Você precisa ter um plano para visualizar e agendar aulas.</p>
-                   </div>
-                // FIX: se o dia for feriado, exibe aviso e não mostra aulas (nem conta no limite)
-                ) : feriadoDoDiaAtivo ? (
-                  <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <span style={{ fontSize: '40px' }}>⛔</span>
-                    <p className="text-gray-800 font-bold text-lg mb-1 mt-3">{feriadoDoDiaAtivo.descricao}</p>
-                    <p className="text-gray-500 text-sm">Não há aulas neste dia. Escolha outra data.</p>
-                  </div>
-                ) : aulasPermitidas.length === 0 ? (
-                  <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                    <p className="text-gray-500 font-medium">Nenhuma aula disponível para as áreas do seu plano neste dia.</p>
-                  </div>
-                ) : (
-                  aulasPermitidas.map(aula => {
-                    const jaAgendado = aula.presencas?.some(p => p.aluno_id === aluno.id);
-                    const vagasRestantes = aula.capacidade - (aula.vagas_ocupadas || 0);
-                    const lotado = vagasRestantes <= 0;
-                    const estaProcessando = processandoId === aula.id;
-                    const aulaArea = aula.modalidades?.area;
-                    const regraDestaAula = regrasPlano.find(r => r.modalidade === aulaArea);
-                    let usosDestaAula = 0;
-                    if (regraDestaAula) {
-                       usosDestaAula = presencasMes?.filter(p => p.agenda?.modalidades?.area === aulaArea).length || 0;
-                    }
-                    const limiteAtingido = regraDestaAula && regraDestaAula.limite !== 999 && usosDestaAula >= regraDestaAula.limite;
-                    return (
-                      <div key={aula.id} className={`class-card anim-fade-up ${jaAgendado ? 'booked' : ''}`}>
-                        <div className="class-time-block">
-                          <div className="class-time">{formatarHorario(aula.horario)}</div>
-                          <div className={`class-space ${aulaArea === 'Dança' ? 'danca' : 'funcional'}`}>
-                            {aulaArea}
-                          </div>
-                        </div>
-                        <div className="class-info">
-                          <div className="class-name">{aula.atividade}</div>
-                          <div className="class-teacher">Prof. {aula.professores?.nome?.split(' ')[0] || 'A definir'}</div>
-                          <div className="capacity-bar-row">
-                            <span className={`capacity-label ${lotado && !jaAgendado ? 'last-spot' : ''}`}>
-                              {aula.vagas_ocupadas || 0}/{aula.capacidade} vagas ocupadas
-                            </span>
-                            <div className="capacity-bar-track">
-                              <div className="capacity-bar-fill" style={{ width: `${((aula.vagas_ocupadas || 0) / aula.capacidade) * 100}%`, background: jaAgendado ? 'var(--ok)' : (lotado ? 'var(--err)' : 'var(--pri)') }}></div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="class-action" style={{ minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          {jaAgendado ? (
-                            <>
-                              <button onClick={() => handleCancelar(aula.id)} disabled={estaProcessando} className="btn-book cancel">
-                                {estaProcessando ? <RefreshCw className="animate-spin" size={16} /> : 'Cancelar'}
-                              </button>
-                              <div className="booked-check flex items-center gap-1 mt-2 text-green-600"><CheckCircle2 size={14} /> Agendado</div>
-                            </>
-                          ) : limiteAtingido ? (
-                            <div className="text-[11px] font-bold text-red-400 text-center uppercase tracking-wider flex flex-col items-center gap-1">
-                              <AlertCircle size={16}/> Limite Atingido
-                            </div>
-                          ) : (
-                            <button onClick={() => handleAgendar(aula.id)} disabled={lotado || estaProcessando} className={`btn-book ${lotado ? 'disabled' : 'reserve'}`}>
-                              {estaProcessando ? <RefreshCw className="animate-spin text-white" size={16} /> : (lotado ? 'Esgotado' : 'Agendar')}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        {abaAtiva === 'profile' && (
-          <div>
-            <div className="main-header">
-              <div>
-                <div className="main-header-title">Meu Perfil</div>
-                <div className="main-header-sub">Seus dados pessoais e plano</div>
-              </div>
-              {modoEdicao ? (
-                <div className="flex items-center gap-3">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setModoEdicao(false)}>Cancelar</button>
-                  <button className="btn btn-primary btn-sm" onClick={handleSalvarPerfil} disabled={salvandoPerfil}>
-                    {salvandoPerfil ? <RefreshCw className="animate-spin" size={16} /> : 'Salvar Alterações'}
-                  </button>
-                </div>
-              ) : (
-                <button className="btn btn-outline btn-sm" onClick={iniciarEdicao}>Editar Perfil</button>
-              )}
-            </div>
-            <div className="main-body">
-              <div className="profile-top">
-                <div className="profile-id-card card">
-                  <div 
-                    className="avatar lg relative group cursor-pointer overflow-hidden border-2 border-transparent hover:border-orange-300 transition-all"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Clique para alterar a foto de perfil"
-                  >
-                    {uploadingAvatar ? (
-                      <div className="w-full h-full flex items-center justify-center bg-orange-100">
-                        <RefreshCw className="animate-spin text-primary" size={24} />
-                      </div>
-                    ) : aluno.avatar_url ? (
-                      <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />
-                    ) : (
-                      getInitials(aluno.nome_completo)
-                    )}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera size={24} className="text-white" />
-                    </div>
-                  </div>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarUpload} />
-                  <div>
-                    <div className="profile-name">{aluno.nome_completo}</div>
-                    <div className="profile-since">Aluno Iluminus</div>
-                  </div>
-                </div>
-                <div className="profile-plan-card card">
-                  <div className="profile-plan-label">Plano Ativo</div>
-                  <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
-                  <div className="profile-plan-desc">{aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}</div>
-                </div>
-              </div>
-              <div className="card" style={{ marginBottom: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--muted)', marginBottom: '24px' }}>Dados Pessoais</div>
-                <div className="data-grid">
-                  <div className="data-field"><label>E-mail (Acesso)</label><div className="data-value opacity-60 cursor-not-allowed">{aluno.email}</div></div>
-                  <div className="data-field">
-                    <label>Telefone</label>
-                    {modoEdicao ? <input className="inp py-2 mt-1" value={formEdit.telefone} onChange={e => setFormEdit({...formEdit, telefone: e.target.value})} placeholder="(00) 00000-0000" /> : <div className="data-value">{aluno.telefone || 'Não informado'}</div>}
-                  </div>
-                  <div className="data-field">
-                    <label>CPF</label>
-                    {modoEdicao ? <input className="inp py-2 mt-1" value={formEdit.cpf} onChange={e => setFormEdit({...formEdit, cpf: e.target.value})} placeholder="000.000.000-00" /> : <div className="data-value">{aluno.cpf || 'Não informado'}</div>}
-                  </div>
-                  <div className="data-field">
-                    <label>Data de Nascimento</label>
-                    {modoEdicao ? <input className="inp py-2 mt-1" type="date" value={formEdit.data_nascimento} onChange={e => setFormEdit({...formEdit, data_nascimento: e.target.value})} /> : <div className="data-value">{formatarData(aluno.data_nascimento) || 'Não informado'}</div>}
-                  </div>
-                </div>
-              </div>
-              <div className="wa-btn-row">
-                <button className="btn btn-wa btn-full" onClick={() => openWhatsApp(`Olá, Espaço Iluminus! Sou o aluno(a) ${aluno.nome_completo} e preciso de ajuda.`)} style={{ padding: '15px', fontSize: '15px' }}>💬 Suporte via WhatsApp</button>
-              </div>
-            </div>
-          </div>
-        )}
-        {abaAtiva === 'payments' && (
-          <div>
-            <div className="main-header">
-              <div><div className="main-header-title">Mensalidades</div><div className="main-header-sub">Histórico e status dos seus pagamentos</div></div>
-            </div>
-            <div className="main-body">
-              <div className="card">
-                <div className="pay-table-wrapper">
-                  {loadingMensalidades ? (
-                    <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-gray-400" /></div>
-                  ) : !mensalidades || mensalidades.length === 0 ? (
-                    <p className="text-center text-gray-500 py-8">Nenhuma cobrança registrada.</p>
-                  ) : (
-                    <table className="pay-table">
-                      <thead><tr><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
-                      <tbody>
-                        {mensalidades.map(m => {
-                          const statusTxt = getStatusTexto(m.status, m.data_vencimento);
-                          let badgeClass = "badge-warn";
-                          if (statusTxt === "Pago") badgeClass = "badge-ok";
-                          if (statusTxt === "Atrasado") badgeClass = "badge-err";
-                          return (
-                            <tr key={m.id}>
-                              <td style={{ fontWeight: 600 }}>{formatarData(m.data_vencimento)}</td>
-                              <td style={{ fontWeight: 700 }}>{formatarMoeda(m.valor_pago || m.valor_esperado)}</td>
-                              <td><span className={`badge ${badgeClass}`}>{statusTxt}</span></td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-</file>
-
 <file path="gestao_web/src/pages/ConfiguracoesFeriados.jsx">
 import React, { useState } from 'react';
 import { Calendar, DownloadCloud, AlertCircle, CheckCircle } from 'lucide-react';
@@ -33777,6 +33798,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
+import { rotaPorPerfil } from '../lib/navigation';
 import { showToast } from '../components/shared/Toast';
 import Modal, { useModal } from '../components/ui/Modal';
 
@@ -33803,34 +33825,24 @@ export default function Login() {
 
       if (error) throw error;
 
-      const user = authData.user;
-      const metadata = user.user_metadata || {};
-      const role = metadata.role || 'aluno';
+      // Verificar primeiro_acesso diretamente no banco — fonte de verdade confiável.
+      // Busca por auth_id (não por email) para evitar colisão caso exista
+      // mais de um registro com o mesmo e-mail em situações de migração.
+      const { data: alunoData } = await supabase
+        .from('alunos')
+        .select('primeiro_acesso, nome_completo')
+        .eq('auth_id', authData.user.id)
+        .maybeSingle();
 
-      if (role === 'aluno' || role === 'admin') {
-        const { data: alunoData } = await supabase
-          .from('alunos')
-          .select('primeiro_acesso')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-        if (alunoData?.primeiro_acesso) {
-          const primeiroNome = (metadata.nome_completo || metadata.nome || 'Usuário').split(' ')[0];
-          showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
-          navigate('/redefinir-senha'); 
-          return;
-        }
+      if (alunoData?.primeiro_acesso) {
+        const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
+        showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
+        navigate('/redefinir-senha');
+        return;
       }
 
       showToast.success("Login realizado com sucesso!");
-      
-      if (role === 'professor') {
-        navigate('/agenda');
-      } else if (role === 'admin') {
-        navigate('/dashboard');
-      } else {
-        navigate('/area-aluno');
-      }
+      navigate('/');
 
     } catch (err) {
       if (err.message.includes("Invalid login")) {
@@ -34005,7 +34017,8 @@ function aulaEmAndamento(aula) {
   const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const [h, m] = aula.horario.split(':').map(Number);
   const inicioAula = h * 60 + m;
-  const fimAula = inicioAula + 60;
+  const duracaoMin = aula.duracao_minutos ?? 60;
+  const fimAula = inicioAula + duracaoMin;
   return horaAtual >= inicioAula - 30 && horaAtual <= fimAula;
 }
 
@@ -34179,36 +34192,45 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
 
   function calcularMetricas(presencasData, alunosData) {
     const hoje = new Date().toISOString().split('T')[0];
-    const checkinsHoje = presencasData.filter(
-      p => p.data_checkin?.split('T')[0] === hoje
-    ).length;
     const alunosAtivos = alunosData.length;
     const semanaAtras = new Date();
     semanaAtras.setDate(semanaAtras.getDate() - 7);
-    const presencasSemana = presencasData.filter(
-      p => new Date(p.data_checkin) >= semanaAtras
-    );
-    const taxasIndividuais = alunosData.map(aluno => {
-  const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
-  const real = presencasSemana.filter(p => p.aluno_id === aluno.id).length;
-  return Math.min(real / esperado, 1);
-});
 
-const frequenciaMedia =
-  alunosAtivos > 0
-    ? (
-        (taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100
-      ).toFixed(1)
-    : 0;
+    // O(n) — single pass: conta check-ins de hoje, por aluno e por dia da semana
+    let checkinsHoje = 0;
+    const presencasPorAluno = new Map();
+    const presencasPorDia   = new Array(7).fill(0);
+
+    for (const p of presencasData) {
+      if (!p.data_checkin) continue;
+      if (p.data_checkin.split('T')[0] === hoje) checkinsHoje++;
+      if (new Date(p.data_checkin) >= semanaAtras) {
+        if (p.aluno_id != null) {
+          presencasPorAluno.set(p.aluno_id, (presencasPorAluno.get(p.aluno_id) || 0) + 1);
+        }
+        presencasPorDia[new Date(p.data_checkin).getDay()]++;
+      }
+    }
+
+    const taxasIndividuais = alunosData.map(aluno => {
+      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
+      const real     = presencasPorAluno.get(aluno.id) || 0;
+      return Math.min(real / esperado, 1);
+    });
+
+    const frequenciaMedia =
+      alunosAtivos > 0
+        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
+        : 0;
+
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => ({
       dia,
-      total: presencasSemana.filter(
-        p => new Date(p.data_checkin).getDay() === idx
-      ).length
+      total: presencasPorDia[idx],
     }));
-    const totalSemana = presencaPorDia.reduce((acc, d) => acc + d.total, 0);
-    const mediaDiaria = Math.round(totalSemana / 7);
+
+    const totalSemana  = presencasPorDia.reduce((acc, v) => acc + v, 0);
+    const mediaDiaria  = Math.round(totalSemana / 7);
     setMetricas({ checkinsHoje, frequenciaMedia, alunosAtivos, presencaSemana: presencaPorDia, mediaDiaria });
   }
 
@@ -34216,45 +34238,42 @@ const frequenciaMedia =
   async function realizarCheckin(aluno, aulaId = null) {
   setLoadingCheckin(aluno.id);
   try {
-    const hoje = new Date().toISOString().split('T')[0];
+    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
 
-    let queryDuplicata = supabase
-      .from('presencas')
-      .select('id, tipo')
-      .eq('aluno_id', aluno.id)
-      .gte('data_checkin', hoje + 'T00:00:00')
-      .lte('data_checkin', hoje + 'T23:59:59');
-
-    if (aulaId) {
-      queryDuplicata = queryDuplicata.eq('aula_id', aulaId);
-    } else {
-      queryDuplicata = queryDuplicata.is('aula_id', null);
-    }
-
-    const { data: checkinExistente } = await queryDuplicata.maybeSingle();
-
-    if (checkinExistente) {
-      if (checkinExistente.tipo === 'agendado') {
-        const { error } = await supabase
-          .from('presencas')
-          .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
-          .eq('id', checkinExistente.id);
-        if (error) throw error;
-      } else {
-        const msg = aulaId
-          ? `${aluno.nome_completo} já fez check-in nessa aula hoje!`
-          : `${aluno.nome_completo} já fez check-in livre hoje!`;
-        showToast.error(msg);
-        return;
-      }
-    } else {
-      const { error } = await supabase.from('presencas').insert([{
-        aluno_id: aluno.id,
-        aula_id: aulaId,
-        tipo: aulaId ? 'aula' : 'livre',
-        data_checkin: new Date().toISOString()
-      }]);
+    if (agendadoId) {
+      // Confirma agendamento existente — UPDATE pontual, sem risco de duplicata
+      const { error } = await supabase
+        .from('presencas')
+        .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
+        .eq('id', agendadoId);
       if (error) throw error;
+    } else {
+      // INSERT atômico: a constraint única (aluno_id, aula_id, data_aula) no banco
+      // garante que dois cliques simultâneos não criem duas linhas.
+      // ignoreDuplicates:true suprime o erro quando a linha já existe.
+      const payload = {
+        aluno_id:    aluno.id,
+        aula_id:     aulaId,
+        tipo:        aulaId ? 'aula' : 'livre',
+        data_checkin: new Date().toISOString(),
+        ...(aulaId ? { data_aula: new Date().toISOString().split('T')[0] } : {}),
+      };
+
+      const { error } = await supabase
+        .from('presencas')
+        .upsert([payload], {
+          onConflict:       'aluno_id,aula_id,data_aula',
+          ignoreDuplicates: true,
+        });
+
+      if (error) {
+        // Duplicata em checkin livre (sem aula_id / data_aula) cai aqui
+        if (error.code === '23505') {
+          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
+          return;
+        }
+        throw error;
+      }
     }
 
     showToast.success(`✅ ${aluno.nome_completo}`);
@@ -34965,174 +34984,6 @@ function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
 }
 </file>
 
-<file path="gestao_web/src/services/gradeService.js">
-import { supabase } from '../lib/supabase';
-
-export const gradeService = {
-  async listarProfessores() {
-    const { data, error } = await supabase
-      .from('professores')
-      .select('*')
-      .eq('ativo', true)
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-  async listarModalidades() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*')
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-  async listarGrade() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const authId = session?.user?.id;
-    const email = session?.user?.email;
-
-    if (!authId) return [];
-
-    const { data: usuarioAluno } = await supabase
-      .from('alunos')
-      .select('id, role')
-      .eq('email', email)
-      .maybeSingle();
-
-    const { data: usuarioProf } = await supabase
-      .from('professores')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
-
-    const isAdmin =
-      (usuarioAluno?.role === 'admin') ||
-      (!usuarioAluno && !usuarioProf);
-
-    if (!isAdmin) {
-      if (!usuarioProf) return [];
-
-      const professorId = usuarioProf.id;
-
-      const { data: modalidadesDoProf } = await supabase
-        .from('modalidades')
-        .select('id')
-        .eq('professor_id', professorId);
-
-      const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
-
-      const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
-        await Promise.all([
-          supabase
-            .from('agenda')
-            .select('*, professores(nome), modalidades(id, nome)')
-            .eq('professor_id', professorId)
-            .order('horario', { ascending: true }),
-
-          idsModsDoProf.length > 0
-            ? supabase
-                .from('agenda')
-                .select('*, professores(nome), modalidades(id, nome)')
-                .is('professor_id', null)
-                .in('modalidade_id', idsModsDoProf)
-                .order('horario', { ascending: true })
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-
-      if (errDiretas) throw errDiretas;
-      if (errMod) throw errMod;
-
-      const todas = [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])];
-      const vistas = new Set();
-      return todas.filter((a) => {
-        if (vistas.has(a.id)) return false;
-        vistas.add(a.id);
-        return true;
-      });
-    }
-
-    const { data: aulas, error } = await supabase
-      .from('agenda')
-      .select('*, professores(nome), modalidades(id, nome)')
-      .order('horario', { ascending: true });
-    if (error) throw error;
-    return aulas;
-  },
-
-  async salvarAula(aula) {
-    if (aula.id) {
-      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('agenda').insert([aula]);
-      if (error) throw error;
-    }
-    return true;
-  },
-
-  async excluirAula(id) {
-    try {
-      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
-      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
-      await supabase.from('presencas').delete().eq('aula_id', id);
-      const { error } = await supabase.from('agenda').delete().eq('id', id);
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Erro ao excluir aula em cascata:', error);
-      throw error;
-    }
-  },
-
-  async encerrarAula(id, dataEncerramento) {
-    const { error } = await supabase
-      .from('agenda')
-      .update({ data_fim: dataEncerramento })
-      .eq('id', id);
-    if (error) throw error;
-    return true;
-  },
-
-  async listarFeriados() {
-    const { data, error } = await supabase
-      .from('feriados')
-      .select('*')
-      .gte('data', new Date().toISOString().split('T')[0])
-      .order('data', { ascending: true });
-    if (error) throw error;
-    return data;
-  },
-
-   async cadastrarFeriado(dados) {
-  const { error } = await supabase.from('feriados').insert([dados]);
-  if (error) throw error;
-
-  if (dados.bloqueia_agenda) {
-    const inicioDia = `${dados.data}T00:00:00`;
-    const fimDia    = `${dados.data}T23:59:59`;
-    await supabase
-      .from('presencas')
-      .delete()
-      .gte('data_checkin', inicioDia)
-      .lte('data_checkin', fimDia);
-  }
-  },
-
-  async listarMatriculasFixas() {
-    const { data, error } = await supabase
-      .from('agenda_fixa')
-      .select('aula_id, alunos (*)');
-    if (error) {
-      console.error('Erro ao buscar alunos fixos:', error);
-      return [];
-    }
-    return data;
-  },
-};
-</file>
-
 <file path="gestao_web/src/utils/calendarioParser.js">
 import { format, eachDayOfInterval } from 'date-fns';
 
@@ -35316,502 +35167,6 @@ export function gerarEventosFeriados(feriados) {
 }
 </file>
 
-<file path="app_mobile/App.js">
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { addDays, format, isSameDay, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-
-// Componentes
-import CardAula from "./src/components/CardAula";
-import TelaLogin from "./src/components/TelaLogin";
-import TelaPerfil from "./src/components/TelaPerfil";
-import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
-import { supabase } from "./src/services/supabase";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-const cores = {
-  fundo: "#FDF8F5",
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  branco: "#FFFFFF",
-  ativo: "#D98E73",
-  inativo: "#C4C4C4",
-};
-
-export default function App() {
-  const [alunoId, setAlunoId] = useState(null);
-  const [nomeAluno, setNomeAluno] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [telaAtual, setTelaAtual] = useState("agenda");
-  const [feriadoMsg, setFeriadoMsg] = useState(null);
-  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
-  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
-  const [aulas, setAulas] = useState([]);
-
-  useEffect(() => {
-    verificarSessao();
-  }, []);
-
-  useEffect(() => {
-    if (!alunoId) return;
-
-    const channel = supabase
-      .channel('mudancas-globais-presencas')
-      .on('postgres_changes', {
-        event: '*', 
-        schema: 'public',
-        table: 'presencas'
-      }, (payload) => {
-        console.log("🔄 Mudança detectada nas vagas!", payload);
-        buscarAulas(false);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [alunoId]);
-
-  useEffect(() => {
-    if (alunoId && telaAtual === "agenda") buscarAulas(true);
-  }, [dataSelecionada, alunoId, telaAtual]);
-
-  async function verificarSessao() {
-    console.log("🔍 [1] Iniciando verificação de sessão...");
-    try {
-      setCarregando(true);
-      
-      console.log("🔍 [2] Consultando sessão salva no Supabase...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
-
-      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
-
-      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", session.user.id)
-        .single();
-
-      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
-
-      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
-      setAlunoId(aluno.id);
-      setNomeAluno(aluno.nome_completo);
-      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
-      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
-
-      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
-      registrarTokenPush(aluno.id);
-
-      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
-    } catch (e) {
-      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
-      await handleLogout();
-    } finally {
-      console.log("🏁 [Final] Desativando o ícone de carregamento.");
-      setCarregando(false);
-    }
-  }
-
-  async function registrarTokenPush(idAluno) {
-    if (!Device.isDevice) {
-      console.log('Push Notifications só funcionam em dispositivos físicos');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
-      return;
-    }
-
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permissão para notificações negada!');
-        return;
-      }
-
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
-      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      
-      console.log("Push Token gerado:", token);
-
-      await supabase
-        .from('alunos')
-        .update({ push_token: token })
-        .eq('id', idAluno);
-        
-    } catch (error) {
-      console.error("Erro ao gerar/salvar push token:", error);
-    }
-  }
-
-  async function buscarAulas(mostrarLoading = true) {
-    if (mostrarLoading) setCarregando(true);
-    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-
-    try {
-      const { data: feriados, error: errFeriado } = await supabase
-        .from("feriados")
-        .select("descricao")
-        .eq("data", dataIso);
-
-      if (errFeriado) throw errFeriado;
-
-      if (feriados && feriados.length > 0) {
-        setFeriadoMsg(feriados[0].descricao);
-        setAulas([]); 
-        setCarregando(false);
-        return; 
-      } else {
-        setFeriadoMsg(null); 
-      }
-
-      const { data, error } = await supabase
-        .from("agenda")
-        .select(`*, presencas(*), professores(nome)`)
-        .eq("ativa", true)
-        .order("horario", { ascending: true });
-
-      if (error) throw error;
-
-      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
-      const diasTraduzidos = {
-        "domingo": "Domingo",
-        "segunda-feira": "Segunda-feira",
-        "terça-feira": "Terça-feira",
-        "quarta-feira": "Quarta-feira",
-        "quinta-feira": "Quinta-feira",
-        "sexta-feira": "Sexta-feira",
-        "sábado": "Sábado",
-      };
-      const diaCorreto = diasTraduzidos[diaSemanaAtual];
-
-      const aulasDoDia = (data || []).filter((aula) => {
-        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
-        return aula.dia_semana === diaCorreto;
-      });
-
-      setAulas(aulasDoDia);
-    } catch (err) {
-      console.error("Erro ao buscar aulas:", err);
-      if (err.message.includes("Network")) {
-        Alert.alert("Sem conexão", "Verifique sua internet.");
-      }
-    } finally {
-      setCarregando(false);
-      setRefreshing(false);
-    }
-  }
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    buscarAulas(false);
-  };
-
-  async function handleLogout() {
-    try {
-      setCarregando(true);
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Erro logout:", err);
-    } finally {
-      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
-      setAlunoId(null);
-      setNomeAluno("");
-      setCarregando(false);
-    }
-  }
-
-  // TELA DE CARREGAMENTO INICIAL
-  if (carregando && !alunoId) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={cores.primaria} />
-      </View>
-    );
-  }
-
-  // TELA DE LOGIN
-  if (!alunoId) {
-    return (
-      <TelaLogin
-        onLogado={(perfil) => {
-          setAlunoId(perfil.id);
-          setNomeAluno(perfil.nome_completo);
-          registrarTokenPush(perfil.id);
-        }}
-      />
-    );
-  }
-
-  // APLICATIVO PRINCIPAL
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          {telaAtual === "agenda" ? (
-            <>
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
-                  <Text style={styles.titulo}>Sua Agenda</Text>
-                </View>
-              </View>
-
-              <View style={styles.calendarioContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 14 }).map((_, i) => {
-                    const dia = addDays(new Date(), i);
-                    const ativo = isSameDay(dia, dataSelecionada);
-                    return (
-                      <TouchableOpacity
-                        key={dia.toISOString()}
-                        onPress={() => setDataSelecionada(startOfDay(dia))}
-                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
-                      >
-                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
-                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
-                        </Text>
-                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
-                          {format(dia, "d")}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {carregando ? (
-                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
-              ) : feriadoMsg ? (
-                <View style={styles.containerFeriado}>
-                  <Text style={styles.emojiFeriado}>🏖️</Text>
-                  <Text style={styles.tituloFeriado}>Feriado</Text>
-                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
-                  <Text style={styles.avisoFeriado}>
-                    O estúdio estará fechado neste dia. Bom descanso!
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={aulas}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <CardAula
-                      aula={item}
-                      alunoId={alunoId}
-                      dataSelecionada={dataSelecionada}
-                      onAgendamentoSucesso={() => buscarAulas(false)}
-                    />
-                  )}
-                  contentContainerStyle={{ paddingBottom: 80 }}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.containerVazio}>
-                      <View style={styles.circuloIconeVazio}>
-                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
-                      </View>
-                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
-                      <Text style={styles.textoVazio}>
-                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.botaoVazio}
-                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
-                      >
-                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
-                      </TouchableOpacity>
-                    </View>
-                  }
-                />
-              )}
-
-              {/* Botão Flutuante (FAB) */}
-              <TouchableOpacity 
-                style={styles.fab} 
-                activeOpacity={0.8}
-                onPress={() => setModalAgendamentoVisivel(true)}
-              >
-                <Text style={styles.fabText}>+</Text>
-              </TouchableOpacity>
-
-              <AgendamentoBottomSheet 
-                isVisible={modalAgendamentoVisivel} 
-                onClose={() => setModalAgendamentoVisivel(false)}
-                aulasDisponiveis={aulas} 
-                alunoId={alunoId} 
-                isLoading={carregando} 
-                isError={false}
-                onRefresh={() => buscarAulas(true)} 
-              />
-            </>
-          ) : (
-            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
-          )}
-        </View>
-
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
-            <Text style={{ fontSize: 24 }}>📅</Text>
-            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
-            <Text style={{ fontSize: 24 }}>👤</Text>
-            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
-  container: { flex: 1, backgroundColor: cores.fundo },
-  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
-
-  header: { marginVertical: 20 },
-  saudacao: { fontSize: 14, color: cores.textoSuave },
-  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
-
-  calendarioContainer: { marginBottom: 20, height: 80 },
-  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
-  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
-  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
-  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
-  textoAtivo: { color: cores.branco },
-
-  // Estilos do Feriado
-  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
-  emojiFeriado: { fontSize: 48, marginBottom: 10 },
-  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
-  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
-  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
-
-  // Estilos do FAB
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    backgroundColor: cores.primaria,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    color: cores.branco,
-    fontSize: 32,
-    fontWeight: "300",
-    marginTop: -4,
-  },
-
-  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
-  tabTextAtivo: { color: cores.ativo },
-
-  // ESTILOS DO ESTADO VAZIO
-  containerVazio: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    marginTop: 60,
-  },
-  circuloIconeVazio: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#F0E0D6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  iconeVazio: {
-    fontSize: 50,
-  },
-  tituloVazio: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  textoVazio: {
-    fontSize: 15,
-    color: cores.textoSuave,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  botaoVazio: {
-    backgroundColor: cores.branco,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    elevation: 1,
-    shadowColor: cores.primaria,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  botaoVazioTexto: {
-    color: cores.primaria,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-});
-</file>
-
 <file path="gestao_web/public/sw.js">
 const CACHE_NAME = 'iluminus-v3';
 const STATIC_CACHE_NAME = 'iluminus-static-v3';
@@ -35929,98 +35284,117 @@ import { supabase } from '../lib/supabase';
 export function useAuth() {
   const [sessao, setSessao] = useState(null);
   const [perfil, setPerfil] = useState(null);
+  const [professorId, setProfessorId] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   const perfilJaCarregado = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const carregarPerfilUsuario = async (session) => {
+      if (cancelled) return;
+
       if (!session) {
-        setSessao(null);
-        setPerfil(null);
-        setLoading(false);
+        if (!cancelled) { setSessao(null); setPerfil(null); setProfessorId(null); setLoading(false); }
         return;
       }
 
-      setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
+      if (!cancelled) setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
 
       if (perfilJaCarregado.current) {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
 
       const email = session.user.email;
 
       try {
-        const { data: usuario, error: errAluno } = await supabase.from('alunos').select('id, role').eq('email', email).maybeSingle();
-        if (errAluno && errAluno.code !== 'PGRST116') console.error("Erro ao verificar aluno:", errAluno);
-        
+        const { data: usuario, error: errAluno } = await supabase
+          .from('alunos').select('id, role').eq('email', email).maybeSingle();
+        if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
+
+        if (cancelled) return;
+
         if (usuario) {
           perfilJaCarregado.current = true;
           setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
+          setProfessorId(null);
           setLoading(false);
           return;
         }
 
-        const { data: professor, error: errProf } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
-        if (errProf && errProf.code !== 'PGRST116') console.error("Erro ao verificar professor:", errProf);
-        
+        const { data: professor, error: errProf } = await supabase
+          .from('professores').select('id').eq('email', email).maybeSingle();
+        if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
+
+        if (cancelled) return;
+
         if (professor) {
           perfilJaCarregado.current = true;
           setPerfil('professor');
+          setProfessorId(professor.id);
           setLoading(false);
           return;
         }
 
         perfilJaCarregado.current = true;
-        console.warn("Nenhum perfil encontrado para:", email);
+        console.warn('Nenhum perfil encontrado para:', email);
         setPerfil(null);
+        setProfessorId(null);
       } catch (error) {
-        console.error("Erro fatal ao carregar perfil:", error);
+        console.error('Erro fatal ao carregar perfil:', error);
+        if (cancelled) return;
         perfilJaCarregado.current = true;
         setPerfil(null);
+        setProfessorId(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      carregarPerfilUsuario(session);
+      if (!cancelled) carregarPerfilUsuario(session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-  
-  if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
+      if (cancelled) return;
 
-  if (event === 'SIGNED_OUT') {
-    perfilJaCarregado.current = false;
-    setSessao(null);
-    setPerfil(null);
-    setLoading(false);
-    
-  } else if (event === 'SIGNED_IN') {
-    if (perfilJaCarregado.current) {
-      setSessao(session);
-      return; 
-    }
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 
-    perfilJaCarregado.current = false;
-    setLoading(true);
-    carregarPerfilUsuario(session);
-    
-  } else {
-    if (perfilJaCarregado.current) {
-      setSessao(session);
-    } else {
-      carregarPerfilUsuario(session);
-    }
-  }
-});
+      if (event === 'SIGNED_OUT') {
+        perfilJaCarregado.current = false;
+        setSessao(null);
+        setPerfil(null);
+        setProfessorId(null);
+        setLoading(false);
 
-    return () => subscription.unsubscribe();
+      } else if (event === 'SIGNED_IN') {
+        if (perfilJaCarregado.current) {
+          setSessao(session);
+          return;
+        }
+
+        perfilJaCarregado.current = false;
+        setLoading(true);
+        carregarPerfilUsuario(session);
+
+      } else {
+        if (perfilJaCarregado.current) {
+          setSessao(session);
+        } else {
+          carregarPerfilUsuario(session);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  return { sessao, perfil, loading };
+  return { sessao, perfil, professorId, loading };
 }
 </file>
 
@@ -36450,6 +35824,551 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
 }
 </file>
 
+<file path="gestao_web/src/pages/AreaAluno.jsx">
+import React, { useState, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
+import { showToast } from '../components/shared/Toast'; 
+
+const gerarProximosDias = () => {
+  const dias = [];
+  const nomesDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const diasBanco = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    const dataLocal = `${ano}-${mes}-${dia}`;
+    dias.push({
+      dataIso: dataLocal, 
+      diaSemana: i === 0 ? 'Hoje' : nomesDias[d.getDay()],
+      diaMes: `${dia}/${mes}`,
+      diaBanco: diasBanco[d.getDay()]
+    });
+  }
+  return dias;
+};
+
+export default function AreaAluno() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef(null);
+  const proximosDias = useMemo(() => gerarProximosDias(), []);
+  const [abaAtiva, setAbaAtiva] = useState('schedule'); 
+  const [diaAtivo, setDiaAtivo] = useState(() => gerarProximosDias()[0].dataIso); 
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [processandoId, setProcessandoId] = useState(null);
+  const [formEdit, setFormEdit] = useState({ telefone: '', cpf: '', data_nascimento: '' });
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const { data: aluno, isLoading: loadingAluno, isError: erroAluno } = useQuery({
+    queryKey: ['meu-perfil'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Não logado");
+      const { data, error } = await supabase
+        .from('alunos')
+        .select(`*, planos (nome, preco, regras_acesso)`)
+        .eq('auth_id', session.user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // FIX: busca presenças do mês incluindo data_checkin para cruzar com feriados
+  const { data: presencasMes } = useQuery({
+    queryKey: ['presencas-mes', aluno?.id],
+    enabled: !!aluno?.id,
+    queryFn: async () => {
+      const hoje = new Date();
+      const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+
+      const primeiroDiaStr = primeiroDiaMes.toISOString().split('T')[0];
+      const ultimoDiaStr = ultimoDiaMes.toISOString().split('T')[0];
+
+      // Busca presenças e feriados do mês em paralelo
+      const [{ data: presencas, error }, { data: feriados }] = await Promise.all([
+        supabase
+          .from('presencas')
+          .select(`id, data_checkin, agenda(atividade, espaco, modalidades(area))`)
+          .eq('aluno_id', aluno.id)
+          .gte('data_checkin', primeiroDiaMes.toISOString()),
+        supabase
+          .from('feriados')
+          .select('data')
+          .eq('bloqueia_agenda', true)
+          .gte('data', primeiroDiaStr)
+          .lte('data', ultimoDiaStr)
+      ]);
+
+      if (error) throw error;
+
+      // Monta um Set com as datas de feriado para lookup O(1)
+      const feriadosSet = new Set((feriados || []).map(f => f.data));
+
+      // FIX: exclui presenças que caíram em dias de feriado — não devem contar no limite do plano
+      return (presencas || []).filter(p => {
+        const dataCheckin = p.data_checkin?.split('T')[0];
+        return !feriadosSet.has(dataCheckin);
+      });
+    }
+  }); 
+
+  const { data: mensalidades, isLoading: loadingMensalidades } = useQuery({
+    queryKey: ['minhas-mensalidades', aluno?.id],
+    enabled: !!aluno?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mensalidades')
+        .select('*')
+        .eq('aluno_id', aluno.id)
+        .order('data_vencimento', { ascending: false });
+      if (error && error.code !== '42P01') throw error;
+      return data || [];
+    }
+  });
+
+  const { data: aulasDoDia, isLoading: loadingAulas } = useQuery({
+    queryKey: ['agenda', diaAtivo],
+    enabled: !!aluno?.id,
+    queryFn: async () => {
+      const diaSelecionado = proximosDias.find(d => d.dataIso === diaAtivo);
+      const diaCurto = diaSelecionado.diaBanco.split('-')[0]; 
+      const { data, error } = await supabase
+        .from('agenda')
+        .select(`*, professores (nome), presencas (aluno_id), modalidades(area)`)
+        .or(`dia_semana.ilike.*${diaCurto}*,data_especifica.eq.${diaSelecionado.dataIso}`)
+        .order('horario', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // FIX: busca feriados dos próximos 7 dias para bloquear a listagem de aulas
+  const { data: feriadosDaSemana } = useQuery({
+    queryKey: ['feriados-semana'],
+    queryFn: async () => {
+      const hoje = proximosDias[0].dataIso;
+      const em7dias = proximosDias[proximosDias.length - 1].dataIso;
+      const { data } = await supabase
+        .from('feriados')
+        .select('data, descricao')
+        .eq('bloqueia_agenda', true)
+        .gte('data', hoje)
+        .lte('data', em7dias);
+      return data || [];
+    }
+  });
+
+  const { data: isProfessor } = useQuery({
+    queryKey: ['check-hibrido', aluno?.auth_id],
+    enabled: !!aluno?.auth_id,
+    queryFn: async () => {
+      const { data } = await supabase.from('professores').select('id').eq('auth_id', aluno.auth_id).maybeSingle();
+      return !!data;
+    }
+  });
+
+  const handleAvatarUpload = async (event) => {
+    try {
+      setUploadingAvatar(true);
+      const file = event.target.files[0];
+      if (!file) return;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${aluno.id}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+      const { error: updateError } = await supabase
+        .from('alunos')
+        .update({ avatar_url: publicUrl })
+        .eq('id', aluno.id);
+      if (updateError) throw updateError;
+      await queryClient.invalidateQueries(['meu-perfil']);
+      showToast.success("Foto de perfil atualizada!");
+    } catch (error) {
+      console.error("Erro ao fazer upload da imagem:", error);
+      showToast.error("Erro ao enviar a imagem. Verifique se ela é muito grande.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const iniciarEdicao = () => {
+    setFormEdit({ telefone: aluno.telefone || '', cpf: aluno.cpf || '', data_nascimento: aluno.data_nascimento || '' });
+    setModoEdicao(true);
+  };
+
+  const handleSalvarPerfil = async () => {
+    setSalvandoPerfil(true);
+    try {
+      const { error } = await supabase.from('alunos').update(formEdit).eq('id', aluno.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries(['meu-perfil']);
+      setModoEdicao(false);
+      showToast.success("Perfil atualizado com sucesso!");
+    } catch (error) {
+      showToast.error("Erro ao atualizar os dados.");
+    } finally {
+      setSalvandoPerfil(false);
+    }
+  };
+
+  const handleAgendar = async (agendaId) => {
+    setProcessandoId(agendaId);
+    try {
+      const { error } = await supabase.rpc('agendar_aula', { p_aluno_id: aluno.id, p_agenda_id: agendaId });
+      if (error) throw error;
+      await queryClient.invalidateQueries(['agenda', diaAtivo]);
+      await queryClient.invalidateQueries(['presencas-mes']);
+      showToast.success("Vaga garantida!");
+    } catch (error) {
+      showToast.error(`Ops! Recusado: ${error.message || error.details || 'Erro desconhecido'}`);
+    } finally {
+      setProcessandoId(null);
+    }
+  };
+
+  const handleCancelar = async (agendaId) => {
+    setProcessandoId(agendaId);
+    try {
+      const { error } = await supabase.rpc('cancelar_agendamento', { p_aluno_id: aluno.id, p_agenda_id: agendaId });
+      if (error) throw error;
+      await queryClient.invalidateQueries(['agenda', diaAtivo]);
+      await queryClient.invalidateQueries(['presencas-mes']);
+      showToast.success("Agendamento cancelado.");
+    } catch (error) {
+      showToast.error("Erro ao cancelar o agendamento.");
+    } finally {
+      setProcessandoId(null);
+    }
+  };
+
+  const doLogout = async () => { await supabase.auth.signOut(); navigate('/'); };
+  const openWhatsApp = (msg) => window.open(`https://wa.me/5551994424348?text=${encodeURIComponent(msg)}`, '_blank');
+  const getInitials = (name) => {
+    if (!name) return 'A';
+    const parts = name.split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].substring(0, 2).toUpperCase();
+  };
+  const formatarData = (dataStr) => {
+    if (!dataStr) return "--/--/----";
+    const [ano, mes, dia] = dataStr.split('-');
+    return `${dia}/${mes}/${ano}`;
+  };
+  const formatarMoeda = (valor) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const formatarHorario = (horaStr) => horaStr ? horaStr.substring(0, 5) : "--:--";
+  const getStatusTexto = (status, dataVencimento) => status === "pago" ? "Pago" : (dataVencimento && new Date(dataVencimento) < new Date() ? "Atrasado" : "Pendente");
+
+  if (loadingAluno) return <div className="h-screen w-screen flex items-center justify-center bg-[#FDF8F5]"><RefreshCw className="animate-spin text-orange-600" size={48} /></div>;
+  if (erroAluno || !aluno) return <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FDF8F5]"><p className="text-gray-600 mb-4">Erro ao carregar dados do aluno.</p><button onClick={doLogout} className="btn btn-primary">Voltar para o Início</button></div>;
+
+  const regrasPlano = aluno.planos?.regras_acesso || [];
+
+  let aulasPermitidas = [];
+  if (aulasDoDia) {
+    aulasPermitidas = aulasDoDia.filter(aula => {
+      const jaAgendado = aula.presencas?.some(p => p.aluno_id === aluno.id);
+      if (jaAgendado) return true; 
+      if (!aluno.planos || regrasPlano.length === 0) return false;
+      const aulaArea = aula.modalidades?.area;
+      return regrasPlano.some(r => r.modalidade === aulaArea);
+    });
+  }
+
+  // FIX: verifica se o dia selecionado é feriado
+  const feriadoDoDiaAtivo = feriadosDaSemana?.find(f => f.data === diaAtivo);
+
+  return (
+    <div id="page-dashboard">
+      <aside className="sidebar">
+        <div className="sidebar-logo"><div className="logo-mark">I</div><span className="logo-name">ILUMINUS</span></div>
+        <div className="user-card">
+          <div className="avatar overflow-hidden">
+            {aluno.avatar_url ? (
+              <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />
+            ) : (
+              getInitials(aluno.nome_completo)
+            )}
+          </div>
+          <div>
+            <div className="user-card-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{aluno.nome_completo}</div>
+            <div className="user-card-plan">{aluno.planos ? aluno.planos.nome : 'Sem plano ativo'}</div>
+          </div>
+        </div>
+        <div className="nav-section">Menu</div>
+        <button className={`nav-item ${abaAtiva === 'schedule' ? 'active' : ''}`} onClick={() => setAbaAtiva('schedule')}><span className="nav-icon">📅</span> Agendar Aulas</button>
+        <button className={`nav-item ${abaAtiva === 'profile' ? 'active' : ''}`} onClick={() => setAbaAtiva('profile')}><span className="nav-icon">👤</span> Meu Perfil</button>
+        <button className={`nav-item ${abaAtiva === 'payments' ? 'active' : ''}`} onClick={() => setAbaAtiva('payments')}><span className="nav-icon">💳</span> Mensalidades</button>
+        {isProfessor && (
+          <button className="nav-item" onClick={() => navigate('/agenda')} 
+            style={{ marginTop: '20px', backgroundColor: '#EFF6FF', color: '#2563EB', fontWeight: 'bold' }}
+          >
+            <span className="nav-icon"><RefreshCw size={16} /></span> Visão Professor
+          </button>
+        )}
+        <div className="sidebar-footer"><button className="nav-item" onClick={doLogout} style={{ color: 'var(--err)' }}><span className="nav-icon">↩</span> Sair</button></div>
+      </aside>
+      <div className="main-content">
+        {abaAtiva === 'schedule' && (
+          <div>
+            <div className="main-header">
+              <div><div className="main-header-title">Agendar Aulas</div><div className="main-header-sub">Escolha o dia e reserve sua vaga</div></div>
+            </div>
+            <div className="main-body">
+              {aluno.planos && regrasPlano.length > 0 && (
+                <div className="mb-8 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                  <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-400"></span>
+                    Consumo do Plano: {aluno.planos.nome}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {regrasPlano.map((regra, idx) => {
+                       const usosDaRegra = presencasMes?.filter(p => {
+                          const pArea = p.agenda?.modalidades?.area;
+                          return regra.modalidade === pArea;
+                       }).length || 0;
+                       const limit = regra.limite;
+                       const pct = limit === 999 ? 0 : Math.min((usosDaRegra / limit) * 100, 100);
+                       return (
+                         <div key={idx} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                            <div className="flex justify-between items-end mb-2">
+                              <div>
+                                <p className="font-bold text-gray-700 text-sm">Área: {regra.modalidade}</p>
+                                <p className="text-xs text-gray-400 font-medium mt-0.5">
+                                  Usado: <span className="text-primary font-bold text-sm">{usosDaRegra}</span> / {limit === 999 ? 'Ilimitado' : limit}
+                                </p>
+                              </div>
+                              {limit !== 999 && <span className="text-[10px] font-bold text-gray-400">{Math.floor(pct)}%</span>}
+                            </div>
+                            {limit !== 999 && (
+                              <div className="bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? 'var(--err)' : 'var(--pri)' }}></div>
+                              </div>
+                            )}
+                         </div>
+                       )
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="day-tabs">
+                {proximosDias.map(d => (
+                  <button key={d.dataIso} className={`day-tab ${diaAtivo === d.dataIso ? 'active' : ''}`} onClick={() => setDiaAtivo(d.dataIso)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '8px 16px' }}>
+                    <span style={{ fontSize: '13px' }}>{d.diaSemana}</span>
+                    <span style={{ fontSize: '10px', opacity: 0.8 }}>{d.diaMes}</span>
+                  </button>
+                ))}
+              </div>
+              <div id="class-list">
+                {loadingAulas ? (
+                   <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-gray-400" /></div>
+                ) : !aluno.planos ? (
+                   <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                     <AlertCircle className="mx-auto text-gray-300 mb-3" size={40} />
+                     <p className="text-gray-800 font-bold text-lg mb-1">Sem plano ativo</p>
+                     <p className="text-gray-500 text-sm">Você precisa ter um plano para visualizar e agendar aulas.</p>
+                   </div>
+                // FIX: se o dia for feriado, exibe aviso e não mostra aulas (nem conta no limite)
+                ) : feriadoDoDiaAtivo ? (
+                  <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <span style={{ fontSize: '40px' }}>⛔</span>
+                    <p className="text-gray-800 font-bold text-lg mb-1 mt-3">{feriadoDoDiaAtivo.descricao}</p>
+                    <p className="text-gray-500 text-sm">Não há aulas neste dia. Escolha outra data.</p>
+                  </div>
+                ) : aulasPermitidas.length === 0 ? (
+                  <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <p className="text-gray-500 font-medium">Nenhuma aula disponível para as áreas do seu plano neste dia.</p>
+                  </div>
+                ) : (
+                  aulasPermitidas.map(aula => {
+                    const jaAgendado = aula.presencas?.some(p => p.aluno_id === aluno.id);
+                    const vagasRestantes = aula.capacidade - (aula.vagas_ocupadas || 0);
+                    const lotado = vagasRestantes <= 0;
+                    const estaProcessando = processandoId === aula.id;
+                    const aulaArea = aula.modalidades?.area;
+                    const regraDestaAula = regrasPlano.find(r => r.modalidade === aulaArea);
+                    let usosDestaAula = 0;
+                    if (regraDestaAula) {
+                       usosDestaAula = presencasMes?.filter(p => p.agenda?.modalidades?.area === aulaArea).length || 0;
+                    }
+                    const limiteAtingido = regraDestaAula && regraDestaAula.limite !== 999 && usosDestaAula >= regraDestaAula.limite;
+                    return (
+                      <div key={aula.id} className={`class-card anim-fade-up ${jaAgendado ? 'booked' : ''}`}>
+                        <div className="class-time-block">
+                          <div className="class-time">{formatarHorario(aula.horario)}</div>
+                          <div className={`class-space ${aulaArea === 'Dança' ? 'danca' : 'funcional'}`}>
+                            {aulaArea}
+                          </div>
+                        </div>
+                        <div className="class-info">
+                          <div className="class-name">{aula.atividade}</div>
+                          <div className="class-teacher">Prof. {aula.professores?.nome?.split(' ')[0] || 'A definir'}</div>
+                          <div className="capacity-bar-row">
+                            <span className={`capacity-label ${lotado && !jaAgendado ? 'last-spot' : ''}`}>
+                              {aula.vagas_ocupadas || 0}/{aula.capacidade} vagas ocupadas
+                            </span>
+                            <div className="capacity-bar-track">
+                              <div className="capacity-bar-fill" style={{ width: `${((aula.vagas_ocupadas || 0) / aula.capacidade) * 100}%`, background: jaAgendado ? 'var(--ok)' : (lotado ? 'var(--err)' : 'var(--pri)') }}></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="class-action" style={{ minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          {jaAgendado ? (
+                            <>
+                              <button onClick={() => handleCancelar(aula.id)} disabled={estaProcessando} className="btn-book cancel">
+                                {estaProcessando ? <RefreshCw className="animate-spin" size={16} /> : 'Cancelar'}
+                              </button>
+                              <div className="booked-check flex items-center gap-1 mt-2 text-green-600"><CheckCircle2 size={14} /> Agendado</div>
+                            </>
+                          ) : limiteAtingido ? (
+                            <div className="text-[11px] font-bold text-red-400 text-center uppercase tracking-wider flex flex-col items-center gap-1">
+                              <AlertCircle size={16}/> Limite Atingido
+                            </div>
+                          ) : (
+                            <button onClick={() => handleAgendar(aula.id)} disabled={lotado || estaProcessando} className={`btn-book ${lotado ? 'disabled' : 'reserve'}`}>
+                              {estaProcessando ? <RefreshCw className="animate-spin text-white" size={16} /> : (lotado ? 'Esgotado' : 'Agendar')}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {abaAtiva === 'profile' && (
+          <div>
+            <div className="main-header">
+              <div>
+                <div className="main-header-title">Meu Perfil</div>
+                <div className="main-header-sub">Seus dados pessoais e plano</div>
+              </div>
+              {modoEdicao ? (
+                <div className="flex items-center gap-3">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setModoEdicao(false)}>Cancelar</button>
+                  <button className="btn btn-primary btn-sm" onClick={handleSalvarPerfil} disabled={salvandoPerfil}>
+                    {salvandoPerfil ? <RefreshCw className="animate-spin" size={16} /> : 'Salvar Alterações'}
+                  </button>
+                </div>
+              ) : (
+                <button className="btn btn-outline btn-sm" onClick={iniciarEdicao}>Editar Perfil</button>
+              )}
+            </div>
+            <div className="main-body">
+              <div className="profile-top">
+                <div className="profile-id-card card">
+                  <div 
+                    className="avatar lg relative group cursor-pointer overflow-hidden border-2 border-transparent hover:border-orange-300 transition-all"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Clique para alterar a foto de perfil"
+                  >
+                    {uploadingAvatar ? (
+                      <div className="w-full h-full flex items-center justify-center bg-orange-100">
+                        <RefreshCw className="animate-spin text-primary" size={24} />
+                      </div>
+                    ) : aluno.avatar_url ? (
+                      <img src={aluno.avatar_url} alt="Perfil" className="w-full h-full object-cover" />
+                    ) : (
+                      getInitials(aluno.nome_completo)
+                    )}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera size={24} className="text-white" />
+                    </div>
+                  </div>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+                  <div>
+                    <div className="profile-name">{aluno.nome_completo}</div>
+                    <div className="profile-since">Aluno Iluminus</div>
+                  </div>
+                </div>
+                <div className="profile-plan-card card">
+                  <div className="profile-plan-label">Plano Ativo</div>
+                  <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
+                  <div className="profile-plan-desc">{aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}</div>
+                </div>
+              </div>
+              <div className="card" style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--muted)', marginBottom: '24px' }}>Dados Pessoais</div>
+                <div className="data-grid">
+                  <div className="data-field"><label>E-mail (Acesso)</label><div className="data-value opacity-60 cursor-not-allowed">{aluno.email}</div></div>
+                  <div className="data-field">
+                    <label>Telefone</label>
+                    {modoEdicao ? <input className="inp py-2 mt-1" value={formEdit.telefone} onChange={e => setFormEdit({...formEdit, telefone: e.target.value})} placeholder="(00) 00000-0000" /> : <div className="data-value">{aluno.telefone || 'Não informado'}</div>}
+                  </div>
+                  <div className="data-field">
+                    <label>CPF</label>
+                    {modoEdicao ? <input className="inp py-2 mt-1" value={formEdit.cpf} onChange={e => setFormEdit({...formEdit, cpf: e.target.value})} placeholder="000.000.000-00" /> : <div className="data-value">{aluno.cpf || 'Não informado'}</div>}
+                  </div>
+                  <div className="data-field">
+                    <label>Data de Nascimento</label>
+                    {modoEdicao ? <input className="inp py-2 mt-1" type="date" value={formEdit.data_nascimento} onChange={e => setFormEdit({...formEdit, data_nascimento: e.target.value})} /> : <div className="data-value">{formatarData(aluno.data_nascimento) || 'Não informado'}</div>}
+                  </div>
+                </div>
+              </div>
+              <div className="wa-btn-row">
+                <button className="btn btn-wa btn-full" onClick={() => openWhatsApp(`Olá, Espaço Iluminus! Sou o aluno(a) ${aluno.nome_completo} e preciso de ajuda.`)} style={{ padding: '15px', fontSize: '15px' }}>💬 Suporte via WhatsApp</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {abaAtiva === 'payments' && (
+          <div>
+            <div className="main-header">
+              <div><div className="main-header-title">Mensalidades</div><div className="main-header-sub">Histórico e status dos seus pagamentos</div></div>
+            </div>
+            <div className="main-body">
+              <div className="card">
+                <div className="pay-table-wrapper">
+                  {loadingMensalidades ? (
+                    <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-gray-400" /></div>
+                  ) : !mensalidades || mensalidades.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">Nenhuma cobrança registrada.</p>
+                  ) : (
+                    <table className="pay-table">
+                      <thead><tr><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
+                      <tbody>
+                        {mensalidades.map(m => {
+                          const statusTxt = getStatusTexto(m.status, m.data_vencimento);
+                          let badgeClass = "badge-warn";
+                          if (statusTxt === "Pago") badgeClass = "badge-ok";
+                          if (statusTxt === "Atrasado") badgeClass = "badge-err";
+                          return (
+                            <tr key={m.id}>
+                              <td style={{ fontWeight: 600 }}>{formatarData(m.data_vencimento)}</td>
+                              <td style={{ fontWeight: 700 }}>{formatarMoeda(m.valor_pago || m.valor_esperado)}</td>
+                              <td><span className={`badge ${badgeClass}`}>{statusTxt}</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+</file>
+
 <file path="gestao_web/src/pages/Leads.jsx">
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -36855,9 +36774,14 @@ export const financeiroService = {
 
     if (errAlunos) throw errAlunos;
 
+    const tresMesesAtras = new Date();
+    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+    const filtroData = tresMesesAtras.toISOString().split('T')[0];
+
     const { data: ultimasMensalidades } = await supabase
       .from('mensalidades')
       .select('aluno_id, data_vencimento')
+      .gte('data_vencimento', filtroData)
       .order('data_vencimento', { ascending: false });
 
     const mapaUltimasDatas = new Map();
@@ -36872,22 +36796,25 @@ export const financeiroService = {
     alunos.forEach(aluno => {
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
 
+      let proximaData;
       if (ultimaDataStr) {
         const d = new Date(ultimaDataStr + 'T12:00:00');
         d.setDate(d.getDate() + 30);
+        proximaData = d.toISOString().split('T')[0];
+      } else {
+        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
+        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
+      }
 
-        const proximaData = d.toISOString().split('T')[0];
+      const [pAno, pMes] = proximaData.split('-').map(Number);
 
-        const [pAno, pMes] = proximaData.split('-').map(Number);
-
-        if (pAno === ano && pMes === mesNumero) {
-          novasCobrancas.push({
-            aluno_id: aluno.id,
-            plano_id: aluno.plano_id,
-            data_vencimento: proximaData,
-            status: 'pendente'
-          });
-        }
+      if (pAno === ano && pMes === mesNumero) {
+        novasCobrancas.push({
+          aluno_id: aluno.id,
+          plano_id: aluno.plano_id,
+          data_vencimento: proximaData,
+          status: 'pendente'
+        });
       }
     });
 
@@ -36931,13 +36858,16 @@ export const financeiroService = {
     }
 
     if (dados.status === 'pago') {
-  try {
-    await gerarRepassesDaMensalidade(data.id);
-  } catch (repasseError) {
-    console.warn('[financeiroService] Aviso: erro ao gerar repasses. Pagamento já registrado.', repasseError);
-  }
-}
-return data;
+      try {
+        await gerarRepassesDaMensalidade(data.id);
+      } catch (repasseError) {
+        // Pagamento salvo com sucesso; apenas o repasse falhou.
+        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
+        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
+        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+      }
+    }
+    return data;
   },
 
   async confirmarPagamento(id, dados) {
@@ -36959,6 +36889,154 @@ return data;
 
     const resultado = await gerarRepassesDaMensalidade(id);
     return { ok: true, resultado };
+  },
+};
+</file>
+
+<file path="gestao_web/src/services/gradeService.js">
+import { supabase } from '../lib/supabase';
+
+export const gradeService = {
+  async listarProfessores() {
+    const { data, error } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+  async listarModalidades() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*')
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * @param {'admin' | 'professor' | 'aluno'} perfil  — vem do useAuth
+   * @param {string | null} professorId                — id do professor logado (se perfil === 'professor')
+   */
+  async listarGrade(perfil, professorId) {
+    if (perfil === 'admin') {
+      const { data, error } = await supabase
+        .from('agenda')
+        .select('*, professores(nome), modalidades(id, nome)')
+        .order('horario', { ascending: true });
+      if (error) throw error;
+      return data;
+    }
+
+    if (perfil !== 'professor' || !professorId) return [];
+
+    // Busca modalidades do professor e aulas em paralelo
+    const { data: modalidadesDoProf } = await supabase
+      .from('modalidades')
+      .select('id')
+      .eq('professor_id', professorId);
+
+    const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
+
+    const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
+      await Promise.all([
+        supabase
+          .from('agenda')
+          .select('*, professores(nome), modalidades(id, nome)')
+          .eq('professor_id', professorId)
+          .order('horario', { ascending: true }),
+
+        idsModsDoProf.length > 0
+          ? supabase
+              .from('agenda')
+              .select('*, professores(nome), modalidades(id, nome)')
+              .is('professor_id', null)
+              .in('modalidade_id', idsModsDoProf)
+              .order('horario', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+    if (errDiretas) throw errDiretas;
+    if (errMod) throw errMod;
+
+    const vistas = new Set();
+    return [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])].filter((a) => {
+      if (vistas.has(a.id)) return false;
+      vistas.add(a.id);
+      return true;
+    });
+  },
+
+  async salvarAula(aula) {
+    if (aula.id) {
+      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('agenda').insert([aula]);
+      if (error) throw error;
+    }
+    return true;
+  },
+
+  async excluirAula(id) {
+    try {
+      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
+      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      await supabase.from('presencas').delete().eq('aula_id', id);
+      const { error } = await supabase.from('agenda').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Erro ao excluir aula em cascata:', error);
+      throw error;
+    }
+  },
+
+  async encerrarAula(id, dataEncerramento) {
+    const { error } = await supabase
+      .from('agenda')
+      .update({ data_fim: dataEncerramento })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  async listarFeriados() {
+    const { data, error } = await supabase
+      .from('feriados')
+      .select('*')
+      .gte('data', new Date().toISOString().split('T')[0])
+      .order('data', { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+
+  async cadastrarFeriado(dados) {
+    const { error } = await supabase.from('feriados').insert([dados]);
+    if (error) throw error;
+
+    if (dados.bloqueia_agenda) {
+      const inicioDia = `${dados.data}T00:00:00`;
+      const fimDia    = `${dados.data}T23:59:59`;
+      await supabase
+        .from('presencas')
+        .delete()
+        .gte('data_checkin', inicioDia)
+        .lte('data_checkin', fimDia);
+    }
+  },
+
+  async listarMatriculasFixas() {
+    const { data, error } = await supabase
+      .from('agenda_fixa')
+      .select('aula_id, alunos (id, nome_completo)');
+    if (error) {
+      console.error('Erro ao buscar alunos fixos:', error);
+      return [];
+    }
+    return data;
   },
 };
 </file>
@@ -40114,6 +40192,9 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   const [aulasGrade, setAulasGrade]         = useState([]);
   const [matriculasAluno, setMatriculasAluno] = useState([]);
   const [loading, setLoading]               = useState(true);
+  // BP-01 – substituição de window.confirm
+  const [confirmModal, setConfirmModal]     = useState(null);
+  // confirmModal: { mensagem, onConfirmar } | null
   const modalidades = aluno?.modalidades_selecionadas
     ? [...new Set(aluno.modalidades_selecionadas)]
     : [];
@@ -40161,34 +40242,44 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       aulasGrade.find(a => a.id === aulaId)?.modalidades?.id === modId
     ).length;
 
-  async function toggleMatriculaFixa(aula) {
+  async function executarMatricula(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .insert({ aluno_id: alunoId, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno matriculado na turma!');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao matricular na turma.'); }
+  }
+
+  async function executarRemocao(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .delete().match({ aluno_id: alunoId, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno removido da turma.');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao remover da turma.'); }
+  }
+
+  function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
     if (!isMatriculado) {
       const limiteSelecionado = getCountModEspecifica(aula.modalidades?.id);
       const usado             = countUsoModNaGrade(aula.modalidades?.id);
       if (limiteSelecionado > 0 && usado >= limiteSelecionado) {
-        const ok = window.confirm(
-          `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\n` +
-          `Deseja abrir uma exceção e matricular na ${usado + 1}ª turma?`
-        );
-        if (!ok) return;
+        setConfirmModal({
+          mensagem: `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª turma?`,
+          onConfirmar: () => executarMatricula(aula),
+        });
+        return;
       }
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .insert({ aluno_id: alunoId, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno matriculado na turma!');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao matricular na turma.'); }
+      executarMatricula(aula);
     } else {
-      if (!window.confirm(`Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`)) return;
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .delete().match({ aluno_id: alunoId, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno removido da turma.');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao remover da turma.'); }
+      setConfirmModal({
+        mensagem: `Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`,
+        onConfirmar: () => executarRemocao(aula),
+      });
     }
   }
 
@@ -40219,6 +40310,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   const semModalidades = modIdsDoAluno.length === 0;
 
   return (
+    <>
     <div className="space-y-6 animate-in slide-in-from-bottom-4">
       <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary-soft border border-primary/20">
         <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
@@ -40294,11 +40386,38 @@ function AbaAgendaFixa({ aluno, alunoId }) {
         })
       )}
     </div>
+
+    {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+    {confirmModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={(e) => { if (e.target === e.currentTarget) setConfirmModal(null); }}
+      >
+        <div className="bg-background rounded-3xl shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
+          <h3 className="font-black text-foreground text-lg mb-4">Confirmação</h3>
+          <p className="text-muted-foreground font-medium mb-8 whitespace-pre-line leading-relaxed">
+            {confirmModal.mensagem}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmModal(null)}
+              className="flex-1 py-3 rounded-2xl font-black text-muted-foreground bg-muted hover:bg-muted/80 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => { confirmModal.onConfirmar(); setConfirmModal(null); }}
+              className="flex-1 py-3 rounded-2xl font-black text-primary-foreground bg-primary hover:opacity-90 transition-all"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id } = useParams();
@@ -41126,43 +41245,27 @@ export default function Dashboard() {
   const inicioMes    = startOfMonth(agora).toISOString();
   const limite7Dias  = format(addDays(agora, 7), 'yyyy-MM-dd');
 
-  // ── Queries ────────────────────────────────────────────────────────────────
-  const { data: listaInadimplentes = [], isLoading: loadingInadim } = useQuery({
-    queryKey: ['dash-inadimplentes', hojeIso],
-    queryFn: () => dashboardService.obterInadimplentes(hojeIso),
+  // ── Query única — todas as chamadas rodam em paralelo via Promise.all ─────
+  const {
+    data: {
+      totalAlunos        = 0,
+      pagamentosMes      = [],
+      listaInadimplentes = [],
+      alunosPlanosVencendo = [],
+      todosAlunos        = [],
+    } = {},
+    isLoading,
+  } = useQuery({
+    queryKey: ['dashboard', hojeIso, inicioMes, limite7Dias],
+    queryFn:  () => dashboardService.obterTudoDashboard({ hojeIso, inicioMes, limite7Dias }),
+    staleTime: 1000 * 60 * 5,
   });
 
-  const { data: alunosPlanosVencendo = [], isLoading: loadingVencendo } = useQuery({
-    queryKey: ['dash-planos-vencendo', hojeIso, limite7Dias],
-    queryFn: () => dashboardService.obterAlunosPlanosVencendo(hojeIso, limite7Dias),
-  });
-
-  const { data: totalAlunos = 0, isLoading: loadingAlunos } = useQuery({
-    queryKey: ['dash-alunos'],
-    queryFn: dashboardService.obterTotalAlunos,
-  });
-
-  const { data: pagamentosMes = [], isLoading: loadingPag } = useQuery({
-    queryKey: ['dash-pagamentos', inicioMes],
-    queryFn: () => dashboardService.obterPagamentosMes(inicioMes),
-  });
-
-  // Aniversariantes — reutiliza o serviço de alunos via supabase direto
-  // Como não existe endpoint dedicado no dashboardService, fazemos via hook de aniversariantes
-  const { data: todosAlunos = [] } = useQuery({
-    queryKey: ['dash-aniversariantes'],
-    queryFn: async () => {
-      const { supabase } = await import('../lib/supabase');
-      const { data } = await supabase
-        .from('alunos')
-        .select('id, nome_completo, data_nascimento, telefone')
-        .eq('ativo', true)
-        .eq('role', 'aluno')
-        .not('data_nascimento', 'is', null);
-      return data || [];
-    },
-    staleTime: 1000 * 60 * 15,
-  });
+  // Aliases de loading para manter compatibilidade com os Skeletons abaixo
+  const loadingAlunos  = isLoading;
+  const loadingPag     = isLoading;
+  const loadingInadim  = isLoading;
+  const loadingVencendo = isLoading;
 
   // ── Derivações ─────────────────────────────────────────────────────────────
   const faturamentoMes = useMemo(
@@ -41616,7 +41719,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         payload.modalidade_nome = form.modalidade_nome;
       }
 
-      await financeiroService.adicionarPagamentoManual(payload);
+      const resultado = await financeiroService.adicionarPagamentoManual(payload);
 
       // Toast contextual de sucesso
       const nomeExibicao = isVisitante
@@ -41624,6 +41727,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         : alunos.find(a => a.id === form.aluno_id)?.nome_completo?.split(' ')[0] || 'Aluno';
 
       showToast.success(`✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
+
+      if (resultado._avisoRepasse) {
+        // Aviso em toast separado — não substitui a confirmação de sucesso
+        setTimeout(() => showToast.warning(`⚠️ ${resultado._avisoRepasse}`), 600);
+      }
+
       onSucesso();
       onClose();
     } catch (error) {
@@ -41884,6 +41993,12 @@ export function usePWA() {
 }
 </file>
 
+<file path="gestao_web/src/services/agendaService.js">
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';
+</file>
+
 <file path="gestao_web/src/services/alunosService.js">
 import { supabase } from '../lib/supabase';
 
@@ -41927,7 +42042,7 @@ export const alunosService = {
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
- 
+
       if (error) throw error;
       return data ?? [];
     } catch (error) {
@@ -42051,48 +42166,28 @@ export const alunosService = {
     return data;
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // BP-01 FIX: operações encadeadas substituídas por RPC atômica.
+  // Todas as escritas ocorrem dentro de uma única transação
+  // Postgres — se qualquer etapa falhar, o banco faz rollback
+  // automático e nenhuma escrita parcial é persistida.
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Renova o plano de um aluno de forma atômica via RPC.
+   * Função SQL correspondente: renovar_plano_aluno()
+   */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
-      await supabase
-        .from('historico_planos')
-        .update({ status: 'finalizado' })
-        .eq('aluno_id', alunoId)
-        .eq('status', 'ativo');
+      const { error } = await supabase.rpc('renovar_plano_aluno', {
+        p_aluno_id:    alunoId,
+        p_plano_id:    dadosRenovacao.plano_id,
+        p_data_inicio: dadosRenovacao.data_inicio,
+        p_data_fim:    dadosRenovacao.data_fim,
+        p_valor_pago:  dadosRenovacao.valor_pago ?? 0,
+      });
 
-      const { error: errHist } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: dadosRenovacao.plano_id,
-          data_inicio: dadosRenovacao.data_inicio,
-          data_fim: dadosRenovacao.data_fim,
-          valor_pago: dadosRenovacao.valor_pago || 0,
-          status: 'ativo',
-        }]);
-
-      if (errHist) throw errHist;
-
-      const { error: errAluno } = await supabase
-        .from('alunos')
-        .update({
-          plano_id: dadosRenovacao.plano_id,
-          data_fim_plano: dadosRenovacao.data_fim,
-        })
-        .eq('id', alunoId);
-
-      if (errAluno) throw errAluno;
-
-      const { error: errMensalidade } = await supabase
-        .from('mensalidades')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: dadosRenovacao.plano_id,
-          data_vencimento: dadosRenovacao.data_inicio,
-          status: 'pendente',
-        }]);
-
-      if (errMensalidade) throw errMensalidade;
-
+      if (error) throw error;
       return true;
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
@@ -42101,6 +42196,9 @@ export const alunosService = {
   },
 
   /**
+   * Matricula um aluno em um plano de forma atômica via RPC.
+   * Função SQL correspondente: matricular_aluno()
+   *
    * @param {string} alunoId
    * @param {string} planoId
    * @param {object} opcoes
@@ -42109,6 +42207,8 @@ export const alunosService = {
    */
   async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
     try {
+      // Busca os dados do plano antes de iniciar a transação —
+      // leitura pura, sem efeito colateral, portanto fora do RPC.
       const { data: plano, error: errPlano } = await supabase
         .from('planos')
         .select('id, nome, preco, duracao_meses')
@@ -42118,55 +42218,27 @@ export const alunosService = {
       if (errPlano) throw errPlano;
 
       const dataInicio = new Date().toISOString().split('T')[0];
-      const dataFimObj = new Date(dataVencimento + 'T12:00:00');
+      const dataFimObj = new Date(`${dataVencimento}T12:00:00`);
       dataFimObj.setMonth(dataFimObj.getMonth() + (plano.duracao_meses || 1));
       dataFimObj.setDate(dataFimObj.getDate() - 1);
       const dataFim = dataFimObj.toISOString().split('T')[0];
 
-      const { error: errAluno } = await supabase
-        .from('alunos')
-        .update({
-          plano_id: planoId,
-          modalidades_selecionadas: modalidades,
-          ativo: 'true',
-          data_inicio_plano: dataInicio,
-          data_fim_plano: dataFim,
-        })
-        .eq('id', alunoId);
+      const descricao = `Matrícula: ${plano.nome} (${plano.duracao_meses} ${
+        plano.duracao_meses === 1 ? 'mês' : 'meses'
+      })`;
 
-      if (errAluno) throw errAluno;
+      const { error } = await supabase.rpc('matricular_aluno', {
+        p_aluno_id:    alunoId,
+        p_plano_id:    planoId,
+        p_data_inicio: dataInicio,
+        p_data_fim:    dataFim,
+        p_vencimento:  dataVencimento,
+        p_modalidades: modalidades,
+        p_valor_pago:  plano.preco ?? 0,
+        p_descricao:   descricao,
+      });
 
-      await supabase
-        .from('historico_planos')
-        .update({ status: 'finalizado' })
-        .eq('aluno_id', alunoId)
-        .eq('status', 'ativo');
-
-      const { error: errHist } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: planoId,
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          status: 'ativo',
-          valor_pago: plano.preco || 0,
-        }]);
-
-      if (errHist) throw errHist;
-
-      const { error: errMens } = await supabase
-        .from('mensalidades')
-        .insert([{
-          aluno_id: alunoId,
-          plano_id: planoId,
-          data_vencimento: dataVencimento,
-          status: 'pendente',
-          descricao: `Matrícula: ${plano.nome} (${plano.duracao_meses} ${plano.duracao_meses === 1 ? 'mês' : 'meses'})`,
-        }]);
-
-      if (errMens) throw errMens;
-
+      if (error) throw error;
       return { plano, dataInicio, dataFim };
     } catch (error) {
       console.error('[alunosService.matricular]', error);
@@ -42181,61 +42253,59 @@ export const alunosService = {
       .not('plano_id', 'is', null);
 
     if (errAlunos) throw errAlunos;
+    if (!alunos?.length) return { normalizados: 0, ignorados: 0 };
 
-    let normalizados = 0;
-    let ignorados = 0;
+    const { data: historicosAtivos, error: errHistoricos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id')
+      .eq('status', 'ativo')
+      .in('aluno_id', alunos.map(a => a.id));
 
-    for (const aluno of alunos) {
-      const { data: historico } = await supabase
-        .from('historico_planos')
-        .select('id')
-        .eq('aluno_id', aluno.id)
-        .eq('status', 'ativo')
-        .maybeSingle();
+    if (errHistoricos) throw errHistoricos;
 
-      if (historico) { ignorados++; continue; }
+    const comHistorico = new Set(historicosAtivos?.map(h => h.aluno_id));
 
-      const dataInicio = aluno.data_inicio_plano ?? aluno.created_at.split('T')[0];
-      let dataFim = aluno.data_fim_plano;
-      if (!dataFim) {
-        const fallback = new Date();
-        fallback.setDate(fallback.getDate() + 30);
-        dataFim = fallback.toISOString().split('T')[0];
-      }
+    const hoje = new Date();
+    const calcularDataFimFallback = () => {
+      const fallback = new Date(hoje);
+      fallback.setDate(fallback.getDate() + 30);
+      return fallback.toISOString().split('T')[0];
+    };
 
-      const { error: errInsert } = await supabase
-        .from('historico_planos')
-        .insert([{
-          aluno_id: aluno.id,
-          plano_id: aluno.plano_id,
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          status: 'ativo',
-          valor_pago: 0,
-        }]);
+    const alunosSemHistorico = alunos.filter(a => !comHistorico.has(a.id));
+    const ignorados = alunos.length - alunosSemHistorico.length;
 
-      if (errInsert) {
-        console.warn(`[normalizarHistoricoPlanos] Falha no aluno ${aluno.id}:`, errInsert);
-        ignorados++;
-      } else {
-        normalizados++;
-      }
+    if (!alunosSemHistorico.length) {
+      console.info('[normalizarHistoricoPlanos] Nenhum aluno sem histórico ativo.');
+      return { normalizados: 0, ignorados };
     }
 
-    console.info(`[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`);
+    const inserts = alunosSemHistorico.map(a => ({
+      aluno_id:    a.id,
+      plano_id:    a.plano_id,
+      data_inicio: a.data_inicio_plano ?? a.created_at.split('T')[0],
+      data_fim:    a.data_fim_plano    ?? calcularDataFimFallback(),
+      status:      'ativo',
+      valor_pago:  0,
+    }));
+
+    const { error: errInsert } = await supabase
+      .from('historico_planos')
+      .insert(inserts);
+
+    if (errInsert) throw errInsert;
+
+    const normalizados = inserts.length;
+    console.info(
+      `[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`
+    );
     return { normalizados, ignorados };
   },
 };
 </file>
 
-<file path="gestao_web/src/services/agendaService.js">
-export { gradeService } from './gradeService';
-export { agendamentoService } from './agendamentoService';
-export { leadsService } from './leadsService';
-</file>
-
 <file path="gestao_web/src/pages/Agenda/Agenda.jsx">
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Ban, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
@@ -42289,8 +42359,6 @@ export default function Agenda() {
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
 
-  const [dadosIniciais, setDadosIniciais] = useState({ professores: [], modalidades: [], matriculasFixas: [] });
-
   const { aulas, feriados, loading, refetch } = useAgenda();
 
   const { data: listaAlunos = [] } = useQuery({
@@ -42298,6 +42366,26 @@ export default function Agenda() {
     queryFn: () => alunosService.listarAtivos(),
     staleTime: 1000 * 60 * 5,
   });
+
+  const { data: professores = [] } = useQuery({
+    queryKey: ['professores'],
+    queryFn: () => gradeService.listarProfessores(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: modalidades = [] } = useQuery({
+    queryKey: ['modalidades'],
+    queryFn: () => gradeService.listarModalidades(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: matriculasFixas = [] } = useQuery({
+    queryKey: ['matriculas-fixas'],
+    queryFn: () => gradeService.listarMatriculasFixas(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const dadosIniciais = { professores, modalidades, matriculasFixas };
 
   const pageState = useAgendaPage();
   const dadosMes = useAgendaDadosMes(pageState.currentDate);
@@ -42318,14 +42406,6 @@ export default function Agenda() {
       refetch();
     },
   });
-
-  useEffect(() => {
-    Promise.all([gradeService.listarProfessores(), gradeService.listarModalidades(), gradeService.listarMatriculasFixas()])
-      .then(([professores, modalidades, matriculasFixas]) =>
-        setDadosIniciais({ professores: professores || [], modalidades: modalidades || [], matriculasFixas: matriculasFixas || [] }),
-      )
-      .catch(console.error);
-  }, []);
 
   const handleSelectSlot = ({ start }) => {
     if (!isAdmin) return;
@@ -43861,6 +43941,10 @@ export default function NovoAluno() {
   const [matriculasAluno,         setMatriculasAluno]         = useState([]);
   const [loadingAgenda,           setLoadingAgenda]           = useState(false);
   const [modalOpen,               setModalOpen]               = useState(false);
+
+  // ── BP-01 – substituição de window.confirm ──────────────────
+  const [confirmModal, setConfirmModal] = useState(null);
+  // confirmModal: { mensagem, onConfirmar } | null
   const [copiado,                 setCopiado]                 = useState(false);
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
@@ -43918,7 +44002,7 @@ export default function NovoAluno() {
       setStepAtual(1);
       setCadastroSalvo(false);
     }
-  }, [location.pathname]);
+  }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
   useEffect(() => {
     if (planoSelecionadoObj && dataInicioPlano) {
@@ -44098,34 +44182,44 @@ export default function NovoAluno() {
       aulasGrade.find(a => a.id === aulaId)?.modalidades?.id === modId
     ).length;
 
-  async function toggleMatriculaFixa(aula) {
+  async function executarMatricula(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .insert({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno matriculado na turma!');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao matricular na turma.'); }
+  }
+
+  async function executarRemocao(aula) {
+    try {
+      const { error } = await supabase.from('agenda_fixa')
+        .delete().match({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
+      if (error) throw error;
+      showToast.success('Aluno removido da turma.');
+      carregarAgendaFixa();
+    } catch { showToast.error('Erro ao remover da turma.'); }
+  }
+
+  function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
     if (!isMatriculado) {
       const limiteSelecionado = getCountModEspecifca(aula.modalidades?.id);
       const usado             = countUsoModNaGrade(aula.modalidades?.id);
       if (usado >= limiteSelecionado) {
-        const ok = window.confirm(
-          `ATENÇÃO: Você selecionou apenas ${limiteSelecionado}x de ${aula.modalidades?.nome} no perfil do aluno.\n\n` +
-          `Deseja abrir uma exceção e matricular na ${usado + 1}ª turma?`
-        );
-        if (!ok) return;
+        setConfirmModal({
+          mensagem: `ATENÇÃO: Apenas ${limiteSelecionado}x de "${aula.modalidades?.nome}" definido no perfil.\n\nDeseja abrir uma exceção e matricular na ${usado + 1}ª turma?`,
+          onConfirmar: () => executarMatricula(aula),
+        });
+        return;
       }
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .insert({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno matriculado na turma!');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao matricular na turma.'); }
+      executarMatricula(aula);
     } else {
-      if (!window.confirm(`Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`)) return;
-      try {
-        const { error } = await supabase.from('agenda_fixa')
-          .delete().match({ aluno_id: alunoParaEditar.id, aula_id: aula.id });
-        if (error) throw error;
-        showToast.success('Aluno removido da turma.');
-        carregarAgendaFixa();
-      } catch { showToast.error('Erro ao remover da turma.'); }
+      setConfirmModal({
+        mensagem: `Deseja remover o aluno da turma de ${aula.dia_semana} às ${aula.horario}?`,
+        onConfirmar: () => executarRemocao(aula),
+      });
     }
   }
 
@@ -45147,6 +45241,34 @@ export default function NovoAluno() {
         )}
       </div>
 
+      {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+      <Modal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        titulo="Confirmação"
+      >
+        <p className="text-gray-700 font-medium mb-6 whitespace-pre-line leading-relaxed">
+          {confirmModal?.mensagem}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setConfirmModal(null)}
+            className="flex-1 py-3 rounded-2xl font-black text-gray-500 bg-gray-50 hover:bg-gray-100 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              confirmModal?.onConfirmar();
+              setConfirmModal(null);
+            }}
+            className="flex-1 py-3 rounded-2xl font-black text-white bg-primary hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+          >
+            Confirmar
+          </button>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={modalOpen}
         onClose={() => { setModalOpen(false); navigate('/alunos'); }}
@@ -45174,6 +45296,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 import { useAuth } from './hooks/useAuth';
+import { rotaPorPerfil } from './lib/navigation';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -45257,9 +45380,7 @@ const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
   if (loading) return <Spinner />;
   if (!sessao || perfil === null) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(perfil)) {
-    if (perfil === 'aluno') return <Navigate to="/area-aluno" replace />;
-    if (perfil === 'professor') return <Navigate to="/agenda" replace />;
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={rotaPorPerfil(perfil)} replace />;
   }
   return <Outlet />;
 };
@@ -45279,20 +45400,12 @@ export default function App() {
               <Route path="/" element={
                 !sessao
                   ? <Landing />
-                  : (perfil === 'aluno'
-                      ? <Navigate to="/area-aluno" replace />
-                      : (perfil === 'professor'
-                          ? <Navigate to="/agenda" replace />
-                          : <Navigate to="/dashboard" replace />))
+                  : <Navigate to={rotaPorPerfil(perfil)} replace />
               } />
               <Route path="/login" element={
                 !sessao
                   ? <Login />
-                  : (perfil === 'aluno'
-                      ? <Navigate to="/area-aluno" replace />
-                      : (perfil === 'professor'
-                          ? <Navigate to="/agenda" replace />
-                          : <Navigate to="/dashboard" replace />))
+                  : <Navigate to={rotaPorPerfil(perfil)} replace />
               } />
               <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 

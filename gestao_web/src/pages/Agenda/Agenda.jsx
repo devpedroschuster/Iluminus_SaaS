@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Ban, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
@@ -52,8 +52,6 @@ export default function Agenda() {
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
 
-  const [dadosIniciais, setDadosIniciais] = useState({ professores: [], modalidades: [], matriculasFixas: [] });
-
   const { aulas, feriados, loading, refetch } = useAgenda();
 
   const { data: listaAlunos = [] } = useQuery({
@@ -61,6 +59,26 @@ export default function Agenda() {
     queryFn: () => alunosService.listarAtivos(),
     staleTime: 1000 * 60 * 5,
   });
+
+  const { data: professores = [] } = useQuery({
+    queryKey: ['professores'],
+    queryFn: () => gradeService.listarProfessores(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: modalidades = [] } = useQuery({
+    queryKey: ['modalidades'],
+    queryFn: () => gradeService.listarModalidades(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: matriculasFixas = [] } = useQuery({
+    queryKey: ['matriculas-fixas'],
+    queryFn: () => gradeService.listarMatriculasFixas(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const dadosIniciais = { professores, modalidades, matriculasFixas };
 
   const pageState = useAgendaPage();
   const dadosMes = useAgendaDadosMes(pageState.currentDate);
@@ -81,14 +99,6 @@ export default function Agenda() {
       refetch();
     },
   });
-
-  useEffect(() => {
-    Promise.all([gradeService.listarProfessores(), gradeService.listarModalidades(), gradeService.listarMatriculasFixas()])
-      .then(([professores, modalidades, matriculasFixas]) =>
-        setDadosIniciais({ professores: professores || [], modalidades: modalidades || [], matriculasFixas: matriculasFixas || [] }),
-      )
-      .catch(console.error);
-  }, []);
 
   const handleSelectSlot = ({ start }) => {
     if (!isAdmin) return;

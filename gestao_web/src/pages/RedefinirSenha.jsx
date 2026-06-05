@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { rotaPorPerfil } from '../lib/navigation';
 import { showToast } from '../components/shared/Toast';
 
 export default function RedefinirSenha() {
@@ -13,10 +14,18 @@ export default function RedefinirSenha() {
   async function handleUpdatePassword(e) {
     e.preventDefault();
     
-    if (novaSenha.length < 6) {
-      showToast.error("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
+    // ✅ Correto — mínimo 8, com indicador de força
+const SENHA_MIN = 8;
+if (novaSenha.length < SENHA_MIN) {
+  showToast.error(`A senha deve ter pelo menos ${SENHA_MIN} caracteres.`);
+  return;
+}
+// Opcional: verificar presença de número e letra maiúscula
+const temVariedade = /[A-Z]/.test(novaSenha) && /[0-9]/.test(novaSenha);
+if (!temVariedade) {
+  showToast.error('Use ao menos uma letra maiúscula e um número.');
+  return;
+}
 
     if (novaSenha !== confirmarSenha) {
       showToast.error("As senhas não coincidem.");
@@ -30,7 +39,7 @@ export default function RedefinirSenha() {
       if (error) throw error;
 
       const { data: { user } } = await supabase.auth.getUser();
-      let rotaDestino = '/dashboard';
+      let rotaDestino = rotaPorPerfil(null); // fallback seguro
 
       if (user) {
         const { data: alunoData } = await supabase
@@ -41,7 +50,7 @@ export default function RedefinirSenha() {
 
         if (alunoData) {
           await supabase.from('alunos').update({ primeiro_acesso: false }).eq('auth_id', user.id);
-          rotaDestino = alunoData.role === 'admin' ? '/dashboard' : '/area-aluno';
+          rotaDestino = rotaPorPerfil(alunoData.role);
         } else {
           const { data: profData } = await supabase
             .from('professores')
@@ -50,7 +59,7 @@ export default function RedefinirSenha() {
             .maybeSingle();
 
           if (profData) {
-            rotaDestino = '/agenda';
+            rotaDestino = rotaPorPerfil('professor');
           }
         }
       }

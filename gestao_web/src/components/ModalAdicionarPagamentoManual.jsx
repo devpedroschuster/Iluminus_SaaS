@@ -97,7 +97,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         payload.modalidade_nome = form.modalidade_nome;
       }
 
-      await financeiroService.adicionarPagamentoManual(payload);
+      const resultado = await financeiroService.adicionarPagamentoManual(payload);
 
       // Toast contextual de sucesso
       const nomeExibicao = isVisitante
@@ -105,6 +105,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         : alunos.find(a => a.id === form.aluno_id)?.nome_completo?.split(' ')[0] || 'Aluno';
 
       showToast.success(`✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
+
+      if (resultado._avisoRepasse) {
+        // Aviso em toast separado — não substitui a confirmação de sucesso
+        setTimeout(() => showToast.warning(`⚠️ ${resultado._avisoRepasse}`), 600);
+      }
+
       onSucesso();
       onClose();
     } catch (error) {

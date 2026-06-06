@@ -30,6 +30,7 @@ export function useGradeMutations({ onSuccess }) {
         valor_por_aluno: Number(novaAula.valorPorAluno) || 0,
         cor: novaAula.cor || 'laranja',
         ativa: true,
+        duracao_minutos: Number(novaAula.duracaoMinutos) || 60,
       };
 
       if (novaAula.id) {

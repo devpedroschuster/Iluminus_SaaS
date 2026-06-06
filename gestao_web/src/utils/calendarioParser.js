@@ -1,4 +1,4 @@
-import { format, eachDayOfInterval } from 'date-fns';
+import { format, eachDayOfInterval, addMinutes } from 'date-fns';
 
 export const DIAS_MAPA = { 
   'domingo': 0, 
@@ -36,10 +36,10 @@ export function buildPresencasIndex(presencasCalendario) {
     const nomeExibicao = p.nome_visitante || p.alunos?.nome_completo;
     if (nomeExibicao) {
       map[key].push({
-      nome: nomeExibicao,
-      isLead: !!p.nome_visitante
-  });
-}
+        nome: nomeExibicao,
+        isLead: !!p.nome_visitante
+      });
+    }
   });
   return map;
 }
@@ -49,12 +49,12 @@ export function buildFixosIndex(matriculasFixas) {
   matriculasFixas.forEach(m => {
     if (!map[m.aula_id]) map[m.aula_id] = [];
     if (m.alunos?.nome_completo) {
-        map[m.aula_id].push({ 
-            id: m.alunos.id, 
-            nome: m.alunos.nome_completo,
-            inicio: extrairDataLocal(m.alunos.data_inicio_plano), 
-            fim: extrairDataLocal(m.alunos.data_fim_plano)
-        });
+      map[m.aula_id].push({ 
+        id: m.alunos.id, 
+        nome: m.alunos.nome_completo,
+        inicio: extrairDataLocal(m.alunos.data_inicio_plano), 
+        fim: extrairDataLocal(m.alunos.data_fim_plano)
+      });
     }
   });
   return map;
@@ -84,10 +84,10 @@ function compilarAlunosAgendados(aulaId, dataStr, todosFixosDaTurma, indexes) {
     const isVencido = aluno.fim && dataStr > aluno.fim;
     const nomeFormatado = isVencido ? `⚠️ ${aluno.nome}` : aluno.nome;
     return { 
-        nome: nomeFormatado, 
-        isLead: false 
-      };
-    });
+      nome: nomeFormatado, 
+      isLead: false 
+    };
+  });
 
   const alunosAvulsos = presencasMap[`${aulaId}-${dataStr}`] || [];
   const listaCompleta = [...fixosPresentesHoje, ...alunosAvulsos];
@@ -109,6 +109,7 @@ export function expandirRecorrencia(aula, inicioVisivel, fimVisivel, feriados, i
   if (diaAlvo === undefined) return [];
 
   const [hora, minuto] = aula.horario.split(':').map(Number);
+  const duracaoMin = aula.duracao_minutos ?? 60;
   const todosFixosDaTurma = indexes.fixasMap[aula.id] || [];
 
   const diasNoPeriodo = eachDayOfInterval({ start: inicioVisivel, end: fimVisivel });
@@ -122,8 +123,7 @@ export function expandirRecorrencia(aula, inicioVisivel, fimVisivel, feriados, i
       const inicio = new Date(dataIterador);
       inicio.setHours(hora, minuto, 0, 0);
       
-      const fim = new Date(inicio);
-      fim.setHours(hora + 1, minuto, 0, 0);
+      const fim = addMinutes(inicio, duracaoMin);
 
       eventos.push({
         idUnico: `${aula.id}-${dataStr}`, 
@@ -145,10 +145,10 @@ export function expandirEventoUnico(aula, feriados, indexes) {
 
   const [ano, mes, dia] = aula.data_especifica.split('-');
   const [hora, minuto] = aula.horario.split(':').map(Number);
+  const duracaoMin = aula.duracao_minutos ?? 60;
   
   const inicio = new Date(ano, mes - 1, dia, hora, minuto, 0, 0);
-  const fim = new Date(inicio);
-  fim.setHours(hora + 1, minuto, 0, 0);
+  const fim = addMinutes(inicio, duracaoMin);
 
   const todosFixosDaTurma = indexes.fixasMap[aula.id] || [];
 

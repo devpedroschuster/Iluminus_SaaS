@@ -1,8 +1,19 @@
-import React from 'react';
-import { Dumbbell, Music, Palette, RefreshCw, CalendarDays, Type } from 'lucide-react';
+import React, { useState } from 'react';
+import { Dumbbell, Music, Palette, RefreshCw, Type, Clock } from 'lucide-react';
 import { DIAS_SEMANA, PALETA_CORES } from '../../../lib/constants';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+
+const OPCOES_DURACAO = [
+  { label: '30 min', value: 30 },
+  { label: '45 min', value: 45 },
+  { label: '1h',     value: 60 },
+  { label: '1h 30',  value: 90 },
+  { label: '2h',     value: 120 },
+  { label: 'Outro',  value: 'custom' },
+];
+
+const PRESETS = OPCOES_DURACAO.filter(o => o.value !== 'custom').map(o => o.value);
 
 export default function ModalNovaAula({
   novaAula, setNovaAula, modalidades, professores, savingAula, salvarAula
@@ -25,12 +36,26 @@ export default function ModalNovaAula({
     setNovaAula({
       ...novaAula,
       ehRecorrente,
-      // Limpa campos exclusivos de cada modo ao trocar
       modalidadeId: '',
       atividade: '',
       professorId: '',
       dataEspecifica: ehRecorrente ? '' : novaAula.dataEspecifica,
     });
+  };
+
+  const duracaoAtual = novaAula.duracaoMinutos ?? 60;
+  const [usandoCustom, setUsandoCustom] = useState(() => !PRESETS.includes(Number(duracaoAtual)));
+
+  const selecaoPreset = usandoCustom ? 'custom' : duracaoAtual;
+
+  const handlePresetChange = (val) => {
+    if (val === 'custom') {
+      setUsandoCustom(true);
+      setNovaAula({ ...novaAula, duracaoMinutos: '' });
+    } else {
+      setUsandoCustom(false);
+      setNovaAula({ ...novaAula, duracaoMinutos: Number(val) });
+    }
   };
 
   return (
@@ -63,7 +88,6 @@ export default function ModalNovaAula({
       </div>
 
       {novaAula.ehRecorrente ? (
-        /* ── CAMPOS EXCLUSIVOS: AULA RECORRENTE ── */
         <>
           {/* Modalidade */}
           <Input
@@ -106,9 +130,7 @@ export default function ModalNovaAula({
           </div>
         </>
       ) : (
-        /* ── CAMPOS EXCLUSIVOS: EVENTO ÚNICO ── */
         <>
-          {/* Nome livre do evento */}
           <div>
             <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1">
               <Type size={14} /> Nome do Evento
@@ -124,7 +146,7 @@ export default function ModalNovaAula({
         </>
       )}
 
-      {/* ── ESPAÇO (comum aos dois modos) ── */}
+      {/* ESPAÇO */}
       <div>
         <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Espaço</label>
         <div className="grid grid-cols-2 gap-3">
@@ -133,14 +155,9 @@ export default function ModalNovaAula({
               ? 'bg-warning-soft text-warning border-warning/20 shadow-sm'
               : 'border-border text-muted-foreground hover:bg-subtle'
           }`}>
-            <input
-              type="radio"
-              name="espaco"
-              value="funcional"
-              className="sr-only"
+            <input type="radio" name="espaco" value="funcional" className="sr-only"
               checked={novaAula.espaco === 'funcional'}
-              onChange={e => setNovaAula({ ...novaAula, espaco: e.target.value })}
-            />
+              onChange={e => setNovaAula({ ...novaAula, espaco: e.target.value })} />
             <Dumbbell size={18} /> <span className="font-bold text-sm">Funcional</span>
           </label>
           <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${
@@ -148,20 +165,15 @@ export default function ModalNovaAula({
               ? 'bg-purple-soft text-purple border-purple/20 shadow-sm'
               : 'border-border text-muted-foreground hover:bg-subtle'
           }`}>
-            <input
-              type="radio"
-              name="espaco"
-              value="danca"
-              className="sr-only"
+            <input type="radio" name="espaco" value="danca" className="sr-only"
               checked={novaAula.espaco === 'danca'}
-              onChange={e => setNovaAula({ ...novaAula, espaco: e.target.value })}
-            />
+              onChange={e => setNovaAula({ ...novaAula, espaco: e.target.value })} />
             <Music size={18} /> <span className="font-bold text-sm">Dança</span>
           </label>
         </div>
       </div>
 
-      {/* ── DATA/DIA E HORÁRIO (comum aos dois modos) ── */}
+      {/* DATA/DIA E HORÁRIO */}
       <div className="grid grid-cols-2 gap-4">
         {novaAula.ehRecorrente ? (
           <Input
@@ -191,7 +203,46 @@ export default function ModalNovaAula({
         />
       </div>
 
-      {/* ── COR VISUAL (comum aos dois modos) ── */}
+      {/* DURAÇÃO DA AULA */}
+      <div>
+        <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1">
+          <Clock size={14} /> Duração da Aula
+        </label>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {OPCOES_DURACAO.map(opcao => (
+            <button
+              key={opcao.value}
+              type="button"
+              onClick={() => handlePresetChange(opcao.value)}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase transition-all border ${
+                selecaoPreset === opcao.value
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-muted text-muted-foreground border-border hover:bg-subtle'
+              }`}
+            >
+              {opcao.label}
+            </button>
+          ))}
+        </div>
+        {usandoCustom && (
+          <div className="flex items-center gap-2 mt-2">
+            <Input
+              type="number"
+              min="5"
+              max="480"
+              step="5"
+              placeholder="Ex: 75"
+              className="w-32 text-center font-bold"
+              value={novaAula.duracaoMinutos}
+              onChange={e => setNovaAula({ ...novaAula, duracaoMinutos: Number(e.target.value) || '' })}
+              required
+            />
+            <span className="text-sm text-muted-foreground font-medium">minutos</span>
+          </div>
+        )}
+      </div>
+
+      {/* COR VISUAL */}
       <div>
         <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1">
           <Palette size={14} /> Cor na Agenda
@@ -202,7 +253,7 @@ export default function ModalNovaAula({
               key={cor.id}
               type="button"
               onClick={() => setNovaAula({ ...novaAula, cor: cor.id })}
-              className={`w-8 h-8 rounded-full transition-all flex items-center justify-center border-2 flex-shrink-0 opacity-100 ${
+              className={`w-8 h-8 rounded-full transition-all flex items-center justify-center border-2 flex-shrink-0 ${
                 novaAula.cor === cor.id
                   ? 'border-foreground scale-110 shadow-sm'
                   : 'border-transparent hover:scale-110'
@@ -214,18 +265,10 @@ export default function ModalNovaAula({
         </div>
       </div>
 
-      {/* ── SUBMIT ── */}
-      <Button
-        type="submit"
-        variant="brand"
-        disabled={savingAula}
-        className="w-full font-black text-lg h-14 mt-4 gap-2"
-      >
-        {savingAula
-          ? <RefreshCw className="animate-spin" size={24} />
-          : (novaAula.ehRecorrente ? 'Criar Turma' : 'Agendar Evento')}
+      {/* SUBMIT */}
+      <Button type="submit" variant="brand" disabled={savingAula} className="w-full font-black text-lg h-14 mt-4 gap-2">
+        {savingAula ? <RefreshCw className="animate-spin" size={24} /> : (novaAula.ehRecorrente ? 'Criar Turma' : 'Agendar Evento')}
       </Button>
-
     </form>
   );
 }

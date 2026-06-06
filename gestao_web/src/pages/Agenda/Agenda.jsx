@@ -41,6 +41,7 @@ const INITIAL_FORM_STATE = {
   espaco: 'funcional',
   valorPorAluno: '',
   cor: 'laranja',
+  duracaoMinutos: 60, // padrão 1h
 };
 
 export default function Agenda() {
@@ -241,6 +242,7 @@ export default function Agenda() {
               espaco: d.espaco,
               valorPorAluno: d.valor_por_aluno || '',
               cor: d.cor,
+              duracaoMinutos: d.duracao_minutos ?? 60, // carrega duração salva ao editar
             });
             modais.novaAula.abrir();
           }}

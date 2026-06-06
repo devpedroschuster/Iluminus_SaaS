@@ -39,20 +39,20 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   };
 
   const handlePlanoChange = (e) => {
-    const planoId = e.target.value;
-    const planoSelecionado = planos.find(p => p.id === planoId);
+  const planoId = e.target.value;
+  const planoSelecionado = planos.find(p => p.id === Number(planoId));
     
     if (planoSelecionado) {
-      setForm({
-        ...form,
-        plano_id: planoId,
-        valor_pago: planoSelecionado.preco,
-        data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
-      });
-    } else {
-      setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
-    }
-  };
+    setForm({
+      ...form,
+      plano_id: planoId,
+      valor_pago: planoSelecionado.preco,
+      data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
+    });
+  } else {
+    setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -102,14 +102,16 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
               leftIcon={<Calendar size={18} />}
               value={form.data_inicio}
               onChange={e => {
-                const novaDataInicio = e.target.value;
-                const planoSelecionado = planos.find(p => p.id === form.plano_id);
-                setForm({
-                  ...form, 
-                  data_inicio: novaDataInicio,
-                  data_fim: planoSelecionado ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses) : form.data_fim
-                });
-              }}
+  const novaDataInicio = e.target.value;
+  const planoSelecionado = planos.find(p => p.id === Number(form.plano_id)); // ← cast corrigido
+  setForm({
+    ...form,
+    data_inicio: novaDataInicio,
+    data_fim: planoSelecionado
+      ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses)
+      : form.data_fim
+  });
+}}
               required
             />
           </div>

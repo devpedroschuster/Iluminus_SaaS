@@ -57,6 +57,7 @@ export default function Presenca() {
   const [modo, setModo] = useState('chamada');
   const [alunos, setAlunos]       = useState([]);
   const [aulas, setAulas]         = useState([]);
+  const [todasAulas, setTodasAulas] = useState([]);
   const [presencas, setPresencas] = useState([]);
   const [loading, setLoading]     = useState(true);
 
@@ -72,6 +73,7 @@ export default function Presenca() {
   const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
   const [busca, setBusca]             = useState('');
   const [aulaSelecionada, setAulaSelecionada] = useState(null);
+  const [dataManual, setDataManual] = useState(() => new Date().toISOString().split('T')[0]);
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const modalQRCode   = useModal();
   const modalDetalhes = useModal();
@@ -90,7 +92,7 @@ export default function Presenca() {
         .eq('role', 'aluno')
         .order('nome_completo');
 
-      // Aulas de hoje
+      // Aulas para o período selecionado (usado no relatório/filtros)
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
 const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
 
@@ -105,7 +107,18 @@ if (filtros.periodo === 'hoje') {
   aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
 }
 
-const { data: aulasData } = await aulasQuery;
+// Todas as aulas ativas — usado no seletor manual da Chamada Rápida
+const todasAulasQuery = supabase
+  .from('agenda')
+  .select('id, atividade, horario, dia_semana')
+  .eq('ativa', true)
+  .order('dia_semana')
+  .order('horario');
+
+const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
+  aulasQuery,
+  todasAulasQuery,
+]);
 
       const { inicio, fim } = obterPeriodo(filtros.periodo);
       const { data: presencasData } = await supabase
@@ -117,6 +130,7 @@ const { data: aulasData } = await aulasQuery;
 
       setAlunos(alunosData || []);
       setAulas(aulasData || []);
+      setTodasAulas(todasAulasData || []);
       setPresencas(presencasData || []);
 
       const aulaEmCurso = (aulasData || []).find(aulaEmAndamento) || null;
@@ -245,28 +259,31 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
   }
 
   // ─── check-in ─────────────────────────────────────────────────────────────
-  async function realizarCheckin(aluno, aulaId = null) {
+  // DEPOIS
+async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
   setLoadingCheckin(aluno.id);
+  // dataRef: string 'YYYY-MM-DD' — hoje por padrão, ou data retroativa
+  const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+  // data_checkin: meio-dia da data escolhida para evitar off-by-one de fuso
+  const dataCheckin = dataRef
+    ? `${dataRef}T12:00:00.000Z`
+    : new Date().toISOString();
   try {
     const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
 
     if (agendadoId) {
-      // Confirma agendamento existente — UPDATE pontual, sem risco de duplicata
       const { error } = await supabase
         .from('presencas')
-        .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
+        .update({ tipo: 'aula', data_checkin: dataCheckin })
         .eq('id', agendadoId);
       if (error) throw error;
     } else {
-      // INSERT atômico: a constraint única (aluno_id, aula_id, data_aula) no banco
-      // garante que dois cliques simultâneos não criem duas linhas.
-      // ignoreDuplicates:true suprime o erro quando a linha já existe.
       const payload = {
-        aluno_id:    aluno.id,
-        aula_id:     aulaId,
-        tipo:        aulaId ? 'aula' : 'livre',
-        data_checkin: new Date().toISOString(),
-        ...(aulaId ? { data_aula: new Date().toISOString().split('T')[0] } : {}),
+        aluno_id:     aluno.id,
+        aula_id:      aulaId,
+        tipo:         aulaId ? 'aula' : 'livre',
+        data_checkin: dataCheckin,
+        ...(aulaId ? { data_aula: dataAula } : {}),
       };
 
       const { error } = await supabase
@@ -526,24 +543,39 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
           )}
 
           {/* Seletor de aula manual — exibido somente quando não há aula em andamento automática */}
-          {!loading && !aulaAtiva && aulas.length > 0 && (
-            <Surface variant="card" padding="md" className="rounded-[20px]">
-              <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                Registrar para qual aula?
-              </Label>
-              <Input
-                as="select"
-                value={aulaSelecionada ?? ''}
-                onChange={e => setAulaSelecionada(e.target.value || null)}
-                className="bg-card"
-              >
-                <option value="">— Treino Livre (sem vínculo de aula) —</option>
-                {aulas.map(a => (
-                  <option key={a.id} value={a.id}>
-                    {a.atividade} · {a.horario}
-                  </option>
-                ))}
-              </Input>
+          // DEPOIS
+          {!loading && !aulaAtiva && todasAulas.length > 0 && (
+            <Surface variant="card" padding="md" className="rounded-[20px] space-y-3">
+              <div>
+                <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Registrar para qual aula?
+                </Label>
+                <Input
+                  as="select"
+                  value={aulaSelecionada ?? ''}
+                  onChange={e => setAulaSelecionada(e.target.value || null)}
+                  className="bg-card"
+                >
+                  <option value="">— Treino Livre (sem vínculo de aula) —</option>
+                  {todasAulas.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.dia_semana} · {a.atividade} · {a.horario}
+                    </option>
+                  ))}
+                </Input>
+              </div>
+              <div>
+                <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Data da presença
+                </Label>
+                <Input
+                  type="date"
+                  value={dataManual}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => setDataManual(e.target.value)}
+                  className="bg-card w-auto"
+                />
+              </div>
             </Surface>
           )}
 
@@ -607,7 +639,7 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
               size="sm"
               variant="brand"
               disabled={loadingCheckin === aluno.id}
-              onClick={() => realizarCheckin(aluno, aulaEmUso)}
+              onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
             >
               Confirmar
             </Button>
@@ -653,7 +685,7 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
                         isDaAula={alunosFixosDaAula.has(aluno.id)}
                         aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
                         loadingId={loadingCheckin}
-                        onCheckin={realizarCheckin}
+                        onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
                       />
@@ -677,7 +709,7 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
                         isDaAula={alunosFixosDaAula.has(aluno.id)}
                         aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
                         loadingId={loadingCheckin}
-                        onCheckin={realizarCheckin}
+                        onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
                       />

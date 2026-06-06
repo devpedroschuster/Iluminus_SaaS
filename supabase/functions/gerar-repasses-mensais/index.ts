@@ -1,7 +1,10 @@
 // supabase/functions/gerar-repasses-mensais/index.ts
 //
-// Gera repasses para todos os professores com base nos alunos
-// MATRICULADOS nas suas modalidades — independente de pagamento.
+// Gera repasses para todos os professores com base nos alunos MATRICULADOS.
+//
+// Lógica por tipo de plano:
+//   - Regular   → valor fixo por modalidade matriculada (cfg.valor_1_modalidade / valor_multi_modalidade)
+//   - Plano Livre → 50% casa + 50% dividido entre as modalidades FREQUENTADAS no mês (via presencas)
 //
 // Chamada manual via: supabase.functions.invoke('gerar-repasses-mensais', { body: { mes, ano } })
 
@@ -34,7 +37,13 @@ interface Professor {
 interface Aluno {
   id: string;
   nome_completo: string;
+  plano_id: string | null;
   modalidades_selecionadas: string[];
+}
+
+interface Plano {
+  id: string;
+  is_plano_livre: boolean;
 }
 
 interface ResumoProf {
@@ -46,6 +55,8 @@ interface ResumoProf {
 interface ConfigRepasse {
   valor_1_modalidade: number;
   valor_multi_modalidade: number;
+  plano_livre_pct_casa: number;
+  plano_livre_pct_prof: number;
 }
 
 serve(async (req: Request) => {
@@ -67,6 +78,11 @@ serve(async (req: Request) => {
     const mesStr = String(mes).padStart(2, '0');
     const dataReferencia = `${ano}-${mesStr}-01`;
 
+    // Período completo do mês
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const inicioPeriodo = `${ano}-${mesStr}-01`;
+    const fimPeriodo = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
+
     // ── 1. Previne dupla geração no mesmo mês ───────────────────────────────
     const { data: jaExistem } = await supabase
       .from('repasses_lancamentos')
@@ -84,7 +100,7 @@ serve(async (req: Request) => {
     // ── 2. Configurações de repasse ─────────────────────────────────────────
     const { data: config, error: errConfig } = await supabase
       .from('configuracoes_repasse')
-      .select('valor_1_modalidade, valor_multi_modalidade')
+      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof')
       .single();
 
     if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
@@ -118,10 +134,20 @@ serve(async (req: Request) => {
       mapaProfs.set(p.id, p.nome);
     }
 
-    // ── 5. Alunos ativos com modalidades definidas ──────────────────────────
+    // ── 5. Planos — identifica quais são "plano livre" ──────────────────────
+    const { data: planosRaw } = await supabase
+      .from('planos')
+      .select('id, is_plano_livre');
+
+    const mapaPlanos = new Map<string, boolean>();
+    for (const p of (planosRaw ?? []) as Plano[]) {
+      mapaPlanos.set(p.id, p.is_plano_livre === true);
+    }
+
+    // ── 6. Alunos ativos com modalidades definidas ──────────────────────────
     const { data: alunosRaw, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, nome_completo, modalidades_selecionadas')
+      .select('id, nome_completo, plano_id, modalidades_selecionadas')
       .eq('ativo', true)
       .not('modalidades_selecionadas', 'is', null);
 
@@ -135,7 +161,33 @@ serve(async (req: Request) => {
       return response({ aviso: 'Nenhum aluno ativo com modalidades vinculadas.', gerados: 0 });
     }
 
-    // ── 6. Calcula repasses por aluno ───────────────────────────────────────
+    // ── 7. Presenças do mês (apenas com aula_id — vinculadas a modalidade) ──
+    //    Necessário para calcular repasse do plano livre.
+    const { data: presencasRaw } = await supabase
+      .from('presencas')
+      .select(`
+        aluno_id,
+        agenda (
+          modalidade_id
+        )
+      `)
+      .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
+      .lte('data_checkin', `${fimPeriodo}T23:59:59`)
+      .not('aula_id', 'is', null);
+
+    // Mapa: aluno_id → Set de modalidade_ids frequentadas no mês
+    const presencasPorAluno = new Map<string, Set<string>>();
+    for (const p of presencasRaw ?? []) {
+      const modId = p.agenda?.modalidade_id;
+      if (!p.aluno_id || !modId) continue;
+
+      if (!presencasPorAluno.has(p.aluno_id)) {
+        presencasPorAluno.set(p.aluno_id, new Set());
+      }
+      presencasPorAluno.get(p.aluno_id)!.add(modId);
+    }
+
+    // ── 8. Calcula repasses por aluno ───────────────────────────────────────
     const itens: {
       professor_id: string;
       aluno_id: string;
@@ -148,29 +200,84 @@ serve(async (req: Request) => {
     const avisos: string[] = [];
 
     for (const aluno of alunosComMods) {
-      const modIds = [...new Set(aluno.modalidades_selecionadas)];
-      const modValidas = modIds.filter((id: string) => mapaMods.has(id));
+      const isLivre = aluno.plano_id ? (mapaPlanos.get(aluno.plano_id) ?? false) : false;
 
-      if (modValidas.length === 0) {
-        avisos.push(`"${aluno.nome_completo}" tem modalidades sem professor — ignorado.`);
-        continue;
-      }
+      if (isLivre) {
+        // ── PLANO LIVRE: usa modalidades FREQUENTADAS no mês ────────────────
+        const modidsFrequentadas = presencasPorAluno.get(aluno.id);
 
-      const valorPorMod =
-        modValidas.length === 1
-          ? Number(cfg.valor_1_modalidade)
-          : Number(cfg.valor_multi_modalidade);
+        if (!modidsFrequentadas || modidsFrequentadas.size === 0) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre) sem presenças no mês — sem repasse.`);
+          continue;
+        }
 
-      for (const modId of modValidas) {
-        const mod = mapaMods.get(modId)!;
-        itens.push({
-          professor_id: mod.professor_id,
-          aluno_id: aluno.id,
-          tipo_aula: 'regular',
-          modalidade: mod.nome,
-          valor: valorPorMod,
-          data_referencia: dataReferencia,
-        });
+        // Filtra para modalidades que têm professor vinculado
+        const modsLivreValidas: Modalidade[] = [];
+        for (const modId of modidsFrequentadas) {
+          const mod = mapaMods.get(modId);
+          if (mod) modsLivreValidas.push(mod);
+        }
+
+        if (modsLivreValidas.length === 0) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre): modalidades frequentadas sem professor — sem repasse.`);
+          continue;
+        }
+
+        // Busca o preço do plano diretamente
+const { data: plano } = await supabase
+  .from('planos')
+  .select('preco')
+  .eq('id', aluno.plano_id)
+  .single();
+
+if (!plano?.preco) {
+  avisos.push(`"${aluno.nome_completo}" (plano livre): plano sem preço definido — sem repasse.`);
+  continue;
+}
+
+const valorTotal = Number(plano.preco);
+
+        const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
+        const parteProfs = valorTotal * pctProf;
+        const valorPorMod = parteProfs / modsLivreValidas.length;
+
+        for (const mod of modsLivreValidas) {
+          itens.push({
+            professor_id: mod.professor_id,
+            aluno_id: aluno.id,
+            tipo_aula: 'plano_livre',
+            modalidade: mod.nome,
+            valor: Math.round(valorPorMod * 100) / 100,
+            data_referencia: dataReferencia,
+          });
+        }
+
+      } else {
+        // ── REGULAR: usa modalidades MATRICULADAS ───────────────────────────
+        const modIds = [...new Set(aluno.modalidades_selecionadas)];
+        const modValidas = modIds.filter((id: string) => mapaMods.has(id));
+
+        if (modValidas.length === 0) {
+          avisos.push(`"${aluno.nome_completo}" tem modalidades sem professor — ignorado.`);
+          continue;
+        }
+
+        const valorPorMod =
+          modValidas.length === 1
+            ? Number(cfg.valor_1_modalidade)
+            : Number(cfg.valor_multi_modalidade);
+
+        for (const modId of modValidas) {
+          const mod = mapaMods.get(modId)!;
+          itens.push({
+            professor_id: mod.professor_id,
+            aluno_id: aluno.id,
+            tipo_aula: 'regular',
+            modalidade: mod.nome,
+            valor: valorPorMod,
+            data_referencia: dataReferencia,
+          });
+        }
       }
     }
 
@@ -182,14 +289,14 @@ serve(async (req: Request) => {
       });
     }
 
-    // ── 7. Insere em lote ───────────────────────────────────────────────────
+    // ── 9. Insere em lote ───────────────────────────────────────────────────
     const { error: errInsert } = await supabase
       .from('repasses_lancamentos')
       .insert(itens);
 
     if (errInsert) throw errInsert;
 
-    // ── 8. Resumo por professor ─────────────────────────────────────────────
+    // ── 10. Resumo por professor ────────────────────────────────────────────
     const resumoMap = new Map<string, ResumoProf>();
     for (const item of itens) {
       const nome = mapaProfs.get(item.professor_id) ?? 'Professor';

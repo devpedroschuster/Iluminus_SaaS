@@ -117,7 +117,7 @@ export default function Financeiro() {
     setPagamentoSelecionado(mensalidade);
     setValorPago(mensalidade.planos?.preco?.toString() || '');
     setFormaPagamento('');
-    setTipoAula('regular');
+    setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
     setProfessorId('');
     setModalidadeNome('');
     modalPagamento.abrir();
@@ -538,6 +538,10 @@ export default function Financeiro() {
                 as="select"
                 value={tipoAula}
                 onChange={(e) => setTipoAula(e.target.value)}
+                disabled={!!pagamentoSelecionado?.planos?.is_plano_livre}
+                title={pagamentoSelecionado?.planos?.is_plano_livre
+                  ? 'Plano livre: tipo definido automaticamente'
+                  : undefined}
               >
                 {TIPOS_AULA.map(t => (
                   <option key={t.valor} value={t.valor}>{t.label}</option>

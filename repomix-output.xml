@@ -211,6 +211,8 @@ supabase/.gitignore
 supabase/config.toml
 supabase/functions/gerar-mensalidades/config.toml
 supabase/functions/gerar-mensalidades/index.ts
+supabase/functions/gerar-repasses-mensais/deno.json
+supabase/functions/gerar-repasses-mensais/index.ts
 supabase/functions/gerar-repasses/index.ts
 supabase/functions/lembretes-aula/.npmrc
 supabase/functions/lembretes-aula/deno.json
@@ -658,6 +660,38 @@ module.exports = defineConfig([
 ]);
 </file>
 
+<file path="app_mobile/google-services.json">
+{
+  "project_info": {
+    "project_number": "1093765959372",
+    "project_id": "app-iluminus",
+    "storage_bucket": "app-iluminus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093765959372:android:fe60d3ab5462dab473fc69",
+        "android_client_info": {
+          "package_name": "GestaoStudioApp.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0GlecynwpO9Fk76-roEIjb4HO6I2se6k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+</file>
+
 <file path="app_mobile/hooks/use-color-scheme.ts">
 export { useColorScheme } from 'react-native';
 </file>
@@ -982,6 +1016,433 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 </file>
 
+<file path="supabase/.gitignore">
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+</file>
+
+<file path="supabase/config.toml">
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+# A string used to distinguish different Supabase projects on the same host. Defaults to the
+# working directory name when running `supabase init`.
+project_id = "Iluminus_SaaS"
+
+[api]
+enabled = true
+# Port to use for the API URL.
+port = 54321
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. `public` and `graphql_public` schemas are included by default.
+schemas = ["public", "graphql_public"]
+# Extra schemas to add to the search_path of every request.
+extra_search_path = ["public", "extensions"]
+# The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
+# for accidental or malicious requests.
+max_rows = 1000
+
+[api.tls]
+# Enable HTTPS endpoints locally using a self-signed certificate.
+enabled = false
+# Paths to self-signed certificate pair.
+# cert_path = "../certs/my-cert.pem"
+# key_path = "../certs/my-key.pem"
+
+[db]
+# Port to use for the local database URL.
+port = 54322
+# Port used by db diff command to initialize the shadow database.
+shadow_port = 54320
+# Maximum amount of time to wait for health check when starting the local database.
+health_timeout = "2m"
+# The database major version to use. This has to be the same as your remote database's. Run `SHOW
+# server_version;` on the remote database to check.
+major_version = 17
+
+[db.pooler]
+enabled = false
+# Port to use for the local connection pooler.
+port = 54329
+# Specifies when a server connection can be reused by other clients.
+# Configure one of the supported pooler modes: `transaction`, `session`.
+pool_mode = "transaction"
+# How many server connections to allow per user/database pair.
+default_pool_size = 20
+# Maximum number of client connections allowed.
+max_client_conn = 100
+
+# [db.vault]
+# secret_key = "env(SECRET_VALUE)"
+
+[db.migrations]
+# If disabled, migrations will be skipped during a db push or reset.
+enabled = true
+# Specifies an ordered list of schema files that describe your database.
+# Supports glob patterns relative to supabase directory: "./schemas/*.sql"
+schema_paths = []
+
+[db.seed]
+# If enabled, seeds the database after migrations during a db reset.
+enabled = true
+# Specifies an ordered list of seed files to load during db reset.
+# Supports glob patterns relative to supabase directory: "./seeds/*.sql"
+sql_paths = ["./seed.sql"]
+
+[db.network_restrictions]
+# Enable management of network restrictions.
+enabled = false
+# List of IPv4 CIDR blocks allowed to connect to the database.
+# Defaults to allow all IPv4 connections. Set empty array to block all IPs.
+allowed_cidrs = ["0.0.0.0/0"]
+# List of IPv6 CIDR blocks allowed to connect to the database.
+# Defaults to allow all IPv6 connections. Set empty array to block all IPs.
+allowed_cidrs_v6 = ["::/0"]
+
+# Uncomment to reject non-secure connections to the database.
+# [db.ssl_enforcement]
+# enabled = true
+
+[realtime]
+enabled = true
+# Bind realtime via either IPv4 or IPv6. (default: IPv4)
+# ip_version = "IPv6"
+# The maximum length in bytes of HTTP request headers. (default: 4096)
+# max_header_length = 4096
+
+[studio]
+enabled = true
+# Port to use for Supabase Studio.
+port = 54323
+# External URL of the API server that frontend connects to.
+api_url = "http://127.0.0.1"
+# OpenAI API Key to use for Supabase AI in the Supabase Studio.
+openai_api_key = "env(OPENAI_API_KEY)"
+
+# Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
+# are monitored, and you can view the emails that would have been sent from the web interface.
+[inbucket]
+enabled = true
+# Port to use for the email testing server web interface.
+port = 54324
+# Uncomment to expose additional ports for testing user applications that send emails.
+# smtp_port = 54325
+# pop3_port = 54326
+# admin_email = "admin@email.com"
+# sender_name = "Admin"
+
+[storage]
+enabled = true
+# The maximum file size allowed (e.g. "5MB", "500KB").
+file_size_limit = "50MiB"
+
+# Uncomment to configure local storage buckets
+# [storage.buckets.images]
+# public = false
+# file_size_limit = "50MiB"
+# allowed_mime_types = ["image/png", "image/jpeg"]
+# objects_path = "./images"
+
+# Allow connections via S3 compatible clients
+[storage.s3_protocol]
+enabled = true
+
+# Image transformation API is available to Supabase Pro plan.
+# [storage.image_transformation]
+# enabled = true
+
+# Store analytical data in S3 for running ETL jobs over Iceberg Catalog
+# This feature is only available on the hosted platform.
+[storage.analytics]
+enabled = false
+max_namespaces = 5
+max_tables = 10
+max_catalogs = 2
+
+# Analytics Buckets is available to Supabase Pro plan.
+# [storage.analytics.buckets.my-warehouse]
+
+# Store vector embeddings in S3 for large and durable datasets
+# This feature is only available on the hosted platform.
+[storage.vector]
+enabled = false
+max_buckets = 10
+max_indexes = 5
+
+# Vector Buckets is available to Supabase Pro plan.
+# [storage.vector.buckets.documents-openai]
+
+[auth]
+enabled = true
+# The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
+# in emails.
+site_url = "http://127.0.0.1:3000"
+# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+# How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
+jwt_expiry = 3600
+# JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
+# jwt_issuer = ""
+# Path to JWT signing key. DO NOT commit your signing keys file to git.
+# signing_keys_path = "./signing_keys.json"
+# If disabled, the refresh token will never expire.
+enable_refresh_token_rotation = true
+# Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
+# Requires enable_refresh_token_rotation = true.
+refresh_token_reuse_interval = 10
+# Allow/disallow new user signups to your project.
+enable_signup = true
+# Allow/disallow anonymous sign-ins to your project.
+enable_anonymous_sign_ins = false
+# Allow/disallow testing manual linking of accounts
+enable_manual_linking = false
+# Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
+minimum_password_length = 6
+# Passwords that do not meet the following requirements will be rejected as weak. Supported values
+# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
+password_requirements = ""
+
+[auth.rate_limit]
+# Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
+email_sent = 2
+# Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
+sms_sent = 30
+# Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
+anonymous_users = 30
+# Number of sessions that can be refreshed in a 5 minute interval per IP address.
+token_refresh = 150
+# Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
+sign_in_sign_ups = 30
+# Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
+token_verifications = 30
+# Number of Web3 logins that can be made in a 5 minute interval per IP address.
+web3 = 30
+
+# Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
+# [auth.captcha]
+# enabled = true
+# provider = "hcaptcha"
+# secret = ""
+
+[auth.email]
+# Allow/disallow new user signups via email to your project.
+enable_signup = true
+# If enabled, a user will be required to confirm any email change on both the old, and new email
+# addresses. If disabled, only the new email is required to confirm.
+double_confirm_changes = true
+# If enabled, users need to confirm their email address before signing in.
+enable_confirmations = false
+# If enabled, users will need to reauthenticate or have logged in recently to change their password.
+secure_password_change = false
+# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
+max_frequency = "1s"
+# Number of characters used in the email OTP.
+otp_length = 6
+# Number of seconds before the email OTP expires (defaults to 1 hour).
+otp_expiry = 3600
+
+# Use a production-ready SMTP server
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.sendgrid.net"
+# port = 587
+# user = "apikey"
+# pass = "env(SENDGRID_API_KEY)"
+# admin_email = "admin@email.com"
+# sender_name = "Admin"
+
+# Uncomment to customize email template
+# [auth.email.template.invite]
+# subject = "You have been invited"
+# content_path = "./supabase/templates/invite.html"
+
+# Uncomment to customize notification email template
+# [auth.email.notification.password_changed]
+# enabled = true
+# subject = "Your password has been changed"
+# content_path = "./templates/password_changed_notification.html"
+
+[auth.sms]
+# Allow/disallow new user signups via SMS to your project.
+enable_signup = false
+# If enabled, users need to confirm their phone number before signing in.
+enable_confirmations = false
+# Template for sending OTP to users
+template = "Your code is {{ .Code }}"
+# Controls the minimum amount of time that must pass before sending another sms otp.
+max_frequency = "5s"
+
+# Use pre-defined map of phone number to OTP for testing.
+# [auth.sms.test_otp]
+# 4152127777 = "123456"
+
+# Configure logged in session timeouts.
+# [auth.sessions]
+# Force log out after the specified duration.
+# timebox = "24h"
+# Force log out if the user has been inactive longer than the specified duration.
+# inactivity_timeout = "8h"
+
+# This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
+# [auth.hook.before_user_created]
+# enabled = true
+# uri = "pg-functions://postgres/auth/before-user-created-hook"
+
+# This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
+# [auth.hook.custom_access_token]
+# enabled = true
+# uri = "pg-functions://<database>/<schema>/<hook_name>"
+
+# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+[auth.sms.twilio]
+enabled = false
+account_sid = ""
+message_service_sid = ""
+# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
+auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+
+# Multi-factor-authentication is available to Supabase Pro plan.
+[auth.mfa]
+# Control how many MFA factors can be enrolled at once per user.
+max_enrolled_factors = 10
+
+# Control MFA via App Authenticator (TOTP)
+[auth.mfa.totp]
+enroll_enabled = false
+verify_enabled = false
+
+# Configure MFA via Phone Messaging
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+otp_length = 6
+template = "Your code is {{ .Code }}"
+max_frequency = "5s"
+
+# Configure MFA via WebAuthn
+# [auth.mfa.web_authn]
+# enroll_enabled = true
+# verify_enabled = true
+
+# Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
+# `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
+# `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+[auth.external.apple]
+enabled = false
+client_id = ""
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
+# or any other third-party OIDC providers.
+url = ""
+# If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
+skip_nonce_check = false
+# If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
+email_optional = false
+
+# Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
+# You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
+[auth.web3.solana]
+enabled = false
+
+# Use Firebase Auth as a third-party provider alongside Supabase Auth.
+[auth.third_party.firebase]
+enabled = false
+# project_id = "my-firebase-project"
+
+# Use Auth0 as a third-party provider alongside Supabase Auth.
+[auth.third_party.auth0]
+enabled = false
+# tenant = "my-auth0-tenant"
+# tenant_region = "us"
+
+# Use AWS Cognito (Amplify) as a third-party provider alongside Supabase Auth.
+[auth.third_party.aws_cognito]
+enabled = false
+# user_pool_id = "my-user-pool-id"
+# user_pool_region = "us-east-1"
+
+# Use Clerk as a third-party provider alongside Supabase Auth.
+[auth.third_party.clerk]
+enabled = false
+# Obtain from https://clerk.com/setup/supabase
+# domain = "example.clerk.accounts.dev"
+
+# OAuth server configuration
+[auth.oauth_server]
+# Enable OAuth server functionality
+enabled = false
+# Path for OAuth consent flow UI
+authorization_url_path = "/oauth/consent"
+# Allow dynamic client registration
+allow_dynamic_registration = false
+
+[edge_runtime]
+enabled = true
+# Supported request policies: `oneshot`, `per_worker`.
+# `per_worker` (default) — enables hot reload during local development.
+# `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
+policy = "per_worker"
+# Port to attach the Chrome inspector for debugging edge functions.
+inspector_port = 8083
+# The Deno major version to use.
+deno_version = 2
+
+# [edge_runtime.secrets]
+# secret_key = "env(SECRET_VALUE)"
+
+[analytics]
+enabled = true
+port = 54327
+# Configure one of the supported backends: `postgres`, `bigquery`.
+backend = "postgres"
+
+# Experimental features may be deprecated any time
+[experimental]
+# Configures Postgres storage engine to use OrioleDB (S3)
+orioledb_version = ""
+# Configures S3 bucket URL, eg. <bucket_name>.s3-<region>.amazonaws.com
+s3_host = "env(S3_HOST)"
+# Configures S3 bucket region, eg. us-east-1
+s3_region = "env(S3_REGION)"
+# Configures AWS_ACCESS_KEY_ID for S3 bucket
+s3_access_key = "env(S3_ACCESS_KEY)"
+# Configures AWS_SECRET_ACCESS_KEY for S3 bucket
+s3_secret_key = "env(S3_SECRET_KEY)"
+
+[functions.lembretes-aula]
+enabled = true
+verify_jwt = true
+import_map = "./functions/lembretes-aula/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/lembretes-aula/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/lembretes-aula/*.html" ]
+</file>
+
+<file path="supabase/functions/lembretes-aula/.npmrc">
+# Configuration for private npm package dependencies
+# For more information on using private registries with Edge Functions, see:
+# https://supabase.com/docs/guides/functions/import-maps#importing-from-private-registries
+</file>
+
+<file path="supabase/functions/lembretes-aula/deno.json">
+{
+  "imports": {
+    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+  }
+}
+</file>
+
 <file path=".hintrc">
 {
   "extends": [
@@ -1045,35 +1506,151 @@ app-example
 /android
 </file>
 
-<file path="app_mobile/google-services.json">
+<file path="app_mobile/app.json">
 {
-  "project_info": {
-    "project_number": "1093765959372",
-    "project_id": "app-iluminus",
-    "storage_bucket": "app-iluminus.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:1093765959372:android:fe60d3ab5462dab473fc69",
-        "android_client_info": {
-          "package_name": "GestaoStudioApp.com"
-        }
+  "expo": {
+    "name": "GestaoStudioApp",
+    "slug": "GestaoStudioApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gestaostudioapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "GestaoStudioApp.com",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "oauth_client": [],
-      "api_key": [
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
         {
-          "current_key": "AIzaSyA0GlecynwpO9Fk76-roEIjb4HO6I2se6k"
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
       ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "32ede90a-2246-43b1-905a-f273ca02ec56"
       }
     }
-  ],
-  "configuration_version": "1"
+  }
+}
+</file>
+
+<file path="app_mobile/eas.json">
+{
+  "cli": {
+    "version": ">= 18.0.6",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="app_mobile/package.json">
+{
+  "name": "gestaostudioapp",
+  "main": "node_modules/expo/AppEntry.js",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "@supabase/supabase-js": "^2.95.3",
+    "date-fns": "^4.1.0",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-dev-client": "~6.0.20",
+    "expo-device": "~8.0.10",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.16",
+    "expo-secure-store": "~15.0.8",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-modal": "^14.0.0-rc.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "react-native-dotenv": "^3.4.11",
+    "typescript": "~5.9.2"
+  },
+  "private": true
 }
 </file>
 
@@ -1330,6 +1907,621 @@ const styles = StyleSheet.create({
   errorSub: { fontSize: 14, color: '#8E8E8E', marginBottom: 20, textAlign: 'center' },
   btnTentar: { backgroundColor: '#F8F9FA', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5' },
   btnTentarTexto: { color: '#333', fontWeight: 'bold' },
+});
+</file>
+
+<file path="app_mobile/src/components/TelaLogin.js">
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { supabase } from "../services/supabase";
+
+export default function TelaLogin({ onLogado }) {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  
+  // Estados para feedback visual imediato
+  const [erroEmail, setErroEmail] = useState("");
+  const [erroSenha, setErroSenha] = useState("");
+
+  // Validador de E-mail usando Regex
+  const validarEmail = (texto) => {
+    setEmail(texto);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (texto.length > 0 && !emailRegex.test(texto)) {
+      setErroEmail("Por favor, insira um e-mail válido.");
+    } else {
+      setErroEmail("");
+    }
+  };
+
+  // Validador de Senha
+  const validarSenha = (texto) => {
+    setSenha(texto);
+    if (texto.length > 0 && texto.length < 6) {
+      setErroSenha("A senha deve ter no mínimo 6 caracteres.");
+    } else {
+      setErroSenha("");
+    }
+  };
+
+  async function handleLogin() {
+    if (!email || !senha) {
+      Alert.alert("Aviso", "Por favor, preencha seu e-mail e senha.");
+      return;
+    }
+
+    if (erroEmail || erroSenha) {
+      Alert.alert("Aviso", "Por favor, corrija os erros nos campos antes de continuar.");
+      return;
+    }
+
+    try {
+      setCarregando(true);
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: senha,
+      });
+
+      if (authError) throw authError;
+
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", authData.user.id)
+        .single();
+
+      if (alunoError || !aluno) {
+        throw new Error("Perfil de aluno não encontrado.");
+      }
+
+      onLogado(aluno);
+
+    } catch (error) {
+      console.error("Erro no login:", error);
+      Alert.alert(
+        "Falha no Login", 
+        error.message === "Invalid login credentials" 
+          ? "E-mail ou senha incorretos." 
+          : "Não foi possível conectar. Verifique sua internet."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.content}>
+        
+        {/* Cabeçalho */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>ILUMINUS</Text>
+          <Text style={styles.subtitle}>Espaço de Movimento</Text>
+        </View>
+
+        {/* Formulário */}
+        <View style={styles.form}>
+          <Text style={styles.label}>E-mail</Text>
+          <TextInput
+            style={[styles.input, erroEmail ? styles.inputErro : null]}
+            placeholder="Digite seu e-mail"
+            placeholderTextColor="#A0A0A0"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={validarEmail}
+          />
+          {/* Mensagem de Erro do E-mail */}
+          {erroEmail ? <Text style={styles.textoErro}>{erroEmail}</Text> : null}
+
+          <Text style={[styles.label, { marginTop: erroEmail ? 5 : 0 }]}>Senha</Text>
+          <TextInput
+            style={[styles.input, erroSenha ? styles.inputErro : null]}
+            placeholder="Digite sua senha"
+            placeholderTextColor="#A0A0A0"
+            secureTextEntry
+            value={senha}
+            onChangeText={validarSenha}
+          />
+          {/* Mensagem de Erro da Senha */}
+          {erroSenha ? <Text style={styles.textoErro}>{erroSenha}</Text> : null}
+
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              (carregando || erroEmail || erroSenha) && styles.buttonDisabled
+            ]} 
+            onPress={handleLogin}
+            disabled={carregando || !!erroEmail || !!erroSenha}
+          >
+            {carregando ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Acessar Agenda</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FDF8F5" },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30 },
+  
+  logoContainer: { alignItems: "center", marginBottom: 50 },
+  logoText: { fontSize: 36, fontWeight: "900", color: "#D98E73", letterSpacing: 2 },
+  subtitle: { fontSize: 14, color: "#8E8E8E", marginTop: 5, textTransform: "uppercase", letterSpacing: 1, fontWeight: "600" },
+  
+  form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
+  label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
+  
+  // Estilos de Input
+  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
+  inputErro: { borderColor: "#E07A5F", backgroundColor: "#FFF5F2", marginBottom: 5 },
+  
+  // Texto de Feedback
+  textoErro: { color: "#E07A5F", fontSize: 12, marginLeft: 5, marginBottom: 15, fontWeight: "600" },
+
+  button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
+});
+</file>
+
+<file path="app_mobile/src/components/TelaPerfil.js">
+import { format } from "date-fns";
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    Linking
+} from "react-native";
+import { supabase } from "../services/supabase";
+
+const cores = {
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  fundo: "#FDF8F5",
+  branco: "#FFFFFF",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  verde: "#10B981",
+  vermelho: "#EF4444",
+  amarelo: "#F59E0B",
+  whatsApp: "#25D366",
+  alertaFundo: "#FEF2F2",
+  alertaBorda: "#FCA5A5"
+};
+
+export default function TelaPerfil({ alunoId, onLogout }) {
+  const [perfil, setPerfil] = useState(null);
+  const [mensalidades, setMensalidades] = useState([]);
+  const [frequenciaMes, setFrequenciaMes] = useState(0);
+  const [carregando, setCarregando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const numeroWhatsApp = "5551994424348"; 
+
+  async function carregarDados() {
+    try {
+      setCarregando(true);
+
+      const { data: dadosAluno, error: errAluno } = await supabase
+        .from("alunos")
+        .select(`*, planos (nome, preco, frequencia_semanal)`)
+        .eq("id", alunoId)
+        .single();
+
+      if (errAluno) throw errAluno;
+      setPerfil(dadosAluno);
+
+      const { data: dadosFin, error: errFin } = await supabase
+        .from("mensalidades")
+        .select("*")
+        .eq("aluno_id", alunoId)
+        .order("data_vencimento", { ascending: false });
+
+      if (errFin && errFin.code !== '42P01') { 
+          throw errFin;
+      }
+      setMensalidades(dadosFin || []);
+
+      const { data: minhasPresencas } = await supabase
+        .from("presencas")
+        .select("*")
+        .eq("aluno_id", alunoId);
+
+      let countMes = 0;
+      if (minhasPresencas) {
+        const mesAtual = new Date().getMonth();
+        const anoAtual = new Date().getFullYear();
+        
+        minhasPresencas.forEach(p => {
+            const dataRaw = p.data_aula || p.data_checkin || p.created_at;
+            if (dataRaw) {
+                const dataAula = new Date(dataRaw);
+                if (dataAula.getMonth() === mesAtual && dataAula.getFullYear() === anoAtual) {
+                    countMes++;
+                }
+            }
+        });
+      }
+      setFrequenciaMes(countMes);
+      
+    } catch (error) {
+      Alert.alert("Aviso", "Algumas informações podem não ter sido carregadas.");
+      console.log("Erro ao carregar perfil:", error);
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarDados();
+  }, [alunoId]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    carregarDados();
+  };
+
+  // Funções de Status e Cores
+  const getStatusCor = (status, dataVencimento) => {
+    if (status === "pago") return cores.verde;
+    if (dataVencimento && new Date(dataVencimento) < new Date()) return cores.vermelho;
+    return cores.amarelo;
+  };
+
+  const getStatusTexto = (status, dataVencimento) => {
+    if (status === "pago") return "PAGO";
+    if (dataVencimento && new Date(dataVencimento) < new Date()) return "ATRASADO";
+    return "ABERTO";
+  };
+
+  const temMensalidadeAtrasada = mensalidades.some(m => {
+      if (m.status === "pago" || !m.data_vencimento) return false;
+      const hoje = new Date();
+      hoje.setHours(0,0,0,0);
+      return new Date(m.data_vencimento) < hoje;
+  });
+
+  // Função para abrir o WhatsApp
+  const abrirWhatsApp = (mensagem) => {
+      const url = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+      Linking.openURL(url).catch(() => {
+          Alert.alert("Erro", "Não foi possível abrir o WhatsApp. Verifique se o aplicativo está instalado.");
+      });
+  };
+
+  if (carregando && !refreshing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={cores.primaria} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      {/* Cabeçalho do Perfil */}
+      <View style={styles.header}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarTexto}>
+            {perfil?.nome_completo?.charAt(0).toUpperCase() || "A"}
+          </Text>
+        </View>
+        <Text style={styles.nome}>{perfil?.nome_completo}</Text>
+        <Text style={styles.email}>{perfil?.email}</Text>
+      </View>
+
+      {/* Alerta de Inadimplência */}
+      {temMensalidadeAtrasada && (
+        <View style={styles.alertaAtraso}>
+          <Text style={styles.alertaTitulo}>⚠️ Mensalidade Pendente</Text>
+          <Text style={styles.alertaTexto}>
+            Identificamos uma mensalidade em aberto. Para continuar agendando suas aulas sem interrupções, por favor, regularize sua situação.
+          </Text>
+          <TouchableOpacity 
+            style={styles.btnAlerta} 
+            onPress={() => abrirWhatsApp("Olá! Vi no aplicativo que tenho uma pendência. Como faço para regularizar minha mensalidade?")}
+          >
+            <Text style={styles.btnAlertaTexto}>Falar com a Recepção</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Card do Plano */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitulo}>Meu Plano</Text>
+        {perfil?.planos ? (
+          <View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Plano:</Text>
+              <Text style={styles.valor}>{perfil.planos.nome}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Frequência:</Text>
+              <Text style={styles.valor}>
+                {perfil.planos.frequencia_semanal}x na semana
+              </Text>
+            </View>
+            
+            {/* Exibição da Frequência do Mês */}
+            <View style={styles.row}>
+              <Text style={styles.label}>Aulas neste mês:</Text>
+              <Text style={styles.valorDestaque}>{frequenciaMes} presenças</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Valor:</Text>
+              <Text style={styles.valor}>
+                {Number(perfil.planos.preco || 0).toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Status:</Text>
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: perfil.ativo ? cores.verde : cores.vermelho },
+                ]}
+              >
+                <Text style={styles.badgeTexto}>
+                  {perfil.ativo ? "ATIVO" : "INATIVO"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.semPlano}>Nenhum plano vinculado.</Text>
+        )}
+      </View>
+
+      {/* Histórico Financeiro */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitulo}>Histórico Financeiro</Text>
+        {mensalidades.length === 0 ? (
+          <Text style={styles.semDados}>Nenhuma cobrança registrada.</Text>
+        ) : (
+          mensalidades.map((item) => (
+            <View key={item.id} style={[styles.itemFinanceiro, getStatusTexto(item.status, item.data_vencimento) === "ATRASADO" && styles.itemAtrasado]}>
+              <View>
+                <Text style={styles.mesRef}>Vencimento</Text>
+                <Text style={styles.dataVenc}>
+                  {item.data_vencimento ? format(new Date(item.data_vencimento), "dd/MM/yyyy") : "--/--/----"}
+                </Text>
+              </View>
+
+              <View style={styles.direitaItem}>
+                <Text
+                  style={[
+                    styles.statusTexto,
+                    { color: getStatusCor(item.status, item.data_vencimento) },
+                  ]}
+                >
+                  {getStatusTexto(item.status, item.data_vencimento)}
+                </Text>
+                {item.valor_pago && (
+                  <Text style={styles.valorPago}>
+                    Pg:{" "}
+                    {Number(item.valor_pago).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* Botão de Suporte WhatsApp */}
+      <TouchableOpacity 
+        style={styles.botaoWhatsApp} 
+        onPress={() => abrirWhatsApp("Olá, Espaço Iluminus! Preciso de ajuda com o meu aplicativo/plano.")}
+      >
+        <Text style={styles.iconeWhatsApp}>💬</Text>
+        <Text style={styles.textoWhatsApp}>Suporte via WhatsApp</Text>
+      </TouchableOpacity>
+
+      {/* Botão de Sair */}
+      <TouchableOpacity style={styles.botaoSair} onPress={onLogout}>
+        <Text style={styles.textoSair}>Sair do Aplicativo</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: cores.fundo },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  header: { alignItems: "center", paddingVertical: 30 },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: cores.secundaria,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  avatarTexto: { fontSize: 32, fontWeight: "bold", color: cores.branco },
+  nome: { fontSize: 22, fontWeight: "bold", color: cores.texto },
+  email: { fontSize: 14, color: cores.textoSuave },
+
+  // Estilos do Alerta de Atraso
+  alertaAtraso: {
+    backgroundColor: cores.alertaFundo,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.alertaBorda,
+  },
+  alertaTitulo: { color: cores.vermelho, fontWeight: "bold", fontSize: 16, marginBottom: 5 },
+  alertaTexto: { color: "#7F1D1D", fontSize: 13, marginBottom: 15, lineHeight: 18 },
+  btnAlerta: { backgroundColor: cores.vermelho, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
+  btnAlertaTexto: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
+
+  card: {
+    backgroundColor: cores.branco,
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#F0E0D6",
+    marginBottom: 25,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+  },
+  cardTitulo: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: cores.primaria,
+    marginBottom: 15,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  label: { fontSize: 14, color: cores.textoSuave },
+  valor: { fontSize: 15, fontWeight: "600", color: cores.texto },
+  valorDestaque: { fontSize: 15, fontWeight: "bold", color: cores.secundaria },
+  semPlano: { fontStyle: "italic", color: cores.textoSuave },
+
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  badgeTexto: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
+
+  section: { paddingHorizontal: 20 },
+  sectionTitulo: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 15,
+  },
+  semDados: { color: cores.textoSuave, textAlign: "center", marginTop: 10 },
+
+  itemFinanceiro: {
+    backgroundColor: cores.branco,
+    padding: 15,
+    borderRadius: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#F0E0D6",
+  },
+  itemAtrasado: {
+      backgroundColor: cores.alertaFundo,
+      borderColor: cores.alertaBorda,
+  },
+  mesRef: { fontSize: 10, color: cores.textoSuave, textTransform: "uppercase" },
+  dataVenc: { fontSize: 16, fontWeight: "bold", color: cores.texto },
+  direitaItem: { alignItems: "flex-end" },
+  statusTexto: { fontWeight: "bold", fontSize: 12 },
+  valorPago: { fontSize: 10, color: cores.textoSuave, marginTop: 2 },
+
+  // Estilos do Botão WhatsApp
+  botaoWhatsApp: {
+    marginHorizontal: 20,
+    marginTop: 25,
+    marginBottom: 5,
+    padding: 16,
+    backgroundColor: cores.whatsApp,
+    borderRadius: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  iconeWhatsApp: { fontSize: 18, marginRight: 8 },
+  textoWhatsApp: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+
+  botaoSair: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 16,
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    borderRadius: 15,
+    alignItems: "center",
+  },
+  textoSair: { color: cores.vermelho, fontWeight: "bold" },
+});
+</file>
+
+<file path="app_mobile/src/services/supabase.js">
+import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
+const ExpoSecureStoreAdapter = {
+  getItem: (key) => {
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: (key, value) => {
+    SecureStore.setItemAsync(key, value);
+  },
+  removeItem: (key) => {
+    SecureStore.deleteItemAsync(key);
+  },
+};
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: Platform.OS === 'web' ? localStorage : ExpoSecureStoreAdapter,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
 });
 </file>
 
@@ -26189,419 +27381,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 }
 </file>
 
-<file path="supabase/.gitignore">
-# Supabase
-.branches
-.temp
-
-# dotenvx
-.env.keys
-.env.local
-.env.*.local
-</file>
-
-<file path="supabase/config.toml">
-# For detailed configuration reference documentation, visit:
-# https://supabase.com/docs/guides/local-development/cli/config
-# A string used to distinguish different Supabase projects on the same host. Defaults to the
-# working directory name when running `supabase init`.
-project_id = "Iluminus_SaaS"
-
-[api]
-enabled = true
-# Port to use for the API URL.
-port = 54321
-# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
-# endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public"]
-# Extra schemas to add to the search_path of every request.
-extra_search_path = ["public", "extensions"]
-# The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
-# for accidental or malicious requests.
-max_rows = 1000
-
-[api.tls]
-# Enable HTTPS endpoints locally using a self-signed certificate.
-enabled = false
-# Paths to self-signed certificate pair.
-# cert_path = "../certs/my-cert.pem"
-# key_path = "../certs/my-key.pem"
-
-[db]
-# Port to use for the local database URL.
-port = 54322
-# Port used by db diff command to initialize the shadow database.
-shadow_port = 54320
-# Maximum amount of time to wait for health check when starting the local database.
-health_timeout = "2m"
-# The database major version to use. This has to be the same as your remote database's. Run `SHOW
-# server_version;` on the remote database to check.
-major_version = 17
-
-[db.pooler]
-enabled = false
-# Port to use for the local connection pooler.
-port = 54329
-# Specifies when a server connection can be reused by other clients.
-# Configure one of the supported pooler modes: `transaction`, `session`.
-pool_mode = "transaction"
-# How many server connections to allow per user/database pair.
-default_pool_size = 20
-# Maximum number of client connections allowed.
-max_client_conn = 100
-
-# [db.vault]
-# secret_key = "env(SECRET_VALUE)"
-
-[db.migrations]
-# If disabled, migrations will be skipped during a db push or reset.
-enabled = true
-# Specifies an ordered list of schema files that describe your database.
-# Supports glob patterns relative to supabase directory: "./schemas/*.sql"
-schema_paths = []
-
-[db.seed]
-# If enabled, seeds the database after migrations during a db reset.
-enabled = true
-# Specifies an ordered list of seed files to load during db reset.
-# Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
-
-[db.network_restrictions]
-# Enable management of network restrictions.
-enabled = false
-# List of IPv4 CIDR blocks allowed to connect to the database.
-# Defaults to allow all IPv4 connections. Set empty array to block all IPs.
-allowed_cidrs = ["0.0.0.0/0"]
-# List of IPv6 CIDR blocks allowed to connect to the database.
-# Defaults to allow all IPv6 connections. Set empty array to block all IPs.
-allowed_cidrs_v6 = ["::/0"]
-
-# Uncomment to reject non-secure connections to the database.
-# [db.ssl_enforcement]
-# enabled = true
-
-[realtime]
-enabled = true
-# Bind realtime via either IPv4 or IPv6. (default: IPv4)
-# ip_version = "IPv6"
-# The maximum length in bytes of HTTP request headers. (default: 4096)
-# max_header_length = 4096
-
-[studio]
-enabled = true
-# Port to use for Supabase Studio.
-port = 54323
-# External URL of the API server that frontend connects to.
-api_url = "http://127.0.0.1"
-# OpenAI API Key to use for Supabase AI in the Supabase Studio.
-openai_api_key = "env(OPENAI_API_KEY)"
-
-# Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
-# are monitored, and you can view the emails that would have been sent from the web interface.
-[inbucket]
-enabled = true
-# Port to use for the email testing server web interface.
-port = 54324
-# Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54325
-# pop3_port = 54326
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
-
-[storage]
-enabled = true
-# The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
-
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
-
-# Allow connections via S3 compatible clients
-[storage.s3_protocol]
-enabled = true
-
-# Image transformation API is available to Supabase Pro plan.
-# [storage.image_transformation]
-# enabled = true
-
-# Store analytical data in S3 for running ETL jobs over Iceberg Catalog
-# This feature is only available on the hosted platform.
-[storage.analytics]
-enabled = false
-max_namespaces = 5
-max_tables = 10
-max_catalogs = 2
-
-# Analytics Buckets is available to Supabase Pro plan.
-# [storage.analytics.buckets.my-warehouse]
-
-# Store vector embeddings in S3 for large and durable datasets
-# This feature is only available on the hosted platform.
-[storage.vector]
-enabled = false
-max_buckets = 10
-max_indexes = 5
-
-# Vector Buckets is available to Supabase Pro plan.
-# [storage.vector.buckets.documents-openai]
-
-[auth]
-enabled = true
-# The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://127.0.0.1:3000"
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
-# How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
-jwt_expiry = 3600
-# JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
-# jwt_issuer = ""
-# Path to JWT signing key. DO NOT commit your signing keys file to git.
-# signing_keys_path = "./signing_keys.json"
-# If disabled, the refresh token will never expire.
-enable_refresh_token_rotation = true
-# Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
-# Requires enable_refresh_token_rotation = true.
-refresh_token_reuse_interval = 10
-# Allow/disallow new user signups to your project.
-enable_signup = true
-# Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
-# Allow/disallow testing manual linking of accounts
-enable_manual_linking = false
-# Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
-# Passwords that do not meet the following requirements will be rejected as weak. Supported values
-# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
-
-[auth.rate_limit]
-# Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
-# Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
-sms_sent = 30
-# Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
-anonymous_users = 30
-# Number of sessions that can be refreshed in a 5 minute interval per IP address.
-token_refresh = 150
-# Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
-# Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
-token_verifications = 30
-# Number of Web3 logins that can be made in a 5 minute interval per IP address.
-web3 = 30
-
-# Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
-
-[auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = true
-# If enabled, a user will be required to confirm any email change on both the old, and new email
-# addresses. If disabled, only the new email is required to confirm.
-double_confirm_changes = true
-# If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
-# If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
-# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
-
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
-
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
-
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
-
-[auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
-# If enabled, users need to confirm their phone number before signing in.
-enable_confirmations = false
-# Template for sending OTP to users
-template = "Your code is {{ .Code }}"
-# Controls the minimum amount of time that must pass before sending another sms otp.
-max_frequency = "5s"
-
-# Use pre-defined map of phone number to OTP for testing.
-# [auth.sms.test_otp]
-# 4152127777 = "123456"
-
-# Configure logged in session timeouts.
-# [auth.sessions]
-# Force log out after the specified duration.
-# timebox = "24h"
-# Force log out if the user has been inactive longer than the specified duration.
-# inactivity_timeout = "8h"
-
-# This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
-
-# This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
-
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
-[auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
-# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
-
-# Multi-factor-authentication is available to Supabase Pro plan.
-[auth.mfa]
-# Control how many MFA factors can be enrolled at once per user.
-max_enrolled_factors = 10
-
-# Control MFA via App Authenticator (TOTP)
-[auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
-
-# Configure MFA via Phone Messaging
-[auth.mfa.phone]
-enroll_enabled = false
-verify_enabled = false
-otp_length = 6
-template = "Your code is {{ .Code }}"
-max_frequency = "5s"
-
-# Configure MFA via WebAuthn
-# [auth.mfa.web_authn]
-# enroll_enabled = true
-# verify_enabled = true
-
-# Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
-# `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
-# `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
-[auth.external.apple]
-enabled = false
-client_id = ""
-# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
-secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
-# Overrides the default auth redirectUrl.
-redirect_uri = ""
-# Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
-# or any other third-party OIDC providers.
-url = ""
-# If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
-skip_nonce_check = false
-# If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
-email_optional = false
-
-# Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
-# You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
-[auth.web3.solana]
-enabled = false
-
-# Use Firebase Auth as a third-party provider alongside Supabase Auth.
-[auth.third_party.firebase]
-enabled = false
-# project_id = "my-firebase-project"
-
-# Use Auth0 as a third-party provider alongside Supabase Auth.
-[auth.third_party.auth0]
-enabled = false
-# tenant = "my-auth0-tenant"
-# tenant_region = "us"
-
-# Use AWS Cognito (Amplify) as a third-party provider alongside Supabase Auth.
-[auth.third_party.aws_cognito]
-enabled = false
-# user_pool_id = "my-user-pool-id"
-# user_pool_region = "us-east-1"
-
-# Use Clerk as a third-party provider alongside Supabase Auth.
-[auth.third_party.clerk]
-enabled = false
-# Obtain from https://clerk.com/setup/supabase
-# domain = "example.clerk.accounts.dev"
-
-# OAuth server configuration
-[auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
-authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
-
-[edge_runtime]
-enabled = true
-# Supported request policies: `oneshot`, `per_worker`.
-# `per_worker` (default) — enables hot reload during local development.
-# `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
-policy = "per_worker"
-# Port to attach the Chrome inspector for debugging edge functions.
-inspector_port = 8083
-# The Deno major version to use.
-deno_version = 2
-
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
-
-[analytics]
-enabled = true
-port = 54327
-# Configure one of the supported backends: `postgres`, `bigquery`.
-backend = "postgres"
-
-# Experimental features may be deprecated any time
-[experimental]
-# Configures Postgres storage engine to use OrioleDB (S3)
-orioledb_version = ""
-# Configures S3 bucket URL, eg. <bucket_name>.s3-<region>.amazonaws.com
-s3_host = "env(S3_HOST)"
-# Configures S3 bucket region, eg. us-east-1
-s3_region = "env(S3_REGION)"
-# Configures AWS_ACCESS_KEY_ID for S3 bucket
-s3_access_key = "env(S3_ACCESS_KEY)"
-# Configures AWS_SECRET_ACCESS_KEY for S3 bucket
-s3_secret_key = "env(S3_SECRET_KEY)"
-
-[functions.lembretes-aula]
-enabled = true
-verify_jwt = true
-import_map = "./functions/lembretes-aula/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/lembretes-aula/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/lembretes-aula/*.html" ]
-</file>
-
 <file path="supabase/functions/gerar-mensalidades/config.toml">
 [functions.gerar-mensalidades]
 verify_jwt = false  # Permite chamada do cron sem auth
@@ -26716,8 +27495,26 @@ function response(body: object, status = 200) {
 }
 </file>
 
-<file path="supabase/functions/gerar-repasses/index.ts">
-// supabase/functions/gerar-repasses/index.ts
+<file path="supabase/functions/gerar-repasses-mensais/deno.json">
+{
+  "imports": {
+    "std/http/server": "https://deno.land/std@0.168.0/http/server.ts",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+  }
+}
+</file>
+
+<file path="supabase/functions/gerar-repasses-mensais/index.ts">
+// supabase/functions/gerar-repasses-mensais/index.ts
+//
+// Gera repasses para todos os professores com base nos alunos MATRICULADOS.
+//
+// Lógica por tipo de plano:
+//   - Regular   → valor fixo por modalidade matriculada (cfg.valor_1_modalidade / valor_multi_modalidade)
+//   - Plano Livre → 50% casa + 50% dividido entre as modalidades FREQUENTADAS no mês (via presencas)
+//
+// Chamada manual via: supabase.functions.invoke('gerar-repasses-mensais', { body: { mes, ano } })
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -26726,202 +27523,47 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function response(body: object, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 interface Modalidade {
   id: string;
   nome: string;
-  professor_id: string | null;
-  professor_nome: string;
+  professor_id: string;
 }
 
-interface Mensalidade {
+interface Professor {
   id: string;
-  aluno_id: string | null;
-  nome_visitante: string | null;
-  valor_pago: number;
-  tipo_aula: string;
-  forma_pagamento: string;
-  professor_id?: string | null;
-  modalidade_nome?: string | null;
-  data_vencimento?: string | null;
+  nome: string;
 }
 
 interface Aluno {
-  id: string | null;
+  id: string;
   nome_completo: string;
-  modalidades_selecionadas: string[] | string;
+  plano_id: string | null;
+  modalidades_selecionadas: string[];
+}
+
+interface Plano {
+  id: string;
+  is_plano_livre: boolean;
+}
+
+interface ResumoProf {
+  nome: string;
+  total: number;
+  alunos: number;
 }
 
 interface ConfigRepasse {
   valor_1_modalidade: number;
   valor_multi_modalidade: number;
+  plano_livre_pct_casa: number;
   plano_livre_pct_prof: number;
-  aula_experimental_valor: number;
-  aula_experimental_pct_prof: number;
-  aula_avulsa_valor: number;
-  aula_avulsa_pct_prof: number;
-}
-
-interface RepasseItem {
-  professor_id: string;
-  professor_nome: string;
-  modalidade: string;
-  valor: number;
-}
-
-interface ResultadoRepasse {
-  valor_total: number;
-  forma_pagamento: string;
-  retencao_casa: number;
-  itens: RepasseItem[];
-  avisos: string[];
-}
-
-function normalizar(str: string | null | undefined): string {
-  if (!str) return '';
-  return String(str)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .toLowerCase();
-}
-
-function calcularRepasses(params: {
-  mensalidade: Mensalidade;
-  aluno: Aluno;
-  modalidades: Modalidade[];
-  config: ConfigRepasse;
-}): ResultadoRepasse {
-  const { mensalidade, aluno, modalidades, config } = params;
-  const valorTotal = Number(mensalidade.valor_pago) || 0;
-  const tipo = mensalidade.tipo_aula || 'regular';
-  const avisos: string[] = [];
-  let itens: RepasseItem[] = [];
-
-  const acharProfDaModalidade = (
-    referencia: string,
-  ): { professor_id: string; professor_nome: string; modalidade: string } | null => {
-    if (!referencia) return null;
-
-    let m = modalidades.find((x) => x.id === referencia);
-
-    if (!m) {
-      const refLimpa = normalizar(referencia);
-      m = modalidades.find((x) => normalizar(x.nome) === refLimpa);
-    }
-
-    if (!m) {
-      avisos.push(`Modalidade não reconhecida: ${referencia}`);
-      return null;
-    }
-
-    if (!m.professor_id) {
-      avisos.push(`Modalidade "${m.nome}" encontrada, mas sem professor vinculado na base.`);
-      return null;
-    }
-
-    return { professor_id: m.professor_id, professor_nome: m.professor_nome, modalidade: m.nome };
-  };
-
-  let modsAluno: string[] = aluno?.modalidades_selecionadas
-    ? Array.isArray(aluno.modalidades_selecionadas)
-      ? aluno.modalidades_selecionadas
-      : (() => {
-          try {
-            return JSON.parse(aluno.modalidades_selecionadas as string);
-          } catch {
-            return [aluno.modalidades_selecionadas as string];
-          }
-        })()
-    : [];
-
-  const mods = modsAluno.filter(Boolean);
-  const unicas = [...new Set(mods)] as string[];
-
-  if (tipo === 'regular') {
-    if (unicas.length === 0) {
-      avisos.push('Aluno não possui modalidades vinculadas ao plano.');
-    } else if (unicas.length === 1) {
-      const prof = acharProfDaModalidade(unicas[0]);
-      if (prof) {
-        const valorProf = Math.min(Number(config.valor_1_modalidade), valorTotal);
-        itens.push({ ...prof, valor: valorProf });
-      }
-    } else {
-      unicas.forEach((modRef) => {
-        const prof = acharProfDaModalidade(modRef);
-        if (prof) {
-          const valorProf = Math.min(Number(config.valor_multi_modalidade), valorTotal);
-          itens.push({ ...prof, valor: valorProf });
-        }
-      });
-    }
-  } else if (tipo === 'plano_livre') {
-    if (unicas.length === 0) {
-      avisos.push('Aluno não possui modalidades para o rateio do Plano Livre.');
-    } else {
-      const valorParaProfs = valorTotal * (Number(config.plano_livre_pct_prof) / 100);
-      const profsEnvolvidos: { professor_id: string; professor_nome: string; modalidade: string }[] = [];
-
-      unicas.forEach((modRef) => {
-        const prof = acharProfDaModalidade(modRef);
-        if (prof && !profsEnvolvidos.find((p) => p.professor_id === prof.professor_id)) {
-          profsEnvolvidos.push(prof);
-        }
-      });
-
-      if (profsEnvolvidos.length > 0) {
-        const fatia = valorParaProfs / profsEnvolvidos.length;
-        profsEnvolvidos.forEach((p) => {
-          itens.push({ ...p, valor: fatia });
-        });
-      }
-    }
-  } else if (tipo === 'experimental') {
-    const profId = mensalidade.professor_id;
-    if (!profId) {
-      avisos.push('Aula Experimental sem professor informado.');
-    } else {
-      const profNome =
-        modalidades.find((m) => m.professor_id === profId)?.professor_nome ?? 'Professor';
-      const maxProf =
-        Number(config.aula_experimental_valor) * (Number(config.aula_experimental_pct_prof) / 100);
-      const valorProf = Math.min(maxProf, valorTotal);
-      itens.push({
-        professor_id: profId,
-        professor_nome: profNome,
-        modalidade: mensalidade.modalidade_nome ?? 'Experimental',
-        valor: valorProf,
-      });
-    }
-  } else if (tipo === 'avulsa') {
-    const profId = mensalidade.professor_id;
-    if (!profId) {
-      avisos.push('Aula Avulsa sem professor informado.');
-    } else {
-      const profNome =
-        modalidades.find((m) => m.professor_id === profId)?.professor_nome ?? 'Professor';
-      const maxProf =
-        Number(config.aula_avulsa_valor) * (Number(config.aula_avulsa_pct_prof) / 100);
-      const valorProf = Math.min(maxProf, valorTotal);
-      itens.push({
-        professor_id: profId,
-        professor_nome: profNome,
-        modalidade: mensalidade.modalidade_nome ?? 'Avulsa',
-        valor: valorProf,
-      });
-    }
-  }
-
-  const totalRepassado = itens.reduce((acc, i) => acc + i.valor, 0);
-  const retencao = valorTotal - totalRepassado;
-
-  return {
-    valor_total: valorTotal,
-    forma_pagamento: mensalidade.forma_pagamento,
-    retencao_casa: retencao < 0 ? 0 : retencao,
-    itens,
-    avisos,
-  };
 }
 
 serve(async (req: Request) => {
@@ -26930,131 +27572,344 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { mensalidadeId } = await req.json();
-    if (!mensalidadeId) {
-      return new Response(JSON.stringify({ error: 'mensalidadeId é obrigatório.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const { mes, ano } = await req.json();
+
+    if (!mes || !ano || mes < 1 || mes > 12) {
+      return response({ error: 'Parâmetros inválidos. Informe mes (1–12) e ano.' }, 400);
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data: mensalidade, error: errMensa } = await supabase
-      .from('mensalidades')
-      .select('*')
-      .eq('id', mensalidadeId)
+    const mesStr = String(mes).padStart(2, '0');
+    const dataReferencia = `${ano}-${mesStr}-01`;
+
+    // Período completo do mês
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const inicioPeriodo = `${ano}-${mesStr}-01`;
+    const fimPeriodo = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
+
+    // ── 1. Previne dupla geração no mesmo mês ───────────────────────────────
+    const { data: jaExistem } = await supabase
+      .from('repasses_lancamentos')
+      .select('id')
+      .eq('data_referencia', dataReferencia)
+      .limit(1);
+
+    if (jaExistem && jaExistem.length > 0) {
+      return response({
+        error: `Repasses de ${mesStr}/${ano} já foram gerados. Exclua-os antes de regerar.`,
+        jaGerados: true,
+      }, 409);
+    }
+
+    // ── 2. Configurações de repasse ─────────────────────────────────────────
+    const { data: config, error: errConfig } = await supabase
+      .from('configuracoes_repasse')
+      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof')
       .single();
-    if (errMensa) throw errMensa;
 
-    let aluno: Aluno = {
-      id: null,
-      nome_completo: mensalidade.nome_visitante ?? 'Visitante',
-      modalidades_selecionadas: [],
-    };
+    if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
+    const cfg = config as ConfigRepasse;
 
-    if (mensalidade.aluno_id) {
-      const { data: alunoData, error: errAluno } = await supabase
-        .from('alunos')
-        .select('id, nome_completo, modalidades_selecionadas')
-        .eq('id', mensalidade.aluno_id)
-        .single();
-      if (errAluno) throw errAluno;
-      aluno = alunoData;
+    // ── 3. Modalidades com professor vinculado ──────────────────────────────
+    const { data: modsRaw, error: errMods } = await supabase
+      .from('modalidades')
+      .select('id, nome, professor_id')
+      .not('professor_id', 'is', null);
+
+    if (errMods) throw errMods;
+    if (!modsRaw || modsRaw.length === 0) {
+      return response({ aviso: 'Nenhuma modalidade com professor vinculado.', gerados: 0 });
     }
 
-    const { data: modsRaw, error: errMods } = await supabase.from('modalidades').select('*');
-    if (errMods) throw errMods;
+    const mapaMods = new Map<string, Modalidade>();
+    for (const m of modsRaw as Modalidade[]) {
+      mapaMods.set(m.id, m);
+    }
 
+    // ── 4. Nomes dos professores ────────────────────────────────────────────
     const { data: profsRaw, error: errProfs } = await supabase
       .from('professores')
       .select('id, nome');
+
     if (errProfs) throw errProfs;
 
-    const modalidades: Modalidade[] = (modsRaw ?? []).map((m) => {
-      const profId = m.professor_id ?? null;
-      const profEncontrado = (profsRaw ?? []).find((p) => p.id === profId);
-      return {
-        id: m.id,
-        nome: m.nome,
-        professor_id: profId,
-        professor_nome: profEncontrado ? profEncontrado.nome : 'Professor(a)',
-      };
-    });
+    const mapaProfs = new Map<string, string>();
+    for (const p of (profsRaw ?? []) as Professor[]) {
+      mapaProfs.set(p.id, p.nome);
+    }
 
-    const modalidadesLimpas: Modalidade[] = [];
-    for (const mod of modalidades) {
-      const idx = modalidadesLimpas.findIndex((ml) => ml.id === mod.id || ml.nome === mod.nome);
-      if (idx === -1) {
-        modalidadesLimpas.push(mod);
-      } else if (!modalidadesLimpas[idx].professor_id && mod.professor_id) {
-        modalidadesLimpas[idx] = mod;
+    // ── 5. Planos — identifica quais são "plano livre" ──────────────────────
+    const { data: planosRaw } = await supabase
+      .from('planos')
+      .select('id, is_plano_livre');
+
+    const mapaPlanos = new Map<string, boolean>();
+    for (const p of (planosRaw ?? []) as Plano[]) {
+      mapaPlanos.set(p.id, p.is_plano_livre === true);
+    }
+
+    // ── 6. Alunos ativos com modalidades definidas ──────────────────────────
+    const { data: alunosRaw, error: errAlunos } = await supabase
+      .from('alunos')
+      .select('id, nome_completo, plano_id, modalidades_selecionadas')
+      .eq('ativo', true)
+      .not('modalidades_selecionadas', 'is', null);
+
+    if (errAlunos) throw errAlunos;
+
+    const alunosComMods = ((alunosRaw ?? []) as Aluno[]).filter(
+      (a) => Array.isArray(a.modalidades_selecionadas) && a.modalidades_selecionadas.length > 0,
+    );
+
+    if (alunosComMods.length === 0) {
+      return response({ aviso: 'Nenhum aluno ativo com modalidades vinculadas.', gerados: 0 });
+    }
+
+    // ── 7. Presenças do mês (apenas com aula_id — vinculadas a modalidade) ──
+    //    Necessário para calcular repasse do plano livre.
+    const { data: presencasRaw } = await supabase
+      .from('presencas')
+      .select(`
+        aluno_id,
+        agenda (
+          modalidade_id
+        )
+      `)
+      .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
+      .lte('data_checkin', `${fimPeriodo}T23:59:59`)
+      .not('aula_id', 'is', null);
+
+    // Mapa: aluno_id → Set de modalidade_ids frequentadas no mês
+    const presencasPorAluno = new Map<string, Set<string>>();
+    for (const p of presencasRaw ?? []) {
+      const modId = p.agenda?.modalidade_id;
+      if (!p.aluno_id || !modId) continue;
+
+      if (!presencasPorAluno.has(p.aluno_id)) {
+        presencasPorAluno.set(p.aluno_id, new Set());
+      }
+      presencasPorAluno.get(p.aluno_id)!.add(modId);
+    }
+
+    // ── 8. Calcula repasses por aluno ───────────────────────────────────────
+    const itens: {
+      professor_id: string;
+      aluno_id: string;
+      tipo_aula: string;
+      modalidade: string;
+      valor: number;
+      data_referencia: string;
+    }[] = [];
+
+    const avisos: string[] = [];
+
+    for (const aluno of alunosComMods) {
+      const isLivre = aluno.plano_id ? (mapaPlanos.get(aluno.plano_id) ?? false) : false;
+
+      if (isLivre) {
+        // ── PLANO LIVRE: usa modalidades FREQUENTADAS no mês ────────────────
+        const modidsFrequentadas = presencasPorAluno.get(aluno.id);
+
+        if (!modidsFrequentadas || modidsFrequentadas.size === 0) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre) sem presenças no mês — sem repasse.`);
+          continue;
+        }
+
+        // Filtra para modalidades que têm professor vinculado
+        const modsLivreValidas: Modalidade[] = [];
+        for (const modId of modidsFrequentadas) {
+          const mod = mapaMods.get(modId);
+          if (mod) modsLivreValidas.push(mod);
+        }
+
+        if (modsLivreValidas.length === 0) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre): modalidades frequentadas sem professor — sem repasse.`);
+          continue;
+        }
+
+        // Busca mensalidade paga do aluno no mês para obter o valor_pago
+        const { data: mens } = await supabase
+          .from('mensalidades')
+          .select('valor_pago')
+          .eq('aluno_id', aluno.id)
+          .eq('tipo_aula', 'plano_livre')
+          .eq('status', 'pago')
+          .gte('data_pagamento', inicioPeriodo)
+          .lte('data_pagamento', fimPeriodo)
+          .order('data_pagamento', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!mens) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre) sem mensalidade paga no mês — sem repasse.`);
+          continue;
+        }
+
+        const valorTotal = Number(mens.valor_pago);
+        const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
+        const parteProfs = valorTotal * pctProf;
+        const valorPorMod = parteProfs / modsLivreValidas.length;
+
+        for (const mod of modsLivreValidas) {
+          itens.push({
+            professor_id: mod.professor_id,
+            aluno_id: aluno.id,
+            tipo_aula: 'plano_livre',
+            modalidade: mod.nome,
+            valor: Math.round(valorPorMod * 100) / 100,
+            data_referencia: dataReferencia,
+          });
+        }
+
+      } else {
+        // ── REGULAR: usa modalidades MATRICULADAS ───────────────────────────
+        const modIds = [...new Set(aluno.modalidades_selecionadas)];
+        const modValidas = modIds.filter((id: string) => mapaMods.has(id));
+
+        if (modValidas.length === 0) {
+          avisos.push(`"${aluno.nome_completo}" tem modalidades sem professor — ignorado.`);
+          continue;
+        }
+
+        const valorPorMod =
+          modValidas.length === 1
+            ? Number(cfg.valor_1_modalidade)
+            : Number(cfg.valor_multi_modalidade);
+
+        for (const modId of modValidas) {
+          const mod = mapaMods.get(modId)!;
+          itens.push({
+            professor_id: mod.professor_id,
+            aluno_id: aluno.id,
+            tipo_aula: 'regular',
+            modalidade: mod.nome,
+            valor: valorPorMod,
+            data_referencia: dataReferencia,
+          });
+        }
       }
     }
 
-    const { data: config, error: errC } = await supabase
-      .from('configuracoes_repasse')
-      .select('*')
-      .single();
-    if (errC) throw errC;
-
-    const resultado = calcularRepasses({ mensalidade, aluno, modalidades: modalidadesLimpas, config });
-
-    if (resultado.itens.length > 0) {
-      const dataReferencia: string | null = mensalidade.data_vencimento
-        ? mensalidade.data_vencimento.split('T')[0]
-        : null;
-
-      const itensPayload = resultado.itens.map((i) => ({
-        professor_id: i.professor_id,
-        aluno_id: aluno.id,
-        tipo_aula: mensalidade.tipo_aula,
-        modalidade: i.modalidade,
-        valor: i.valor,
-        data_referencia: dataReferencia,
-      }));
-
-      const { error: errRpc } = await supabase.rpc('substituir_repasses_mensalidade', {
-        p_mensalidade_id: mensalidadeId,
-        p_itens: itensPayload,
+    if (itens.length === 0) {
+      return response({
+        aviso: 'Nenhum repasse calculado. Verifique se as modalidades têm professores vinculados.',
+        gerados: 0,
+        avisos,
       });
-      if (errRpc) throw errRpc;
-    } else {
-      await supabase
-        .from('repasses_lancamentos')
-        .delete()
-        .eq('mensalidade_id', mensalidadeId);
     }
 
-    return new Response(JSON.stringify(resultado), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // ── 9. Insere em lote ───────────────────────────────────────────────────
+    const { error: errInsert } = await supabase
+      .from('repasses_lancamentos')
+      .insert(itens);
+
+    if (errInsert) throw errInsert;
+
+    // ── 10. Resumo por professor ────────────────────────────────────────────
+    const resumoMap = new Map<string, ResumoProf>();
+    for (const item of itens) {
+      const nome = mapaProfs.get(item.professor_id) ?? 'Professor';
+      const atual = resumoMap.get(item.professor_id) ?? { nome, total: 0, alunos: 0 };
+      atual.total += item.valor;
+      atual.alunos += 1;
+      resumoMap.set(item.professor_id, atual);
+    }
+
+    return response({
+      sucesso: true,
+      mes: `${mesStr}/${ano}`,
+      gerados: itens.length,
+      resumo: [...resumoMap.values()],
+      avisos,
     });
+
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === 'object' && err !== null
+          ? JSON.stringify(err)
+          : String(err);
+    console.error('[gerar-repasses-mensais] ERRO:', message);
+    return response({ error: message }, 500);
   }
 });
 </file>
 
-<file path="supabase/functions/lembretes-aula/.npmrc">
-# Configuration for private npm package dependencies
-# For more information on using private registries with Edge Functions, see:
-# https://supabase.com/docs/guides/functions/import-maps#importing-from-private-registries
-</file>
+<file path="supabase/functions/lembretes-aula/index.ts">
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-<file path="supabase/functions/lembretes-aula/deno.json">
-{
-  "imports": {
-    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+serve(async (req) => {
+  try {
+    console.log("🤖 Robô de Lembretes Iniciado!");
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    const dataIso = amanha.toISOString().split('T')[0];
+    console.log(`📅 Buscando aulas para o dia: ${dataIso}`);
+
+    const { data: agendamentos, error } = await supabase
+      .from('presencas')
+      .select(`
+        id,
+        data_aula,
+        agenda ( horario, atividade ),
+        alunos ( push_token, nome_completo )
+      `)
+      .eq('data_aula', dataIso);
+
+    if (error) throw error;
+
+    if (!agendamentos || agendamentos.length === 0) {
+      console.log("😴 Nenhuma aula agendada para amanhã.");
+      return new Response(JSON.stringify({ message: "Nenhuma aula para amanhã" }), { status: 200 });
+    }
+
+    const notificacoes = [];
+
+    for (const ag of agendamentos) {
+      if (ag.alunos?.push_token) {
+        const primeiroNome = ag.alunos.nome_completo.split(' ')[0];
+        const horario = ag.agenda.horario.substring(0, 5);
+
+        notificacoes.push({
+          to: ag.alunos.push_token,
+          title: '🏋️ Lembrete Iluminus',
+          body: `Olá, ${primeiroNome}! Sua aula de ${ag.agenda.atividade} é amanhã às ${horario}. Te esperamos!`,
+          sound: 'default'
+        });
+      }
+    }
+
+    if (notificacoes.length > 0) {
+      console.log(`🚀 Enviando ${notificacoes.length} notificações...`);
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notificacoes),
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, enviados: notificacoes.length }), { 
+      headers: { "Content-Type": "application/json" } 
+    });
+
+  } catch (err) {
+    console.error("❌ Erro fatal no robô:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
-}
+})
 </file>
 
 <file path=".gitignore">
@@ -27092,152 +27947,500 @@ out/
 .env*.local
 </file>
 
-<file path="app_mobile/app.json">
-{
-  "expo": {
-    "name": "GestaoStudioApp",
-    "slug": "GestaoStudioApp",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "gestaostudioapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "package": "GestaoStudioApp.com",
-      "googleServicesFile": "./google-services.json",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
-        }
-      ],
-      "expo-secure-store"
-    ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "32ede90a-2246-43b1-905a-f273ca02ec56"
-      }
+<file path="app_mobile/App.js">
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addDays, format, isSameDay, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+// Componentes
+import CardAula from "./src/components/CardAula";
+import TelaLogin from "./src/components/TelaLogin";
+import TelaPerfil from "./src/components/TelaPerfil";
+import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
+import { supabase } from "./src/services/supabase";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+const cores = {
+  fundo: "#FDF8F5",
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  branco: "#FFFFFF",
+  ativo: "#D98E73",
+  inativo: "#C4C4C4",
+};
+
+export default function App() {
+  const [alunoId, setAlunoId] = useState(null);
+  const [nomeAluno, setNomeAluno] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [telaAtual, setTelaAtual] = useState("agenda");
+  const [feriadoMsg, setFeriadoMsg] = useState(null);
+  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
+  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
+  const [aulas, setAulas] = useState([]);
+
+  useEffect(() => {
+    verificarSessao();
+  }, []);
+
+  useEffect(() => {
+    if (!alunoId) return;
+
+    const channel = supabase
+      .channel('mudancas-globais-presencas')
+      .on('postgres_changes', {
+        event: '*', 
+        schema: 'public',
+        table: 'presencas'
+      }, (payload) => {
+        console.log("🔄 Mudança detectada nas vagas!", payload);
+        buscarAulas(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [alunoId]);
+
+  useEffect(() => {
+    if (alunoId && telaAtual === "agenda") buscarAulas(true);
+  }, [dataSelecionada, alunoId, telaAtual]);
+
+  async function verificarSessao() {
+    console.log("🔍 [1] Iniciando verificação de sessão...");
+    try {
+      setCarregando(true);
+      
+      console.log("🔍 [2] Consultando sessão salva no Supabase...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
+
+      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
+
+      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
+
+      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
+      setAlunoId(aluno.id);
+      setNomeAluno(aluno.nome_completo);
+      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
+      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
+
+      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
+      registrarTokenPush(aluno.id);
+
+      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
+    } catch (e) {
+      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
+      await handleLogout();
+    } finally {
+      console.log("🏁 [Final] Desativando o ícone de carregamento.");
+      setCarregando(false);
     }
   }
-}
-</file>
 
-<file path="app_mobile/eas.json">
-{
-  "cli": {
-    "version": ">= 18.0.6",
-    "appVersionSource": "remote"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "autoIncrement": true
+  async function registrarTokenPush(idAluno) {
+    if (!Device.isDevice) {
+      console.log('Push Notifications só funcionam em dispositivos físicos');
+      return;
     }
-  },
-  "submit": {
-    "production": {}
-  }
-}
-</file>
 
-<file path="app_mobile/package.json">
-{
-  "name": "gestaostudioapp",
-  "main": "node_modules/expo/AppEntry.js",
-  "version": "1.0.0",
-  "scripts": {
-    "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "expo lint"
-  },
-  "dependencies": {
-    "@expo/metro-runtime": "~6.1.2",
-    "@expo/vector-icons": "^15.0.3",
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-navigation/bottom-tabs": "^7.4.0",
-    "@react-navigation/elements": "^2.6.3",
-    "@react-navigation/native": "^7.1.8",
-    "@supabase/supabase-js": "^2.95.3",
-    "date-fns": "^4.1.0",
-    "expo": "~54.0.33",
-    "expo-constants": "~18.0.13",
-    "expo-dev-client": "~6.0.20",
-    "expo-device": "~8.0.10",
-    "expo-font": "~14.0.11",
-    "expo-haptics": "~15.0.8",
-    "expo-image": "~3.0.11",
-    "expo-linking": "~8.0.11",
-    "expo-notifications": "~0.32.16",
-    "expo-secure-store": "~15.0.8",
-    "expo-splash-screen": "~31.0.13",
-    "expo-status-bar": "~3.0.9",
-    "expo-symbols": "~1.0.8",
-    "expo-system-ui": "~6.0.9",
-    "expo-web-browser": "~15.0.10",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-modal": "^14.0.0-rc.1",
-    "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-url-polyfill": "^3.0.0",
-    "react-native-web": "^0.21.0",
-    "react-native-worklets": "0.5.1"
-  },
-  "devDependencies": {
-    "@types/react": "~19.1.0",
-    "eslint": "^9.25.0",
-    "eslint-config-expo": "~10.0.0",
-    "react-native-dotenv": "^3.4.11",
-    "typescript": "~5.9.2"
-  },
-  "private": true
+    if (Constants.appOwnership === 'expo') {
+      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
+      return;
+    }
+
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permissão para notificações negada!');
+        return;
+      }
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      
+      console.log("Push Token gerado:", token);
+
+      await supabase
+        .from('alunos')
+        .update({ push_token: token })
+        .eq('id', idAluno);
+        
+    } catch (error) {
+      console.error("Erro ao gerar/salvar push token:", error);
+    }
+  }
+
+  async function buscarAulas(mostrarLoading = true) {
+    if (mostrarLoading) setCarregando(true);
+    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+
+    try {
+      const { data: feriados, error: errFeriado } = await supabase
+        .from("feriados")
+        .select("descricao")
+        .eq("data", dataIso);
+
+      if (errFeriado) throw errFeriado;
+
+      if (feriados && feriados.length > 0) {
+        setFeriadoMsg(feriados[0].descricao);
+        setAulas([]); 
+        setCarregando(false);
+        return; 
+      } else {
+        setFeriadoMsg(null); 
+      }
+
+      const { data, error } = await supabase
+        .from("agenda")
+        .select(`*, presencas(*), professores(nome)`)
+        .eq("ativa", true)
+        .order("horario", { ascending: true });
+
+      if (error) throw error;
+
+      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
+      const diasTraduzidos = {
+        "domingo": "Domingo",
+        "segunda-feira": "Segunda-feira",
+        "terça-feira": "Terça-feira",
+        "quarta-feira": "Quarta-feira",
+        "quinta-feira": "Quinta-feira",
+        "sexta-feira": "Sexta-feira",
+        "sábado": "Sábado",
+      };
+      const diaCorreto = diasTraduzidos[diaSemanaAtual];
+
+      const aulasDoDia = (data || []).filter((aula) => {
+        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
+        return aula.dia_semana === diaCorreto;
+      });
+
+      setAulas(aulasDoDia);
+    } catch (err) {
+      console.error("Erro ao buscar aulas:", err);
+      if (err.message.includes("Network")) {
+        Alert.alert("Sem conexão", "Verifique sua internet.");
+      }
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    buscarAulas(false);
+  };
+
+  async function handleLogout() {
+    try {
+      setCarregando(true);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Erro logout:", err);
+    } finally {
+      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
+      setAlunoId(null);
+      setNomeAluno("");
+      setCarregando(false);
+    }
+  }
+
+  // TELA DE CARREGAMENTO INICIAL
+  if (carregando && !alunoId) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={cores.primaria} />
+      </View>
+    );
+  }
+
+  // TELA DE LOGIN
+  if (!alunoId) {
+    return (
+      <TelaLogin
+        onLogado={(perfil) => {
+          setAlunoId(perfil.id);
+          setNomeAluno(perfil.nome_completo);
+          registrarTokenPush(perfil.id);
+        }}
+      />
+    );
+  }
+
+  // APLICATIVO PRINCIPAL
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {telaAtual === "agenda" ? (
+            <>
+              <View style={styles.header}>
+                <View>
+                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
+                  <Text style={styles.titulo}>Sua Agenda</Text>
+                </View>
+              </View>
+
+              <View style={styles.calendarioContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {Array.from({ length: 14 }).map((_, i) => {
+                    const dia = addDays(new Date(), i);
+                    const ativo = isSameDay(dia, dataSelecionada);
+                    return (
+                      <TouchableOpacity
+                        key={dia.toISOString()}
+                        onPress={() => setDataSelecionada(startOfDay(dia))}
+                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
+                      >
+                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
+                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
+                        </Text>
+                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
+                          {format(dia, "d")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {carregando ? (
+                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
+              ) : feriadoMsg ? (
+                <View style={styles.containerFeriado}>
+                  <Text style={styles.emojiFeriado}>🏖️</Text>
+                  <Text style={styles.tituloFeriado}>Feriado</Text>
+                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
+                  <Text style={styles.avisoFeriado}>
+                    O estúdio estará fechado neste dia. Bom descanso!
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={aulas}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <CardAula
+                      aula={item}
+                      alunoId={alunoId}
+                      dataSelecionada={dataSelecionada}
+                      onAgendamentoSucesso={() => buscarAulas(false)}
+                    />
+                  )}
+                  contentContainerStyle={{ paddingBottom: 80 }}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.containerVazio}>
+                      <View style={styles.circuloIconeVazio}>
+                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
+                      </View>
+                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
+                      <Text style={styles.textoVazio}>
+                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.botaoVazio}
+                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
+                      >
+                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Botão Flutuante (FAB) */}
+              <TouchableOpacity 
+                style={styles.fab} 
+                activeOpacity={0.8}
+                onPress={() => setModalAgendamentoVisivel(true)}
+              >
+                <Text style={styles.fabText}>+</Text>
+              </TouchableOpacity>
+
+              <AgendamentoBottomSheet 
+                isVisible={modalAgendamentoVisivel} 
+                onClose={() => setModalAgendamentoVisivel(false)}
+                aulasDisponiveis={aulas} 
+                alunoId={alunoId} 
+                isLoading={carregando} 
+                isError={false}
+                onRefresh={() => buscarAulas(true)} 
+              />
+            </>
+          ) : (
+            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
+          )}
+        </View>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
+            <Text style={{ fontSize: 24 }}>📅</Text>
+            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
+            <Text style={{ fontSize: 24 }}>👤</Text>
+            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
+  container: { flex: 1, backgroundColor: cores.fundo },
+  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
+
+  header: { marginVertical: 20 },
+  saudacao: { fontSize: 14, color: cores.textoSuave },
+  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
+
+  calendarioContainer: { marginBottom: 20, height: 80 },
+  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
+  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
+  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
+  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
+  textoAtivo: { color: cores.branco },
+
+  // Estilos do Feriado
+  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
+  emojiFeriado: { fontSize: 48, marginBottom: 10 },
+  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
+  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
+  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
+
+  // Estilos do FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    backgroundColor: cores.primaria,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabText: {
+    color: cores.branco,
+    fontSize: 32,
+    fontWeight: "300",
+    marginTop: -4,
+  },
+
+  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
+  tabTextAtivo: { color: cores.ativo },
+
+  // ESTILOS DO ESTADO VAZIO
+  containerVazio: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    marginTop: 60,
+  },
+  circuloIconeVazio: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F0E0D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  iconeVazio: {
+    fontSize: 50,
+  },
+  tituloVazio: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textoVazio: {
+    fontSize: 15,
+    color: cores.textoSuave,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  botaoVazio: {
+    backgroundColor: cores.branco,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    elevation: 1,
+    shadowColor: cores.primaria,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  botaoVazioTexto: {
+    color: cores.primaria,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+});
 </file>
 
 <file path="app_mobile/src/components/CardAula.js">
@@ -27572,621 +28775,6 @@ const styles = StyleSheet.create({
   textoBotao: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
   textoBotaoCancelar: { color: "#888" },
   textoBotaoPassou: { color: "#CCC" },
-});
-</file>
-
-<file path="app_mobile/src/components/TelaLogin.js">
-import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { supabase } from "../services/supabase";
-
-export default function TelaLogin({ onLogado }) {
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  
-  // Estados para feedback visual imediato
-  const [erroEmail, setErroEmail] = useState("");
-  const [erroSenha, setErroSenha] = useState("");
-
-  // Validador de E-mail usando Regex
-  const validarEmail = (texto) => {
-    setEmail(texto);
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (texto.length > 0 && !emailRegex.test(texto)) {
-      setErroEmail("Por favor, insira um e-mail válido.");
-    } else {
-      setErroEmail("");
-    }
-  };
-
-  // Validador de Senha
-  const validarSenha = (texto) => {
-    setSenha(texto);
-    if (texto.length > 0 && texto.length < 6) {
-      setErroSenha("A senha deve ter no mínimo 6 caracteres.");
-    } else {
-      setErroSenha("");
-    }
-  };
-
-  async function handleLogin() {
-    if (!email || !senha) {
-      Alert.alert("Aviso", "Por favor, preencha seu e-mail e senha.");
-      return;
-    }
-
-    if (erroEmail || erroSenha) {
-      Alert.alert("Aviso", "Por favor, corrija os erros nos campos antes de continuar.");
-      return;
-    }
-
-    try {
-      setCarregando(true);
-      
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      });
-
-      if (authError) throw authError;
-
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", authData.user.id)
-        .single();
-
-      if (alunoError || !aluno) {
-        throw new Error("Perfil de aluno não encontrado.");
-      }
-
-      onLogado(aluno);
-
-    } catch (error) {
-      console.error("Erro no login:", error);
-      Alert.alert(
-        "Falha no Login", 
-        error.message === "Invalid login credentials" 
-          ? "E-mail ou senha incorretos." 
-          : "Não foi possível conectar. Verifique sua internet."
-      );
-    } finally {
-      setCarregando(false);
-    }
-  }
-
-  return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.content}>
-        
-        {/* Cabeçalho */}
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>ILUMINUS</Text>
-          <Text style={styles.subtitle}>Espaço de Movimento</Text>
-        </View>
-
-        {/* Formulário */}
-        <View style={styles.form}>
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={[styles.input, erroEmail ? styles.inputErro : null]}
-            placeholder="Digite seu e-mail"
-            placeholderTextColor="#A0A0A0"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={validarEmail}
-          />
-          {/* Mensagem de Erro do E-mail */}
-          {erroEmail ? <Text style={styles.textoErro}>{erroEmail}</Text> : null}
-
-          <Text style={[styles.label, { marginTop: erroEmail ? 5 : 0 }]}>Senha</Text>
-          <TextInput
-            style={[styles.input, erroSenha ? styles.inputErro : null]}
-            placeholder="Digite sua senha"
-            placeholderTextColor="#A0A0A0"
-            secureTextEntry
-            value={senha}
-            onChangeText={validarSenha}
-          />
-          {/* Mensagem de Erro da Senha */}
-          {erroSenha ? <Text style={styles.textoErro}>{erroSenha}</Text> : null}
-
-          <TouchableOpacity 
-            style={[
-              styles.button, 
-              (carregando || erroEmail || erroSenha) && styles.buttonDisabled
-            ]} 
-            onPress={handleLogin}
-            disabled={carregando || !!erroEmail || !!erroSenha}
-          >
-            {carregando ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.buttonText}>Acessar Agenda</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-      </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDF8F5" },
-  content: { flex: 1, justifyContent: "center", paddingHorizontal: 30 },
-  
-  logoContainer: { alignItems: "center", marginBottom: 50 },
-  logoText: { fontSize: 36, fontWeight: "900", color: "#D98E73", letterSpacing: 2 },
-  subtitle: { fontSize: 14, color: "#8E8E8E", marginTop: 5, textTransform: "uppercase", letterSpacing: 1, fontWeight: "600" },
-  
-  form: { backgroundColor: "#FFF", padding: 25, borderRadius: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: "#F0E0D6" },
-  label: { fontSize: 12, fontWeight: "900", color: "#8E8E8E", textTransform: "uppercase", marginBottom: 8, marginLeft: 4 },
-  
-  // Estilos de Input
-  input: { backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E5E5", borderRadius: 12, padding: 15, fontSize: 16, color: "#2D2D2D", marginBottom: 20 },
-  inputErro: { borderColor: "#E07A5F", backgroundColor: "#FFF5F2", marginBottom: 5 },
-  
-  // Texto de Feedback
-  textoErro: { color: "#E07A5F", fontSize: 12, marginLeft: 5, marginBottom: 15, fontWeight: "600" },
-
-  button: { backgroundColor: "#D98E73", padding: 16, borderRadius: 12, alignItems: "center", marginTop: 10, shadowColor: "#D98E73", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#FFF", fontSize: 16, fontWeight: "900" }
-});
-</file>
-
-<file path="app_mobile/src/components/TelaPerfil.js">
-import { format } from "date-fns";
-import { useEffect, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Linking
-} from "react-native";
-import { supabase } from "../services/supabase";
-
-const cores = {
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  fundo: "#FDF8F5",
-  branco: "#FFFFFF",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  verde: "#10B981",
-  vermelho: "#EF4444",
-  amarelo: "#F59E0B",
-  whatsApp: "#25D366",
-  alertaFundo: "#FEF2F2",
-  alertaBorda: "#FCA5A5"
-};
-
-export default function TelaPerfil({ alunoId, onLogout }) {
-  const [perfil, setPerfil] = useState(null);
-  const [mensalidades, setMensalidades] = useState([]);
-  const [frequenciaMes, setFrequenciaMes] = useState(0);
-  const [carregando, setCarregando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const numeroWhatsApp = "5551994424348"; 
-
-  async function carregarDados() {
-    try {
-      setCarregando(true);
-
-      const { data: dadosAluno, error: errAluno } = await supabase
-        .from("alunos")
-        .select(`*, planos (nome, preco, frequencia_semanal)`)
-        .eq("id", alunoId)
-        .single();
-
-      if (errAluno) throw errAluno;
-      setPerfil(dadosAluno);
-
-      const { data: dadosFin, error: errFin } = await supabase
-        .from("mensalidades")
-        .select("*")
-        .eq("aluno_id", alunoId)
-        .order("data_vencimento", { ascending: false });
-
-      if (errFin && errFin.code !== '42P01') { 
-          throw errFin;
-      }
-      setMensalidades(dadosFin || []);
-
-      const { data: minhasPresencas } = await supabase
-        .from("presencas")
-        .select("*")
-        .eq("aluno_id", alunoId);
-
-      let countMes = 0;
-      if (minhasPresencas) {
-        const mesAtual = new Date().getMonth();
-        const anoAtual = new Date().getFullYear();
-        
-        minhasPresencas.forEach(p => {
-            const dataRaw = p.data_aula || p.data_checkin || p.created_at;
-            if (dataRaw) {
-                const dataAula = new Date(dataRaw);
-                if (dataAula.getMonth() === mesAtual && dataAula.getFullYear() === anoAtual) {
-                    countMes++;
-                }
-            }
-        });
-      }
-      setFrequenciaMes(countMes);
-      
-    } catch (error) {
-      Alert.alert("Aviso", "Algumas informações podem não ter sido carregadas.");
-      console.log("Erro ao carregar perfil:", error);
-    } finally {
-      setCarregando(false);
-      setRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    carregarDados();
-  }, [alunoId]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    carregarDados();
-  };
-
-  // Funções de Status e Cores
-  const getStatusCor = (status, dataVencimento) => {
-    if (status === "pago") return cores.verde;
-    if (dataVencimento && new Date(dataVencimento) < new Date()) return cores.vermelho;
-    return cores.amarelo;
-  };
-
-  const getStatusTexto = (status, dataVencimento) => {
-    if (status === "pago") return "PAGO";
-    if (dataVencimento && new Date(dataVencimento) < new Date()) return "ATRASADO";
-    return "ABERTO";
-  };
-
-  const temMensalidadeAtrasada = mensalidades.some(m => {
-      if (m.status === "pago" || !m.data_vencimento) return false;
-      const hoje = new Date();
-      hoje.setHours(0,0,0,0);
-      return new Date(m.data_vencimento) < hoje;
-  });
-
-  // Função para abrir o WhatsApp
-  const abrirWhatsApp = (mensagem) => {
-      const url = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
-      Linking.openURL(url).catch(() => {
-          Alert.alert("Erro", "Não foi possível abrir o WhatsApp. Verifique se o aplicativo está instalado.");
-      });
-  };
-
-  if (carregando && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={cores.primaria} />
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      {/* Cabeçalho do Perfil */}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarTexto}>
-            {perfil?.nome_completo?.charAt(0).toUpperCase() || "A"}
-          </Text>
-        </View>
-        <Text style={styles.nome}>{perfil?.nome_completo}</Text>
-        <Text style={styles.email}>{perfil?.email}</Text>
-      </View>
-
-      {/* Alerta de Inadimplência */}
-      {temMensalidadeAtrasada && (
-        <View style={styles.alertaAtraso}>
-          <Text style={styles.alertaTitulo}>⚠️ Mensalidade Pendente</Text>
-          <Text style={styles.alertaTexto}>
-            Identificamos uma mensalidade em aberto. Para continuar agendando suas aulas sem interrupções, por favor, regularize sua situação.
-          </Text>
-          <TouchableOpacity 
-            style={styles.btnAlerta} 
-            onPress={() => abrirWhatsApp("Olá! Vi no aplicativo que tenho uma pendência. Como faço para regularizar minha mensalidade?")}
-          >
-            <Text style={styles.btnAlertaTexto}>Falar com a Recepção</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Card do Plano */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitulo}>Meu Plano</Text>
-        {perfil?.planos ? (
-          <View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Plano:</Text>
-              <Text style={styles.valor}>{perfil.planos.nome}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Frequência:</Text>
-              <Text style={styles.valor}>
-                {perfil.planos.frequencia_semanal}x na semana
-              </Text>
-            </View>
-            
-            {/* Exibição da Frequência do Mês */}
-            <View style={styles.row}>
-              <Text style={styles.label}>Aulas neste mês:</Text>
-              <Text style={styles.valorDestaque}>{frequenciaMes} presenças</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>Valor:</Text>
-              <Text style={styles.valor}>
-                {Number(perfil.planos.preco || 0).toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                })}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Status:</Text>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: perfil.ativo ? cores.verde : cores.vermelho },
-                ]}
-              >
-                <Text style={styles.badgeTexto}>
-                  {perfil.ativo ? "ATIVO" : "INATIVO"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <Text style={styles.semPlano}>Nenhum plano vinculado.</Text>
-        )}
-      </View>
-
-      {/* Histórico Financeiro */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitulo}>Histórico Financeiro</Text>
-        {mensalidades.length === 0 ? (
-          <Text style={styles.semDados}>Nenhuma cobrança registrada.</Text>
-        ) : (
-          mensalidades.map((item) => (
-            <View key={item.id} style={[styles.itemFinanceiro, getStatusTexto(item.status, item.data_vencimento) === "ATRASADO" && styles.itemAtrasado]}>
-              <View>
-                <Text style={styles.mesRef}>Vencimento</Text>
-                <Text style={styles.dataVenc}>
-                  {item.data_vencimento ? format(new Date(item.data_vencimento), "dd/MM/yyyy") : "--/--/----"}
-                </Text>
-              </View>
-
-              <View style={styles.direitaItem}>
-                <Text
-                  style={[
-                    styles.statusTexto,
-                    { color: getStatusCor(item.status, item.data_vencimento) },
-                  ]}
-                >
-                  {getStatusTexto(item.status, item.data_vencimento)}
-                </Text>
-                {item.valor_pago && (
-                  <Text style={styles.valorPago}>
-                    Pg:{" "}
-                    {Number(item.valor_pago).toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* Botão de Suporte WhatsApp */}
-      <TouchableOpacity 
-        style={styles.botaoWhatsApp} 
-        onPress={() => abrirWhatsApp("Olá, Espaço Iluminus! Preciso de ajuda com o meu aplicativo/plano.")}
-      >
-        <Text style={styles.iconeWhatsApp}>💬</Text>
-        <Text style={styles.textoWhatsApp}>Suporte via WhatsApp</Text>
-      </TouchableOpacity>
-
-      {/* Botão de Sair */}
-      <TouchableOpacity style={styles.botaoSair} onPress={onLogout}>
-        <Text style={styles.textoSair}>Sair do Aplicativo</Text>
-      </TouchableOpacity>
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: cores.fundo },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { alignItems: "center", paddingVertical: 30 },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: cores.secundaria,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  avatarTexto: { fontSize: 32, fontWeight: "bold", color: cores.branco },
-  nome: { fontSize: 22, fontWeight: "bold", color: cores.texto },
-  email: { fontSize: 14, color: cores.textoSuave },
-
-  // Estilos do Alerta de Atraso
-  alertaAtraso: {
-    backgroundColor: cores.alertaFundo,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: cores.alertaBorda,
-  },
-  alertaTitulo: { color: cores.vermelho, fontWeight: "bold", fontSize: 16, marginBottom: 5 },
-  alertaTexto: { color: "#7F1D1D", fontSize: 13, marginBottom: 15, lineHeight: 18 },
-  btnAlerta: { backgroundColor: cores.vermelho, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
-  btnAlertaTexto: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
-
-  card: {
-    backgroundColor: cores.branco,
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#F0E0D6",
-    marginBottom: 25,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-  },
-  cardTitulo: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: cores.primaria,
-    marginBottom: 15,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  label: { fontSize: 14, color: cores.textoSuave },
-  valor: { fontSize: 15, fontWeight: "600", color: cores.texto },
-  valorDestaque: { fontSize: 15, fontWeight: "bold", color: cores.secundaria },
-  semPlano: { fontStyle: "italic", color: cores.textoSuave },
-
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  badgeTexto: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
-
-  section: { paddingHorizontal: 20 },
-  sectionTitulo: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 15,
-  },
-  semDados: { color: cores.textoSuave, textAlign: "center", marginTop: 10 },
-
-  itemFinanceiro: {
-    backgroundColor: cores.branco,
-    padding: 15,
-    borderRadius: 15,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#F0E0D6",
-  },
-  itemAtrasado: {
-      backgroundColor: cores.alertaFundo,
-      borderColor: cores.alertaBorda,
-  },
-  mesRef: { fontSize: 10, color: cores.textoSuave, textTransform: "uppercase" },
-  dataVenc: { fontSize: 16, fontWeight: "bold", color: cores.texto },
-  direitaItem: { alignItems: "flex-end" },
-  statusTexto: { fontWeight: "bold", fontSize: 12 },
-  valorPago: { fontSize: 10, color: cores.textoSuave, marginTop: 2 },
-
-  // Estilos do Botão WhatsApp
-  botaoWhatsApp: {
-    marginHorizontal: 20,
-    marginTop: 25,
-    marginBottom: 5,
-    padding: 16,
-    backgroundColor: cores.whatsApp,
-    borderRadius: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  iconeWhatsApp: { fontSize: 18, marginRight: 8 },
-  textoWhatsApp: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
-
-  botaoSair: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    padding: 16,
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  textoSair: { color: cores.vermelho, fontWeight: "bold" },
-});
-</file>
-
-<file path="app_mobile/src/services/supabase.js">
-import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
-
-const ExpoSecureStoreAdapter = {
-  getItem: (key) => {
-    return SecureStore.getItemAsync(key);
-  },
-  setItem: (key, value) => {
-    SecureStore.setItemAsync(key, value);
-  },
-  removeItem: (key) => {
-    SecureStore.deleteItemAsync(key);
-  },
-};
-
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: Platform.OS === 'web' ? localStorage : ExpoSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
 });
 </file>
 
@@ -29368,572 +29956,274 @@ export default defineConfig({
 });
 </file>
 
-<file path="supabase/functions/lembretes-aula/index.ts">
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+<file path="supabase/functions/gerar-repasses/index.ts">
+// supabase/functions/gerar-repasses/index.ts
+//
+// Gera repasses para UMA mensalidade específica ao ser confirmada.
+//
+// Lógica por tipo de aula:
+//   - regular    → valor fixo por modalidade matriculada (cfg.valor_1_modalidade ou valor_multi)
+//   - plano_livre → valor_pago × pct_prof, dividido igualmente entre modalidades frequentadas no mês.
+//                   Se nenhuma presença → sem repasse (100% fica para o espaço).
+//   - avulsa     → cfg.valor_1_modalidade para o professor vinculado
+//   - experimental → sem repasse
+//
+// Chamada via: supabase.functions.invoke('gerar-repasses', { body: { mensalidadeId } })
 
-serve(async (req) => {
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+function response(body: object, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+interface ConfigRepasse {
+  valor_1_modalidade: number;
+  valor_multi_modalidade: number;
+  plano_livre_pct_casa: number;
+  plano_livre_pct_prof: number;
+}
+
+interface Mensalidade {
+  id: string;
+  aluno_id: string | null;
+  plano_id: string | null;
+  tipo_aula: string;
+  valor_pago: number;
+  professor_id: string | null;
+  modalidade_nome: string | null;
+  data_pagamento: string | null;
+  data_vencimento: string;
+}
+
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
-    console.log("🤖 Robô de Lembretes Iniciado!");
+    const { mensalidadeId } = await req.json();
+
+    if (!mensalidadeId) {
+      return response({ error: 'Parâmetro mensalidadeId é obrigatório.' }, 400);
+    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
-    const dataIso = amanha.toISOString().split('T')[0];
-    console.log(`📅 Buscando aulas para o dia: ${dataIso}`);
+    // ── 1. Busca a mensalidade ──────────────────────────────────────────────
+    const { data: mens, error: errMens } = await supabase
+      .from('mensalidades')
+      .select('id, aluno_id, plano_id, tipo_aula, valor_pago, professor_id, modalidade_nome, data_pagamento, data_vencimento')
+      .eq('id', mensalidadeId)
+      .single();
 
-    const { data: agendamentos, error } = await supabase
-      .from('presencas')
-      .select(`
-        id,
-        data_aula,
-        agenda ( horario, atividade ),
-        alunos ( push_token, nome_completo )
-      `)
-      .eq('data_aula', dataIso);
-
-    if (error) throw error;
-
-    if (!agendamentos || agendamentos.length === 0) {
-      console.log("😴 Nenhuma aula agendada para amanhã.");
-      return new Response(JSON.stringify({ message: "Nenhuma aula para amanhã" }), { status: 200 });
+    if (errMens || !mens) {
+      return response({ error: 'Mensalidade não encontrada.' }, 404);
     }
 
-    const notificacoes = [];
+    const mensalidade = mens as Mensalidade;
 
-    for (const ag of agendamentos) {
-      if (ag.alunos?.push_token) {
-        const primeiroNome = ag.alunos.nome_completo.split(' ')[0];
-        const horario = ag.agenda.horario.substring(0, 5);
+    // Visitante ou experimental não geram repasse
+    if (!mensalidade.aluno_id) {
+      return response({ aviso: 'Mensalidade sem aluno vinculado. Nenhum repasse gerado.', gerados: 0 });
+    }
+    if (mensalidade.tipo_aula === 'experimental') {
+      return response({ aviso: 'Aula experimental não gera repasse.', gerados: 0 });
+    }
 
-        notificacoes.push({
-          to: ag.alunos.push_token,
-          title: '🏋️ Lembrete Iluminus',
-          body: `Olá, ${primeiroNome}! Sua aula de ${ag.agenda.atividade} é amanhã às ${horario}. Te esperamos!`,
-          sound: 'default'
+    // ── 2. Configurações de repasse ─────────────────────────────────────────
+    const { data: config, error: errConfig } = await supabase
+      .from('configuracoes_repasse')
+      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof')
+      .single();
+
+    if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
+    const cfg = config as ConfigRepasse;
+
+    // ── 3. Idempotência: remove repasses anteriores desta mensalidade ───────
+    await supabase
+      .from('repasses_lancamentos')
+      .delete()
+      .eq('mensalidade_id', mensalidadeId);
+
+    // Data de referência = primeiro dia do mês do pagamento
+    const dataBase = mensalidade.data_pagamento || mensalidade.data_vencimento;
+    const [anoRef, mesRef] = dataBase.substring(0, 7).split('-').map(Number);
+    const mesStr = String(mesRef).padStart(2, '0');
+    const dataReferencia = `${anoRef}-${mesStr}-01`;
+    const ultimoDia = new Date(anoRef, mesRef, 0).getDate();
+    const inicioPeriodo = dataReferencia;
+    const fimPeriodo = `${anoRef}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
+
+    const itens: {
+      professor_id: string;
+      aluno_id: string;
+      mensalidade_id: string;
+      tipo_aula: string;
+      modalidade: string;
+      valor: number;
+      data_referencia: string;
+    }[] = [];
+
+    // ── 4a. PLANO LIVRE ─────────────────────────────────────────────────────
+    if (mensalidade.tipo_aula === 'plano_livre') {
+
+      // Busca presenças do aluno no mês via join agenda → modalidades
+      const { data: presencas, error: errPresencas } = await supabase
+        .from('presencas')
+        .select(`
+          aula_id,
+          agenda (
+            modalidades (
+              id,
+              nome,
+              professor_id
+            )
+          )
+        `)
+        .eq('aluno_id', mensalidade.aluno_id)
+        .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
+        .lte('data_checkin', `${fimPeriodo}T23:59:59`)
+        .not('aula_id', 'is', null);
+
+      if (errPresencas) throw errPresencas;
+
+      if (!presencas || presencas.length === 0) {
+        // Sem presenças → sem repasse para professores (100% fica para o espaço)
+        return response({
+          aviso: 'Plano livre sem presenças no mês. Nenhum repasse gerado para professores.',
+          gerados: 0,
         });
       }
-    }
 
-    if (notificacoes.length > 0) {
-      console.log(`🚀 Enviando ${notificacoes.length} notificações...`);
-      await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(notificacoes),
+      // Deduplica modalidades frequentadas (uma por professor)
+      const modMap = new Map<string, { nome: string; professor_id: string }>();
+      for (const p of presencas) {
+        const mod = (p.agenda as any)?.modalidades;
+        if (mod?.id && mod?.professor_id) {
+          modMap.set(mod.id, { nome: mod.nome, professor_id: mod.professor_id });
+        }
+      }
+
+      if (modMap.size === 0) {
+        return response({
+          aviso: 'Plano livre: presenças encontradas mas nenhuma modalidade com professor vinculado.',
+          gerados: 0,
+        });
+      }
+
+      // Cálculo: valor_pago × pct_prof ÷ nº de modalidades frequentadas
+      const valorTotal = Number(mensalidade.valor_pago);
+      const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
+      const parteProfs = valorTotal * pctProf;
+      const valorPorMod = Math.round((parteProfs / modMap.size) * 100) / 100;
+
+      for (const [, mod] of modMap) {
+        itens.push({
+          professor_id: mod.professor_id,
+          aluno_id: mensalidade.aluno_id!,
+          mensalidade_id: mensalidadeId,
+          tipo_aula: 'plano_livre',
+          modalidade: mod.nome,
+          valor: valorPorMod,
+          data_referencia: dataReferencia,
+        });
+      }
+
+    // ── 4b. REGULAR ─────────────────────────────────────────────────────────
+    } else if (mensalidade.tipo_aula === 'regular') {
+      const { data: aluno } = await supabase
+        .from('alunos')
+        .select('modalidades_selecionadas')
+        .eq('id', mensalidade.aluno_id)
+        .single();
+
+      const modIds: string[] = aluno?.modalidades_selecionadas ?? [];
+
+      if (modIds.length === 0) {
+        return response({ aviso: 'Aluno sem modalidades vinculadas. Repasse não gerado.', gerados: 0 });
+      }
+
+      const { data: mods } = await supabase
+        .from('modalidades')
+        .select('id, nome, professor_id')
+        .in('id', modIds)
+        .not('professor_id', 'is', null);
+
+      const modsValidas = (mods ?? []) as { id: string; nome: string; professor_id: string }[];
+
+      if (modsValidas.length === 0) {
+        return response({ aviso: 'Modalidades sem professor vinculado. Repasse não gerado.', gerados: 0 });
+      }
+
+      const valorPorMod = modsValidas.length === 1
+        ? Number(cfg.valor_1_modalidade)
+        : Number(cfg.valor_multi_modalidade);
+
+      for (const mod of modsValidas) {
+        itens.push({
+          professor_id: mod.professor_id,
+          aluno_id: mensalidade.aluno_id!,
+          mensalidade_id: mensalidadeId,
+          tipo_aula: 'regular',
+          modalidade: mod.nome,
+          valor: valorPorMod,
+          data_referencia: dataReferencia,
+        });
+      }
+
+    // ── 4c. AVULSA ──────────────────────────────────────────────────────────
+    } else if (mensalidade.tipo_aula === 'avulsa') {
+      if (!mensalidade.professor_id) {
+        return response({ aviso: 'Aula avulsa sem professor vinculado. Repasse não gerado.', gerados: 0 });
+      }
+
+      itens.push({
+        professor_id: mensalidade.professor_id,
+        aluno_id: mensalidade.aluno_id!,
+        mensalidade_id: mensalidadeId,
+        tipo_aula: 'avulsa',
+        modalidade: mensalidade.modalidade_nome ?? 'Avulsa',
+        valor: Number(cfg.valor_1_modalidade),
+        data_referencia: dataReferencia,
       });
     }
 
-    return new Response(JSON.stringify({ success: true, enviados: notificacoes.length }), { 
-      headers: { "Content-Type": "application/json" } 
+    // ── 5. Insere ───────────────────────────────────────────────────────────
+    if (itens.length === 0) {
+      return response({ aviso: 'Nenhum repasse calculado para este tipo de aula.', gerados: 0 });
+    }
+
+    const { error: errInsert } = await supabase
+      .from('repasses_lancamentos')
+      .insert(itens);
+
+    if (errInsert) throw errInsert;
+
+    return response({
+      sucesso: true,
+      gerados: itens.length,
+      itens: itens.map(i => ({ modalidade: i.modalidade, valor: i.valor, tipo: i.tipo_aula })),
     });
 
   } catch (err) {
-    console.error("❌ Erro fatal no robô:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    const message =
+      err instanceof Error ? err.message
+      : typeof err === 'object' && err !== null ? JSON.stringify(err)
+      : String(err);
+    console.error('[gerar-repasses] ERRO:', message);
+    return response({ error: message }, 500);
   }
-})
-</file>
-
-<file path="app_mobile/App.js">
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { addDays, format, isSameDay, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-
-// Componentes
-import CardAula from "./src/components/CardAula";
-import TelaLogin from "./src/components/TelaLogin";
-import TelaPerfil from "./src/components/TelaPerfil";
-import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
-import { supabase } from "./src/services/supabase";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-const cores = {
-  fundo: "#FDF8F5",
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  branco: "#FFFFFF",
-  ativo: "#D98E73",
-  inativo: "#C4C4C4",
-};
-
-export default function App() {
-  const [alunoId, setAlunoId] = useState(null);
-  const [nomeAluno, setNomeAluno] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [telaAtual, setTelaAtual] = useState("agenda");
-  const [feriadoMsg, setFeriadoMsg] = useState(null);
-  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
-  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
-  const [aulas, setAulas] = useState([]);
-
-  useEffect(() => {
-    verificarSessao();
-  }, []);
-
-  useEffect(() => {
-    if (!alunoId) return;
-
-    const channel = supabase
-      .channel('mudancas-globais-presencas')
-      .on('postgres_changes', {
-        event: '*', 
-        schema: 'public',
-        table: 'presencas'
-      }, (payload) => {
-        console.log("🔄 Mudança detectada nas vagas!", payload);
-        buscarAulas(false);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [alunoId]);
-
-  useEffect(() => {
-    if (alunoId && telaAtual === "agenda") buscarAulas(true);
-  }, [dataSelecionada, alunoId, telaAtual]);
-
-  async function verificarSessao() {
-    console.log("🔍 [1] Iniciando verificação de sessão...");
-    try {
-      setCarregando(true);
-      
-      console.log("🔍 [2] Consultando sessão salva no Supabase...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
-
-      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
-
-      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", session.user.id)
-        .single();
-
-      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
-
-      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
-      setAlunoId(aluno.id);
-      setNomeAluno(aluno.nome_completo);
-      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
-      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
-
-      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
-      registrarTokenPush(aluno.id);
-
-      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
-    } catch (e) {
-      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
-      await handleLogout();
-    } finally {
-      console.log("🏁 [Final] Desativando o ícone de carregamento.");
-      setCarregando(false);
-    }
-  }
-
-  async function registrarTokenPush(idAluno) {
-    if (!Device.isDevice) {
-      console.log('Push Notifications só funcionam em dispositivos físicos');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
-      return;
-    }
-
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permissão para notificações negada!');
-        return;
-      }
-
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
-      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      
-      console.log("Push Token gerado:", token);
-
-      await supabase
-        .from('alunos')
-        .update({ push_token: token })
-        .eq('id', idAluno);
-        
-    } catch (error) {
-      console.error("Erro ao gerar/salvar push token:", error);
-    }
-  }
-
-  async function buscarAulas(mostrarLoading = true) {
-    if (mostrarLoading) setCarregando(true);
-    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-
-    try {
-      const { data: feriados, error: errFeriado } = await supabase
-        .from("feriados")
-        .select("descricao")
-        .eq("data", dataIso);
-
-      if (errFeriado) throw errFeriado;
-
-      if (feriados && feriados.length > 0) {
-        setFeriadoMsg(feriados[0].descricao);
-        setAulas([]); 
-        setCarregando(false);
-        return; 
-      } else {
-        setFeriadoMsg(null); 
-      }
-
-      const { data, error } = await supabase
-        .from("agenda")
-        .select(`*, presencas(*), professores(nome)`)
-        .eq("ativa", true)
-        .order("horario", { ascending: true });
-
-      if (error) throw error;
-
-      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
-      const diasTraduzidos = {
-        "domingo": "Domingo",
-        "segunda-feira": "Segunda-feira",
-        "terça-feira": "Terça-feira",
-        "quarta-feira": "Quarta-feira",
-        "quinta-feira": "Quinta-feira",
-        "sexta-feira": "Sexta-feira",
-        "sábado": "Sábado",
-      };
-      const diaCorreto = diasTraduzidos[diaSemanaAtual];
-
-      const aulasDoDia = (data || []).filter((aula) => {
-        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
-        return aula.dia_semana === diaCorreto;
-      });
-
-      setAulas(aulasDoDia);
-    } catch (err) {
-      console.error("Erro ao buscar aulas:", err);
-      if (err.message.includes("Network")) {
-        Alert.alert("Sem conexão", "Verifique sua internet.");
-      }
-    } finally {
-      setCarregando(false);
-      setRefreshing(false);
-    }
-  }
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    buscarAulas(false);
-  };
-
-  async function handleLogout() {
-    try {
-      setCarregando(true);
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Erro logout:", err);
-    } finally {
-      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
-      setAlunoId(null);
-      setNomeAluno("");
-      setCarregando(false);
-    }
-  }
-
-  // TELA DE CARREGAMENTO INICIAL
-  if (carregando && !alunoId) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={cores.primaria} />
-      </View>
-    );
-  }
-
-  // TELA DE LOGIN
-  if (!alunoId) {
-    return (
-      <TelaLogin
-        onLogado={(perfil) => {
-          setAlunoId(perfil.id);
-          setNomeAluno(perfil.nome_completo);
-          registrarTokenPush(perfil.id);
-        }}
-      />
-    );
-  }
-
-  // APLICATIVO PRINCIPAL
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          {telaAtual === "agenda" ? (
-            <>
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
-                  <Text style={styles.titulo}>Sua Agenda</Text>
-                </View>
-              </View>
-
-              <View style={styles.calendarioContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 14 }).map((_, i) => {
-                    const dia = addDays(new Date(), i);
-                    const ativo = isSameDay(dia, dataSelecionada);
-                    return (
-                      <TouchableOpacity
-                        key={dia.toISOString()}
-                        onPress={() => setDataSelecionada(startOfDay(dia))}
-                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
-                      >
-                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
-                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
-                        </Text>
-                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
-                          {format(dia, "d")}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {carregando ? (
-                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
-              ) : feriadoMsg ? (
-                <View style={styles.containerFeriado}>
-                  <Text style={styles.emojiFeriado}>🏖️</Text>
-                  <Text style={styles.tituloFeriado}>Feriado</Text>
-                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
-                  <Text style={styles.avisoFeriado}>
-                    O estúdio estará fechado neste dia. Bom descanso!
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={aulas}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <CardAula
-                      aula={item}
-                      alunoId={alunoId}
-                      dataSelecionada={dataSelecionada}
-                      onAgendamentoSucesso={() => buscarAulas(false)}
-                    />
-                  )}
-                  contentContainerStyle={{ paddingBottom: 80 }}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.containerVazio}>
-                      <View style={styles.circuloIconeVazio}>
-                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
-                      </View>
-                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
-                      <Text style={styles.textoVazio}>
-                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.botaoVazio}
-                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
-                      >
-                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
-                      </TouchableOpacity>
-                    </View>
-                  }
-                />
-              )}
-
-              {/* Botão Flutuante (FAB) */}
-              <TouchableOpacity 
-                style={styles.fab} 
-                activeOpacity={0.8}
-                onPress={() => setModalAgendamentoVisivel(true)}
-              >
-                <Text style={styles.fabText}>+</Text>
-              </TouchableOpacity>
-
-              <AgendamentoBottomSheet 
-                isVisible={modalAgendamentoVisivel} 
-                onClose={() => setModalAgendamentoVisivel(false)}
-                aulasDisponiveis={aulas} 
-                alunoId={alunoId} 
-                isLoading={carregando} 
-                isError={false}
-                onRefresh={() => buscarAulas(true)} 
-              />
-            </>
-          ) : (
-            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
-          )}
-        </View>
-
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
-            <Text style={{ fontSize: 24 }}>📅</Text>
-            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
-            <Text style={{ fontSize: 24 }}>👤</Text>
-            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
-  container: { flex: 1, backgroundColor: cores.fundo },
-  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
-
-  header: { marginVertical: 20 },
-  saudacao: { fontSize: 14, color: cores.textoSuave },
-  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
-
-  calendarioContainer: { marginBottom: 20, height: 80 },
-  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
-  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
-  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
-  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
-  textoAtivo: { color: cores.branco },
-
-  // Estilos do Feriado
-  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
-  emojiFeriado: { fontSize: 48, marginBottom: 10 },
-  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
-  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
-  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
-
-  // Estilos do FAB
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    backgroundColor: cores.primaria,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    color: cores.branco,
-    fontSize: 32,
-    fontWeight: "300",
-    marginTop: -4,
-  },
-
-  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
-  tabTextAtivo: { color: cores.ativo },
-
-  // ESTILOS DO ESTADO VAZIO
-  containerVazio: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    marginTop: 60,
-  },
-  circuloIconeVazio: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#F0E0D6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  iconeVazio: {
-    fontSize: 50,
-  },
-  tituloVazio: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  textoVazio: {
-    fontSize: 15,
-    color: cores.textoSuave,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  botaoVazio: {
-    backgroundColor: cores.branco,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    elevation: 1,
-    shadowColor: cores.primaria,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  botaoVazioTexto: {
-    color: cores.primaria,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
 });
 </file>
 
@@ -32154,38 +32444,6 @@ export const agendamentoService = {
 };
 </file>
 
-<file path="gestao_web/src/services/repasseService.js">
-import { supabase } from '../lib/supabase';
-
-export async function gerarRepassesDaMensalidade(mensalidadeId) {
-  const { data, error } = await supabase.functions.invoke('gerar-repasses', {
-    body: { mensalidadeId },
-  });
-
-  if (error) throw error;
-
-  return data;
-}
-
-export async function listarRepassesProfessor(professorId, mesAno) {
-  const inicio = `${mesAno}-01`;
-  const [ano, mes] = mesAno.split('-').map(Number);
-  const ultimoDia = new Date(ano, mes, 0).getDate();
-  const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
-
-  const { data, error } = await supabase
-    .from('repasses_lancamentos')
-    .select('id, valor, tipo_aula, modalidade, data_referencia, alunos(nome_completo)')
-    .eq('professor_id', professorId)
-    .gte('data_referencia', inicio)
-    .lte('data_referencia', fim)
-    .order('data_referencia', { ascending: false });
-
-  if (error) throw error;
-  return data;
-}
-</file>
-
 <file path="gestao_web/index.html">
 <!doctype html>
 <html lang="pt-BR">
@@ -32926,69 +33184,64 @@ async obterComissoes(inicioMes) {
 };
 </file>
 
-<file path="gestao_web/src/services/modalidadeService.js">
+<file path="gestao_web/src/services/repasseService.js">
+// gestao_web/src/services/repasseService.js
+
 import { supabase } from '../lib/supabase';
 
-export const modalidadeService = {
-  async listar() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*, professores (nome)')
-      .order('area')
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
+/**
+ * Gera repasses a partir de um pagamento de mensalidade confirmado.
+ * Chamado automaticamente em confirmarPagamento e adicionarPagamentoManual.
+ */
+export async function gerarRepassesDaMensalidade(mensalidadeId) {
+  const { data, error } = await supabase.functions.invoke('gerar-repasses', {
+    body: { mensalidadeId },
+  });
 
-  async buscarPerfil(id, nome) {
-    const { data: horarios, error: errHorarios } = await supabase
-      .from('agenda')
-      .select('dia_semana, horario')
-      .eq('modalidade_id', id)
-      .eq('eh_recorrente', true)
-      .order('dia_semana')
-      .order('horario');
-      
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome_completo, planos(nome)')
-      .eq('ativo', true)
-      .contains('modalidades_selecionadas', [nome])
-      .order('nome_completo');
+  if (error) throw error;
+  return data;
+}
 
-    return {
-      horarios: horarios || [],
-      alunos: alunos || []
-    };
-  },
+/**
+ * Gera repasses mensais com base nos alunos MATRICULADOS nas modalidades,
+ * independente de pagamento. Deve ser executado uma vez por mês pelo admin.
+ *
+ * @param {number} mes  - Mês (1–12)
+ * @param {number} ano  - Ano (ex: 2025)
+ */
+export async function gerarRepassesMensais(mes, ano) {
+  const { data, error } = await supabase.functions.invoke('gerar-repasses-mensais', {
+    body: { mes, ano },
+  });
 
-  async salvar(modalidade) {
-    const payload = {
-      nome: modalidade.nome,
-      area: modalidade.area || 'Dança',
-      professor_id: modalidade.professor_id || null,
-      taxa_professor: Number(modalidade.taxa_professor) || 0,
-      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
-      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
-      capacidade_padrao: modalidade.capacidade_padrao
-    };
+  if (error) throw error;
+  return data;
+}
 
-    if (modalidade.id) {
-      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('modalidades').insert([payload]);
-      if (error) throw error;
-    }
-    return true;
-  },
+/**
+ * Lista os repasses de um professor em um determinado mês/ano.
+ * Usado na página de comissões do professor e pelo admin.
+ *
+ * @param {string} professorId
+ * @param {string} mesAno - formato 'YYYY-MM'
+ */
+export async function listarRepassesProfessor(professorId, mesAno) {
+  const inicio = `${mesAno}-01`;
+  const [ano, mes] = mesAno.split('-').map(Number);
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
-  async excluir(id) {
-    const { error } = await supabase.from('modalidades').delete().eq('id', id);
-    if (error) throw error;
-    return true;
-  }
-};
+  const { data, error } = await supabase
+    .from('repasses_lancamentos')
+    .select('id, valor, tipo_aula, modalidade, data_referencia, alunos(nome_completo)')
+    .eq('professor_id', professorId)
+    .gte('data_referencia', inicio)
+    .lte('data_referencia', fim)
+    .order('data_referencia', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
 </file>
 
 <file path="gestao_web/tailwind.config.js">
@@ -33792,6 +34045,71 @@ export default function ConfiguracoesFeriados() {
     </div>
   );
 }
+</file>
+
+<file path="gestao_web/src/services/modalidadeService.js">
+import { supabase } from '../lib/supabase';
+
+export const modalidadeService = {
+  async listar() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*, professores (nome)')
+      .order('area')
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+
+async buscarPerfil(id, nome) {
+  const { data: horarios } = await supabase
+    .from('agenda')
+    .select('dia_semana, horario')
+    .eq('modalidade_id', id)
+    .eq('eh_recorrente', true)
+    .order('dia_semana')
+    .order('horario');
+
+  // ✅ busca por ID
+  const { data: alunos, error: errAlunos } = await supabase
+    .from('alunos')
+    .select('id, nome_completo, planos(nome)')
+    .eq('ativo', true)
+    .contains('modalidades_selecionadas', [id])
+    .order('nome_completo');
+
+  if (errAlunos) throw errAlunos;
+  return { horarios: horarios || [], alunos: alunos || [] };
+},
+
+  async salvar(modalidade) {
+    const payload = {
+      nome: modalidade.nome,
+      area: modalidade.area || 'Dança',
+      professor_id: modalidade.professor_id || null,
+      taxa_professor: Number(modalidade.taxa_professor) || 0,
+      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
+      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
+      capacidade_padrao: modalidade.capacidade_padrao
+    };
+
+    if (modalidade.id) {
+      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('modalidades').insert([payload]);
+      if (error) throw error;
+    }
+    return true;
+  },
+
+  async excluir(id) {
+    const { error } = await supabase.from('modalidades').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+};
 </file>
 
 <file path="gestao_web/src/utils/calendarioParser.js">
@@ -37368,7 +37686,7 @@ export const financeiroService = {
       .select(`
         *,
         alunos (nome_completo),
-        planos (nome, preco)
+        planos (nome, preco, is_plano_livre)
       `)
       .gte('data_vencimento', inicio)
       .lte('data_vencimento', fim)
@@ -38057,265 +38375,6 @@ export default function ModalNovaAula({
       </Button>
 
     </form>
-  );
-}
-</file>
-
-<file path="gestao_web/src/pages/Comissoes.jsx">
-import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, Search, Users, DollarSign, FileSpreadsheet, PieChart, Calendar, Wallet 
-} from 'lucide-react';
-import * as XLSX from 'xlsx';
-
-import { comissoesService } from '../services/comissoesService';
-import { showToast } from '../components/shared/Toast';
-import { TableSkeleton } from '../components/shared/Loading';
-import EmptyState from '../components/ui/EmptyState';
-import Modal, { ModalConfirmacao, useModal } from '../components/ui/Modal';
-import { formatarMoeda } from '../lib/utils';
-
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import Surface from '../components/ui/Surface';
-
-export default function Comissoes() {
-  const [professores, setProfessores] = useState([]);
-  const [filtros, setFiltros] = useState({
-    professorId: '',
-    mesAno: new Date().toISOString().slice(0, 7)
-  });
-  
-  const [dados, setDados] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [fechando, setFechando] = useState(false);
-
-  const modalFechamento = useModal();
-
-  useEffect(() => {
-    async function carregarProfessores() {
-      try {
-        const profs = await comissoesService.listarProfessores();
-        setProfessores(profs || []);
-      } catch (error) {
-        showToast.error("Erro ao carregar lista de professores");
-      }
-    }
-    carregarProfessores();
-  }, []);
-
-  const handleBuscar = async (e) => {
-    e?.preventDefault();
-    if (!filtros.professorId) {
-      showToast.error("Selecione um professor");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const resultado = await comissoesService.buscarDetalhes(filtros.professorId, filtros.mesAno);
-      setDados(resultado);
-    } catch (error) {
-      showToast.error("Erro ao buscar detalhes das comissões");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFecharMes = async () => {
-    setFechando(true);
-    try {
-      await comissoesService.fecharMes(
-        filtros.professorId, 
-        filtros.mesAno, 
-        dados.resumo.total_comissao
-      );
-      
-      showToast.success("Mês fechado e comissões aprovadas com sucesso!");
-      modalFechamento.fechar();
-      handleBuscar();
-    } catch (error) {
-      console.error(error);
-      showToast.error("Erro ao fechar o mês");
-    } finally {
-      setFechando(false);
-    }
-  };
-
-  const exportarExcel = () => {
-    if (!dados || !dados.lancamentos.length) return;
-    const linhas = dados.lancamentos.map(l => ({
-      Data: new Date(l.created_at).toLocaleDateString('pt-BR'),
-      Aluno: l.alunos?.nome_completo || 'Desconhecido',
-      'Tipo de Aula': l.tipo_aula.toUpperCase(),
-      Modalidade: l.modalidade || '-',
-      'Valor (R$)': Number(l.valor).toFixed(2).replace('.', ',')
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(linhas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Comissões");
-    XLSX.writeFile(wb, `Comissoes_${filtros.mesAno}_Prof_${filtros.professorId}.xlsx`);
-  };
-
-  const profSelecionado = professores.find(p => p.id === filtros.professorId)?.nome || '';
-  const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
-
-  return (
-    <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
-            <PieChart className="text-primary" size={32} /> Comissões e Repasses
-          </h1>
-          <p className="text-muted-foreground mt-1">Gere os extratos de pagamento consolidados dos professores.</p>
-        </div>
-      </div>
-
-      {/* FILTROS */}
-      <Surface variant="card" padding="lg">
-        <form onSubmit={handleBuscar} className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
-              <Users size={16} className="text-primary" /> Professor
-            </label>
-            <Input
-              as="select"
-              value={filtros.professorId}
-              onChange={e => setFiltros(f => ({ ...f, professorId: e.target.value }))}
-            >
-              <option value="">Selecione o professor...</option>
-              {professores.map(p => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
-              ))}
-            </Input>
-          </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
-              <Calendar size={16} className="text-primary" /> Mês
-            </label>
-            <Input
-              type="month"
-              value={filtros.mesAno}
-              onChange={e => setFiltros(f => ({ ...f, mesAno: e.target.value }))}
-            />
-          </div>
-          <Button 
-            type="submit"
-            variant="brand"
-            disabled={loading}
-            className="w-full md:w-auto h-[46px] px-8 font-black gap-2"
-          >
-            <Search size={20} /> Buscar
-          </Button>
-        </form>
-      </Surface>
-
-      {/* RESULTADOS */}
-      {loading ? (
-        <TableSkeleton />
-      ) : dados ? (
-        <div className="space-y-6">
-          {dados.fechamento && (
-            <Surface variant="subtle" className="border border-success/20 bg-success-soft p-4 rounded-2xl flex items-center gap-3 text-success">
-              <CheckCircle size={24} />
-              <div>
-                <p className="font-bold">Mês Fechado e Pago</p>
-                <p className="text-sm opacity-80">As comissões deste mês já foram aprovadas e não podem ser alteradas.</p>
-              </div>
-            </Surface>
-          )}
-
-          {/* RESUMO TOTAL */}
-          <div className="grid grid-cols-1 gap-6">
-            <Surface variant="card" padding="lg" className="flex flex-col md:flex-row justify-between items-center shadow-lg border-primary/20">
-              <div>
-                <p className="text-muted-foreground font-bold uppercase text-xs mb-1">Total a Pagar (Líquido)</p>
-                <h2 className="text-4xl font-black text-foreground">{formatarMoeda(dados.resumo.total_comissao)}</h2>
-              </div>
-              <div className="mt-4 md:mt-0 flex gap-3">
-                <Button 
-                  variant="outline"
-                  onClick={exportarExcel}
-                  className="font-bold flex items-center gap-2"
-                >
-                  <FileSpreadsheet size={18} /> Exportar
-                </Button>
-                {!dados.fechamento && dados.resumo.total_comissao > 0 && (
-                  <Button 
-                    onClick={modalFechamento.abrir}
-                    className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
-                  >
-                    <CheckCircle size={20} /> Aprovar Fechamento
-                  </Button>
-                )}
-              </div>
-            </Surface>
-          </div>
-
-          {/* TABELA ÚNICA DE LANÇAMENTOS */}
-          <Surface variant="card" padding="none" className="overflow-hidden">
-            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
-              <h3 className="font-black text-foreground text-lg flex items-center gap-2">
-                <Wallet className="text-primary" size={20} /> Extrato de Repasses
-              </h3>
-            </div>
-            
-            {dados.lancamentos.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-muted border-b border-border">
-                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Data</th>
-                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Aluno</th>
-                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Tipo / Regra</th>
-                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Modalidade</th>
-                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">Repasse (R$)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {dados.lancamentos.map((l) => (
-                      <tr key={l.id} className="hover:bg-subtle transition-colors group">
-                        <td className="p-4 text-muted-foreground font-medium">
-                          {new Date(l.created_at).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="p-4 font-bold text-foreground">
-                          {l.alunos?.nome_completo || 'N/A'}
-                        </td>
-                        <td className="p-4">
-                          <span className="bg-info-soft text-info px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border border-info/10">
-                            {l.tipo_aula.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="p-4 text-muted-foreground">
-                          {l.modalidade || '-'}
-                        </td>
-                        <td className="p-4 font-black text-success text-right">
-                          {formatarMoeda(l.valor)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-8">
-                <EmptyState titulo="Nenhum Repasse" mensagem="Não foram encontrados repasses para este professor no período selecionado." />
-              </div>
-            )}
-          </Surface>
-        </div>
-      ) : null}
-
-      <ModalConfirmacao 
-        isOpen={modalFechamento.isOpen}
-        onClose={modalFechamento.fechar}
-        onConfirm={handleFecharMes}
-        titulo={`Aprovar Fechamento - ${mesFormatado}?`}
-        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${dados ? formatarMoeda(dados.resumo.total_comissao) : ''}.`}
-      />
-    </div>
   );
 }
 </file>
@@ -39730,6 +39789,412 @@ export default function Professores() {
           </Button>
         </Modal.Footer>
       </Modal>
+    </div>
+  );
+}
+</file>
+
+<file path="gestao_web/src/pages/Comissoes.jsx">
+// gestao_web/src/pages/Comissoes.jsx
+
+import React, { useState, useEffect } from 'react';
+import {
+  CheckCircle, Search, Users, DollarSign, FileSpreadsheet,
+  PieChart, Calendar, Wallet, RefreshCw, AlertTriangle, ChevronDown, ChevronUp,
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+import { comissoesService } from '../services/comissoesService';
+import { gerarRepassesMensais } from '../services/repasseService';
+import { showToast } from '../components/shared/Toast';
+import { TableSkeleton } from '../components/shared/Loading';
+import EmptyState from '../components/ui/EmptyState';
+import Modal, { ModalConfirmacao, useModal } from '../components/ui/Modal';
+import { formatarMoeda } from '../lib/utils';
+
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Surface from '../components/ui/Surface';
+
+export default function Comissoes() {
+  const [professores, setProfessores] = useState([]);
+  const [filtros, setFiltros] = useState({
+    professorId: '',
+    mesAno: new Date().toISOString().slice(0, 7),
+  });
+
+  const [dados, setDados] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fechando, setFechando] = useState(false);
+
+  // Estado do fluxo de geração de repasses mensais
+  const [gerando, setGerando] = useState(false);
+  const [resultadoGeracao, setResultadoGeracao] = useState(null);
+  const [resumoExpandido, setResumoExpandido] = useState(false);
+
+  const modalFechamento = useModal();
+  const modalGeracao = useModal();
+
+  useEffect(() => {
+    async function carregarProfessores() {
+      try {
+        const profs = await comissoesService.listarProfessores();
+        setProfessores(profs || []);
+      } catch {
+        showToast.error('Erro ao carregar lista de professores');
+      }
+    }
+    carregarProfessores();
+  }, []);
+
+  const handleBuscar = async (e) => {
+    e?.preventDefault();
+    if (!filtros.professorId) {
+      showToast.error('Selecione um professor');
+      return;
+    }
+    setLoading(true);
+    try {
+      const resultado = await comissoesService.buscarDetalhes(filtros.professorId, filtros.mesAno);
+      setDados(resultado);
+    } catch {
+      showToast.error('Erro ao buscar detalhes das comissões');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFecharMes = async () => {
+    setFechando(true);
+    try {
+      await comissoesService.fecharMes(
+        filtros.professorId,
+        filtros.mesAno,
+        dados.resumo.total_comissao,
+      );
+      showToast.success('Mês fechado e comissões aprovadas com sucesso!');
+      modalFechamento.fechar();
+      handleBuscar();
+    } catch (error) {
+      console.error(error);
+      showToast.error('Erro ao fechar o mês');
+    } finally {
+      setFechando(false);
+    }
+  };
+
+  /**
+   * Gera os repasses mensais com base nas matrículas ativas.
+   * A edge function já previne duplicatas e retorna 409 se já foi gerado.
+   */
+  const handleGerarRepasses = async () => {
+    const [ano, mes] = filtros.mesAno.split('-').map(Number);
+    setGerando(true);
+    setResultadoGeracao(null);
+    try {
+      const resultado = await gerarRepassesMensais(mes, ano);
+
+      if (resultado?.jaGerados) {
+        showToast.error(resultado.error || 'Repasses deste mês já foram gerados.');
+        modalGeracao.fechar();
+        return;
+      }
+
+      setResultadoGeracao(resultado);
+      showToast.success(`${resultado.gerados} repasse(s) gerado(s) com sucesso!`);
+
+      // Se o professor já estava selecionado, atualiza a listagem automaticamente
+      if (filtros.professorId) {
+        await handleBuscar();
+      }
+    } catch (err) {
+      const msg = err?.message || 'Erro ao gerar repasses mensais.';
+      showToast.error(msg);
+      console.error('[Comissoes] gerarRepassesMensais:', err);
+    } finally {
+      setGerando(false);
+      modalGeracao.fechar();
+    }
+  };
+
+  const exportarExcel = () => {
+    if (!dados || !dados.lancamentos.length) return;
+    const linhas = dados.lancamentos.map((l) => ({
+      Data: new Date(l.created_at).toLocaleDateString('pt-BR'),
+      Aluno: l.alunos?.nome_completo || 'Desconhecido',
+      'Tipo de Aula': l.tipo_aula.toUpperCase(),
+      Modalidade: l.modalidade || '-',
+      'Valor (R$)': Number(l.valor).toFixed(2).replace('.', ','),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Comissões');
+    XLSX.writeFile(wb, `Comissoes_${filtros.mesAno}_Prof_${filtros.professorId}.xlsx`);
+  };
+
+  const profSelecionado = professores.find((p) => p.id === filtros.professorId)?.nome || '';
+  const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
+
+  return (
+    <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
+            <PieChart className="text-primary" size={32} /> Comissões e Repasses
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Gere os extratos de pagamento consolidados dos professores.
+          </p>
+        </div>
+
+        {/* Botão de geração manual */}
+        <Button
+          variant="brand"
+          onClick={modalGeracao.abrir}
+          className="flex items-center gap-2 font-black"
+        >
+          <RefreshCw size={18} />
+          Gerar Repasses do Mês
+        </Button>
+      </div>
+
+      {/* RESULTADO DA ÚLTIMA GERAÇÃO */}
+      {resultadoGeracao && resultadoGeracao.sucesso && (
+        <Surface
+          variant="subtle"
+          className="border border-success/20 bg-success-soft rounded-2xl p-5 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 text-success">
+              <CheckCircle size={22} />
+              <div>
+                <p className="font-black">
+                  {resultadoGeracao.gerados} repasse(s) gerado(s) para {resultadoGeracao.mes}
+                </p>
+                <p className="text-sm opacity-80">Baseado nos alunos matriculados em cada modalidade.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setResumoExpandido((v) => !v)}
+              className="text-success/70 hover:text-success transition-colors p-1"
+            >
+              {resumoExpandido ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+
+          {resumoExpandido && resultadoGeracao.resumo?.length > 0 && (
+            <div className="border-t border-success/20 pt-3 space-y-1">
+              {resultadoGeracao.resumo.map((r) => (
+                <div key={r.nome} className="flex justify-between text-sm text-success/90">
+                  <span className="font-bold">{r.nome}</span>
+                  <span>
+                    {r.alunos} aluno(s) · {formatarMoeda(r.total)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {resultadoGeracao.avisos?.length > 0 && (
+            <div className="border-t border-warning/20 pt-3 space-y-1">
+              {resultadoGeracao.avisos.map((av, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-warning">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  <span>{av}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Surface>
+      )}
+
+      {/* FILTROS */}
+      <Surface variant="card" padding="lg">
+        <form onSubmit={handleBuscar} className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
+              <Users size={16} className="text-primary" /> Professor
+            </label>
+            <Input
+              as="select"
+              value={filtros.professorId}
+              onChange={(e) => setFiltros((f) => ({ ...f, professorId: e.target.value }))}
+            >
+              <option value="">Selecione o professor...</option>
+              {professores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </Input>
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
+              <Calendar size={16} className="text-primary" /> Mês
+            </label>
+            <Input
+              type="month"
+              value={filtros.mesAno}
+              onChange={(e) => setFiltros((f) => ({ ...f, mesAno: e.target.value }))}
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="brand"
+            disabled={loading}
+            className="w-full md:w-auto h-[46px] px-8 font-black gap-2"
+          >
+            <Search size={20} /> Buscar
+          </Button>
+        </form>
+      </Surface>
+
+      {/* RESULTADOS */}
+      {loading ? (
+        <TableSkeleton />
+      ) : dados ? (
+        <div className="space-y-6">
+          {dados.fechamento && (
+            <Surface
+              variant="subtle"
+              className="border border-success/20 bg-success-soft p-4 rounded-2xl flex items-center gap-3 text-success"
+            >
+              <CheckCircle size={24} />
+              <div>
+                <p className="font-bold">Mês Fechado e Pago</p>
+                <p className="text-sm opacity-80">
+                  As comissões deste mês já foram aprovadas e não podem ser alteradas.
+                </p>
+              </div>
+            </Surface>
+          )}
+
+          {/* RESUMO TOTAL */}
+          <Surface
+            variant="card"
+            padding="lg"
+            className="flex flex-col md:flex-row justify-between items-center shadow-lg border-primary/20"
+          >
+            <div>
+              <p className="text-muted-foreground font-bold uppercase text-xs mb-1">
+                Total a Pagar (Líquido)
+              </p>
+              <h2 className="text-4xl font-black text-foreground">
+                {formatarMoeda(dados.resumo.total_comissao)}
+              </h2>
+            </div>
+            <div className="mt-4 md:mt-0 flex gap-3">
+              <Button
+                variant="outline"
+                onClick={exportarExcel}
+                className="font-bold flex items-center gap-2"
+              >
+                <FileSpreadsheet size={18} /> Exportar
+              </Button>
+              {!dados.fechamento && dados.resumo.total_comissao > 0 && (
+                <Button
+                  onClick={modalFechamento.abrir}
+                  className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
+                >
+                  <CheckCircle size={20} /> Aprovar Fechamento
+                </Button>
+              )}
+            </div>
+          </Surface>
+
+          {/* TABELA DE LANÇAMENTOS */}
+          <Surface variant="card" padding="none" className="overflow-hidden">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+              <h3 className="font-black text-foreground text-lg flex items-center gap-2">
+                <Wallet className="text-primary" size={20} /> Extrato de Repasses
+              </h3>
+            </div>
+
+            {dados.lancamentos.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-muted border-b border-border">
+                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Data
+                      </th>
+                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Aluno
+                      </th>
+                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Tipo / Regra
+                      </th>
+                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Modalidade
+                      </th>
+                      <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
+                        Repasse (R$)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {dados.lancamentos.map((l) => (
+                      <tr key={l.id} className="hover:bg-subtle transition-colors group">
+                        <td className="p-4 text-muted-foreground font-medium">
+                          {new Date(l.created_at).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="p-4 font-bold text-foreground">
+                          {l.alunos?.nome_completo || 'N/A'}
+                        </td>
+                        <td className="p-4">
+                          <span className="bg-info-soft text-info px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border border-info/10">
+                            {l.tipo_aula.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-4 text-muted-foreground">{l.modalidade || '-'}</td>
+                        <td className="p-4 font-black text-success text-right">
+                          {formatarMoeda(l.valor)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8">
+                <EmptyState
+                  titulo="Nenhum Repasse"
+                  mensagem="Não foram encontrados repasses para este professor no período selecionado."
+                />
+              </div>
+            )}
+          </Surface>
+        </div>
+      ) : null}
+
+      {/* MODAL: Confirmar geração de repasses */}
+      <ModalConfirmacao
+        isOpen={modalGeracao.isOpen}
+        onClose={modalGeracao.fechar}
+        onConfirm={handleGerarRepasses}
+        titulo={`Gerar Repasses — ${mesFormatado}`}
+        mensagem={
+          `Isso vai calcular e registrar os repasses de todos os professores com base nos ` +
+          `alunos matriculados nas suas modalidades em ${mesFormatado}.\n\n` +
+          `Repasses de pagamentos avulsos (confirmados manualmente) não são afetados. ` +
+          `Caso já existam repasses de matrícula para este mês, a operação será bloqueada.`
+        }
+        loading={gerando}
+      />
+
+      {/* MODAL: Confirmar fechamento do mês */}
+      <ModalConfirmacao
+        isOpen={modalFechamento.isOpen}
+        onClose={modalFechamento.fechar}
+        onConfirm={handleFecharMes}
+        titulo={`Aprovar Fechamento - ${mesFormatado}?`}
+        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${
+          dados ? formatarMoeda(dados.resumo.total_comissao) : ''
+        }.`}
+        loading={fechando}
+      />
     </div>
   );
 }
@@ -42426,7 +42891,7 @@ export default function Financeiro() {
     setPagamentoSelecionado(mensalidade);
     setValorPago(mensalidade.planos?.preco?.toString() || '');
     setFormaPagamento('');
-    setTipoAula('regular');
+    setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
     setProfessorId('');
     setModalidadeNome('');
     modalPagamento.abrir();
@@ -42847,6 +43312,10 @@ export default function Financeiro() {
                 as="select"
                 value={tipoAula}
                 onChange={(e) => setTipoAula(e.target.value)}
+                disabled={!!pagamentoSelecionado?.planos?.is_plano_livre}
+                title={pagamentoSelecionado?.planos?.is_plano_livre
+                  ? 'Plano livre: tipo definido automaticamente'
+                  : undefined}
               >
                 {TIPOS_AULA.map(t => (
                   <option key={t.valor} value={t.valor}>{t.label}</option>

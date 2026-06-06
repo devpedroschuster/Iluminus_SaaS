@@ -8,7 +8,7 @@ export const financeiroService = {
       .select(`
         *,
         alunos (nome_completo),
-        planos (nome, preco)
+        planos (nome, preco, is_plano_livre)
       `)
       .gte('data_vencimento', inicio)
       .lte('data_vencimento', fim)

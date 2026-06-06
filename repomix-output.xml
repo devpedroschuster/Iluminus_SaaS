@@ -1506,6 +1506,502 @@ app-example
 /android
 </file>
 
+<file path="app_mobile/App.js">
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addDays, format, isSameDay, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+// Componentes
+import CardAula from "./src/components/CardAula";
+import TelaLogin from "./src/components/TelaLogin";
+import TelaPerfil from "./src/components/TelaPerfil";
+import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
+import { supabase } from "./src/services/supabase";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+const cores = {
+  fundo: "#FDF8F5",
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  branco: "#FFFFFF",
+  ativo: "#D98E73",
+  inativo: "#C4C4C4",
+};
+
+export default function App() {
+  const [alunoId, setAlunoId] = useState(null);
+  const [nomeAluno, setNomeAluno] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [telaAtual, setTelaAtual] = useState("agenda");
+  const [feriadoMsg, setFeriadoMsg] = useState(null);
+  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
+  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
+  const [aulas, setAulas] = useState([]);
+
+  useEffect(() => {
+    verificarSessao();
+  }, []);
+
+  useEffect(() => {
+    if (!alunoId) return;
+
+    const channel = supabase
+      .channel('mudancas-globais-presencas')
+      .on('postgres_changes', {
+        event: '*', 
+        schema: 'public',
+        table: 'presencas'
+      }, (payload) => {
+        console.log("🔄 Mudança detectada nas vagas!", payload);
+        buscarAulas(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [alunoId]);
+
+  useEffect(() => {
+    if (alunoId && telaAtual === "agenda") buscarAulas(true);
+  }, [dataSelecionada, alunoId, telaAtual]);
+
+  async function verificarSessao() {
+    console.log("🔍 [1] Iniciando verificação de sessão...");
+    try {
+      setCarregando(true);
+      
+      console.log("🔍 [2] Consultando sessão salva no Supabase...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
+
+      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
+
+      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
+
+      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
+      setAlunoId(aluno.id);
+      setNomeAluno(aluno.nome_completo);
+      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
+      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
+
+      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
+      registrarTokenPush(aluno.id);
+
+      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
+    } catch (e) {
+      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
+      await handleLogout();
+    } finally {
+      console.log("🏁 [Final] Desativando o ícone de carregamento.");
+      setCarregando(false);
+    }
+  }
+
+  async function registrarTokenPush(idAluno) {
+    if (!Device.isDevice) {
+      console.log('Push Notifications só funcionam em dispositivos físicos');
+      return;
+    }
+
+    if (Constants.appOwnership === 'expo') {
+      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
+      return;
+    }
+
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permissão para notificações negada!');
+        return;
+      }
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      
+      console.log("Push Token gerado:", token);
+
+      await supabase
+        .from('alunos')
+        .update({ push_token: token })
+        .eq('id', idAluno);
+        
+    } catch (error) {
+      console.error("Erro ao gerar/salvar push token:", error);
+    }
+  }
+
+  async function buscarAulas(mostrarLoading = true) {
+    if (mostrarLoading) setCarregando(true);
+    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+
+    try {
+      const { data: feriados, error: errFeriado } = await supabase
+        .from("feriados")
+        .select("descricao")
+        .eq("data", dataIso);
+
+      if (errFeriado) throw errFeriado;
+
+      if (feriados && feriados.length > 0) {
+        setFeriadoMsg(feriados[0].descricao);
+        setAulas([]); 
+        setCarregando(false);
+        return; 
+      } else {
+        setFeriadoMsg(null); 
+      }
+
+      const { data, error } = await supabase
+        .from("agenda")
+        .select(`*, presencas(*), professores(nome)`)
+        .eq("ativa", true)
+        .order("horario", { ascending: true });
+
+      if (error) throw error;
+
+      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
+      const diasTraduzidos = {
+        "domingo": "Domingo",
+        "segunda-feira": "Segunda-feira",
+        "terça-feira": "Terça-feira",
+        "quarta-feira": "Quarta-feira",
+        "quinta-feira": "Quinta-feira",
+        "sexta-feira": "Sexta-feira",
+        "sábado": "Sábado",
+      };
+      const diaCorreto = diasTraduzidos[diaSemanaAtual];
+
+      const aulasDoDia = (data || []).filter((aula) => {
+        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
+        return aula.dia_semana === diaCorreto;
+      });
+
+      setAulas(aulasDoDia);
+    } catch (err) {
+      console.error("Erro ao buscar aulas:", err);
+      if (err.message.includes("Network")) {
+        Alert.alert("Sem conexão", "Verifique sua internet.");
+      }
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    buscarAulas(false);
+  };
+
+  async function handleLogout() {
+    try {
+      setCarregando(true);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Erro logout:", err);
+    } finally {
+      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
+      setAlunoId(null);
+      setNomeAluno("");
+      setCarregando(false);
+    }
+  }
+
+  // TELA DE CARREGAMENTO INICIAL
+  if (carregando && !alunoId) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={cores.primaria} />
+      </View>
+    );
+  }
+
+  // TELA DE LOGIN
+  if (!alunoId) {
+    return (
+      <TelaLogin
+        onLogado={(perfil) => {
+          setAlunoId(perfil.id);
+          setNomeAluno(perfil.nome_completo);
+          registrarTokenPush(perfil.id);
+        }}
+      />
+    );
+  }
+
+  // APLICATIVO PRINCIPAL
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {telaAtual === "agenda" ? (
+            <>
+              <View style={styles.header}>
+                <View>
+                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
+                  <Text style={styles.titulo}>Sua Agenda</Text>
+                </View>
+              </View>
+
+              <View style={styles.calendarioContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {Array.from({ length: 14 }).map((_, i) => {
+                    const dia = addDays(new Date(), i);
+                    const ativo = isSameDay(dia, dataSelecionada);
+                    return (
+                      <TouchableOpacity
+                        key={dia.toISOString()}
+                        onPress={() => setDataSelecionada(startOfDay(dia))}
+                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
+                      >
+                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
+                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
+                        </Text>
+                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
+                          {format(dia, "d")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {carregando ? (
+                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
+              ) : feriadoMsg ? (
+                <View style={styles.containerFeriado}>
+                  <Text style={styles.emojiFeriado}>🏖️</Text>
+                  <Text style={styles.tituloFeriado}>Feriado</Text>
+                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
+                  <Text style={styles.avisoFeriado}>
+                    O estúdio estará fechado neste dia. Bom descanso!
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={aulas}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <CardAula
+                      aula={item}
+                      alunoId={alunoId}
+                      dataSelecionada={dataSelecionada}
+                      onAgendamentoSucesso={() => buscarAulas(false)}
+                    />
+                  )}
+                  contentContainerStyle={{ paddingBottom: 80 }}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.containerVazio}>
+                      <View style={styles.circuloIconeVazio}>
+                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
+                      </View>
+                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
+                      <Text style={styles.textoVazio}>
+                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.botaoVazio}
+                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
+                      >
+                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Botão Flutuante (FAB) */}
+              <TouchableOpacity 
+                style={styles.fab} 
+                activeOpacity={0.8}
+                onPress={() => setModalAgendamentoVisivel(true)}
+              >
+                <Text style={styles.fabText}>+</Text>
+              </TouchableOpacity>
+
+              <AgendamentoBottomSheet 
+                isVisible={modalAgendamentoVisivel} 
+                onClose={() => setModalAgendamentoVisivel(false)}
+                aulasDisponiveis={aulas} 
+                alunoId={alunoId} 
+                isLoading={carregando} 
+                isError={false}
+                onRefresh={() => buscarAulas(true)} 
+              />
+            </>
+          ) : (
+            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
+          )}
+        </View>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
+            <Text style={{ fontSize: 24 }}>📅</Text>
+            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
+            <Text style={{ fontSize: 24 }}>👤</Text>
+            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
+  container: { flex: 1, backgroundColor: cores.fundo },
+  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
+
+  header: { marginVertical: 20 },
+  saudacao: { fontSize: 14, color: cores.textoSuave },
+  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
+
+  calendarioContainer: { marginBottom: 20, height: 80 },
+  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
+  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
+  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
+  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
+  textoAtivo: { color: cores.branco },
+
+  // Estilos do Feriado
+  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
+  emojiFeriado: { fontSize: 48, marginBottom: 10 },
+  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
+  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
+  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
+
+  // Estilos do FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    backgroundColor: cores.primaria,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabText: {
+    color: cores.branco,
+    fontSize: 32,
+    fontWeight: "300",
+    marginTop: -4,
+  },
+
+  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
+  tabTextAtivo: { color: cores.ativo },
+
+  // ESTILOS DO ESTADO VAZIO
+  containerVazio: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    marginTop: 60,
+  },
+  circuloIconeVazio: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F0E0D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  iconeVazio: {
+    fontSize: 50,
+  },
+  tituloVazio: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textoVazio: {
+    fontSize: 15,
+    color: cores.textoSuave,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  botaoVazio: {
+    backgroundColor: cores.branco,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    elevation: 1,
+    shadowColor: cores.primaria,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  botaoVazioTexto: {
+    color: cores.primaria,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+});
+</file>
+
 <file path="app_mobile/app.json">
 {
   "expo": {
@@ -1907,6 +2403,341 @@ const styles = StyleSheet.create({
   errorSub: { fontSize: 14, color: '#8E8E8E', marginBottom: 20, textAlign: 'center' },
   btnTentar: { backgroundColor: '#F8F9FA', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5' },
   btnTentarTexto: { color: '#333', fontWeight: 'bold' },
+});
+</file>
+
+<file path="app_mobile/src/components/CardAula.js">
+import { format } from "date-fns";
+import { useState, useRef } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { supabase } from "../services/supabase";
+
+const cores = {
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  branco: "#FFFFFF",
+  erro: "#E07A5F",
+  desabilitado: "#E5E5E5",
+  textoDesabilitado: "#A0A0A0",
+  alertaVaga: "#E9C46A", 
+};
+
+export default function CardAula({
+  aula,
+  alunoId,
+  dataSelecionada,
+  onAgendamentoSucesso,
+}) {
+  const [processando, setProcessando] = useState(false);
+  const travaClique = useRef(false);
+
+  if (!aula) return null;
+
+  const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+  const dataAulaCompleta = `${dataIso}T${aula.horario}`;
+  const dataAulaObj = new Date(dataAulaCompleta);
+  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000); 
+  const aulaJaPassou = new Date() > dataLimite;
+
+  const jaAgendado = aula.presencas?.some((p) => {
+    if (!p.aluno_id || !alunoId) return false;
+    const dataRaw = p.data_aula || p.data_checkin;
+    const dataPresenca = dataRaw ? dataRaw.split("T")[0] : null;
+    return String(p.aluno_id) === String(alunoId) && dataPresenca === dataIso;
+  });
+
+  const vagasOcupadas =
+    aula.presencas?.filter((p) => {
+      const dataRaw = p.data_aula || p.data_checkin;
+      const dataP = dataRaw ? dataRaw.split("T")[0] : null;
+      return dataP === dataIso;
+    }).length || 0;
+    
+  const capacidadeReal = aula.capacidade || 15;
+  const lotado = vagasOcupadas >= capacidadeReal;
+  const vagasRestantes = capacidadeReal - vagasOcupadas;
+  const horarioFormatado = aula.horario ? aula.horario.substring(0, 5) : "--:--";
+
+  // BARRA DE PROGRESSO
+  const ocupacaoPercentual = Math.min((vagasOcupadas / capacidadeReal) * 100, 100);
+  
+  const getCorVagas = () => {
+    if (ocupacaoPercentual < 60) return cores.secundaria;
+    if (ocupacaoPercentual <= 85) return cores.alertaVaga;
+    return cores.erro;
+  };
+  // ------------------------------------
+
+  const tratarErro = (erro, titulo = "Atenção") => {
+    console.error(erro);
+    let mensagem = erro.message || "Ocorreu uma falha inesperada. Tente novamente.";
+    if (mensagem.includes(":")) {
+        mensagem = mensagem.split(":").pop().trim();
+    }
+    if (Platform.OS === "web") window.alert(`${titulo}: ${mensagem}`);
+    else Alert.alert(titulo, mensagem);
+  };
+
+  async function executarCancelamento() {
+    if (travaClique.current) return;
+    travaClique.current = true;
+
+    try {
+      setProcessando(true);
+      const { error } = await supabase.rpc("cancelar_agendamento", {
+        p_aluno_id: alunoId,
+        p_agenda_id: aula.id, 
+      });
+
+      if (error) throw error;
+      onAgendamentoSucesso();
+    } catch (err) {
+      tratarErro(err, "Não foi possível cancelar");
+    } finally {
+      travaClique.current = false;
+      setProcessando(false);
+    }
+  }
+
+  async function handleAcao() {
+    if (processando || travaClique.current) return;
+
+    if (aulaJaPassou && !jaAgendado) {
+      if (Platform.OS === "web") window.alert("O horário desta aula já passou.");
+      else Alert.alert("Encerrada", "O horário desta aula já passou.");
+      return;
+    }
+
+    if (jaAgendado) {
+      if (Platform.OS === "web") {
+        const confirmou = window.confirm("Deseja liberar sua vaga?");
+        if (confirmou) executarCancelamento();
+      } else {
+        Alert.alert("Cancelar", "Deseja liberar sua vaga?", [
+          { text: "Manter", style: "cancel" },
+          { text: "Sim, cancelar", style: "destructive", onPress: executarCancelamento },
+        ]);
+      }
+    } else {
+      travaClique.current = true;
+      try {
+        setProcessando(true);
+        const { error } = await supabase.rpc("agendar_aula", {
+          p_aluno_id: alunoId,
+          p_agenda_id: aula.id, 
+        });
+
+        if (error) throw error;
+
+        if (Platform.OS === "web") window.alert(`Vaga garantida para ${horarioFormatado}. Bom treino!`);
+        else Alert.alert("Sucesso!", `Vaga garantida para ${horarioFormatado}. Bom treino!`);
+        
+        onAgendamentoSucesso();
+      } catch (err) {
+        tratarErro(err, "Não foi possível agendar");
+      } finally {
+        travaClique.current = false;
+        setProcessando(false);
+      }
+    }
+  }
+
+  const getEstiloBotao = () => {
+    if (jaAgendado) return styles.botaoCancelar;
+    if (aulaJaPassou) return styles.botaoPassou;
+    if (lotado) return styles.botaoLotado;
+    return styles.botaoReservar;
+  };
+
+  const getTextoBotao = () => {
+    if (jaAgendado) return "Cancelar";
+    if (aulaJaPassou) return "Encerrada";
+    if (lotado) return "Lotado";
+    return "Agendar";
+  };
+
+  return (
+    <View
+      style={[styles.card, aulaJaPassou && !jaAgendado && styles.cardPassou]}
+    >
+      <View style={styles.containerHorario}>
+        <Text
+          style={[
+            styles.textoHorario,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {horarioFormatado}
+        </Text>
+        <Text
+          style={[
+            styles.textoEspaco,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {aula.espaco === "danca" ? "Dança" : "Funcional"}
+        </Text>
+      </View>
+
+      <View style={styles.info}>
+        <Text
+          style={[
+            styles.atividade,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {aula.atividade}
+        </Text>
+        <Text style={styles.professor}>
+          Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
+        </Text>
+        
+        <View style={styles.containerVagas}>
+          <View style={styles.headerVagas}>
+            {vagasRestantes === 1 && !aulaJaPassou ? (
+              <Text style={styles.textoUltimaVaga}>🔥 Última vaga!</Text>
+            ) : lotado ? (
+              <Text style={styles.textoLotado}>Lotado</Text>
+            ) : (
+              <Text style={styles.textoVagas}>
+                {vagasOcupadas}/{capacidadeReal} vagas ocupadas
+              </Text>
+            )}
+          </View>
+          <View style={styles.barraFundo}>
+            <View
+              style={[
+                styles.barraPreenchimento,
+                { 
+                  width: `${ocupacaoPercentual}%`, 
+                  backgroundColor: aulaJaPassou && !jaAgendado ? "#E5E5E5" : getCorVagas() 
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+      </View>
+
+      <TouchableOpacity
+        style={[styles.botao, getEstiloBotao()]}
+        onPress={handleAcao}
+        disabled={((lotado || aulaJaPassou) && !jaAgendado) || processando}
+      >
+        {processando ? (
+          <ActivityIndicator
+            size="small"
+            color={jaAgendado ? cores.primaria : "#FFF"}
+          />
+        ) : (
+          <Text
+            style={[
+              styles.textoBotao,
+              jaAgendado && styles.textoBotaoCancelar,
+              aulaJaPassou && !jaAgendado && styles.textoBotaoPassou,
+            ]}
+          >
+            {getTextoBotao()}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F0E0D6",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  cardPassou: { backgroundColor: "#F9F9F9", borderColor: "#EEE", elevation: 0 },
+  containerHorario: {
+    paddingRight: 15,
+    borderRightWidth: 1,
+    borderRightColor: "#F0E0D6",
+    alignItems: "center",
+    minWidth: 80,
+  },
+  textoHorario: { fontSize: 18, fontWeight: "900", color: cores.primaria },
+  textoEspaco: {
+    fontSize: 10,
+    color: cores.secundaria,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    marginTop: 4,
+  },
+  textoPassou: { color: cores.textoSuave },
+  info: { flex: 1, paddingLeft: 15, paddingRight: 10 },
+  atividade: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 2,
+  },
+  professor: { fontSize: 12, color: cores.textoSuave },
+
+  containerVagas: { marginTop: 8 },
+  headerVagas: { flexDirection: "row", marginBottom: 4 },
+  textoVagas: { fontSize: 11, color: cores.textoSuave, fontWeight: "500" },
+  textoUltimaVaga: { fontSize: 11, color: cores.erro, fontWeight: "bold" },
+  textoLotado: { fontSize: 11, color: cores.textoSuave, fontWeight: "bold" },
+  barraFundo: { 
+    height: 6, 
+    backgroundColor: "#F0F0F0", 
+    borderRadius: 3, 
+    overflow: "hidden" 
+  },
+  barraPreenchimento: { 
+    height: "100%", 
+    borderRadius: 3 
+  },
+
+  botao: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    minWidth: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 40,
+  },
+  botaoReservar: { backgroundColor: cores.primaria },
+  botaoCancelar: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+  },
+  botaoLotado: { backgroundColor: "#EEE" },
+  botaoPassou: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#EEE",
+  },
+
+  textoBotao: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
+  textoBotaoCancelar: { color: "#888" },
+  textoBotaoPassou: { color: "#CCC" },
 });
 </file>
 
@@ -27674,837 +28505,6 @@ out/
 .env*.local
 </file>
 
-<file path="app_mobile/App.js">
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { addDays, format, isSameDay, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-
-// Componentes
-import CardAula from "./src/components/CardAula";
-import TelaLogin from "./src/components/TelaLogin";
-import TelaPerfil from "./src/components/TelaPerfil";
-import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
-import { supabase } from "./src/services/supabase";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-const cores = {
-  fundo: "#FDF8F5",
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  branco: "#FFFFFF",
-  ativo: "#D98E73",
-  inativo: "#C4C4C4",
-};
-
-export default function App() {
-  const [alunoId, setAlunoId] = useState(null);
-  const [nomeAluno, setNomeAluno] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [telaAtual, setTelaAtual] = useState("agenda");
-  const [feriadoMsg, setFeriadoMsg] = useState(null);
-  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
-  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
-  const [aulas, setAulas] = useState([]);
-
-  useEffect(() => {
-    verificarSessao();
-  }, []);
-
-  useEffect(() => {
-    if (!alunoId) return;
-
-    const channel = supabase
-      .channel('mudancas-globais-presencas')
-      .on('postgres_changes', {
-        event: '*', 
-        schema: 'public',
-        table: 'presencas'
-      }, (payload) => {
-        console.log("🔄 Mudança detectada nas vagas!", payload);
-        buscarAulas(false);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [alunoId]);
-
-  useEffect(() => {
-    if (alunoId && telaAtual === "agenda") buscarAulas(true);
-  }, [dataSelecionada, alunoId, telaAtual]);
-
-  async function verificarSessao() {
-    console.log("🔍 [1] Iniciando verificação de sessão...");
-    try {
-      setCarregando(true);
-      
-      console.log("🔍 [2] Consultando sessão salva no Supabase...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
-
-      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
-
-      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", session.user.id)
-        .single();
-
-      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
-
-      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
-      setAlunoId(aluno.id);
-      setNomeAluno(aluno.nome_completo);
-      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
-      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
-
-      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
-      registrarTokenPush(aluno.id);
-
-      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
-    } catch (e) {
-      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
-      await handleLogout();
-    } finally {
-      console.log("🏁 [Final] Desativando o ícone de carregamento.");
-      setCarregando(false);
-    }
-  }
-
-  async function registrarTokenPush(idAluno) {
-    if (!Device.isDevice) {
-      console.log('Push Notifications só funcionam em dispositivos físicos');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
-      return;
-    }
-
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permissão para notificações negada!');
-        return;
-      }
-
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
-      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      
-      console.log("Push Token gerado:", token);
-
-      await supabase
-        .from('alunos')
-        .update({ push_token: token })
-        .eq('id', idAluno);
-        
-    } catch (error) {
-      console.error("Erro ao gerar/salvar push token:", error);
-    }
-  }
-
-  async function buscarAulas(mostrarLoading = true) {
-    if (mostrarLoading) setCarregando(true);
-    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-
-    try {
-      const { data: feriados, error: errFeriado } = await supabase
-        .from("feriados")
-        .select("descricao")
-        .eq("data", dataIso);
-
-      if (errFeriado) throw errFeriado;
-
-      if (feriados && feriados.length > 0) {
-        setFeriadoMsg(feriados[0].descricao);
-        setAulas([]); 
-        setCarregando(false);
-        return; 
-      } else {
-        setFeriadoMsg(null); 
-      }
-
-      const { data, error } = await supabase
-        .from("agenda")
-        .select(`*, presencas(*), professores(nome)`)
-        .eq("ativa", true)
-        .order("horario", { ascending: true });
-
-      if (error) throw error;
-
-      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
-      const diasTraduzidos = {
-        "domingo": "Domingo",
-        "segunda-feira": "Segunda-feira",
-        "terça-feira": "Terça-feira",
-        "quarta-feira": "Quarta-feira",
-        "quinta-feira": "Quinta-feira",
-        "sexta-feira": "Sexta-feira",
-        "sábado": "Sábado",
-      };
-      const diaCorreto = diasTraduzidos[diaSemanaAtual];
-
-      const aulasDoDia = (data || []).filter((aula) => {
-        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
-        return aula.dia_semana === diaCorreto;
-      });
-
-      setAulas(aulasDoDia);
-    } catch (err) {
-      console.error("Erro ao buscar aulas:", err);
-      if (err.message.includes("Network")) {
-        Alert.alert("Sem conexão", "Verifique sua internet.");
-      }
-    } finally {
-      setCarregando(false);
-      setRefreshing(false);
-    }
-  }
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    buscarAulas(false);
-  };
-
-  async function handleLogout() {
-    try {
-      setCarregando(true);
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Erro logout:", err);
-    } finally {
-      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
-      setAlunoId(null);
-      setNomeAluno("");
-      setCarregando(false);
-    }
-  }
-
-  // TELA DE CARREGAMENTO INICIAL
-  if (carregando && !alunoId) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={cores.primaria} />
-      </View>
-    );
-  }
-
-  // TELA DE LOGIN
-  if (!alunoId) {
-    return (
-      <TelaLogin
-        onLogado={(perfil) => {
-          setAlunoId(perfil.id);
-          setNomeAluno(perfil.nome_completo);
-          registrarTokenPush(perfil.id);
-        }}
-      />
-    );
-  }
-
-  // APLICATIVO PRINCIPAL
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          {telaAtual === "agenda" ? (
-            <>
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
-                  <Text style={styles.titulo}>Sua Agenda</Text>
-                </View>
-              </View>
-
-              <View style={styles.calendarioContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 14 }).map((_, i) => {
-                    const dia = addDays(new Date(), i);
-                    const ativo = isSameDay(dia, dataSelecionada);
-                    return (
-                      <TouchableOpacity
-                        key={dia.toISOString()}
-                        onPress={() => setDataSelecionada(startOfDay(dia))}
-                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
-                      >
-                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
-                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
-                        </Text>
-                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
-                          {format(dia, "d")}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {carregando ? (
-                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
-              ) : feriadoMsg ? (
-                <View style={styles.containerFeriado}>
-                  <Text style={styles.emojiFeriado}>🏖️</Text>
-                  <Text style={styles.tituloFeriado}>Feriado</Text>
-                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
-                  <Text style={styles.avisoFeriado}>
-                    O estúdio estará fechado neste dia. Bom descanso!
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={aulas}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <CardAula
-                      aula={item}
-                      alunoId={alunoId}
-                      dataSelecionada={dataSelecionada}
-                      onAgendamentoSucesso={() => buscarAulas(false)}
-                    />
-                  )}
-                  contentContainerStyle={{ paddingBottom: 80 }}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.containerVazio}>
-                      <View style={styles.circuloIconeVazio}>
-                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
-                      </View>
-                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
-                      <Text style={styles.textoVazio}>
-                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.botaoVazio}
-                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
-                      >
-                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
-                      </TouchableOpacity>
-                    </View>
-                  }
-                />
-              )}
-
-              {/* Botão Flutuante (FAB) */}
-              <TouchableOpacity 
-                style={styles.fab} 
-                activeOpacity={0.8}
-                onPress={() => setModalAgendamentoVisivel(true)}
-              >
-                <Text style={styles.fabText}>+</Text>
-              </TouchableOpacity>
-
-              <AgendamentoBottomSheet 
-                isVisible={modalAgendamentoVisivel} 
-                onClose={() => setModalAgendamentoVisivel(false)}
-                aulasDisponiveis={aulas} 
-                alunoId={alunoId} 
-                isLoading={carregando} 
-                isError={false}
-                onRefresh={() => buscarAulas(true)} 
-              />
-            </>
-          ) : (
-            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
-          )}
-        </View>
-
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
-            <Text style={{ fontSize: 24 }}>📅</Text>
-            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
-            <Text style={{ fontSize: 24 }}>👤</Text>
-            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
-  container: { flex: 1, backgroundColor: cores.fundo },
-  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
-
-  header: { marginVertical: 20 },
-  saudacao: { fontSize: 14, color: cores.textoSuave },
-  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
-
-  calendarioContainer: { marginBottom: 20, height: 80 },
-  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
-  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
-  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
-  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
-  textoAtivo: { color: cores.branco },
-
-  // Estilos do Feriado
-  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
-  emojiFeriado: { fontSize: 48, marginBottom: 10 },
-  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
-  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
-  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
-
-  // Estilos do FAB
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    backgroundColor: cores.primaria,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    color: cores.branco,
-    fontSize: 32,
-    fontWeight: "300",
-    marginTop: -4,
-  },
-
-  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
-  tabTextAtivo: { color: cores.ativo },
-
-  // ESTILOS DO ESTADO VAZIO
-  containerVazio: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    marginTop: 60,
-  },
-  circuloIconeVazio: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#F0E0D6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  iconeVazio: {
-    fontSize: 50,
-  },
-  tituloVazio: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  textoVazio: {
-    fontSize: 15,
-    color: cores.textoSuave,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  botaoVazio: {
-    backgroundColor: cores.branco,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    elevation: 1,
-    shadowColor: cores.primaria,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  botaoVazioTexto: {
-    color: cores.primaria,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-});
-</file>
-
-<file path="app_mobile/src/components/CardAula.js">
-import { format } from "date-fns";
-import { useState, useRef } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { supabase } from "../services/supabase";
-
-const cores = {
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  branco: "#FFFFFF",
-  erro: "#E07A5F",
-  desabilitado: "#E5E5E5",
-  textoDesabilitado: "#A0A0A0",
-  alertaVaga: "#E9C46A", 
-};
-
-export default function CardAula({
-  aula,
-  alunoId,
-  dataSelecionada,
-  onAgendamentoSucesso,
-}) {
-  const [processando, setProcessando] = useState(false);
-  const travaClique = useRef(false);
-
-  if (!aula) return null;
-
-  const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-  const dataAulaCompleta = `${dataIso}T${aula.horario}`;
-  const dataAulaObj = new Date(dataAulaCompleta);
-  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000); 
-  const aulaJaPassou = new Date() > dataLimite;
-
-  const jaAgendado = aula.presencas?.some((p) => {
-    if (!p.aluno_id || !alunoId) return false;
-    const dataRaw = p.data_aula || p.data_checkin;
-    const dataPresenca = dataRaw ? dataRaw.split("T")[0] : null;
-    return String(p.aluno_id) === String(alunoId) && dataPresenca === dataIso;
-  });
-
-  const vagasOcupadas =
-    aula.presencas?.filter((p) => {
-      const dataRaw = p.data_aula || p.data_checkin;
-      const dataP = dataRaw ? dataRaw.split("T")[0] : null;
-      return dataP === dataIso;
-    }).length || 0;
-    
-  const capacidadeReal = aula.capacidade || 15;
-  const lotado = vagasOcupadas >= capacidadeReal;
-  const vagasRestantes = capacidadeReal - vagasOcupadas;
-  const horarioFormatado = aula.horario ? aula.horario.substring(0, 5) : "--:--";
-
-  // BARRA DE PROGRESSO
-  const ocupacaoPercentual = Math.min((vagasOcupadas / capacidadeReal) * 100, 100);
-  
-  const getCorVagas = () => {
-    if (ocupacaoPercentual < 60) return cores.secundaria;
-    if (ocupacaoPercentual <= 85) return cores.alertaVaga;
-    return cores.erro;
-  };
-  // ------------------------------------
-
-  const tratarErro = (erro, titulo = "Atenção") => {
-    console.error(erro);
-    let mensagem = erro.message || "Ocorreu uma falha inesperada. Tente novamente.";
-    if (mensagem.includes(":")) {
-        mensagem = mensagem.split(":").pop().trim();
-    }
-    if (Platform.OS === "web") window.alert(`${titulo}: ${mensagem}`);
-    else Alert.alert(titulo, mensagem);
-  };
-
-  async function executarCancelamento() {
-    if (travaClique.current) return;
-    travaClique.current = true;
-
-    try {
-      setProcessando(true);
-      const { error } = await supabase.rpc("cancelar_agendamento", {
-        p_aluno_id: alunoId,
-        p_agenda_id: aula.id, 
-      });
-
-      if (error) throw error;
-      onAgendamentoSucesso();
-    } catch (err) {
-      tratarErro(err, "Não foi possível cancelar");
-    } finally {
-      travaClique.current = false;
-      setProcessando(false);
-    }
-  }
-
-  async function handleAcao() {
-    if (processando || travaClique.current) return;
-
-    if (aulaJaPassou && !jaAgendado) {
-      if (Platform.OS === "web") window.alert("O horário desta aula já passou.");
-      else Alert.alert("Encerrada", "O horário desta aula já passou.");
-      return;
-    }
-
-    if (jaAgendado) {
-      if (Platform.OS === "web") {
-        const confirmou = window.confirm("Deseja liberar sua vaga?");
-        if (confirmou) executarCancelamento();
-      } else {
-        Alert.alert("Cancelar", "Deseja liberar sua vaga?", [
-          { text: "Manter", style: "cancel" },
-          { text: "Sim, cancelar", style: "destructive", onPress: executarCancelamento },
-        ]);
-      }
-    } else {
-      travaClique.current = true;
-      try {
-        setProcessando(true);
-        const { error } = await supabase.rpc("agendar_aula", {
-          p_aluno_id: alunoId,
-          p_agenda_id: aula.id, 
-        });
-
-        if (error) throw error;
-
-        if (Platform.OS === "web") window.alert(`Vaga garantida para ${horarioFormatado}. Bom treino!`);
-        else Alert.alert("Sucesso!", `Vaga garantida para ${horarioFormatado}. Bom treino!`);
-        
-        onAgendamentoSucesso();
-      } catch (err) {
-        tratarErro(err, "Não foi possível agendar");
-      } finally {
-        travaClique.current = false;
-        setProcessando(false);
-      }
-    }
-  }
-
-  const getEstiloBotao = () => {
-    if (jaAgendado) return styles.botaoCancelar;
-    if (aulaJaPassou) return styles.botaoPassou;
-    if (lotado) return styles.botaoLotado;
-    return styles.botaoReservar;
-  };
-
-  const getTextoBotao = () => {
-    if (jaAgendado) return "Cancelar";
-    if (aulaJaPassou) return "Encerrada";
-    if (lotado) return "Lotado";
-    return "Agendar";
-  };
-
-  return (
-    <View
-      style={[styles.card, aulaJaPassou && !jaAgendado && styles.cardPassou]}
-    >
-      <View style={styles.containerHorario}>
-        <Text
-          style={[
-            styles.textoHorario,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {horarioFormatado}
-        </Text>
-        <Text
-          style={[
-            styles.textoEspaco,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {aula.espaco === "danca" ? "Dança" : "Funcional"}
-        </Text>
-      </View>
-
-      <View style={styles.info}>
-        <Text
-          style={[
-            styles.atividade,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {aula.atividade}
-        </Text>
-        <Text style={styles.professor}>
-          Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
-        </Text>
-        
-        <View style={styles.containerVagas}>
-          <View style={styles.headerVagas}>
-            {vagasRestantes === 1 && !aulaJaPassou ? (
-              <Text style={styles.textoUltimaVaga}>🔥 Última vaga!</Text>
-            ) : lotado ? (
-              <Text style={styles.textoLotado}>Lotado</Text>
-            ) : (
-              <Text style={styles.textoVagas}>
-                {vagasOcupadas}/{capacidadeReal} vagas ocupadas
-              </Text>
-            )}
-          </View>
-          <View style={styles.barraFundo}>
-            <View
-              style={[
-                styles.barraPreenchimento,
-                { 
-                  width: `${ocupacaoPercentual}%`, 
-                  backgroundColor: aulaJaPassou && !jaAgendado ? "#E5E5E5" : getCorVagas() 
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-      </View>
-
-      <TouchableOpacity
-        style={[styles.botao, getEstiloBotao()]}
-        onPress={handleAcao}
-        disabled={((lotado || aulaJaPassou) && !jaAgendado) || processando}
-      >
-        {processando ? (
-          <ActivityIndicator
-            size="small"
-            color={jaAgendado ? cores.primaria : "#FFF"}
-          />
-        ) : (
-          <Text
-            style={[
-              styles.textoBotao,
-              jaAgendado && styles.textoBotaoCancelar,
-              aulaJaPassou && !jaAgendado && styles.textoBotaoPassou,
-            ]}
-          >
-            {getTextoBotao()}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#F0E0D6",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  cardPassou: { backgroundColor: "#F9F9F9", borderColor: "#EEE", elevation: 0 },
-  containerHorario: {
-    paddingRight: 15,
-    borderRightWidth: 1,
-    borderRightColor: "#F0E0D6",
-    alignItems: "center",
-    minWidth: 80,
-  },
-  textoHorario: { fontSize: 18, fontWeight: "900", color: cores.primaria },
-  textoEspaco: {
-    fontSize: 10,
-    color: cores.secundaria,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    marginTop: 4,
-  },
-  textoPassou: { color: cores.textoSuave },
-  info: { flex: 1, paddingLeft: 15, paddingRight: 10 },
-  atividade: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 2,
-  },
-  professor: { fontSize: 12, color: cores.textoSuave },
-
-  containerVagas: { marginTop: 8 },
-  headerVagas: { flexDirection: "row", marginBottom: 4 },
-  textoVagas: { fontSize: 11, color: cores.textoSuave, fontWeight: "500" },
-  textoUltimaVaga: { fontSize: 11, color: cores.erro, fontWeight: "bold" },
-  textoLotado: { fontSize: 11, color: cores.textoSuave, fontWeight: "bold" },
-  barraFundo: { 
-    height: 6, 
-    backgroundColor: "#F0F0F0", 
-    borderRadius: 3, 
-    overflow: "hidden" 
-  },
-  barraPreenchimento: { 
-    height: "100%", 
-    borderRadius: 3 
-  },
-
-  botao: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    minWidth: 90,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 40,
-  },
-  botaoReservar: { backgroundColor: cores.primaria },
-  botaoCancelar: {
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-  },
-  botaoLotado: { backgroundColor: "#EEE" },
-  botaoPassou: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-
-  textoBotao: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
-  textoBotaoCancelar: { color: "#888" },
-  textoBotaoPassou: { color: "#CCC" },
-});
-</file>
-
 <file path="gestao_web/.gitignore">
 # Logs
 logs
@@ -35926,1003 +35926,6 @@ function RecuperarFormInterno({ onSubmit, loading }) {
 }
 </file>
 
-<file path="gestao_web/src/pages/Presenca.jsx">
-import React, { useEffect, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
-import {
-  QrCode, Search, UserCheck, Calendar, TrendingUp,
-  Clock, Award, AlertCircle, Users, CheckCircle2,
-  XCircle, Download, BarChart2, Zap, ChevronRight
-} from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
-import { formatarData } from '../lib/utils';
-import Modal, { useModal } from '../components/ui/Modal';
-import Button from '../components/ui/Button';
-import Input, { Label } from '../components/ui/Input';
-import Badge from '../components/ui/Badge';
-import Surface from '../components/ui/Surface';
-import Skeleton from '../components/ui/Skeleton';
-import EmptyState from '../components/ui/EmptyState';
-
-function aulaEmAndamento(aula) {
-  const agora = new Date();
-  const diasSemana = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
-  const diaHoje = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
-  const diaHojeFormatado = diaHoje.charAt(0).toUpperCase() + diaHoje.slice(1);
-
-  if (aula.dia_semana !== diaHojeFormatado) return false;
-
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-  const [h, m] = aula.horario.split(':').map(Number);
-  const inicioAula = h * 60 + m;
-  const duracaoMin = aula.duracao_minutos ?? 60;
-  const fimAula = inicioAula + duracaoMin;
-  return horaAtual >= inicioAula - 30 && horaAtual <= fimAula;
-}
-
-function obterPeriodo(periodo) {
-  const hoje = new Date();
-  const inicio = new Date(hoje);
-  const fim = new Date(hoje);
-  if (periodo === 'hoje') {
-    inicio.setHours(0, 0, 0, 0);
-    fim.setHours(23, 59, 59, 999);
-  } else if (periodo === 'semana') {
-    inicio.setDate(hoje.getDate() - hoje.getDay());
-    inicio.setHours(0, 0, 0, 0);
-    fim.setDate(inicio.getDate() + 6);
-    fim.setHours(23, 59, 59, 999);
-  } else if (periodo === 'mes') {
-    inicio.setDate(1);
-    inicio.setHours(0, 0, 0, 0);
-    fim.setMonth(fim.getMonth() + 1, 0);
-    fim.setHours(23, 59, 59, 999);
-  }
-  return { inicio: inicio.toISOString(), fim: fim.toISOString() };
-}
-
-export default function Presenca() {
-  const [modo, setModo] = useState('chamada');
-  const [alunos, setAlunos]       = useState([]);
-  const [aulas, setAulas]         = useState([]);
-  const [presencas, setPresencas] = useState([]);
-  const [loading, setLoading]     = useState(true);
-
-  const [aulaAtiva, setAulaAtiva]               = useState(null);
-  const [checkinsDaAula, setCheckinsDaAula]       = useState(new Set());
-  const [alunosFixosDaAula, setAlunosFixosDaAula] = useState(new Set());
-  const [loadingCheckin, setLoadingCheckin]       = useState(null);
-
-  const [metricas, setMetricas] = useState({
-    checkinsHoje: 0, frequenciaMedia: 0, alunosAtivos: 0,
-    presencaSemana: [], mediaDiaria: 0
-  });
-  const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
-  const [busca, setBusca]             = useState('');
-  const [aulaSelecionada, setAulaSelecionada] = useState(null);
-  const [alunoSelecionado, setAlunoSelecionado] = useState(null);
-  const modalQRCode   = useModal();
-  const modalDetalhes = useModal();
-  const queryClient = useQueryClient();
-  const [agendadosDaAula, setAgendadosDaAula] = useState(new Map());
-  const [buscaChamada, setBuscaChamada] = useState('');
-
-  const fetchDados = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Alunos ativos
-      const { data: alunosData } = await supabase
-        .from('alunos')
-        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
-        .eq('ativo', true)
-        .eq('role', 'aluno')
-        .order('nome_completo');
-
-      // Aulas de hoje
-      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
-const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
-
-let aulasQuery = supabase
-  .from('agenda')
-  .select('*')
-  .eq('ativa', true)
-  .order('dia_semana')
-  .order('horario');
-
-if (filtros.periodo === 'hoje') {
-  aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
-}
-
-const { data: aulasData } = await aulasQuery;
-
-      const { inicio, fim } = obterPeriodo(filtros.periodo);
-      const { data: presencasData } = await supabase
-        .from('presencas')
-        .select(`*, alunos(nome_completo, email), agenda(atividade, horario)`)
-        .gte('data_checkin', inicio)
-        .lte('data_checkin', fim)
-        .order('data_checkin', { ascending: false });
-
-      setAlunos(alunosData || []);
-      setAulas(aulasData || []);
-      setPresencas(presencasData || []);
-
-      const aulaEmCurso = (aulasData || []).find(aulaEmAndamento) || null;
-      setAulaAtiva(aulaEmCurso);
-
-      if (aulaEmCurso) {
-        const hojeDateStr = new Date().toISOString().split('T')[0];
-        const [{ data: todasPresencasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, tipo')
-    .eq('aula_id', aulaEmCurso.id)
-    .gte('data_checkin', hojeDateStr + 'T00:00:00')
-    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
-  supabase
-    .from('agenda_fixa')
-    .select('aluno_id')
-    .eq('aula_id', aulaEmCurso.id),
-]);
-
-const confirmados = (todasPresencasHoje || []).filter(p => p.tipo !== 'agendado');
-const pendentes = (todasPresencasHoje || []).filter(
-  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
-
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
-
-      } else {
-        setCheckinsDaAula(new Set());
-        setAlunosFixosDaAula(new Set());
-      }
-
-      setModo(prev => prev === 'chamada' || prev === 'relatorio'
-  ? (aulaEmCurso ? prev : prev)
-  : (aulaEmCurso ? 'chamada' : 'relatorio')
-);
-      calcularMetricas(presencasData || [], alunosData || []);
-    } catch (err) {
-      showToast.error('Erro ao carregar dados de presença.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filtros.periodo]);
-
-  useEffect(() => { fetchDados(); }, [filtros.periodo]);
-
-  // Quando o usuário muda a aula selecionada manualmente (sem aula automática ativa),
-  // atualiza os Sets de check-ins e de fixos para refletir quem pertence àquela aula.
-  useEffect(() => {
-    if (aulaAtiva || !aulaSelecionada) {
-      if (!aulaAtiva) {
-        setCheckinsDaAula(new Set());
-        setAlunosFixosDaAula(new Set());
-      }
-      return;
-    }
-    async function buscarDadosAulaSelecionada() {
-      const hojeDateStr = new Date().toISOString().split('T')[0];
-      const [{ data: todasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, tipo')
-    .eq('aula_id', aulaSelecionada)
-    .gte('data_checkin', hojeDateStr + 'T00:00:00')
-    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
-        supabase
-          .from('agenda_fixa')
-          .select('aluno_id')
-          .eq('aula_id', aulaSelecionada),
-      ]);
-const confirmados = (todasHoje || []).filter(p => p.tipo !== 'agendado');
-const pendentes = (todasHoje || []).filter(
-  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-      setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
-    }
-    buscarDadosAulaSelecionada();
-  }, [aulaSelecionada, aulaAtiva]);
-
-  function calcularMetricas(presencasData, alunosData) {
-    const hoje = new Date().toISOString().split('T')[0];
-    const alunosAtivos = alunosData.length;
-    const semanaAtras = new Date();
-    semanaAtras.setDate(semanaAtras.getDate() - 7);
-
-    // O(n) — single pass: conta check-ins de hoje, por aluno e por dia da semana
-    let checkinsHoje = 0;
-    const presencasPorAluno = new Map();
-    const presencasPorDia   = new Array(7).fill(0);
-
-    for (const p of presencasData) {
-      if (!p.data_checkin) continue;
-      if (p.data_checkin.split('T')[0] === hoje) checkinsHoje++;
-      if (new Date(p.data_checkin) >= semanaAtras) {
-        if (p.aluno_id != null) {
-          presencasPorAluno.set(p.aluno_id, (presencasPorAluno.get(p.aluno_id) || 0) + 1);
-        }
-        presencasPorDia[new Date(p.data_checkin).getDay()]++;
-      }
-    }
-
-    const taxasIndividuais = alunosData.map(aluno => {
-      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
-      const real     = presencasPorAluno.get(aluno.id) || 0;
-      return Math.min(real / esperado, 1);
-    });
-
-    const frequenciaMedia =
-      alunosAtivos > 0
-        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
-        : 0;
-
-    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const presencaPorDia = diasSemana.map((dia, idx) => ({
-      dia,
-      total: presencasPorDia[idx],
-    }));
-
-    const totalSemana  = presencasPorDia.reduce((acc, v) => acc + v, 0);
-    const mediaDiaria  = Math.round(totalSemana / 7);
-    setMetricas({ checkinsHoje, frequenciaMedia, alunosAtivos, presencaSemana: presencaPorDia, mediaDiaria });
-  }
-
-  // ─── check-in ─────────────────────────────────────────────────────────────
-  async function realizarCheckin(aluno, aulaId = null) {
-  setLoadingCheckin(aluno.id);
-  try {
-    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
-
-    if (agendadoId) {
-      // Confirma agendamento existente — UPDATE pontual, sem risco de duplicata
-      const { error } = await supabase
-        .from('presencas')
-        .update({ tipo: 'aula', data_checkin: new Date().toISOString() })
-        .eq('id', agendadoId);
-      if (error) throw error;
-    } else {
-      // INSERT atômico: a constraint única (aluno_id, aula_id, data_aula) no banco
-      // garante que dois cliques simultâneos não criem duas linhas.
-      // ignoreDuplicates:true suprime o erro quando a linha já existe.
-      const payload = {
-        aluno_id:    aluno.id,
-        aula_id:     aulaId,
-        tipo:        aulaId ? 'aula' : 'livre',
-        data_checkin: new Date().toISOString(),
-        ...(aulaId ? { data_aula: new Date().toISOString().split('T')[0] } : {}),
-      };
-
-      const { error } = await supabase
-        .from('presencas')
-        .upsert([payload], {
-          onConflict:       'aluno_id,aula_id,data_aula',
-          ignoreDuplicates: true,
-        });
-
-      if (error) {
-        // Duplicata em checkin livre (sem aula_id / data_aula) cai aqui
-        if (error.code === '23505') {
-          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
-          return;
-        }
-        throw error;
-      }
-    }
-
-    showToast.success(`✅ ${aluno.nome_completo}`);
-
-    if (aulaId) {
-      setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
-      setAgendadosDaAula(prev => {
-        const next = new Map(prev);
-        next.delete(aluno.id);
-        return next;
-      });
-    }
-    setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
-
-    queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-
-  } catch (err) {
-    showToast.error('Erro ao registrar presença.');
-  } finally {
-    setLoadingCheckin(null);
-  }
-}
-
-  async function desfazerCheckin(aluno) {
-    try {
-      const hoje = new Date().toISOString().split('T')[0];
-      const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
-      const { data: reg } = await supabase
-        .from('presencas')
-        .select('id')
-        .eq('aluno_id', aluno.id)
-        .eq('aula_id', aulaIdAtual)
-        .gte('data_checkin', hoje + 'T00:00:00')
-        .lte('data_checkin', hoje + 'T23:59:59')
-        .maybeSingle();
-      if (!reg) { showToast.error('Registro não encontrado.'); return; }
-      const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
-      if (error) throw error;
-      showToast.success(`↩️ Check-in desfeito: ${aluno.nome_completo}`);
-      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-      setCheckinsDaAula(prev => {
-        const next = new Set(prev);
-        next.delete(aluno.id);
-        return next;
-      });
-      setMetricas(prev => ({ ...prev, checkinsHoje: Math.max(0, prev.checkinsHoje - 1) }));
-    } catch (err) {
-      showToast.error('Erro ao desfazer check-in.');
-    }
-  }
-
-  async function visualizarDetalhes(aluno) {
-    try {
-      const trintaDiasAtras = new Date();
-      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-      const { data } = await supabase
-        .from('presencas')
-        .select(`*, agenda(atividade, horario)`)
-        .eq('aluno_id', aluno.id)
-        .gte('data_checkin', trintaDiasAtras.toISOString())
-        .order('data_checkin', { ascending: false });
-      setAlunoSelecionado({ ...aluno, historico: data || [] });
-      modalDetalhes.abrir();
-    } catch (err) {
-      showToast.error('Erro ao carregar histórico.');
-    }
-  }
-
-  function exportarRelatorio() {
-    const dadosExport = presencasFiltradas.map(p => ({
-      Aluno: p.alunos?.nome_completo,
-      Email: p.alunos?.email,
-      'Data/Hora': new Date(p.data_checkin).toLocaleString('pt-BR'),
-      Aula: p.agenda?.atividade || 'Treino Livre',
-      Horário: p.agenda?.horario || '-',
-      Tipo: p.tipo
-    }));
-    if (!dadosExport.length) { showToast.error('Nenhum dado para exportar.'); return; }
-    const headers = Object.keys(dadosExport[0]);
-    const csvRows = [
-      headers.join(','),
-      ...dadosExport.map(row =>
-        headers.map(h => {
-          const v = row[h];
-          return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
-        }).join(',')
-      )
-    ];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `presencas_${filtros.periodo}.csv`);
-    link.click();
-    showToast.success('Relatório exportado!');
-  }
-
-  // ─── dados derivados ──────────────────────────────────────────────────────
-  const presencasFiltradas = presencas.filter(p => {
-    const matchAluno = filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
-    const matchAula  = filtros.aula  === 'todas' || p.aula_id  === Number(filtros.aula);
-    return matchAluno && matchAula;
-  });
-
-  // Aula em uso (automática ou selecionada manualmente)
-  const aulaEmUso = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
-
-  // Função de filtro por texto de busca
-  const filtrarPorBusca = (lista) =>
-    !buscaChamada
-      ? lista
-      : lista.filter(a =>
-          a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
-          a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-        );
-
-  // Quando há uma aula em uso, separa alunos da turma (fixos) dos demais.
-  // Os fixos aparecem no topo da lista para facilitar a chamada.
-  const alunosDaAula    = aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : [];
-  const alunosRestantes = aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos;
-
-  const alunosDaAulaFiltrados    = filtrarPorBusca(alunosDaAula);
-  const alunosRestantesFiltrados = filtrarPorBusca(alunosRestantes);
-
-  // Lista final: alunos da turma primeiro, depois os demais ativos
-  const alunosChamadaFiltrados = [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados];
-
-  const presentes      = alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id));
-  const ausentes       = alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id));
-  const totalPresentes = checkinsDaAula.size;
-
-  // ─── render ───────────────────────────────────────────────────────────────
-  return (
-    <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
-      {/* ── Cabeçalho ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-foreground tracking-tight">
-            Presença & Check-in
-          </h1>
-          <p className="text-muted-foreground">Controle de frequência dos alunos</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="md" leftIcon={<QrCode size={18} />} onClick={modalQRCode.abrir}>
-            QR Code
-          </Button>
-          <Button variant="outline" size="md" leftIcon={<Download size={18} />} onClick={exportarRelatorio}>
-            Exportar
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Abas: Chamada Rápida | Relatório ──────────────────────────────── */}
-      <div className="flex gap-1 bg-muted p-1 rounded-2xl border border-border w-fit">
-        <button
-          onClick={() => setModo('chamada')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-            modo === 'chamada'
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Zap size={15} />
-          Chamada Rápida
-          {aulaAtiva && (
-            <span className="ml-1 w-2 h-2 rounded-full bg-success animate-pulse inline-block" />
-          )}
-        </button>
-        <button
-          onClick={() => setModo('relatorio')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-            modo === 'relatorio'
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <BarChart2 size={15} />
-          Relatório
-        </button>
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* ABA: CHAMADA RÁPIDA                                                 */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {modo === 'chamada' && (
-        <div className="space-y-5">
-          {/* Banner da aula ativa ou aviso de nenhuma aula */}
-          {loading ? (
-            <Skeleton.Card />
-          ) : aulaAtiva ? (
-            <Surface variant="card" padding="lg" className="rounded-[28px] border-2 border-primary/30 bg-primary-soft/20">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
-                    <Clock size={22} className="text-primary-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-0.5">
-                      Aula em andamento agora
-                    </p>
-                    <h2 className="text-xl font-black text-foreground">
-                      {aulaAtiva.atividade}
-                    </h2>
-                    <p className="text-sm text-muted-foreground font-medium">
-                      {aulaAtiva.horario} · {aulaAtiva.dia_semana}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-6 text-center">
-                  <div>
-                    <p className="text-3xl font-black text-success">{totalPresentes}</p>
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Presentes</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-black text-muted-foreground">{alunosDaAula.length - totalPresentes < 0 ? 0 : alunosDaAula.length - totalPresentes}</p>
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Ausentes</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-black text-foreground">{alunosDaAula.length}</p>
-                    <p className="text-[10px] font-black uppercase text-muted-foreground">Na Turma</p>
-                  </div>
-                </div>
-              </div>
-            </Surface>
-          ) : (
-            <Surface variant="card" padding="lg" className="rounded-[28px] border border-dashed border-border">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center shrink-0">
-                  <Calendar size={22} className="text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground">Nenhuma aula em andamento agora</p>
-                  <p className="text-sm text-muted-foreground">
-                    A chamada automática aparece quando há uma aula ±30 min do horário atual.
-                    Você ainda pode registrar presenças manualmente abaixo.
-                  </p>
-                </div>
-              </div>
-            </Surface>
-          )}
-
-          {/* Seletor de aula manual — exibido somente quando não há aula em andamento automática */}
-          {!loading && !aulaAtiva && aulas.length > 0 && (
-            <Surface variant="card" padding="md" className="rounded-[20px]">
-              <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                Registrar para qual aula?
-              </Label>
-              <Input
-                as="select"
-                value={aulaSelecionada ?? ''}
-                onChange={e => setAulaSelecionada(e.target.value || null)}
-                className="bg-card"
-              >
-                <option value="">— Treino Livre (sem vínculo de aula) —</option>
-                {aulas.map(a => (
-                  <option key={a.id} value={a.id}>
-                    {a.atividade} · {a.horario}
-                  </option>
-                ))}
-              </Input>
-            </Surface>
-          )}
-
-          {/* Busca */}
-          <Input
-            leftIcon={<Search size={18} />}
-            placeholder="Buscar aluno por nome ou e-mail..."
-            value={buscaChamada}
-            onChange={e => setBuscaChamada(e.target.value)}
-          />
-
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(6)].map((_, i) => <Skeleton.Row key={i} />)}
-            </div>
-          ) : alunosChamadaFiltrados.length === 0 ? (
-            <EmptyState
-              icon={<Users size={28} />}
-              title="Nenhum aluno encontrado"
-              description="Tente outro nome ou e-mail."
-            />
-          ) : (
-            <div className="space-y-6">
-
-              {/* Agendados via Agenda */}
-{agendadosDaAula.size > 0 && (
-  <div className="space-y-2">
-    <div className="flex items-center gap-2 px-1">
-      <Clock size={14} className="text-warning" />
-      <p className="text-xs font-black uppercase tracking-widest text-warning">
-        Agendados — aguardando confirmação ({agendadosDaAula.size})
-      </p>
-    </div>
-    {alunos
-      .filter(a => agendadosDaAula.has(a.id))
-      .filter(a =>
-        !buscaChamada ||
-        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
-        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-      )
-      .map(aluno => (
-        <div
-          key={aluno.id}
-          className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
-        >
-          <div className="flex items-center gap-3">
-            <Clock className="text-warning shrink-0" size={22} />
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-                {alunosFixosDaAula.has(aluno.id) && (
-                  <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
-                )}
-                <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{aluno.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="brand"
-              disabled={loadingCheckin === aluno.id}
-              onClick={() => realizarCheckin(aluno, aulaEmUso)}
-            >
-              Confirmar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={loadingCheckin === aluno.id}
-              onClick={async () => {
-                const presencaId = agendadosDaAula.get(aluno.id);
-                if (!presencaId) return;
-                const { error } = await supabase.from('presencas').delete().eq('id', presencaId);
-                if (!error) {
-                  setAgendadosDaAula(prev => {
-                    const next = new Map(prev);
-                    next.delete(aluno.id);
-                    return next;
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-                  showToast.success(`${aluno.nome_completo} marcado como ausente.`);
-                }
-              }}
-            >
-              Ausente
-            </Button>
-          </div>
-        </div>
-      ))}
-  </div>
-)}
-
-              {/* Subseção: Ausentes (aparecem primeiro para facilitar o check-in) */}
-              {ausentes.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
-                    Ausentes ({ausentes.length})
-                  </p>
-                  <div className="space-y-2">
-                    {ausentes.map(aluno => (
-                      <BotaoAluno
-                        key={aluno.id}
-                        aluno={aluno}
-                        presente={false}
-                        isDaAula={alunosFixosDaAula.has(aluno.id)}
-                        aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
-                        loadingId={loadingCheckin}
-                        onCheckin={realizarCheckin}
-                        onDesfazer={desfazerCheckin}
-                        onDetalhes={visualizarDetalhes}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Subseção: Presentes */}
-              {presentes.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
-                    Presentes ({presentes.length})
-                  </p>
-                  <div className="space-y-2">
-                    {presentes.map(aluno => (
-                      <BotaoAluno
-                        key={aluno.id}
-                        aluno={aluno}
-                        presente={true}
-                        isDaAula={alunosFixosDaAula.has(aluno.id)}
-                        aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
-                        loadingId={loadingCheckin}
-                        onCheckin={realizarCheckin}
-                        onDesfazer={desfazerCheckin}
-                        onDetalhes={visualizarDetalhes}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* ABA: RELATÓRIO                                                      */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {modo === 'relatorio' && (
-        <div className="space-y-6">
-          {/* KPI Cards */}
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => <Skeleton.Card key={i} />)}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <CardMetrica titulo="Check-ins Hoje"    valor={metricas.checkinsHoje}         icone={<CheckCircle2 />} tone="success" />
-              <CardMetrica titulo="Taxa de Frequência" valor={`${metricas.frequenciaMedia}%`} subtitulo="última semana" icone={<TrendingUp />} tone="info" />
-              <CardMetrica titulo="Alunos Ativos"     valor={metricas.alunosAtivos}          icone={<Users />}        tone="brand" />
-              <CardMetrica titulo="Média Diária"      valor={metricas.mediaDiaria}           subtitulo="últimos 7 dias" icone={<Award />}    tone="purple" />
-            </div>
-          )}
-
-          {/* Gráfico semanal */}
-          {metricas.presencaSemana.length > 0 && (
-            <Surface variant="card" padding="xl" className="rounded-[40px]">
-              <h3 className="font-bold text-foreground mb-6">Distribuição Semanal</h3>
-              <div className="flex gap-2 items-end h-48">
-                {metricas.presencaSemana.map((dia, idx) => {
-                  const maxAltura = Math.max(...metricas.presencaSemana.map(d => d.total));
-                  const altura = maxAltura > 0 ? (dia.total / maxAltura) * 100 : 0;
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                      <div className="flex-1 flex items-end w-full">
-                        <div
-                          className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95"
-                          style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }}
-                        />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-foreground">{dia.total}</p>
-                        <p className="text-[10px] text-muted-foreground font-bold">{dia.dia}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Surface>
-          )}
-
-          {/* Filtros */}
-          <Surface variant="card" padding="lg" className="rounded-[28px]">
-            <div className="flex flex-wrap gap-4">
-              <div className="flex gap-2 bg-muted p-1 rounded-2xl border border-border">
-                {['hoje', 'semana', 'mes'].map(periodo => (
-                  <button
-                    key={periodo}
-                    onClick={() => setFiltros({ ...filtros, periodo })}
-                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
-                      filtros.periodo === periodo
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {periodo}
-                  </button>
-                ))}
-              </div>
-              <Input as="select" className="w-auto" value={filtros.aluno}
-                onChange={e => setFiltros({ ...filtros, aluno: e.target.value })}>
-                <option value="todos">Todos os Alunos</option>
-                {alunos.map(a => <option key={a.id} value={a.id}>{a.nome_completo}</option>)}
-              </Input>
-              <Input as="select" className="w-auto" value={filtros.aula}
-                onChange={e => setFiltros({ ...filtros, aula: e.target.value })}>
-                <option value="todas">Todas as Aulas</option>
-                {aulas.map(a => <option key={a.id} value={a.id}>{a.atividade} - {a.horario}</option>)}
-              </Input>
-            </div>
-          </Surface>
-
-          {/* Tabela */}
-          <Surface variant="card" padding="none" className="rounded-[40px] overflow-hidden">
-            {loading ? (
-              <div className="p-6 space-y-3">
-                {[...Array(5)].map((_, i) => <Skeleton.Row key={i} />)}
-              </div>
-            ) : presencasFiltradas.length === 0 ? (
-              <EmptyState
-                icon={<Users size={28} />}
-                title="Nenhuma presença registrada"
-                description="Faça o primeiro check-in do dia!"
-              />
-            ) : (
-              <table className="w-full text-left">
-                <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="px-8 py-5">Aluno</th>
-                    <th className="px-8 py-5">Atividade</th>
-                    <th className="px-8 py-5">Data/Hora</th>
-                    <th className="px-8 py-5">Tipo</th>
-                    <th className="px-8 py-5 text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {presencasFiltradas.map(p => (
-                    <tr key={p.id} className="hover:bg-primary-soft/30 transition-colors">
-                      <td className="px-8 py-5">
-                        <p className="font-bold text-foreground">{p.alunos?.nome_completo}</p>
-                        <p className="text-[10px] text-muted-foreground font-medium">{p.alunos?.email}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className="text-sm font-medium text-foreground">
-                          {p.agenda?.atividade || 'Treino Livre'}
-                        </span>
-                        {p.agenda?.horario && (
-                          <p className="text-xs text-muted-foreground">{p.agenda.horario}</p>
-                        )}
-                      </td>
-                      <td className="px-8 py-5 text-sm text-muted-foreground">
-                        {new Date(p.data_checkin).toLocaleString('pt-BR')}
-                      </td>
-                      <td className="px-8 py-5">
-                        <Badge tone={p.tipo === 'aula' ? 'info' : 'neutral'} variant="soft">
-                          {p.tipo}
-                        </Badge>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <Button variant="outline" size="sm"
-                          onClick={() => {
-                            const aluno = alunos.find(a => a.id === p.aluno_id);
-                            if (aluno) visualizarDetalhes(aluno);
-                          }}>
-                          Ver Histórico
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Surface>
-        </div>
-      )}
-
-      {/* ─── Modais ────────────────────────────────────────────────────────── */}
-      {/* Detalhes do aluno */}
-      {alunoSelecionado && (
-        <Modal aberto={modalDetalhes.aberto} fechar={modalDetalhes.fechar}
-          title={`Histórico: ${alunoSelecionado.nome_completo}`}>
-          <div className="space-y-6 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <Surface variant="muted" padding="md" className="rounded-2xl">
-                <p className="text-xs font-black text-success uppercase mb-1">Total (30 dias)</p>
-                <p className="text-2xl font-black text-success">{alunoSelecionado.historico?.length || 0}</p>
-              </Surface>
-              <Surface variant="muted" padding="md" className="rounded-2xl">
-                <p className="text-xs font-black text-info uppercase mb-1">Frequência</p>
-                <p className="text-2xl font-black text-info">
-                  {alunoSelecionado.planos?.frequencia_semanal || 0}x/sem
-                </p>
-              </Surface>
-            </div>
-            <div>
-              <h4 className="font-bold text-foreground mb-4">Últimas Presenças</h4>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {alunoSelecionado.historico?.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">Sem registros</p>
-                ) : (
-                  alunoSelecionado.historico?.map(h => (
-                    <Surface key={h.id} variant="muted" padding="sm"
-                      className="rounded-xl flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-sm text-foreground">
-                          {h.agenda?.atividade || 'Treino Livre'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(h.data_checkin).toLocaleDateString('pt-BR')} às{' '}
-                          {new Date(h.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <CheckCircle2 className="text-success" size={16} />
-                    </Surface>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* QR Code */}
-      <Modal aberto={modalQRCode.aberto} fechar={modalQRCode.fechar} title="QR Code para Check-in">
-        <div className="text-center py-8">
-          <Surface variant="muted" padding="none"
-            className="w-64 h-64 mx-auto rounded-3xl flex items-center justify-center mb-6">
-            <QrCode size={120} className="text-muted-foreground" />
-          </Surface>
-          <p className="text-sm text-muted-foreground">
-            Os alunos podem escanear este QR Code para fazer check-in automático.
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Feature em desenvolvimento — integração com app mobile
-          </p>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-// ─── sub-componentes ─────────────────────────────────────────────────────────
-/**
- * Linha de aluno na chamada rápida.
- * - isDaAula: true quando o aluno está matriculado na agenda_fixa da aula em curso
- * - Ausente: botão verde para marcar presença
- * - Presente: badge verde + botão discreto para desfazer + link histórico
- */
-function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes }) {
-  const carregando = loadingId === aluno.id;
-
-  if (presente) {
-    return (
-      <div className="flex items-center justify-between w-full p-4 bg-success-soft border border-success/20 rounded-2xl transition-all">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="text-success shrink-0" size={22} />
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-              {isDaAula && (
-                <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{aluno.email}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onDetalhes(aluno)}
-            className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted"
-          >
-            Histórico
-          </button>
-          <button
-            onClick={() => onDesfazer(aluno)}
-            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft"
-            title="Desfazer check-in"
-          >
-            Desfazer
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={() => onCheckin(aluno, aulaId)}
-      disabled={carregando}
-      className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-2xl hover:border-primary hover:bg-primary-soft/20 active:scale-[0.99] transition-all text-left disabled:opacity-60"
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-muted rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-sm font-black text-muted-foreground">
-            {aluno.nome_completo?.[0]?.toUpperCase()}
-          </span>
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-            {isDaAula && (
-              <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">{aluno.email}</p>
-        </div>
-      </div>
-      {carregando ? (
-        <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
-      ) : (
-        <UserCheck className="text-primary shrink-0" size={22} />
-      )}
-    </button>
-  );
-}
-
-const ICON_TONE = {
-  brand:   'bg-primary-soft text-primary',
-  info:    'bg-info-soft text-info',
-  success: 'bg-success-soft text-success',
-  warning: 'bg-warning-soft text-warning',
-  purple:  'bg-purple-soft text-purple',
-  neutral: 'bg-muted text-muted-foreground',
-};
-
-function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
-  return (
-    <Surface variant="card" padding="lg" className="rounded-[32px] hover:shadow-md transition-all">
-      <div className={`${ICON_TONE[tone]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>
-        {icone}
-      </div>
-      <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">{titulo}</p>
-      <h2 className="text-3xl font-black text-foreground mb-1">{valor}</h2>
-      {subtitulo && <p className="text-xs text-muted-foreground font-medium">{subtitulo}</p>}
-    </Surface>
-  );
-}
-</file>
-
 <file path="gestao_web/src/hooks/useAuth.js">
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
@@ -37666,6 +36669,1035 @@ function SeletorRegras({ regras, setRegras }) {
         </Button>
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="gestao_web/src/pages/Presenca.jsx">
+import React, { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
+import {
+  QrCode, Search, UserCheck, Calendar, TrendingUp,
+  Clock, Award, AlertCircle, Users, CheckCircle2,
+  XCircle, Download, BarChart2, Zap, ChevronRight
+} from 'lucide-react';
+import { showToast } from '../components/shared/Toast';
+import { formatarData } from '../lib/utils';
+import Modal, { useModal } from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import Input, { Label } from '../components/ui/Input';
+import Badge from '../components/ui/Badge';
+import Surface from '../components/ui/Surface';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
+
+function aulaEmAndamento(aula) {
+  const agora = new Date();
+  const diasSemana = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const diaHoje = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+  const diaHojeFormatado = diaHoje.charAt(0).toUpperCase() + diaHoje.slice(1);
+
+  if (aula.dia_semana !== diaHojeFormatado) return false;
+
+  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+  const [h, m] = aula.horario.split(':').map(Number);
+  const inicioAula = h * 60 + m;
+  const duracaoMin = aula.duracao_minutos ?? 60;
+  const fimAula = inicioAula + duracaoMin;
+  return horaAtual >= inicioAula - 30 && horaAtual <= fimAula;
+}
+
+function obterPeriodo(periodo) {
+  const hoje = new Date();
+  const inicio = new Date(hoje);
+  const fim = new Date(hoje);
+  if (periodo === 'hoje') {
+    inicio.setHours(0, 0, 0, 0);
+    fim.setHours(23, 59, 59, 999);
+  } else if (periodo === 'semana') {
+    inicio.setDate(hoje.getDate() - hoje.getDay());
+    inicio.setHours(0, 0, 0, 0);
+    fim.setDate(inicio.getDate() + 6);
+    fim.setHours(23, 59, 59, 999);
+  } else if (periodo === 'mes') {
+    inicio.setDate(1);
+    inicio.setHours(0, 0, 0, 0);
+    fim.setMonth(fim.getMonth() + 1, 0);
+    fim.setHours(23, 59, 59, 999);
+  }
+  return { inicio: inicio.toISOString(), fim: fim.toISOString() };
+}
+
+export default function Presenca() {
+  const [modo, setModo] = useState('chamada');
+  const [alunos, setAlunos]       = useState([]);
+  const [aulas, setAulas]         = useState([]);
+  const [todasAulas, setTodasAulas] = useState([]);
+  const [presencas, setPresencas] = useState([]);
+  const [loading, setLoading]     = useState(true);
+
+  const [aulaAtiva, setAulaAtiva]               = useState(null);
+  const [checkinsDaAula, setCheckinsDaAula]       = useState(new Set());
+  const [alunosFixosDaAula, setAlunosFixosDaAula] = useState(new Set());
+  const [loadingCheckin, setLoadingCheckin]       = useState(null);
+
+  const [metricas, setMetricas] = useState({
+    checkinsHoje: 0, frequenciaMedia: 0, alunosAtivos: 0,
+    presencaSemana: [], mediaDiaria: 0
+  });
+  const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
+  const [busca, setBusca]             = useState('');
+  const [aulaSelecionada, setAulaSelecionada] = useState(null);
+  const [dataManual, setDataManual] = useState(() => new Date().toISOString().split('T')[0]);
+  const [alunoSelecionado, setAlunoSelecionado] = useState(null);
+  const modalQRCode   = useModal();
+  const modalDetalhes = useModal();
+  const queryClient = useQueryClient();
+  const [agendadosDaAula, setAgendadosDaAula] = useState(new Map());
+  const [buscaChamada, setBuscaChamada] = useState('');
+
+  const fetchDados = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Alunos ativos
+      const { data: alunosData } = await supabase
+        .from('alunos')
+        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
+        .eq('ativo', true)
+        .eq('role', 'aluno')
+        .order('nome_completo');
+
+      // Aulas para o período selecionado (usado no relatório/filtros)
+      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
+const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
+
+let aulasQuery = supabase
+  .from('agenda')
+  .select('*')
+  .eq('ativa', true)
+  .order('dia_semana')
+  .order('horario');
+
+if (filtros.periodo === 'hoje') {
+  aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
+}
+
+// Todas as aulas ativas — usado no seletor manual da Chamada Rápida
+const todasAulasQuery = supabase
+  .from('agenda')
+  .select('id, atividade, horario, dia_semana')
+  .eq('ativa', true)
+  .order('dia_semana')
+  .order('horario');
+
+const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
+  aulasQuery,
+  todasAulasQuery,
+]);
+
+      const { inicio, fim } = obterPeriodo(filtros.periodo);
+      const { data: presencasData } = await supabase
+        .from('presencas')
+        .select(`*, alunos(nome_completo, email), agenda(atividade, horario)`)
+        .gte('data_checkin', inicio)
+        .lte('data_checkin', fim)
+        .order('data_checkin', { ascending: false });
+
+      setAlunos(alunosData || []);
+      setAulas(aulasData || []);
+      setTodasAulas(todasAulasData || []);
+      setPresencas(presencasData || []);
+
+      const aulaEmCurso = (aulasData || []).find(aulaEmAndamento) || null;
+      setAulaAtiva(aulaEmCurso);
+
+      if (aulaEmCurso) {
+        const hojeDateStr = new Date().toISOString().split('T')[0];
+        const [{ data: todasPresencasHoje }, { data: fixosDaAula }] = await Promise.all([
+  supabase
+    .from('presencas')
+    .select('id, aluno_id, tipo')
+    .eq('aula_id', aulaEmCurso.id)
+    .gte('data_checkin', hojeDateStr + 'T00:00:00')
+    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
+  supabase
+    .from('agenda_fixa')
+    .select('aluno_id')
+    .eq('aula_id', aulaEmCurso.id),
+]);
+
+const confirmados = (todasPresencasHoje || []).filter(p => p.tipo !== 'agendado');
+const pendentes = (todasPresencasHoje || []).filter(
+  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+);
+
+setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+
+      } else {
+        setCheckinsDaAula(new Set());
+        setAlunosFixosDaAula(new Set());
+      }
+
+      setModo(prev => prev === 'chamada' || prev === 'relatorio'
+  ? (aulaEmCurso ? prev : prev)
+  : (aulaEmCurso ? 'chamada' : 'relatorio')
+);
+      calcularMetricas(presencasData || [], alunosData || []);
+    } catch (err) {
+      showToast.error('Erro ao carregar dados de presença.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filtros.periodo]);
+
+  useEffect(() => { fetchDados(); }, [filtros.periodo]);
+
+  // Quando o usuário muda a aula selecionada manualmente (sem aula automática ativa),
+  // atualiza os Sets de check-ins e de fixos para refletir quem pertence àquela aula.
+  useEffect(() => {
+    if (aulaAtiva || !aulaSelecionada) {
+      if (!aulaAtiva) {
+        setCheckinsDaAula(new Set());
+        setAlunosFixosDaAula(new Set());
+      }
+      return;
+    }
+    async function buscarDadosAulaSelecionada() {
+      const hojeDateStr = new Date().toISOString().split('T')[0];
+      const [{ data: todasHoje }, { data: fixosDaAula }] = await Promise.all([
+  supabase
+    .from('presencas')
+    .select('id, aluno_id, tipo')
+    .eq('aula_id', aulaSelecionada)
+    .gte('data_checkin', hojeDateStr + 'T00:00:00')
+    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
+        supabase
+          .from('agenda_fixa')
+          .select('aluno_id')
+          .eq('aula_id', aulaSelecionada),
+      ]);
+const confirmados = (todasHoje || []).filter(p => p.tipo !== 'agendado');
+const pendentes = (todasHoje || []).filter(
+  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+);
+setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+      setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+    }
+    buscarDadosAulaSelecionada();
+  }, [aulaSelecionada, aulaAtiva]);
+
+  function calcularMetricas(presencasData, alunosData) {
+    const hoje = new Date().toISOString().split('T')[0];
+    const alunosAtivos = alunosData.length;
+    const semanaAtras = new Date();
+    semanaAtras.setDate(semanaAtras.getDate() - 7);
+
+    // O(n) — single pass: conta check-ins de hoje, por aluno e por dia da semana
+    let checkinsHoje = 0;
+    const presencasPorAluno = new Map();
+    const presencasPorDia   = new Array(7).fill(0);
+
+    for (const p of presencasData) {
+      if (!p.data_checkin) continue;
+      if (p.data_checkin.split('T')[0] === hoje) checkinsHoje++;
+      if (new Date(p.data_checkin) >= semanaAtras) {
+        if (p.aluno_id != null) {
+          presencasPorAluno.set(p.aluno_id, (presencasPorAluno.get(p.aluno_id) || 0) + 1);
+        }
+        presencasPorDia[new Date(p.data_checkin).getDay()]++;
+      }
+    }
+
+    const taxasIndividuais = alunosData.map(aluno => {
+      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
+      const real     = presencasPorAluno.get(aluno.id) || 0;
+      return Math.min(real / esperado, 1);
+    });
+
+    const frequenciaMedia =
+      alunosAtivos > 0
+        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
+        : 0;
+
+    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const presencaPorDia = diasSemana.map((dia, idx) => ({
+      dia,
+      total: presencasPorDia[idx],
+    }));
+
+    const totalSemana  = presencasPorDia.reduce((acc, v) => acc + v, 0);
+    const mediaDiaria  = Math.round(totalSemana / 7);
+    setMetricas({ checkinsHoje, frequenciaMedia, alunosAtivos, presencaSemana: presencaPorDia, mediaDiaria });
+  }
+
+  // ─── check-in ─────────────────────────────────────────────────────────────
+  // DEPOIS
+async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
+  setLoadingCheckin(aluno.id);
+  // dataRef: string 'YYYY-MM-DD' — hoje por padrão, ou data retroativa
+  const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+  // data_checkin: meio-dia da data escolhida para evitar off-by-one de fuso
+  const dataCheckin = dataRef
+    ? `${dataRef}T12:00:00.000Z`
+    : new Date().toISOString();
+  try {
+    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
+
+    if (agendadoId) {
+      const { error } = await supabase
+        .from('presencas')
+        .update({ tipo: 'aula', data_checkin: dataCheckin })
+        .eq('id', agendadoId);
+      if (error) throw error;
+    } else {
+      const payload = {
+        aluno_id:     aluno.id,
+        aula_id:      aulaId,
+        tipo:         aulaId ? 'aula' : 'livre',
+        data_checkin: dataCheckin,
+        ...(aulaId ? { data_aula: dataAula } : {}),
+      };
+
+      const { error } = await supabase
+        .from('presencas')
+        .upsert([payload], {
+          onConflict:       'aluno_id,aula_id,data_aula',
+          ignoreDuplicates: true,
+        });
+
+      if (error) {
+        // Duplicata em checkin livre (sem aula_id / data_aula) cai aqui
+        if (error.code === '23505') {
+          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
+          return;
+        }
+        throw error;
+      }
+    }
+
+    showToast.success(`✅ ${aluno.nome_completo}`);
+
+    if (aulaId) {
+      setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
+      setAgendadosDaAula(prev => {
+        const next = new Map(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+    }
+    setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
+
+    queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+
+  } catch (err) {
+    showToast.error('Erro ao registrar presença.');
+  } finally {
+    setLoadingCheckin(null);
+  }
+}
+
+  async function desfazerCheckin(aluno) {
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
+      const { data: reg } = await supabase
+        .from('presencas')
+        .select('id')
+        .eq('aluno_id', aluno.id)
+        .eq('aula_id', aulaIdAtual)
+        .gte('data_checkin', hoje + 'T00:00:00')
+        .lte('data_checkin', hoje + 'T23:59:59')
+        .maybeSingle();
+      if (!reg) { showToast.error('Registro não encontrado.'); return; }
+      const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
+      if (error) throw error;
+      showToast.success(`↩️ Check-in desfeito: ${aluno.nome_completo}`);
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      setCheckinsDaAula(prev => {
+        const next = new Set(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+      setMetricas(prev => ({ ...prev, checkinsHoje: Math.max(0, prev.checkinsHoje - 1) }));
+    } catch (err) {
+      showToast.error('Erro ao desfazer check-in.');
+    }
+  }
+
+  async function visualizarDetalhes(aluno) {
+    try {
+      const trintaDiasAtras = new Date();
+      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+      const { data } = await supabase
+        .from('presencas')
+        .select(`*, agenda(atividade, horario)`)
+        .eq('aluno_id', aluno.id)
+        .gte('data_checkin', trintaDiasAtras.toISOString())
+        .order('data_checkin', { ascending: false });
+      setAlunoSelecionado({ ...aluno, historico: data || [] });
+      modalDetalhes.abrir();
+    } catch (err) {
+      showToast.error('Erro ao carregar histórico.');
+    }
+  }
+
+  function exportarRelatorio() {
+    const dadosExport = presencasFiltradas.map(p => ({
+      Aluno: p.alunos?.nome_completo,
+      Email: p.alunos?.email,
+      'Data/Hora': new Date(p.data_checkin).toLocaleString('pt-BR'),
+      Aula: p.agenda?.atividade || 'Treino Livre',
+      Horário: p.agenda?.horario || '-',
+      Tipo: p.tipo
+    }));
+    if (!dadosExport.length) { showToast.error('Nenhum dado para exportar.'); return; }
+    const headers = Object.keys(dadosExport[0]);
+    const csvRows = [
+      headers.join(','),
+      ...dadosExport.map(row =>
+        headers.map(h => {
+          const v = row[h];
+          return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
+        }).join(',')
+      )
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `presencas_${filtros.periodo}.csv`);
+    link.click();
+    showToast.success('Relatório exportado!');
+  }
+
+  // ─── dados derivados ──────────────────────────────────────────────────────
+  const presencasFiltradas = presencas.filter(p => {
+    const matchAluno = filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
+    const matchAula  = filtros.aula  === 'todas' || p.aula_id  === Number(filtros.aula);
+    return matchAluno && matchAula;
+  });
+
+  // Aula em uso (automática ou selecionada manualmente)
+  const aulaEmUso = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
+
+  // Função de filtro por texto de busca
+  const filtrarPorBusca = (lista) =>
+    !buscaChamada
+      ? lista
+      : lista.filter(a =>
+          a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
+          a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
+        );
+
+  // Quando há uma aula em uso, separa alunos da turma (fixos) dos demais.
+  // Os fixos aparecem no topo da lista para facilitar a chamada.
+  const alunosDaAula    = aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : [];
+  const alunosRestantes = aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos;
+
+  const alunosDaAulaFiltrados    = filtrarPorBusca(alunosDaAula);
+  const alunosRestantesFiltrados = filtrarPorBusca(alunosRestantes);
+
+  // Lista final: alunos da turma primeiro, depois os demais ativos
+  const alunosChamadaFiltrados = [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados];
+
+  const presentes      = alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id));
+  const ausentes       = alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id));
+  const totalPresentes = checkinsDaAula.size;
+
+  // ─── render ───────────────────────────────────────────────────────────────
+  return (
+    <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
+      {/* ── Cabeçalho ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">
+            Presença & Check-in
+          </h1>
+          <p className="text-muted-foreground">Controle de frequência dos alunos</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="md" leftIcon={<QrCode size={18} />} onClick={modalQRCode.abrir}>
+            QR Code
+          </Button>
+          <Button variant="outline" size="md" leftIcon={<Download size={18} />} onClick={exportarRelatorio}>
+            Exportar
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Abas: Chamada Rápida | Relatório ──────────────────────────────── */}
+      <div className="flex gap-1 bg-muted p-1 rounded-2xl border border-border w-fit">
+        <button
+          onClick={() => setModo('chamada')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
+            modo === 'chamada'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Zap size={15} />
+          Chamada Rápida
+          {aulaAtiva && (
+            <span className="ml-1 w-2 h-2 rounded-full bg-success animate-pulse inline-block" />
+          )}
+        </button>
+        <button
+          onClick={() => setModo('relatorio')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
+            modo === 'relatorio'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart2 size={15} />
+          Relatório
+        </button>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* ABA: CHAMADA RÁPIDA                                                 */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {modo === 'chamada' && (
+        <div className="space-y-5">
+          {/* Banner da aula ativa ou aviso de nenhuma aula */}
+          {loading ? (
+            <Skeleton.Card />
+          ) : aulaAtiva ? (
+            <Surface variant="card" padding="lg" className="rounded-[28px] border-2 border-primary/30 bg-primary-soft/20">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                    <Clock size={22} className="text-primary-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-0.5">
+                      Aula em andamento agora
+                    </p>
+                    <h2 className="text-xl font-black text-foreground">
+                      {aulaAtiva.atividade}
+                    </h2>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      {aulaAtiva.horario} · {aulaAtiva.dia_semana}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-6 text-center">
+                  <div>
+                    <p className="text-3xl font-black text-success">{totalPresentes}</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Presentes</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-black text-muted-foreground">{alunosDaAula.length - totalPresentes < 0 ? 0 : alunosDaAula.length - totalPresentes}</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Ausentes</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-black text-foreground">{alunosDaAula.length}</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground">Na Turma</p>
+                  </div>
+                </div>
+              </div>
+            </Surface>
+          ) : (
+            <Surface variant="card" padding="lg" className="rounded-[28px] border border-dashed border-border">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center shrink-0">
+                  <Calendar size={22} className="text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">Nenhuma aula em andamento agora</p>
+                  <p className="text-sm text-muted-foreground">
+                    A chamada automática aparece quando há uma aula ±30 min do horário atual.
+                    Você ainda pode registrar presenças manualmente abaixo.
+                  </p>
+                </div>
+              </div>
+            </Surface>
+          )}
+
+          {/* Seletor de aula manual — exibido somente quando não há aula em andamento automática */}
+          // DEPOIS
+          {!loading && !aulaAtiva && todasAulas.length > 0 && (
+            <Surface variant="card" padding="md" className="rounded-[20px] space-y-3">
+              <div>
+                <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Registrar para qual aula?
+                </Label>
+                <Input
+                  as="select"
+                  value={aulaSelecionada ?? ''}
+                  onChange={e => setAulaSelecionada(e.target.value || null)}
+                  className="bg-card"
+                >
+                  <option value="">— Treino Livre (sem vínculo de aula) —</option>
+                  {todasAulas.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.dia_semana} · {a.atividade} · {a.horario}
+                    </option>
+                  ))}
+                </Input>
+              </div>
+              <div>
+                <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Data da presença
+                </Label>
+                <Input
+                  type="date"
+                  value={dataManual}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => setDataManual(e.target.value)}
+                  className="bg-card w-auto"
+                />
+              </div>
+            </Surface>
+          )}
+
+          {/* Busca */}
+          <Input
+            leftIcon={<Search size={18} />}
+            placeholder="Buscar aluno por nome ou e-mail..."
+            value={buscaChamada}
+            onChange={e => setBuscaChamada(e.target.value)}
+          />
+
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(6)].map((_, i) => <Skeleton.Row key={i} />)}
+            </div>
+          ) : alunosChamadaFiltrados.length === 0 ? (
+            <EmptyState
+              icon={<Users size={28} />}
+              title="Nenhum aluno encontrado"
+              description="Tente outro nome ou e-mail."
+            />
+          ) : (
+            <div className="space-y-6">
+
+              {/* Agendados via Agenda */}
+{agendadosDaAula.size > 0 && (
+  <div className="space-y-2">
+    <div className="flex items-center gap-2 px-1">
+      <Clock size={14} className="text-warning" />
+      <p className="text-xs font-black uppercase tracking-widest text-warning">
+        Agendados — aguardando confirmação ({agendadosDaAula.size})
+      </p>
+    </div>
+    {alunos
+      .filter(a => agendadosDaAula.has(a.id))
+      .filter(a =>
+        !buscaChamada ||
+        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
+        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
+      )
+      .map(aluno => (
+        <div
+          key={aluno.id}
+          className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
+        >
+          <div className="flex items-center gap-3">
+            <Clock className="text-warning shrink-0" size={22} />
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+                {alunosFixosDaAula.has(aluno.id) && (
+                  <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+                )}
+                <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">{aluno.email}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="brand"
+              disabled={loadingCheckin === aluno.id}
+              onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
+            >
+              Confirmar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loadingCheckin === aluno.id}
+              onClick={async () => {
+                const presencaId = agendadosDaAula.get(aluno.id);
+                if (!presencaId) return;
+                const { error } = await supabase.from('presencas').delete().eq('id', presencaId);
+                if (!error) {
+                  setAgendadosDaAula(prev => {
+                    const next = new Map(prev);
+                    next.delete(aluno.id);
+                    return next;
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+                  showToast.success(`${aluno.nome_completo} marcado como ausente.`);
+                }
+              }}
+            >
+              Ausente
+            </Button>
+          </div>
+        </div>
+      ))}
+  </div>
+)}
+
+              {/* Subseção: Ausentes (aparecem primeiro para facilitar o check-in) */}
+              {ausentes.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
+                    Ausentes ({ausentes.length})
+                  </p>
+                  <div className="space-y-2">
+                    {ausentes.map(aluno => (
+                      <BotaoAluno
+                        key={aluno.id}
+                        aluno={aluno}
+                        presente={false}
+                        isDaAula={alunosFixosDaAula.has(aluno.id)}
+                        aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
+                        loadingId={loadingCheckin}
+                        onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
+                        onDesfazer={desfazerCheckin}
+                        onDetalhes={visualizarDetalhes}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Subseção: Presentes */}
+              {presentes.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
+                    Presentes ({presentes.length})
+                  </p>
+                  <div className="space-y-2">
+                    {presentes.map(aluno => (
+                      <BotaoAluno
+                        key={aluno.id}
+                        aluno={aluno}
+                        presente={true}
+                        isDaAula={alunosFixosDaAula.has(aluno.id)}
+                        aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
+                        loadingId={loadingCheckin}
+                        onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
+                        onDesfazer={desfazerCheckin}
+                        onDetalhes={visualizarDetalhes}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* ABA: RELATÓRIO                                                      */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {modo === 'relatorio' && (
+        <div className="space-y-6">
+          {/* KPI Cards */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, i) => <Skeleton.Card key={i} />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <CardMetrica titulo="Check-ins Hoje"    valor={metricas.checkinsHoje}         icone={<CheckCircle2 />} tone="success" />
+              <CardMetrica titulo="Taxa de Frequência" valor={`${metricas.frequenciaMedia}%`} subtitulo="última semana" icone={<TrendingUp />} tone="info" />
+              <CardMetrica titulo="Alunos Ativos"     valor={metricas.alunosAtivos}          icone={<Users />}        tone="brand" />
+              <CardMetrica titulo="Média Diária"      valor={metricas.mediaDiaria}           subtitulo="últimos 7 dias" icone={<Award />}    tone="purple" />
+            </div>
+          )}
+
+          {/* Gráfico semanal */}
+          {metricas.presencaSemana.length > 0 && (
+            <Surface variant="card" padding="xl" className="rounded-[40px]">
+              <h3 className="font-bold text-foreground mb-6">Distribuição Semanal</h3>
+              <div className="flex gap-2 items-end h-48">
+                {metricas.presencaSemana.map((dia, idx) => {
+                  const maxAltura = Math.max(...metricas.presencaSemana.map(d => d.total));
+                  const altura = maxAltura > 0 ? (dia.total / maxAltura) * 100 : 0;
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+                      <div className="flex-1 flex items-end w-full">
+                        <div
+                          className="bg-primary rounded-t-xl w-full transition-all hover:brightness-95"
+                          style={{ height: `${altura}%`, minHeight: dia.total > 0 ? '20px' : '0' }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-foreground">{dia.total}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold">{dia.dia}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Surface>
+          )}
+
+          {/* Filtros */}
+          <Surface variant="card" padding="lg" className="rounded-[28px]">
+            <div className="flex flex-wrap gap-4">
+              <div className="flex gap-2 bg-muted p-1 rounded-2xl border border-border">
+                {['hoje', 'semana', 'mes'].map(periodo => (
+                  <button
+                    key={periodo}
+                    onClick={() => setFiltros({ ...filtros, periodo })}
+                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                      filtros.periodo === periodo
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {periodo}
+                  </button>
+                ))}
+              </div>
+              <Input as="select" className="w-auto" value={filtros.aluno}
+                onChange={e => setFiltros({ ...filtros, aluno: e.target.value })}>
+                <option value="todos">Todos os Alunos</option>
+                {alunos.map(a => <option key={a.id} value={a.id}>{a.nome_completo}</option>)}
+              </Input>
+              <Input as="select" className="w-auto" value={filtros.aula}
+                onChange={e => setFiltros({ ...filtros, aula: e.target.value })}>
+                <option value="todas">Todas as Aulas</option>
+                {aulas.map(a => <option key={a.id} value={a.id}>{a.atividade} - {a.horario}</option>)}
+              </Input>
+            </div>
+          </Surface>
+
+          {/* Tabela */}
+          <Surface variant="card" padding="none" className="rounded-[40px] overflow-hidden">
+            {loading ? (
+              <div className="p-6 space-y-3">
+                {[...Array(5)].map((_, i) => <Skeleton.Row key={i} />)}
+              </div>
+            ) : presencasFiltradas.length === 0 ? (
+              <EmptyState
+                icon={<Users size={28} />}
+                title="Nenhuma presença registrada"
+                description="Faça o primeiro check-in do dia!"
+              />
+            ) : (
+              <table className="w-full text-left">
+                <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
+                  <tr>
+                    <th className="px-8 py-5">Aluno</th>
+                    <th className="px-8 py-5">Atividade</th>
+                    <th className="px-8 py-5">Data/Hora</th>
+                    <th className="px-8 py-5">Tipo</th>
+                    <th className="px-8 py-5 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {presencasFiltradas.map(p => (
+                    <tr key={p.id} className="hover:bg-primary-soft/30 transition-colors">
+                      <td className="px-8 py-5">
+                        <p className="font-bold text-foreground">{p.alunos?.nome_completo}</p>
+                        <p className="text-[10px] text-muted-foreground font-medium">{p.alunos?.email}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="text-sm font-medium text-foreground">
+                          {p.agenda?.atividade || 'Treino Livre'}
+                        </span>
+                        {p.agenda?.horario && (
+                          <p className="text-xs text-muted-foreground">{p.agenda.horario}</p>
+                        )}
+                      </td>
+                      <td className="px-8 py-5 text-sm text-muted-foreground">
+                        {new Date(p.data_checkin).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="px-8 py-5">
+                        <Badge tone={p.tipo === 'aula' ? 'info' : 'neutral'} variant="soft">
+                          {p.tipo}
+                        </Badge>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <Button variant="outline" size="sm"
+                          onClick={() => {
+                            const aluno = alunos.find(a => a.id === p.aluno_id);
+                            if (aluno) visualizarDetalhes(aluno);
+                          }}>
+                          Ver Histórico
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Surface>
+        </div>
+      )}
+
+      {/* ─── Modais ────────────────────────────────────────────────────────── */}
+      {/* Detalhes do aluno */}
+      {alunoSelecionado && (
+        <Modal aberto={modalDetalhes.aberto} fechar={modalDetalhes.fechar}
+          title={`Histórico: ${alunoSelecionado.nome_completo}`}>
+          <div className="space-y-6 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <Surface variant="muted" padding="md" className="rounded-2xl">
+                <p className="text-xs font-black text-success uppercase mb-1">Total (30 dias)</p>
+                <p className="text-2xl font-black text-success">{alunoSelecionado.historico?.length || 0}</p>
+              </Surface>
+              <Surface variant="muted" padding="md" className="rounded-2xl">
+                <p className="text-xs font-black text-info uppercase mb-1">Frequência</p>
+                <p className="text-2xl font-black text-info">
+                  {alunoSelecionado.planos?.frequencia_semanal || 0}x/sem
+                </p>
+              </Surface>
+            </div>
+            <div>
+              <h4 className="font-bold text-foreground mb-4">Últimas Presenças</h4>
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {alunoSelecionado.historico?.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">Sem registros</p>
+                ) : (
+                  alunoSelecionado.historico?.map(h => (
+                    <Surface key={h.id} variant="muted" padding="sm"
+                      className="rounded-xl flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-sm text-foreground">
+                          {h.agenda?.atividade || 'Treino Livre'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(h.data_checkin).toLocaleDateString('pt-BR')} às{' '}
+                          {new Date(h.data_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <CheckCircle2 className="text-success" size={16} />
+                    </Surface>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* QR Code */}
+      <Modal aberto={modalQRCode.aberto} fechar={modalQRCode.fechar} title="QR Code para Check-in">
+        <div className="text-center py-8">
+          <Surface variant="muted" padding="none"
+            className="w-64 h-64 mx-auto rounded-3xl flex items-center justify-center mb-6">
+            <QrCode size={120} className="text-muted-foreground" />
+          </Surface>
+          <p className="text-sm text-muted-foreground">
+            Os alunos podem escanear este QR Code para fazer check-in automático.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Feature em desenvolvimento — integração com app mobile
+          </p>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── sub-componentes ─────────────────────────────────────────────────────────
+/**
+ * Linha de aluno na chamada rápida.
+ * - isDaAula: true quando o aluno está matriculado na agenda_fixa da aula em curso
+ * - Ausente: botão verde para marcar presença
+ * - Presente: badge verde + botão discreto para desfazer + link histórico
+ */
+function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes }) {
+  const carregando = loadingId === aluno.id;
+
+  if (presente) {
+    return (
+      <div className="flex items-center justify-between w-full p-4 bg-success-soft border border-success/20 rounded-2xl transition-all">
+        <div className="flex items-center gap-3">
+          <CheckCircle2 className="text-success shrink-0" size={22} />
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+              {isDaAula && (
+                <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{aluno.email}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onDetalhes(aluno)}
+            className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted"
+          >
+            Histórico
+          </button>
+          <button
+            onClick={() => onDesfazer(aluno)}
+            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft"
+            title="Desfazer check-in"
+          >
+            Desfazer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onCheckin(aluno, aulaId)}
+      disabled={carregando}
+      className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-2xl hover:border-primary hover:bg-primary-soft/20 active:scale-[0.99] transition-all text-left disabled:opacity-60"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 bg-muted rounded-xl flex items-center justify-center shrink-0">
+          <span className="text-sm font-black text-muted-foreground">
+            {aluno.nome_completo?.[0]?.toUpperCase()}
+          </span>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+            {isDaAula && (
+              <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{aluno.email}</p>
+        </div>
+      </div>
+      {carregando ? (
+        <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+      ) : (
+        <UserCheck className="text-primary shrink-0" size={22} />
+      )}
+    </button>
+  );
+}
+
+const ICON_TONE = {
+  brand:   'bg-primary-soft text-primary',
+  info:    'bg-info-soft text-info',
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  purple:  'bg-purple-soft text-purple',
+  neutral: 'bg-muted text-muted-foreground',
+};
+
+function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
+  return (
+    <Surface variant="card" padding="lg" className="rounded-[32px] hover:shadow-md transition-all">
+      <div className={`${ICON_TONE[tone]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>
+        {icone}
+      </div>
+      <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">{titulo}</p>
+      <h2 className="text-3xl font-black text-foreground mb-1">{valor}</h2>
+      {subtitulo && <p className="text-xs text-muted-foreground font-medium">{subtitulo}</p>}
+    </Surface>
   );
 }
 </file>

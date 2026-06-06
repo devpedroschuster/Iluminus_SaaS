@@ -27240,6 +27240,341 @@ out/
 }
 </file>
 
+<file path="app_mobile/src/components/CardAula.js">
+import { format } from "date-fns";
+import { useState, useRef } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { supabase } from "../services/supabase";
+
+const cores = {
+  primaria: "#D98E73",
+  secundaria: "#8A9A5B",
+  texto: "#2D2D2D",
+  textoSuave: "#8E8E8E",
+  branco: "#FFFFFF",
+  erro: "#E07A5F",
+  desabilitado: "#E5E5E5",
+  textoDesabilitado: "#A0A0A0",
+  alertaVaga: "#E9C46A", 
+};
+
+export default function CardAula({
+  aula,
+  alunoId,
+  dataSelecionada,
+  onAgendamentoSucesso,
+}) {
+  const [processando, setProcessando] = useState(false);
+  const travaClique = useRef(false);
+
+  if (!aula) return null;
+
+  const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+  const dataAulaCompleta = `${dataIso}T${aula.horario}`;
+  const dataAulaObj = new Date(dataAulaCompleta);
+  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000); 
+  const aulaJaPassou = new Date() > dataLimite;
+
+  const jaAgendado = aula.presencas?.some((p) => {
+    if (!p.aluno_id || !alunoId) return false;
+    const dataRaw = p.data_aula || p.data_checkin;
+    const dataPresenca = dataRaw ? dataRaw.split("T")[0] : null;
+    return String(p.aluno_id) === String(alunoId) && dataPresenca === dataIso;
+  });
+
+  const vagasOcupadas =
+    aula.presencas?.filter((p) => {
+      const dataRaw = p.data_aula || p.data_checkin;
+      const dataP = dataRaw ? dataRaw.split("T")[0] : null;
+      return dataP === dataIso;
+    }).length || 0;
+    
+  const capacidadeReal = aula.capacidade || 15;
+  const lotado = vagasOcupadas >= capacidadeReal;
+  const vagasRestantes = capacidadeReal - vagasOcupadas;
+  const horarioFormatado = aula.horario ? aula.horario.substring(0, 5) : "--:--";
+
+  // BARRA DE PROGRESSO
+  const ocupacaoPercentual = Math.min((vagasOcupadas / capacidadeReal) * 100, 100);
+  
+  const getCorVagas = () => {
+    if (ocupacaoPercentual < 60) return cores.secundaria;
+    if (ocupacaoPercentual <= 85) return cores.alertaVaga;
+    return cores.erro;
+  };
+  // ------------------------------------
+
+  const tratarErro = (erro, titulo = "Atenção") => {
+    console.error(erro);
+    let mensagem = erro.message || "Ocorreu uma falha inesperada. Tente novamente.";
+    if (mensagem.includes(":")) {
+        mensagem = mensagem.split(":").pop().trim();
+    }
+    if (Platform.OS === "web") window.alert(`${titulo}: ${mensagem}`);
+    else Alert.alert(titulo, mensagem);
+  };
+
+  async function executarCancelamento() {
+    if (travaClique.current) return;
+    travaClique.current = true;
+
+    try {
+      setProcessando(true);
+      const { error } = await supabase.rpc("cancelar_agendamento", {
+        p_aluno_id: alunoId,
+        p_agenda_id: aula.id, 
+      });
+
+      if (error) throw error;
+      onAgendamentoSucesso();
+    } catch (err) {
+      tratarErro(err, "Não foi possível cancelar");
+    } finally {
+      travaClique.current = false;
+      setProcessando(false);
+    }
+  }
+
+  async function handleAcao() {
+    if (processando || travaClique.current) return;
+
+    if (aulaJaPassou && !jaAgendado) {
+      if (Platform.OS === "web") window.alert("O horário desta aula já passou.");
+      else Alert.alert("Encerrada", "O horário desta aula já passou.");
+      return;
+    }
+
+    if (jaAgendado) {
+      if (Platform.OS === "web") {
+        const confirmou = window.confirm("Deseja liberar sua vaga?");
+        if (confirmou) executarCancelamento();
+      } else {
+        Alert.alert("Cancelar", "Deseja liberar sua vaga?", [
+          { text: "Manter", style: "cancel" },
+          { text: "Sim, cancelar", style: "destructive", onPress: executarCancelamento },
+        ]);
+      }
+    } else {
+      travaClique.current = true;
+      try {
+        setProcessando(true);
+        const { error } = await supabase.rpc("agendar_aula", {
+          p_aluno_id: alunoId,
+          p_agenda_id: aula.id, 
+        });
+
+        if (error) throw error;
+
+        if (Platform.OS === "web") window.alert(`Vaga garantida para ${horarioFormatado}. Bom treino!`);
+        else Alert.alert("Sucesso!", `Vaga garantida para ${horarioFormatado}. Bom treino!`);
+        
+        onAgendamentoSucesso();
+      } catch (err) {
+        tratarErro(err, "Não foi possível agendar");
+      } finally {
+        travaClique.current = false;
+        setProcessando(false);
+      }
+    }
+  }
+
+  const getEstiloBotao = () => {
+    if (jaAgendado) return styles.botaoCancelar;
+    if (aulaJaPassou) return styles.botaoPassou;
+    if (lotado) return styles.botaoLotado;
+    return styles.botaoReservar;
+  };
+
+  const getTextoBotao = () => {
+    if (jaAgendado) return "Cancelar";
+    if (aulaJaPassou) return "Encerrada";
+    if (lotado) return "Lotado";
+    return "Agendar";
+  };
+
+  return (
+    <View
+      style={[styles.card, aulaJaPassou && !jaAgendado && styles.cardPassou]}
+    >
+      <View style={styles.containerHorario}>
+        <Text
+          style={[
+            styles.textoHorario,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {horarioFormatado}
+        </Text>
+        <Text
+          style={[
+            styles.textoEspaco,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {aula.espaco === "danca" ? "Dança" : "Funcional"}
+        </Text>
+      </View>
+
+      <View style={styles.info}>
+        <Text
+          style={[
+            styles.atividade,
+            aulaJaPassou && !jaAgendado && styles.textoPassou,
+          ]}
+        >
+          {aula.atividade}
+        </Text>
+        <Text style={styles.professor}>
+          Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
+        </Text>
+        
+        <View style={styles.containerVagas}>
+          <View style={styles.headerVagas}>
+            {vagasRestantes === 1 && !aulaJaPassou ? (
+              <Text style={styles.textoUltimaVaga}>🔥 Última vaga!</Text>
+            ) : lotado ? (
+              <Text style={styles.textoLotado}>Lotado</Text>
+            ) : (
+              <Text style={styles.textoVagas}>
+                {vagasOcupadas}/{capacidadeReal} vagas ocupadas
+              </Text>
+            )}
+          </View>
+          <View style={styles.barraFundo}>
+            <View
+              style={[
+                styles.barraPreenchimento,
+                { 
+                  width: `${ocupacaoPercentual}%`, 
+                  backgroundColor: aulaJaPassou && !jaAgendado ? "#E5E5E5" : getCorVagas() 
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+      </View>
+
+      <TouchableOpacity
+        style={[styles.botao, getEstiloBotao()]}
+        onPress={handleAcao}
+        disabled={((lotado || aulaJaPassou) && !jaAgendado) || processando}
+      >
+        {processando ? (
+          <ActivityIndicator
+            size="small"
+            color={jaAgendado ? cores.primaria : "#FFF"}
+          />
+        ) : (
+          <Text
+            style={[
+              styles.textoBotao,
+              jaAgendado && styles.textoBotaoCancelar,
+              aulaJaPassou && !jaAgendado && styles.textoBotaoPassou,
+            ]}
+          >
+            {getTextoBotao()}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F0E0D6",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  cardPassou: { backgroundColor: "#F9F9F9", borderColor: "#EEE", elevation: 0 },
+  containerHorario: {
+    paddingRight: 15,
+    borderRightWidth: 1,
+    borderRightColor: "#F0E0D6",
+    alignItems: "center",
+    minWidth: 80,
+  },
+  textoHorario: { fontSize: 18, fontWeight: "900", color: cores.primaria },
+  textoEspaco: {
+    fontSize: 10,
+    color: cores.secundaria,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    marginTop: 4,
+  },
+  textoPassou: { color: cores.textoSuave },
+  info: { flex: 1, paddingLeft: 15, paddingRight: 10 },
+  atividade: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 2,
+  },
+  professor: { fontSize: 12, color: cores.textoSuave },
+
+  containerVagas: { marginTop: 8 },
+  headerVagas: { flexDirection: "row", marginBottom: 4 },
+  textoVagas: { fontSize: 11, color: cores.textoSuave, fontWeight: "500" },
+  textoUltimaVaga: { fontSize: 11, color: cores.erro, fontWeight: "bold" },
+  textoLotado: { fontSize: 11, color: cores.textoSuave, fontWeight: "bold" },
+  barraFundo: { 
+    height: 6, 
+    backgroundColor: "#F0F0F0", 
+    borderRadius: 3, 
+    overflow: "hidden" 
+  },
+  barraPreenchimento: { 
+    height: "100%", 
+    borderRadius: 3 
+  },
+
+  botao: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    minWidth: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 40,
+  },
+  botaoReservar: { backgroundColor: cores.primaria },
+  botaoCancelar: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+  },
+  botaoLotado: { backgroundColor: "#EEE" },
+  botaoPassou: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#EEE",
+  },
+
+  textoBotao: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
+  textoBotaoCancelar: { color: "#888" },
+  textoBotaoPassou: { color: "#CCC" },
+});
+</file>
+
 <file path="app_mobile/src/components/TelaLogin.js">
 import React, { useState } from "react";
 import {
@@ -29106,338 +29441,499 @@ serve(async (req) => {
 })
 </file>
 
-<file path="app_mobile/src/components/CardAula.js">
-import { format } from "date-fns";
-import { useState, useRef } from "react";
+<file path="app_mobile/App.js">
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addDays, format, isSameDay, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
+  FlatList,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { supabase } from "../services/supabase";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+// Componentes
+import CardAula from "./src/components/CardAula";
+import TelaLogin from "./src/components/TelaLogin";
+import TelaPerfil from "./src/components/TelaPerfil";
+import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
+import { supabase } from "./src/services/supabase";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const cores = {
+  fundo: "#FDF8F5",
   primaria: "#D98E73",
   secundaria: "#8A9A5B",
   texto: "#2D2D2D",
   textoSuave: "#8E8E8E",
   branco: "#FFFFFF",
-  erro: "#E07A5F",
-  desabilitado: "#E5E5E5",
-  textoDesabilitado: "#A0A0A0",
-  alertaVaga: "#E9C46A", 
+  ativo: "#D98E73",
+  inativo: "#C4C4C4",
 };
 
-export default function CardAula({
-  aula,
-  alunoId,
-  dataSelecionada,
-  onAgendamentoSucesso,
-}) {
-  const [processando, setProcessando] = useState(false);
-  const travaClique = useRef(false);
+export default function App() {
+  const [alunoId, setAlunoId] = useState(null);
+  const [nomeAluno, setNomeAluno] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [telaAtual, setTelaAtual] = useState("agenda");
+  const [feriadoMsg, setFeriadoMsg] = useState(null);
+  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
+  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
+  const [aulas, setAulas] = useState([]);
 
-  if (!aula) return null;
+  useEffect(() => {
+    verificarSessao();
+  }, []);
 
-  const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-  const dataAulaCompleta = `${dataIso}T${aula.horario}`;
-  const dataAulaObj = new Date(dataAulaCompleta);
-  const dataLimite = new Date(dataAulaObj.getTime() + 20 * 60000); 
-  const aulaJaPassou = new Date() > dataLimite;
+  useEffect(() => {
+    if (!alunoId) return;
 
-  const jaAgendado = aula.presencas?.some((p) => {
-    if (!p.aluno_id || !alunoId) return false;
-    const dataRaw = p.data_aula || p.data_checkin;
-    const dataPresenca = dataRaw ? dataRaw.split("T")[0] : null;
-    return String(p.aluno_id) === String(alunoId) && dataPresenca === dataIso;
-  });
+    const channel = supabase
+      .channel('mudancas-globais-presencas')
+      .on('postgres_changes', {
+        event: '*', 
+        schema: 'public',
+        table: 'presencas'
+      }, (payload) => {
+        console.log("🔄 Mudança detectada nas vagas!", payload);
+        buscarAulas(false);
+      })
+      .subscribe();
 
-  const vagasOcupadas =
-    aula.presencas?.filter((p) => {
-      const dataRaw = p.data_aula || p.data_checkin;
-      const dataP = dataRaw ? dataRaw.split("T")[0] : null;
-      return dataP === dataIso;
-    }).length || 0;
-    
-  const capacidadeReal = aula.capacidade || 15;
-  const lotado = vagasOcupadas >= capacidadeReal;
-  const vagasRestantes = capacidadeReal - vagasOcupadas;
-  const horarioFormatado = aula.horario ? aula.horario.substring(0, 5) : "--:--";
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [alunoId]);
 
-  // BARRA DE PROGRESSO
-  const ocupacaoPercentual = Math.min((vagasOcupadas / capacidadeReal) * 100, 100);
-  
-  const getCorVagas = () => {
-    if (ocupacaoPercentual < 60) return cores.secundaria;
-    if (ocupacaoPercentual <= 85) return cores.alertaVaga;
-    return cores.erro;
-  };
-  // ------------------------------------
+  useEffect(() => {
+    if (alunoId && telaAtual === "agenda") buscarAulas(true);
+  }, [dataSelecionada, alunoId, telaAtual]);
 
-  const tratarErro = (erro, titulo = "Atenção") => {
-    console.error(erro);
-    let mensagem = erro.message || "Ocorreu uma falha inesperada. Tente novamente.";
-    if (mensagem.includes(":")) {
-        mensagem = mensagem.split(":").pop().trim();
-    }
-    if (Platform.OS === "web") window.alert(`${titulo}: ${mensagem}`);
-    else Alert.alert(titulo, mensagem);
-  };
-
-  async function executarCancelamento() {
-    if (travaClique.current) return;
-    travaClique.current = true;
-
+  async function verificarSessao() {
+    console.log("🔍 [1] Iniciando verificação de sessão...");
     try {
-      setProcessando(true);
-      const { error } = await supabase.rpc("cancelar_agendamento", {
-        p_aluno_id: alunoId,
-        p_agenda_id: aula.id, 
-      });
+      setCarregando(true);
+      
+      console.log("🔍 [2] Consultando sessão salva no Supabase...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
 
-      if (error) throw error;
-      onAgendamentoSucesso();
-    } catch (err) {
-      tratarErro(err, "Não foi possível cancelar");
+      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
+
+      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
+      const { data: aluno, error: alunoError } = await supabase
+        .from("alunos")
+        .select("id, nome_completo")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
+
+      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
+      setAlunoId(aluno.id);
+      setNomeAluno(aluno.nome_completo);
+      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
+      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
+
+      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
+      registrarTokenPush(aluno.id);
+
+      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
+    } catch (e) {
+      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
+      await handleLogout();
     } finally {
-      travaClique.current = false;
-      setProcessando(false);
+      console.log("🏁 [Final] Desativando o ícone de carregamento.");
+      setCarregando(false);
     }
   }
 
-  async function handleAcao() {
-    if (processando || travaClique.current) return;
-
-    if (aulaJaPassou && !jaAgendado) {
-      if (Platform.OS === "web") window.alert("O horário desta aula já passou.");
-      else Alert.alert("Encerrada", "O horário desta aula já passou.");
+  async function registrarTokenPush(idAluno) {
+    if (!Device.isDevice) {
+      console.log('Push Notifications só funcionam em dispositivos físicos');
       return;
     }
 
-    if (jaAgendado) {
-      if (Platform.OS === "web") {
-        const confirmou = window.confirm("Deseja liberar sua vaga?");
-        if (confirmou) executarCancelamento();
-      } else {
-        Alert.alert("Cancelar", "Deseja liberar sua vaga?", [
-          { text: "Manter", style: "cancel" },
-          { text: "Sim, cancelar", style: "destructive", onPress: executarCancelamento },
-        ]);
+    if (Constants.appOwnership === 'expo') {
+      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
+      return;
+    }
+
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
       }
-    } else {
-      travaClique.current = true;
-      try {
-        setProcessando(true);
-        const { error } = await supabase.rpc("agendar_aula", {
-          p_aluno_id: alunoId,
-          p_agenda_id: aula.id, 
-        });
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permissão para notificações negada!');
+        return;
+      }
 
-        if (error) throw error;
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      
+      console.log("Push Token gerado:", token);
 
-        if (Platform.OS === "web") window.alert(`Vaga garantida para ${horarioFormatado}. Bom treino!`);
-        else Alert.alert("Sucesso!", `Vaga garantida para ${horarioFormatado}. Bom treino!`);
+      await supabase
+        .from('alunos')
+        .update({ push_token: token })
+        .eq('id', idAluno);
         
-        onAgendamentoSucesso();
-      } catch (err) {
-        tratarErro(err, "Não foi possível agendar");
-      } finally {
-        travaClique.current = false;
-        setProcessando(false);
-      }
+    } catch (error) {
+      console.error("Erro ao gerar/salvar push token:", error);
     }
   }
 
-  const getEstiloBotao = () => {
-    if (jaAgendado) return styles.botaoCancelar;
-    if (aulaJaPassou) return styles.botaoPassou;
-    if (lotado) return styles.botaoLotado;
-    return styles.botaoReservar;
+  async function buscarAulas(mostrarLoading = true) {
+    if (mostrarLoading) setCarregando(true);
+    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
+
+    try {
+      const { data: feriados, error: errFeriado } = await supabase
+        .from("feriados")
+        .select("descricao")
+        .eq("data", dataIso);
+
+      if (errFeriado) throw errFeriado;
+
+      if (feriados && feriados.length > 0) {
+        setFeriadoMsg(feriados[0].descricao);
+        setAulas([]); 
+        setCarregando(false);
+        return; 
+      } else {
+        setFeriadoMsg(null); 
+      }
+
+      const { data, error } = await supabase
+        .from("agenda")
+        .select(`*, presencas(*), professores(nome)`)
+        .eq("ativa", true)
+        .order("horario", { ascending: true });
+
+      if (error) throw error;
+
+      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
+      const diasTraduzidos = {
+        "domingo": "Domingo",
+        "segunda-feira": "Segunda-feira",
+        "terça-feira": "Terça-feira",
+        "quarta-feira": "Quarta-feira",
+        "quinta-feira": "Quinta-feira",
+        "sexta-feira": "Sexta-feira",
+        "sábado": "Sábado",
+      };
+      const diaCorreto = diasTraduzidos[diaSemanaAtual];
+
+      const aulasDoDia = (data || []).filter((aula) => {
+        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
+        return aula.dia_semana === diaCorreto;
+      });
+
+      setAulas(aulasDoDia);
+    } catch (err) {
+      console.error("Erro ao buscar aulas:", err);
+      if (err.message.includes("Network")) {
+        Alert.alert("Sem conexão", "Verifique sua internet.");
+      }
+    } finally {
+      setCarregando(false);
+      setRefreshing(false);
+    }
+  }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    buscarAulas(false);
   };
 
-  const getTextoBotao = () => {
-    if (jaAgendado) return "Cancelar";
-    if (aulaJaPassou) return "Encerrada";
-    if (lotado) return "Lotado";
-    return "Agendar";
-  };
+  async function handleLogout() {
+    try {
+      setCarregando(true);
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Erro logout:", err);
+    } finally {
+      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
+      setAlunoId(null);
+      setNomeAluno("");
+      setCarregando(false);
+    }
+  }
 
-  return (
-    <View
-      style={[styles.card, aulaJaPassou && !jaAgendado && styles.cardPassou]}
-    >
-      <View style={styles.containerHorario}>
-        <Text
-          style={[
-            styles.textoHorario,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {horarioFormatado}
-        </Text>
-        <Text
-          style={[
-            styles.textoEspaco,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {aula.espaco === "danca" ? "Dança" : "Funcional"}
-        </Text>
+  // TELA DE CARREGAMENTO INICIAL
+  if (carregando && !alunoId) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={cores.primaria} />
       </View>
+    );
+  }
 
-      <View style={styles.info}>
-        <Text
-          style={[
-            styles.atividade,
-            aulaJaPassou && !jaAgendado && styles.textoPassou,
-          ]}
-        >
-          {aula.atividade}
-        </Text>
-        <Text style={styles.professor}>
-          Prof. {aula.professores?.nome?.split(' ')[0] || 'Sem Professor'}
-        </Text>
-        
-        <View style={styles.containerVagas}>
-          <View style={styles.headerVagas}>
-            {vagasRestantes === 1 && !aulaJaPassou ? (
-              <Text style={styles.textoUltimaVaga}>🔥 Última vaga!</Text>
-            ) : lotado ? (
-              <Text style={styles.textoLotado}>Lotado</Text>
-            ) : (
-              <Text style={styles.textoVagas}>
-                {vagasOcupadas}/{capacidadeReal} vagas ocupadas
-              </Text>
-            )}
-          </View>
-          <View style={styles.barraFundo}>
-            <View
-              style={[
-                styles.barraPreenchimento,
-                { 
-                  width: `${ocupacaoPercentual}%`, 
-                  backgroundColor: aulaJaPassou && !jaAgendado ? "#E5E5E5" : getCorVagas() 
-                },
-              ]}
-            />
-          </View>
+  // TELA DE LOGIN
+  if (!alunoId) {
+    return (
+      <TelaLogin
+        onLogado={(perfil) => {
+          setAlunoId(perfil.id);
+          setNomeAluno(perfil.nome_completo);
+          registrarTokenPush(perfil.id);
+        }}
+      />
+    );
+  }
+
+  // APLICATIVO PRINCIPAL
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {telaAtual === "agenda" ? (
+            <>
+              <View style={styles.header}>
+                <View>
+                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
+                  <Text style={styles.titulo}>Sua Agenda</Text>
+                </View>
+              </View>
+
+              <View style={styles.calendarioContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {Array.from({ length: 14 }).map((_, i) => {
+                    const dia = addDays(new Date(), i);
+                    const ativo = isSameDay(dia, dataSelecionada);
+                    return (
+                      <TouchableOpacity
+                        key={dia.toISOString()}
+                        onPress={() => setDataSelecionada(startOfDay(dia))}
+                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
+                      >
+                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
+                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
+                        </Text>
+                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
+                          {format(dia, "d")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {carregando ? (
+                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
+              ) : feriadoMsg ? (
+                <View style={styles.containerFeriado}>
+                  <Text style={styles.emojiFeriado}>🏖️</Text>
+                  <Text style={styles.tituloFeriado}>Feriado</Text>
+                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
+                  <Text style={styles.avisoFeriado}>
+                    O estúdio estará fechado neste dia. Bom descanso!
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={aulas}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <CardAula
+                      aula={item}
+                      alunoId={alunoId}
+                      dataSelecionada={dataSelecionada}
+                      onAgendamentoSucesso={() => buscarAulas(false)}
+                    />
+                  )}
+                  contentContainerStyle={{ paddingBottom: 80 }}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.containerVazio}>
+                      <View style={styles.circuloIconeVazio}>
+                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
+                      </View>
+                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
+                      <Text style={styles.textoVazio}>
+                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.botaoVazio}
+                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
+                      >
+                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                />
+              )}
+
+              {/* Botão Flutuante (FAB) */}
+              <TouchableOpacity 
+                style={styles.fab} 
+                activeOpacity={0.8}
+                onPress={() => setModalAgendamentoVisivel(true)}
+              >
+                <Text style={styles.fabText}>+</Text>
+              </TouchableOpacity>
+
+              <AgendamentoBottomSheet 
+                isVisible={modalAgendamentoVisivel} 
+                onClose={() => setModalAgendamentoVisivel(false)}
+                aulasDisponiveis={aulas} 
+                alunoId={alunoId} 
+                isLoading={carregando} 
+                isError={false}
+                onRefresh={() => buscarAulas(true)} 
+              />
+            </>
+          ) : (
+            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
+          )}
         </View>
 
-      </View>
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
+            <Text style={{ fontSize: 24 }}>📅</Text>
+            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.botao, getEstiloBotao()]}
-        onPress={handleAcao}
-        disabled={((lotado || aulaJaPassou) && !jaAgendado) || processando}
-      >
-        {processando ? (
-          <ActivityIndicator
-            size="small"
-            color={jaAgendado ? cores.primaria : "#FFF"}
-          />
-        ) : (
-          <Text
-            style={[
-              styles.textoBotao,
-              jaAgendado && styles.textoBotaoCancelar,
-              aulaJaPassou && !jaAgendado && styles.textoBotaoPassou,
-            ]}
-          >
-            {getTextoBotao()}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
+            <Text style={{ fontSize: 24 }}>👤</Text>
+            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 20,
-    flexDirection: "row",
+  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
+  container: { flex: 1, backgroundColor: cores.fundo },
+  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
+
+  header: { marginVertical: 20 },
+  saudacao: { fontSize: 14, color: cores.textoSuave },
+  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
+
+  calendarioContainer: { marginBottom: 20, height: 80 },
+  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
+  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
+  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
+  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
+  textoAtivo: { color: cores.branco },
+
+  // Estilos do Feriado
+  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
+  emojiFeriado: { fontSize: 48, marginBottom: 10 },
+  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
+  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
+  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
+
+  // Estilos do FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    backgroundColor: cores.primaria,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#F0E0D6",
-    elevation: 2,
+    elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-  cardPassou: { backgroundColor: "#F9F9F9", borderColor: "#EEE", elevation: 0 },
-  containerHorario: {
-    paddingRight: 15,
-    borderRightWidth: 1,
-    borderRightColor: "#F0E0D6",
-    alignItems: "center",
-    minWidth: 80,
-  },
-  textoHorario: { fontSize: 18, fontWeight: "900", color: cores.primaria },
-  textoEspaco: {
-    fontSize: 10,
-    color: cores.secundaria,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    marginTop: 4,
-  },
-  textoPassou: { color: cores.textoSuave },
-  info: { flex: 1, paddingLeft: 15, paddingRight: 10 },
-  atividade: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 2,
-  },
-  professor: { fontSize: 12, color: cores.textoSuave },
-
-  containerVagas: { marginTop: 8 },
-  headerVagas: { flexDirection: "row", marginBottom: 4 },
-  textoVagas: { fontSize: 11, color: cores.textoSuave, fontWeight: "500" },
-  textoUltimaVaga: { fontSize: 11, color: cores.erro, fontWeight: "bold" },
-  textoLotado: { fontSize: 11, color: cores.textoSuave, fontWeight: "bold" },
-  barraFundo: { 
-    height: 6, 
-    backgroundColor: "#F0F0F0", 
-    borderRadius: 3, 
-    overflow: "hidden" 
-  },
-  barraPreenchimento: { 
-    height: "100%", 
-    borderRadius: 3 
+  fabText: {
+    color: cores.branco,
+    fontSize: 32,
+    fontWeight: "300",
+    marginTop: -4,
   },
 
-  botao: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    minWidth: 90,
+  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
+  tabTextAtivo: { color: cores.ativo },
+
+  // ESTILOS DO ESTADO VAZIO
+  containerVazio: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    height: 40,
+    paddingHorizontal: 30,
+    marginTop: 60,
   },
-  botaoReservar: { backgroundColor: cores.primaria },
-  botaoCancelar: {
-    backgroundColor: "#FFF",
+  circuloIconeVazio: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#F0E0D6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  iconeVazio: {
+    fontSize: 50,
+  },
+  tituloVazio: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: cores.texto,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textoVazio: {
+    fontSize: 15,
+    color: cores.textoSuave,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  botaoVazio: {
+    backgroundColor: cores.branco,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E5E5E5",
+    borderColor: cores.primaria,
+    elevation: 1,
+    shadowColor: cores.primaria,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
-  botaoLotado: { backgroundColor: "#EEE" },
-  botaoPassou: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#EEE",
+  botaoVazioTexto: {
+    color: cores.primaria,
+    fontWeight: "bold",
+    fontSize: 15,
   },
-
-  textoBotao: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
-  textoBotaoCancelar: { color: "#888" },
-  textoBotaoPassou: { color: "#CCC" },
 });
 </file>
 
@@ -31690,502 +32186,6 @@ export async function listarRepassesProfessor(professorId, mesAno) {
 }
 </file>
 
-<file path="app_mobile/App.js">
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { addDays, format, isSameDay, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-
-// Componentes
-import CardAula from "./src/components/CardAula";
-import TelaLogin from "./src/components/TelaLogin";
-import TelaPerfil from "./src/components/TelaPerfil";
-import AgendamentoBottomSheet from "./src/components/AgendamentoBottomSheet";
-import { supabase } from "./src/services/supabase";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-const cores = {
-  fundo: "#FDF8F5",
-  primaria: "#D98E73",
-  secundaria: "#8A9A5B",
-  texto: "#2D2D2D",
-  textoSuave: "#8E8E8E",
-  branco: "#FFFFFF",
-  ativo: "#D98E73",
-  inativo: "#C4C4C4",
-};
-
-export default function App() {
-  const [alunoId, setAlunoId] = useState(null);
-  const [nomeAluno, setNomeAluno] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [telaAtual, setTelaAtual] = useState("agenda");
-  const [feriadoMsg, setFeriadoMsg] = useState(null);
-  const [modalAgendamentoVisivel, setModalAgendamentoVisivel] = useState(false);
-  const [dataSelecionada, setDataSelecionada] = useState(startOfDay(new Date()));
-  const [aulas, setAulas] = useState([]);
-
-  useEffect(() => {
-    verificarSessao();
-  }, []);
-
-  useEffect(() => {
-    if (!alunoId) return;
-
-    const channel = supabase
-      .channel('mudancas-globais-presencas')
-      .on('postgres_changes', {
-        event: '*', 
-        schema: 'public',
-        table: 'presencas'
-      }, (payload) => {
-        console.log("🔄 Mudança detectada nas vagas!", payload);
-        buscarAulas(false);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [alunoId]);
-
-  useEffect(() => {
-    if (alunoId && telaAtual === "agenda") buscarAulas(true);
-  }, [dataSelecionada, alunoId, telaAtual]);
-
-  async function verificarSessao() {
-    console.log("🔍 [1] Iniciando verificação de sessão...");
-    try {
-      setCarregando(true);
-      
-      console.log("🔍 [2] Consultando sessão salva no Supabase...");
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log("🔍 [3] Resposta do Supabase:", session ? "Tem usuário!" : "Vazio", sessionError || "");
-
-      if (sessionError || !session) throw new Error("Sessão vazia ou expirada");
-
-      console.log("🔍 [4] Buscando perfil do aluno no banco de dados...");
-      const { data: aluno, error: alunoError } = await supabase
-        .from("alunos")
-        .select("id, nome_completo")
-        .eq("auth_id", session.user.id)
-        .single();
-
-      if (alunoError || !aluno) throw new Error("Perfil não encontrado");
-
-      console.log("🔍 [5] Aluno encontrado! Salvando no celular...", aluno.nome_completo);
-      setAlunoId(aluno.id);
-      setNomeAluno(aluno.nome_completo);
-      await AsyncStorage.setItem("@aluno_id", String(aluno.id));
-      await AsyncStorage.setItem("@aluno_nome", aluno.nome_completo);
-
-      console.log("🔍 [6] Chamando gerador de Push Token (sem bloquear a tela)...");
-      registrarTokenPush(aluno.id);
-
-      console.log("✅ TUDO PRONTO! Fechando tela de loading.");
-    } catch (e) {
-      console.log("⚠️ [Aviso] Fluxo interrompido ou usuário deslogado:", e.message);
-      await handleLogout();
-    } finally {
-      console.log("🏁 [Final] Desativando o ícone de carregamento.");
-      setCarregando(false);
-    }
-  }
-
-  async function registrarTokenPush(idAluno) {
-    if (!Device.isDevice) {
-      console.log('Push Notifications só funcionam em dispositivos físicos');
-      return;
-    }
-
-    if (Constants.appOwnership === 'expo') {
-      console.log('Ignorando Push Token: O Expo Go não suporta mais notificações.');
-      return;
-    }
-
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permissão para notificações negada!');
-        return;
-      }
-
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
-      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      
-      console.log("Push Token gerado:", token);
-
-      await supabase
-        .from('alunos')
-        .update({ push_token: token })
-        .eq('id', idAluno);
-        
-    } catch (error) {
-      console.error("Erro ao gerar/salvar push token:", error);
-    }
-  }
-
-  async function buscarAulas(mostrarLoading = true) {
-    if (mostrarLoading) setCarregando(true);
-    const dataIso = format(dataSelecionada, "yyyy-MM-dd");
-
-    try {
-      const { data: feriados, error: errFeriado } = await supabase
-        .from("feriados")
-        .select("descricao")
-        .eq("data", dataIso);
-
-      if (errFeriado) throw errFeriado;
-
-      if (feriados && feriados.length > 0) {
-        setFeriadoMsg(feriados[0].descricao);
-        setAulas([]); 
-        setCarregando(false);
-        return; 
-      } else {
-        setFeriadoMsg(null); 
-      }
-
-      const { data, error } = await supabase
-        .from("agenda")
-        .select(`*, presencas(*), professores(nome)`)
-        .eq("ativa", true)
-        .order("horario", { ascending: true });
-
-      if (error) throw error;
-
-      const diaSemanaAtual = format(dataSelecionada, "EEEE", { locale: ptBR }).toLowerCase();
-      const diasTraduzidos = {
-        "domingo": "Domingo",
-        "segunda-feira": "Segunda-feira",
-        "terça-feira": "Terça-feira",
-        "quarta-feira": "Quarta-feira",
-        "quinta-feira": "Quinta-feira",
-        "sexta-feira": "Sexta-feira",
-        "sábado": "Sábado",
-      };
-      const diaCorreto = diasTraduzidos[diaSemanaAtual];
-
-      const aulasDoDia = (data || []).filter((aula) => {
-        if (!aula.eh_recorrente) return aula.data_especifica === dataIso;
-        return aula.dia_semana === diaCorreto;
-      });
-
-      setAulas(aulasDoDia);
-    } catch (err) {
-      console.error("Erro ao buscar aulas:", err);
-      if (err.message.includes("Network")) {
-        Alert.alert("Sem conexão", "Verifique sua internet.");
-      }
-    } finally {
-      setCarregando(false);
-      setRefreshing(false);
-    }
-  }
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    buscarAulas(false);
-  };
-
-  async function handleLogout() {
-    try {
-      setCarregando(true);
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Erro logout:", err);
-    } finally {
-      await AsyncStorage.multiRemove(["@aluno_id", "@aluno_nome"]);
-      setAlunoId(null);
-      setNomeAluno("");
-      setCarregando(false);
-    }
-  }
-
-  // TELA DE CARREGAMENTO INICIAL
-  if (carregando && !alunoId) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={cores.primaria} />
-      </View>
-    );
-  }
-
-  // TELA DE LOGIN
-  if (!alunoId) {
-    return (
-      <TelaLogin
-        onLogado={(perfil) => {
-          setAlunoId(perfil.id);
-          setNomeAluno(perfil.nome_completo);
-          registrarTokenPush(perfil.id);
-        }}
-      />
-    );
-  }
-
-  // APLICATIVO PRINCIPAL
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          {telaAtual === "agenda" ? (
-            <>
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.saudacao}>Olá, {nomeAluno.split(" ")[0]}!</Text>
-                  <Text style={styles.titulo}>Sua Agenda</Text>
-                </View>
-              </View>
-
-              <View style={styles.calendarioContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 14 }).map((_, i) => {
-                    const dia = addDays(new Date(), i);
-                    const ativo = isSameDay(dia, dataSelecionada);
-                    return (
-                      <TouchableOpacity
-                        key={dia.toISOString()}
-                        onPress={() => setDataSelecionada(startOfDay(dia))}
-                        style={[styles.diaCard, ativo && styles.diaCardAtivo]}
-                      >
-                        <Text style={[styles.diaSemana, ativo && styles.textoAtivo]}>
-                          {format(dia, "EEE", { locale: ptBR }).replace(".", "")}
-                        </Text>
-                        <Text style={[styles.diaNumero, ativo && styles.textoAtivo]}>
-                          {format(dia, "d")}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {carregando ? (
-                <ActivityIndicator size="large" color={cores.primaria} style={{ marginTop: 50 }} />
-              ) : feriadoMsg ? (
-                <View style={styles.containerFeriado}>
-                  <Text style={styles.emojiFeriado}>🏖️</Text>
-                  <Text style={styles.tituloFeriado}>Feriado</Text>
-                  <Text style={styles.descFeriado}>{feriadoMsg}</Text>
-                  <Text style={styles.avisoFeriado}>
-                    O estúdio estará fechado neste dia. Bom descanso!
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={aulas}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => (
-                    <CardAula
-                      aula={item}
-                      alunoId={alunoId}
-                      dataSelecionada={dataSelecionada}
-                      onAgendamentoSucesso={() => buscarAulas(false)}
-                    />
-                  )}
-                  contentContainerStyle={{ paddingBottom: 80 }}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cores.primaria]} tintColor={cores.primaria} />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.containerVazio}>
-                      <View style={styles.circuloIconeVazio}>
-                        <Text style={styles.iconeVazio}>🧘‍♀️</Text>
-                      </View>
-                      <Text style={styles.tituloVazio}>Dia de descanso?</Text>
-                      <Text style={styles.textoVazio}>
-                        Não temos aulas programadas para esta data no momento. Aproveite para recarregar as energias ou confira a programação dos próximos dias!
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.botaoVazio}
-                        onPress={() => setDataSelecionada(addDays(dataSelecionada, 1))} 
-                      >
-                        <Text style={styles.botaoVazioTexto}>Ver aulas de amanhã</Text>
-                      </TouchableOpacity>
-                    </View>
-                  }
-                />
-              )}
-
-              {/* Botão Flutuante (FAB) */}
-              <TouchableOpacity 
-                style={styles.fab} 
-                activeOpacity={0.8}
-                onPress={() => setModalAgendamentoVisivel(true)}
-              >
-                <Text style={styles.fabText}>+</Text>
-              </TouchableOpacity>
-
-              <AgendamentoBottomSheet 
-                isVisible={modalAgendamentoVisivel} 
-                onClose={() => setModalAgendamentoVisivel(false)}
-                aulasDisponiveis={aulas} 
-                alunoId={alunoId} 
-                isLoading={carregando} 
-                isError={false}
-                onRefresh={() => buscarAulas(true)} 
-              />
-            </>
-          ) : (
-            <TelaPerfil alunoId={alunoId} onLogout={handleLogout} />
-          )}
-        </View>
-
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("agenda")}>
-            <Text style={{ fontSize: 24 }}>📅</Text>
-            <Text style={[styles.tabText, telaAtual === "agenda" ? styles.tabTextAtivo : null]}>Agenda</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.tabButton} onPress={() => setTelaAtual("perfil")}>
-            <Text style={{ fontSize: 24 }}>👤</Text>
-            <Text style={[styles.tabText, telaAtual === "perfil" ? styles.tabTextAtivo : null]}>Meu Perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: cores.fundo },
-  container: { flex: 1, backgroundColor: cores.fundo },
-  content: { flex: 1, paddingHorizontal: 20, position: 'relative' },
-
-  header: { marginVertical: 20 },
-  saudacao: { fontSize: 14, color: cores.textoSuave },
-  titulo: { fontSize: 24, fontWeight: "bold", color: cores.texto },
-
-  calendarioContainer: { marginBottom: 20, height: 80 },
-  diaCard: { backgroundColor: cores.branco, width: 60, height: 75, borderRadius: 18, justifyContent: "center", alignItems: "center", marginRight: 10, borderWidth: 1, borderColor: "#F0E0D6" },
-  diaCardAtivo: { backgroundColor: cores.primaria, borderColor: cores.primaria },
-  diaSemana: { fontSize: 12, color: cores.textoSuave, textTransform: "uppercase" },
-  diaNumero: { fontSize: 18, fontWeight: "bold", color: cores.texto },
-  textoAtivo: { color: cores.branco },
-
-  // Estilos do Feriado
-  containerFeriado: { marginTop: 60, alignItems: "center", paddingHorizontal: 20 },
-  emojiFeriado: { fontSize: 48, marginBottom: 10 },
-  tituloFeriado: { fontSize: 20, fontWeight: "bold", color: cores.primaria, textAlign: "center", marginBottom: 5 },
-  descFeriado: { fontSize: 16, color: cores.textoSuave, textAlign: "center" },
-  avisoFeriado: { fontSize: 14, color: cores.textoSuave, textAlign: "center", marginTop: 15 },
-
-  // Estilos do FAB
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    backgroundColor: cores.primaria,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    color: cores.branco,
-    fontSize: 32,
-    fontWeight: "300",
-    marginTop: -4,
-  },
-
-  bottomBar: { flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#F0E0D6", paddingVertical: 10, paddingBottom: 20, elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabText: { fontSize: 10, fontWeight: "bold", color: cores.inativo, textTransform: "uppercase" },
-  tabTextAtivo: { color: cores.ativo },
-
-  // ESTILOS DO ESTADO VAZIO
-  containerVazio: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    marginTop: 60,
-  },
-  circuloIconeVazio: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#F0E0D6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  iconeVazio: {
-    fontSize: 50,
-  },
-  tituloVazio: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: cores.texto,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  textoVazio: {
-    fontSize: 15,
-    color: cores.textoSuave,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  botaoVazio: {
-    backgroundColor: cores.branco,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    elevation: 1,
-    shadowColor: cores.primaria,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  botaoVazioTexto: {
-    color: cores.primaria,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-});
-</file>
-
 <file path="gestao_web/index.html">
 <!doctype html>
 <html lang="pt-BR">
@@ -32263,174 +32263,6 @@ const styles = StyleSheet.create({
   "overrides": {
     "vite": "^8.0.0-beta.13"
   }
-}
-</file>
-
-<file path="gestao_web/src/components/ModalRenovarPlano.jsx">
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { alunosService } from '../services/alunosService';
-import { showToast } from './shared/Toast';
-import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
-
-import Modal from './ui/Modal';
-import Button from './ui/Button';
-import Input, { Label } from './ui/Input';
-
-export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
-  const [planos, setPlanos] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    plano_id: '',
-    data_inicio: new Date().toISOString().split('T')[0], 
-    data_fim: '',
-    valor_pago: ''
-  });
-
-  useEffect(() => {
-    if (isOpen && alunoId) {
-      supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data }) => {
-        if (data) setPlanos(data);
-      });
-
-      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data }) => {
-        if (data && data.data_fim_plano) {
-          setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
-        }
-      });
-    }
-  }, [isOpen, alunoId]);
-
-  const calcularDataFim = (dataInicioStr, meses) => {
-    const data = new Date(dataInicioStr + 'T12:00:00');
-    data.setMonth(data.getMonth() + meses);
-    return data.toISOString().split('T')[0];
-  };
-
-  const handlePlanoChange = (e) => {
-    const planoId = e.target.value;
-    const planoSelecionado = planos.find(p => p.id === planoId);
-    
-    if (planoSelecionado) {
-      setForm({
-        ...form,
-        plano_id: planoId,
-        valor_pago: planoSelecionado.preco,
-        data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
-      });
-    } else {
-      setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await alunosService.renovarPlano(alunoId, {
-        plano_id: form.plano_id,
-        data_inicio: form.data_inicio,
-        data_fim: form.data_fim,
-        valor_pago: form.valor_pago
-      });
-      showToast.success("Plano renovado com sucesso!");
-      onSucesso();
-      onClose();
-    } catch (error) {
-      showToast.error("Erro ao renovar plano: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal aberto={isOpen} fechar={onClose} title="Renovar Plano do Aluno" size="md">
-      <form onSubmit={handleSubmit} className="space-y-5 pt-2">
-        
-        <div>
-          <Label className="block mb-1.5">Selecionar Novo Plano</Label>
-          <Input 
-            as="select" 
-            leftIcon={<Package size={18} />}
-            value={form.plano_id} 
-            onChange={handlePlanoChange}
-            required
-          >
-            <option value="">Selecione o plano...</option>
-            {planos.map(p => (
-              <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>
-            ))}
-          </Input>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="block mb-1.5">Data de Início</Label>
-            <Input 
-              type="date" 
-              leftIcon={<Calendar size={18} />}
-              value={form.data_inicio}
-              onChange={e => {
-                const novaDataInicio = e.target.value;
-                const planoSelecionado = planos.find(p => p.id === form.plano_id);
-                setForm({
-                  ...form, 
-                  data_inicio: novaDataInicio,
-                  data_fim: planoSelecionado ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses) : form.data_fim
-                });
-              }}
-              required
-            />
-          </div>
-          <div>
-            <Label className="block mb-1.5">Data de Vencimento</Label>
-            <Input 
-              type="date" 
-              leftIcon={<Calendar size={18} />}
-              value={form.data_fim}
-              onChange={e => setForm({...form, data_fim: e.target.value})}
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label className="block mb-1.5">Valor Negociado (R$)</Label>
-          <Input 
-            type="number" 
-            step="0.01" 
-            leftIcon={<DollarSign size={18} />}
-            value={form.valor_pago}
-            onChange={e => setForm({...form, valor_pago: e.target.value})}
-            required
-          />
-        </div>
-
-        <Modal.Footer>
-          <Button 
-            type="button" 
-            variant="ghost" 
-            onClick={onClose}
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-          
-          <Button 
-            type="submit" 
-            variant="brand" 
-            loading={loading}
-          >
-            {loading ? (
-              <><Loader2 className="animate-spin" size={20} /> Processando...</>
-            ) : (
-              'Confirmar Renovação'
-            )}
-          </Button>
-        </Modal.Footer>
-      </form>
-    </Modal>
-  );
 }
 </file>
 
@@ -33231,6 +33063,176 @@ export default {
     },
   },
   plugins: [tailwindcssAnimate],
+}
+</file>
+
+<file path="gestao_web/src/components/ModalRenovarPlano.jsx">
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { alunosService } from '../services/alunosService';
+import { showToast } from './shared/Toast';
+import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
+
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import Input, { Label } from './ui/Input';
+
+export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
+  const [planos, setPlanos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    plano_id: '',
+    data_inicio: new Date().toISOString().split('T')[0], 
+    data_fim: '',
+    valor_pago: ''
+  });
+
+  useEffect(() => {
+    if (isOpen && alunoId) {
+      supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data }) => {
+        if (data) setPlanos(data);
+      });
+
+      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data }) => {
+        if (data && data.data_fim_plano) {
+          setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
+        }
+      });
+    }
+  }, [isOpen, alunoId]);
+
+  const calcularDataFim = (dataInicioStr, meses) => {
+    const data = new Date(dataInicioStr + 'T12:00:00');
+    data.setMonth(data.getMonth() + meses);
+    return data.toISOString().split('T')[0];
+  };
+
+  const handlePlanoChange = (e) => {
+  const planoId = e.target.value;
+  const planoSelecionado = planos.find(p => p.id === Number(planoId));
+    
+    if (planoSelecionado) {
+    setForm({
+      ...form,
+      plano_id: planoId,
+      valor_pago: planoSelecionado.preco,
+      data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
+    });
+  } else {
+    setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
+  }
+};
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await alunosService.renovarPlano(alunoId, {
+        plano_id: form.plano_id,
+        data_inicio: form.data_inicio,
+        data_fim: form.data_fim,
+        valor_pago: form.valor_pago
+      });
+      showToast.success("Plano renovado com sucesso!");
+      onSucesso();
+      onClose();
+    } catch (error) {
+      showToast.error("Erro ao renovar plano: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal aberto={isOpen} fechar={onClose} title="Renovar Plano do Aluno" size="md">
+      <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+        
+        <div>
+          <Label className="block mb-1.5">Selecionar Novo Plano</Label>
+          <Input 
+            as="select" 
+            leftIcon={<Package size={18} />}
+            value={form.plano_id} 
+            onChange={handlePlanoChange}
+            required
+          >
+            <option value="">Selecione o plano...</option>
+            {planos.map(p => (
+              <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>
+            ))}
+          </Input>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="block mb-1.5">Data de Início</Label>
+            <Input 
+              type="date" 
+              leftIcon={<Calendar size={18} />}
+              value={form.data_inicio}
+              onChange={e => {
+  const novaDataInicio = e.target.value;
+  const planoSelecionado = planos.find(p => p.id === Number(form.plano_id)); // ← cast corrigido
+  setForm({
+    ...form,
+    data_inicio: novaDataInicio,
+    data_fim: planoSelecionado
+      ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses)
+      : form.data_fim
+  });
+}}
+              required
+            />
+          </div>
+          <div>
+            <Label className="block mb-1.5">Data de Vencimento</Label>
+            <Input 
+              type="date" 
+              leftIcon={<Calendar size={18} />}
+              value={form.data_fim}
+              onChange={e => setForm({...form, data_fim: e.target.value})}
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label className="block mb-1.5">Valor Negociado (R$)</Label>
+          <Input 
+            type="number" 
+            step="0.01" 
+            leftIcon={<DollarSign size={18} />}
+            value={form.valor_pago}
+            onChange={e => setForm({...form, valor_pago: e.target.value})}
+            required
+          />
+        </div>
+
+        <Modal.Footer>
+          <Button 
+            type="button" 
+            variant="ghost" 
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancelar
+          </Button>
+          
+          <Button 
+            type="submit" 
+            variant="brand" 
+            loading={loading}
+          >
+            {loading ? (
+              <><Loader2 className="animate-spin" size={20} /> Processando...</>
+            ) : (
+              'Confirmar Renovação'
+            )}
+          </Button>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
 }
 </file>
 
@@ -41679,6 +41681,12 @@ export default function Dashboard() {
 }
 </file>
 
+<file path="gestao_web/src/services/agendaService.js">
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';
+</file>
+
 <file path="gestao_web/src/components/ModalAdicionarPagamentoManual.jsx">
 import React, { useState, useEffect } from 'react';
 import Modal from './ui/Modal';
@@ -41991,12 +41999,6 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     </Modal>
   );
 }
-</file>
-
-<file path="gestao_web/src/services/agendaService.js">
-export { gradeService } from './gradeService';
-export { agendamentoService } from './agendamentoService';
-export { leadsService } from './leadsService';
 </file>
 
 <file path="gestao_web/src/services/alunosService.js">

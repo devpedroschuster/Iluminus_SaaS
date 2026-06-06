@@ -11,27 +11,27 @@ export const modalidadeService = {
     return data;
   },
 
-  async buscarPerfil(id, nome) {
-    const { data: horarios, error: errHorarios } = await supabase
-      .from('agenda')
-      .select('dia_semana, horario')
-      .eq('modalidade_id', id)
-      .eq('eh_recorrente', true)
-      .order('dia_semana')
-      .order('horario');
-      
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome_completo, planos(nome)')
-      .eq('ativo', true)
-      .contains('modalidades_selecionadas', [nome])
-      .order('nome_completo');
 
-    return {
-      horarios: horarios || [],
-      alunos: alunos || []
-    };
-  },
+async buscarPerfil(id, nome) {
+  const { data: horarios } = await supabase
+    .from('agenda')
+    .select('dia_semana, horario')
+    .eq('modalidade_id', id)
+    .eq('eh_recorrente', true)
+    .order('dia_semana')
+    .order('horario');
+
+  // ✅ busca por ID
+  const { data: alunos, error: errAlunos } = await supabase
+    .from('alunos')
+    .select('id, nome_completo, planos(nome)')
+    .eq('ativo', true)
+    .contains('modalidades_selecionadas', [id])
+    .order('nome_completo');
+
+  if (errAlunos) throw errAlunos;
+  return { horarios: horarios || [], alunos: alunos || [] };
+},
 
   async salvar(modalidade) {
     const payload = {

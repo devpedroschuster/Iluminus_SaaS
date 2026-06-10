@@ -14971,170 +14971,6 @@ export default function Modalidades() {
 }
 </file>
 
-<file path="gestao_web/src/services/financeiroService.js">
-import { supabase } from '../lib/supabase';
-import { gerarRepassesDaMensalidade } from './repasseService';
-
-export const financeiroService = {
-  async listarMensalidades(inicio, fim) {
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .select(`
-        *,
-        alunos (nome_completo),
-        planos (nome, preco, is_plano_livre)
-      `)
-      .gte('data_vencimento', inicio)
-      .lte('data_vencimento', fim)
-      .order('data_vencimento', { ascending: true });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Gera mensalidades para um determinado mês/ano.
-   *
-   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
-   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
-   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
-   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
-   */
-  async gerarMensalidades(mesNumero, ano) {
-    if (mesNumero < 1 || mesNumero > 12) {
-      throw new Error(
-        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
-        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
-      );
-    }
-
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, plano_id')
-      .eq('ativo', true)
-      .not('plano_id', 'is', null);
-
-    if (errAlunos) throw errAlunos;
-
-    const tresMesesAtras = new Date();
-    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
-    const filtroData = tresMesesAtras.toISOString().split('T')[0];
-
-    const { data: ultimasMensalidades } = await supabase
-      .from('mensalidades')
-      .select('aluno_id, data_vencimento')
-      .gte('data_vencimento', filtroData)
-      .order('data_vencimento', { ascending: false });
-
-    const mapaUltimasDatas = new Map();
-    ultimasMensalidades?.forEach(m => {
-      if (!mapaUltimasDatas.has(m.aluno_id)) {
-        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
-      }
-    });
-
-    const novasCobrancas = [];
-
-    alunos.forEach(aluno => {
-      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
-
-      let proximaData;
-      if (ultimaDataStr) {
-        const d = new Date(ultimaDataStr + 'T12:00:00');
-        d.setDate(d.getDate() + 30);
-        proximaData = d.toISOString().split('T')[0];
-      } else {
-        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
-        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
-      }
-
-      const [pAno, pMes] = proximaData.split('-').map(Number);
-
-      if (pAno === ano && pMes === mesNumero) {
-        novasCobrancas.push({
-          aluno_id: aluno.id,
-          plano_id: aluno.plano_id,
-          data_vencimento: proximaData,
-          status: 'pendente'
-        });
-      }
-    });
-
-    if (novasCobrancas.length > 0) {
-      const { error: errInsert } = await supabase
-        .from('mensalidades')
-        .insert(novasCobrancas);
-      if (errInsert) throw errInsert;
-    }
-
-    return true;
-  },
-
-  async adicionarPagamentoManual(dados) {
-    const payload = {
-      aluno_id: dados.aluno_id ? dados.aluno_id : null,
-      nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
-      plano_id: dados.plano_id ? dados.plano_id : null,
-      professor_id: dados.professor_id ? dados.professor_id : null,
-      modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
-
-      tipo_aula: dados.tipo_aula,
-      valor_pago: Number(dados.valor_pago),
-      status: dados.status || 'pago',
-
-      forma_pagamento: dados.forma_pagamento,
-
-      data_vencimento: dados.data_vencimento,
-      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
-    };
-
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .insert([payload])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Erro detalhado do Supabase:", error);
-      throw error;
-    }
-
-    if (dados.status === 'pago') {
-      try {
-        await gerarRepassesDaMensalidade(data.id);
-      } catch (repasseError) {
-        // Pagamento salvo com sucesso; apenas o repasse falhou.
-        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
-        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
-        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
-      }
-    }
-    return data;
-  },
-
-  async confirmarPagamento(id, dados) {
-    const payload = {
-      status: 'pago',
-      valor_pago: dados.valor_pago,
-      forma_pagamento: dados.forma_pagamento,
-      tipo_aula: dados.tipo_aula || 'regular',
-      professor_id: dados.professor_id || null,
-      modalidade_nome: dados.modalidade_nome || null,
-      data_pagamento: new Date().toISOString().split('T')[0],
-    };
-
-    const { error } = await supabase
-      .from('mensalidades')
-      .update(payload)
-      .eq('id', id);
-    if (error) throw error;
-
-    const resultado = await gerarRepassesDaMensalidade(id);
-    return { ok: true, resultado };
-  },
-};
-</file>
-
 <file path="gestao_web/src/pages/Agenda/components/ModalNovaAula.jsx">
 import React, { useState } from 'react';
 import { Dumbbell, Music, Palette, RefreshCw, Type, Clock } from 'lucide-react';
@@ -16813,6 +16649,170 @@ export { agendamentoService } from './agendamentoService';
 export { leadsService } from './leadsService';
 </file>
 
+<file path="gestao_web/src/services/financeiroService.js">
+import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
+
+export const financeiroService = {
+  async listarMensalidades(inicio, fim) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select(`
+        *,
+        alunos (nome_completo),
+        planos (nome, preco, is_plano_livre)
+      `)
+      .gte('data_vencimento', inicio)
+      .lte('data_vencimento', fim)
+      .order('data_vencimento', { ascending: true });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Gera mensalidades para um determinado mês/ano.
+   *
+   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
+   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
+   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
+   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
+   */
+  async gerarMensalidades(mesNumero, ano) {
+    if (mesNumero < 1 || mesNumero > 12) {
+      throw new Error(
+        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
+        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
+      );
+    }
+
+    const { data: alunos, error: errAlunos } = await supabase
+      .from('alunos')
+      .select('id, plano_id')
+      .eq('ativo', true)
+      .not('plano_id', 'is', null);
+
+    if (errAlunos) throw errAlunos;
+
+    const tresMesesAtras = new Date();
+    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+    const filtroData = tresMesesAtras.toISOString().split('T')[0];
+
+    const { data: ultimasMensalidades } = await supabase
+      .from('mensalidades')
+      .select('aluno_id, data_vencimento')
+      .gte('data_vencimento', filtroData)
+      .order('data_vencimento', { ascending: false });
+
+    const mapaUltimasDatas = new Map();
+    ultimasMensalidades?.forEach(m => {
+      if (!mapaUltimasDatas.has(m.aluno_id)) {
+        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
+      }
+    });
+
+    const novasCobrancas = [];
+
+    alunos.forEach(aluno => {
+      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
+
+      let proximaData;
+      if (ultimaDataStr) {
+        const d = new Date(ultimaDataStr + 'T12:00:00');
+        d.setDate(d.getDate() + 30);
+        proximaData = d.toISOString().split('T')[0];
+      } else {
+        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
+        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
+      }
+
+      const [pAno, pMes] = proximaData.split('-').map(Number);
+
+      if (pAno === ano && pMes === mesNumero) {
+        novasCobrancas.push({
+          aluno_id: aluno.id,
+          plano_id: aluno.plano_id,
+          data_vencimento: proximaData,
+          status: 'pendente'
+        });
+      }
+    });
+
+    if (novasCobrancas.length > 0) {
+      const { error: errInsert } = await supabase
+        .from('mensalidades')
+        .insert(novasCobrancas);
+      if (errInsert) throw errInsert;
+    }
+
+    return true;
+  },
+
+  async adicionarPagamentoManual(dados) {
+    const payload = {
+      aluno_id: dados.aluno_id ? dados.aluno_id : null,
+      nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
+      plano_id: dados.plano_id ? dados.plano_id : null,
+      professor_id: dados.professor_id ? dados.professor_id : null,
+      modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
+
+      tipo_aula: dados.tipo_aula,
+      valor_pago: Number(dados.valor_pago),
+      status: dados.status || 'pago',
+
+      forma_pagamento: dados.forma_pagamento,
+
+      data_vencimento: dados.data_vencimento,
+      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
+    };
+
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro detalhado do Supabase:", error);
+      throw error;
+    }
+
+    if (dados.status === 'pago') {
+      try {
+        await gerarRepassesDaMensalidade(data.id);
+      } catch (repasseError) {
+        // Pagamento salvo com sucesso; apenas o repasse falhou.
+        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
+        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
+        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+      }
+    }
+    return data;
+  },
+
+  async confirmarPagamento(id, dados) {
+    const payload = {
+      status: 'pago',
+      valor_pago: dados.valor_pago,
+      forma_pagamento: dados.forma_pagamento,
+      tipo_aula: dados.tipo_aula || 'regular',
+      professor_id: dados.professor_id || null,
+      modalidade_nome: dados.modalidade_nome || null,
+      data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
+    };
+
+    const { error } = await supabase
+      .from('mensalidades')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+
+    const resultado = await gerarRepassesDaMensalidade(id);
+    return { ok: true, resultado };
+  },
+};
+</file>
+
 <file path="gestao_web/src/hooks/usePWA.js">
 import { useState, useEffect, useRef } from 'react';
 
@@ -18269,14 +18269,20 @@ export default function Financeiro() {
       if (filtroStatus === 'todos') return true;
       return calcularStatusReal(m).tipo === filtroStatus;
     });
-    // Atrasados primeiro (mais antigos no topo), depois pendentes, depois pagos
+    // Atrasados (mais antigos no topo) → pendentes (vencimento mais próximo) → pagos (mais recente primeiro)
     lista.sort((a, b) => {
       const sa = calcularStatusReal(a);
       const sb = calcularStatusReal(b);
       const diff = ORDEM_STATUS[sa.tipo] - ORDEM_STATUS[sb.tipo];
       if (diff !== 0) return diff;
       if (sa.tipo === 'atrasado') return sb.diasAtraso - sa.diasAtraso;
-      return 0;
+      if (sa.tipo === 'pago') {
+        const dA = a.data_pagamento || a.data_vencimento || '';
+        const dB = b.data_pagamento || b.data_vencimento || '';
+        return dB.localeCompare(dA); // mais recente primeiro
+      }
+      // pendente: vencimento mais próximo no topo
+      return (a.data_vencimento || '').localeCompare(b.data_vencimento || '');
     });
     return lista;
   }, [mensalidades, busca, filtroStatus]);
@@ -18403,7 +18409,8 @@ export default function Financeiro() {
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Aluno</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Vencimento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
-                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Pagamento</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Forma Pag.</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Dt. Pagamento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ações</th>
               </tr>
@@ -18447,6 +18454,11 @@ export default function Financeiro() {
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
+                    </td>
+                    <td className="p-4 text-muted-foreground font-medium text-sm">
+                      {item.data_pagamento
+                        ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+                        : <span className="text-xs">—</span>}
                     </td>
                     <td className="p-4">
                       <Badge
@@ -18501,7 +18513,7 @@ export default function Financeiro() {
                   {alunosFiltrados.length}{' '}
                   {alunosFiltrados.length === 1 ? 'registro' : 'registros'}
                 </td>
-                <td colSpan={4} />
+                <td colSpan={5} />
                 <td className="p-4 text-right">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mr-2">
                     Total
@@ -19025,7 +19037,7 @@ export default function Agenda() {
 <file path="gestao_web/src/pages/NovoAluno.jsx">
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
   ArrowLeft, ArrowRight, User, Mail, ShieldCheck, Package,
@@ -19213,6 +19225,7 @@ export default function NovoAluno() {
     reset,
     setValue,
     trigger,
+    control,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(alunoSchema),
@@ -19221,7 +19234,7 @@ export default function NovoAluno() {
 
   const roleAtual          = watch('role');
   const planoSelecionado   = watch('plano_id');
-  const dataInicioPlano    = watch('data_inicio_plano');
+  const dataInicioPlano    = useWatch({ control, name: 'data_inicio_plano' });
   const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
   const regrasPlano         = planoSelecionadoObj?.regras_acesso || [];
 
@@ -19238,14 +19251,19 @@ export default function NovoAluno() {
   }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
   useEffect(() => {
-    if (planoSelecionadoObj && dataInicioPlano) {
-      const meses     = planoSelecionadoObj.duracao_meses || 1;
-      const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
-      const dataFim   = new Date(dataInicio);
-      dataFim.setMonth(dataFim.getMonth() + meses);
-      dataFim.setDate(dataFim.getDate() - 1);
-      setValue('data_fim_plano', dataFim.toISOString().split('T')[0], { shouldValidate: true });
-    }
+    if (!planoSelecionadoObj || !dataInicioPlano) return;
+    // O browser envia YYYY-MM-DD mesmo com ano incompleto (ex: 0002, 0020, 0202).
+    // Só calcula quando o ano for razoável (>= 1900) para evitar re-render
+    // durante a digitação do ano, o que desfocava o campo.
+    const ano = parseInt(dataInicioPlano.split('-')[0], 10);
+    if (!ano || ano < 1900) return;
+    const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
+    if (isNaN(dataInicio.getTime())) return;
+    const meses   = planoSelecionadoObj.duracao_meses || 1;
+    const dataFim = new Date(dataInicio);
+    dataFim.setMonth(dataFim.getMonth() + meses);
+    dataFim.setDate(dataFim.getDate() - 1);
+    setValue('data_fim_plano', dataFim.toISOString().split('T')[0]);
   }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
   useEffect(() => {

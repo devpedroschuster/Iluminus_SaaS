@@ -78,6 +78,7 @@ export default function Financeiro() {
   const [professorId, setProfessorId] = useState('');
   const [modalidadeNome, setModalidadeNome] = useState('');
   const [professores, setProfessores] = useState([]);
+  const [dataPagamentoConfirmar, setDataPagamentoConfirmar] = useState('');
   const [resultadoRepasse, setResultadoRepasse] = useState(null);
   const [dadosPagamento, setDadosPagamento] = useState(null);
   const [gerando, setGerando] = useState(false);
@@ -120,6 +121,9 @@ export default function Financeiro() {
     setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
     setProfessorId('');
     setModalidadeNome('');
+    const d = new Date();
+    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setDataPagamentoConfirmar(hoje);
     modalPagamento.abrir();
   };
 
@@ -132,7 +136,8 @@ export default function Financeiro() {
       forma_pagamento: formaPagamento,
       tipo_aula: tipoAula,
       professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
-      modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null
+      modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null,
+      data_pagamento: dataPagamentoConfirmar,
     };
     const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
     showToast.success('Pagamento processado com sucesso!');
@@ -142,7 +147,7 @@ export default function Financeiro() {
     setDadosPagamento({
       valor_pago:      valorFormatado,
       forma_pagamento: formaPagamento,
-      data_pagamento:  new Date().toISOString(),
+      data_pagamento:  dataPagamentoConfirmar,
     });
     modalResultado.abrir();
   } catch (error) {
@@ -181,6 +186,7 @@ export default function Financeiro() {
       forma_pagamento: item.forma_pagamento || '',
       data_vencimento: item.data_vencimento || '',
       status: item.status || 'pendente',
+      data_pagamento: item.data_pagamento || '',
     });
     modalEditar.abrir();
   };
@@ -194,6 +200,7 @@ export default function Financeiro() {
         status: formEdicao.status,
         forma_pagamento: formEdicao.forma_pagamento || null,
         valor_pago: formEdicao.valor_pago !== '' ? parseFloat(String(formEdicao.valor_pago).replace(/\./g, '').replace(',', '.')) : null,
+        data_pagamento: formEdicao.data_pagamento || null,
       };
       // Se voltando para pendente, limpa dados de pagamento
       if (formEdicao.status === 'pendente') {
@@ -544,6 +551,17 @@ export default function Financeiro() {
             </div>
             <div>
               <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Data do Pagamento
+              </label>
+              <Input
+                type="date"
+                value={dataPagamentoConfirmar}
+                onChange={(e) => setDataPagamentoConfirmar(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
                 Tipo de Aula
               </label>
               <Input
@@ -684,8 +702,19 @@ export default function Financeiro() {
                 />
               </div>
             </div>
-            {formEdicao.status === 'pendente' && (
-              <Surface variant="muted" padding="sm">
+            {formEdicao.status === 'pago' && (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Data do Pagamento
+                </label>
+                <Input
+                  type="date"
+                  value={formEdicao.data_pagamento}
+                  onChange={(e) => setFormEdicao({ ...formEdicao, data_pagamento: e.target.value })}
+                />
+              </div>
+            )}
+            {formEdicao.status === 'pendente' && (              <Surface variant="muted" padding="sm">
                 <p className="text-xs text-muted-foreground">
                   Ao definir como <strong>Pendente</strong>, os dados de pagamento serão removidos.
                 </p>

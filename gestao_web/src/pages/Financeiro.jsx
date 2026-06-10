@@ -251,14 +251,20 @@ export default function Financeiro() {
       if (filtroStatus === 'todos') return true;
       return calcularStatusReal(m).tipo === filtroStatus;
     });
-    // Atrasados primeiro (mais antigos no topo), depois pendentes, depois pagos
+    // Atrasados (mais antigos no topo) → pendentes (vencimento mais próximo) → pagos (mais recente primeiro)
     lista.sort((a, b) => {
       const sa = calcularStatusReal(a);
       const sb = calcularStatusReal(b);
       const diff = ORDEM_STATUS[sa.tipo] - ORDEM_STATUS[sb.tipo];
       if (diff !== 0) return diff;
       if (sa.tipo === 'atrasado') return sb.diasAtraso - sa.diasAtraso;
-      return 0;
+      if (sa.tipo === 'pago') {
+        const dA = a.data_pagamento || a.data_vencimento || '';
+        const dB = b.data_pagamento || b.data_vencimento || '';
+        return dB.localeCompare(dA); // mais recente primeiro
+      }
+      // pendente: vencimento mais próximo no topo
+      return (a.data_vencimento || '').localeCompare(b.data_vencimento || '');
     });
     return lista;
   }, [mensalidades, busca, filtroStatus]);
@@ -385,7 +391,8 @@ export default function Financeiro() {
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Aluno</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Vencimento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
-                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Pagamento</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Forma Pag.</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Dt. Pagamento</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ações</th>
               </tr>
@@ -429,6 +436,11 @@ export default function Financeiro() {
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
+                    </td>
+                    <td className="p-4 text-muted-foreground font-medium text-sm">
+                      {item.data_pagamento
+                        ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+                        : <span className="text-xs">—</span>}
                     </td>
                     <td className="p-4">
                       <Badge
@@ -483,7 +495,7 @@ export default function Financeiro() {
                   {alunosFiltrados.length}{' '}
                   {alunosFiltrados.length === 1 ? 'registro' : 'registros'}
                 </td>
-                <td colSpan={4} />
+                <td colSpan={5} />
                 <td className="p-4 text-right">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mr-2">
                     Total

@@ -146,7 +146,7 @@ export const financeiroService = {
       tipo_aula: dados.tipo_aula || 'regular',
       professor_id: dados.professor_id || null,
       modalidade_nome: dados.modalidade_nome || null,
-      data_pagamento: new Date().toISOString().split('T')[0],
+      data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
     };
 
     const { error } = await supabase

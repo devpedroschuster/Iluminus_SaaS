@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
   ArrowLeft, ArrowRight, User, Mail, ShieldCheck, Package,
@@ -16,9 +16,7 @@ import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/Toast';
 import Modal from '../components/shared/Modal';
 
-// ─────────────────────────────────────────────────────────────
-// Fix #3 – CPF helpers (mask + check-digit validation)
-// ─────────────────────────────────────────────────────────────
+// CPF helpers
 function formatarCPF(value) {
   const n = value.replace(/\D/g, '').slice(0, 11);
   if (n.length <= 3) return n;
@@ -42,9 +40,6 @@ function validarCPF(cpf) {
   return r === parseInt(n[10]);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Fix #2 – Stepper component
-// ─────────────────────────────────────────────────────────────
 const STEPS = [
   { id: 1, label: 'Pessoal',   icon: User     },
   { id: 2, label: 'Contato',   icon: Phone    },
@@ -90,10 +85,6 @@ function StepIndicator({ stepAtual }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Campos extraídos para fora do componente principal para evitar
-// desmontagem/remontagem a cada re-render (perda de foco no input)
-// ─────────────────────────────────────────────────────────────
 function CpfField({ cpfDisplay, cpfErro, onChange }) {
   return (
     <div>
@@ -148,9 +139,7 @@ function CepField({ register, buscandoCep, cepErro, onBlur, className = '' }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
 // Main component
-// ─────────────────────────────────────────────────────────────
 export default function NovoAluno() {
   const navigate     = useNavigate();
   const location     = useLocation();
@@ -159,7 +148,6 @@ export default function NovoAluno() {
   const alunoParaEditar   = location.state?.alunoParaEditar   || null;
   const leadParaConversao = location.state?.leadParaConversao || null;
 
-  // ── existing state ─────────────────────────────────────────
   const [abaAtiva,                setAbaAtiva]                = useState('dados');
   const [planos,                  setPlanos]                  = useState([]);
   const [modalidades,             setModalidades]             = useState([]);
@@ -169,9 +157,8 @@ export default function NovoAluno() {
   const [loadingAgenda,           setLoadingAgenda]           = useState(false);
   const [modalOpen,               setModalOpen]               = useState(false);
 
-  // ── BP-01 – substituição de window.confirm ──────────────────
   const [confirmModal, setConfirmModal] = useState(null);
-  // confirmModal: { mensagem, onConfirmar } | null
+
   const [copiado,                 setCopiado]                 = useState(false);
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
@@ -179,17 +166,13 @@ export default function NovoAluno() {
     new Date().toISOString().split('T')[0]
   );
 
-  // ── Fix #2 – stepper ───────────────────────────────────────
   const [stepAtual, setStepAtual] = useState(1);
 
-  // ── Fix #3 – CPF controlled display + inline error ─────────
   const [cpfDisplay, setCpfDisplay] = useState('');
   const [cpfErro,    setCpfErro]    = useState('');
 
-  // ── Fix #1 – CEP inline error ──────────────────────────────
   const [cepErro, setCepErro] = useState('');
 
-  // ── Fix #4 – phase-2 state (criar acesso separately) ───────
   const [cadastroSalvo,  setCadastroSalvo]  = useState(false);
   const [alunoSalvoId,   setAlunoSalvoId]   = useState(null);
   const [alunoSalvoEmail,setAlunoSalvoEmail]= useState('');
@@ -198,7 +181,6 @@ export default function NovoAluno() {
   const [erroAcesso,     setErroAcesso]     = useState('');
   const [acessoCriado,   setAcessoCriado]   = useState(false);
 
-  // ── react-hook-form ────────────────────────────────────────
   const {
     register,
     handleSubmit,
@@ -206,6 +188,7 @@ export default function NovoAluno() {
     reset,
     setValue,
     trigger,
+    control,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(alunoSchema),
@@ -214,11 +197,10 @@ export default function NovoAluno() {
 
   const roleAtual          = watch('role');
   const planoSelecionado   = watch('plano_id');
-  const dataInicioPlano    = watch('data_inicio_plano');
+  const dataInicioPlano    = useWatch({ control, name: 'data_inicio_plano' });
   const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
   const regrasPlano         = planoSelecionadoObj?.regras_acesso || [];
 
-  // ── effects ────────────────────────────────────────────────
   useEffect(() => {
     if (!alunoParaEditar && !leadParaConversao) {
       reset({ nome_completo: '', email: '', role: 'aluno' });
@@ -232,14 +214,19 @@ export default function NovoAluno() {
   }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
   useEffect(() => {
-    if (planoSelecionadoObj && dataInicioPlano) {
-      const meses     = planoSelecionadoObj.duracao_meses || 1;
-      const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
-      const dataFim   = new Date(dataInicio);
-      dataFim.setMonth(dataFim.getMonth() + meses);
-      dataFim.setDate(dataFim.getDate() - 1);
-      setValue('data_fim_plano', dataFim.toISOString().split('T')[0], { shouldValidate: true });
-    }
+    if (!planoSelecionadoObj || !dataInicioPlano) return;
+    // O browser envia YYYY-MM-DD mesmo com ano incompleto (ex: 0002, 0020, 0202).
+    // Só calcula quando o ano for razoável (>= 1900) para evitar re-render
+    // durante a digitação do ano, o que desfocava o campo.
+    const ano = parseInt(dataInicioPlano.split('-')[0], 10);
+    if (!ano || ano < 1900) return;
+    const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
+    if (isNaN(dataInicio.getTime())) return;
+    const meses   = planoSelecionadoObj.duracao_meses || 1;
+    const dataFim = new Date(dataInicio);
+    dataFim.setMonth(dataFim.getMonth() + meses);
+    dataFim.setDate(dataFim.getDate() - 1);
+    setValue('data_fim_plano', dataFim.toISOString().split('T')[0]);
   }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
   useEffect(() => {
@@ -293,7 +280,7 @@ export default function NovoAluno() {
     if (abaAtiva === 'agenda' && alunoParaEditar) carregarAgendaFixa();
   }, [abaAtiva, alunoParaEditar]);
 
-  // ── agenda fixa ────────────────────────────────────────────
+  // agenda fixa
   async function carregarAgendaFixa() {
     setLoadingAgenda(true);
     try {
@@ -320,10 +307,6 @@ export default function NovoAluno() {
     }
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Fix #1 – CEP: handle HTTP errors + invalid CEP with
-  //          inline message instead of silent failure
-  // ─────────────────────────────────────────────────────────
   const buscarCep = async (cep) => {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) return;
@@ -348,8 +331,6 @@ export default function NovoAluno() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Fix #3 – CPF: dynamic mask + inline check-digit error
   // ─────────────────────────────────────────────────────────
   const handleCpfChange = (e) => {
     const formatted = formatarCPF(e.target.value);
@@ -584,11 +565,7 @@ export default function NovoAluno() {
     }
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Fix #4 – Phase 2: create auth access independently,
-  //          with clear error state and retry button.
-  // ─────────────────────────────────────────────────────────
-  async function criarAcesso() {
+   async function criarAcesso() {
     setCriandoAcesso(true);
     setErroAcesso('');
     try {
@@ -602,7 +579,6 @@ export default function NovoAluno() {
           ? 'Este e-mail já possui um acesso.'
           : funcData.error
       );
-      // Link the newly-created auth_id to the already-persisted aluno row
       const { error: linkError } = await supabase
         .from('alunos').update({ auth_id: funcData.user.id }).eq('id', alunoSalvoId);
       if (linkError) throw new Error('Acesso criado, mas falhou ao vincular ao cadastro. Anote o auth_id e contacte o suporte.');
@@ -632,11 +608,7 @@ export default function NovoAluno() {
   const listaModalidadesAgenda = modalidadesUnicasIDs
     .map(id => modalidades.find(m => m.id === id)).filter(Boolean);
 
-  // ─────────────────────────────────────────────────────────
   // Shared sub-renderers
-  // ─────────────────────────────────────────────────────────
-
-
   function PlanoSlots() {
     return (
       <>
@@ -798,9 +770,7 @@ export default function NovoAluno() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
   // Stepper step content
-  // ─────────────────────────────────────────────────────────
   function renderStep1() {
     return (
       <div className="space-y-4 animate-in fade-in">
@@ -962,7 +932,6 @@ export default function NovoAluno() {
                 text-gray-600 appearance-none cursor-pointer"
             >
               <option value="aluno">Aluno</option>
-              {/* SEC-01 — opção "admin" removida; promoção só via console Supabase */}
             </select>
           </div>
           <div className="relative">
@@ -983,9 +952,6 @@ export default function NovoAluno() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Edit-mode flat form (same structure as original)
-  // ─────────────────────────────────────────────────────────
   function renderEditForm() {
     return (
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in">
@@ -1116,7 +1082,6 @@ export default function NovoAluno() {
                   text-gray-600 appearance-none cursor-pointer"
               >
                 <option value="aluno">Aluno</option>
-                {/* SEC-01 — opção "admin" removida; promoção só via console Supabase */}
               </select>
             </div>
             <div className="relative">
@@ -1234,9 +1199,6 @@ export default function NovoAluno() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <button
@@ -1253,7 +1215,7 @@ export default function NovoAluno() {
           {alunoParaEditar ? 'Perfil do Membro' : 'Novo Cadastro'}
         </h1>
 
-        {/* ── EDIT MODE: tabbed layout ── */}
+        {/* EDIT MODE */}
         {alunoParaEditar && (
           <>
             <div className="flex gap-6 border-b border-gray-100 mb-8 overflow-x-auto
@@ -1284,7 +1246,6 @@ export default function NovoAluno() {
           </>
         )}
 
-        {/* ── CREATE MODE: 4-step stepper ── */}
         {!alunoParaEditar && !cadastroSalvo && (
           <>
             <StepIndicator stepAtual={stepAtual} />
@@ -1334,7 +1295,6 @@ export default function NovoAluno() {
           </>
         )}
 
-        {/* ── Fix #4 – Phase 2: create auth access ── */}
         {!alunoParaEditar && cadastroSalvo && (
           <div className="animate-in fade-in space-y-6">
             {/* Success banner */}
@@ -1364,7 +1324,6 @@ export default function NovoAluno() {
                   provisória. O aluno será solicitado a trocar no primeiro acesso.
                 </p>
 
-                {/* Inline error with retry – Fix #4 */}
                 {erroAcesso && (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4
                     flex items-start gap-3">
@@ -1419,7 +1378,7 @@ export default function NovoAluno() {
         )}
       </div>
 
-      {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+      {/* Modal de confirmação */}
       <Modal
         isOpen={!!confirmModal}
         onClose={() => setConfirmModal(null)}

@@ -39,21 +39,19 @@ serve(async (req: Request) => {
       if (!email || !professor_id) return resp({ error: 'email e professor_id são obrigatórios' }, 400);
 
       // Verifica se já existe um auth user com esse email
-      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers();
+      const emailNormalizado = email.trim().toLowerCase();
+      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (listErr) throw listErr;
 
-      const existente = users.find((u) => u.email === email.trim().toLowerCase());
+      const existente = users.find((u) => u.email === emailNormalizado);
 
       let novoAuthId: string;
 
       if (existente) {
-        // Reusa o user existente (ex: era aluno e virou professor também)
         novoAuthId = existente.id;
       } else {
-        const { data, error } = await admin.auth.admin.createUser({
-          email: email.trim().toLowerCase(),
-          email_confirm: true,
-          user_metadata: { nome, role: 'professor' },
+        const { data, error } = await admin.auth.admin.inviteUserByEmail(emailNormalizado, {
+          data: { nome, role: 'professor' },
         });
         if (error) throw error;
         novoAuthId = data.user.id;
@@ -62,7 +60,7 @@ serve(async (req: Request) => {
       // Atualiza professores.auth_id
       const { error: upErr } = await admin
         .from('professores')
-        .update({ auth_id: novoAuthId, email: email.trim().toLowerCase() })
+        .update({ auth_id: novoAuthId, email: emailNormalizado })
         .eq('id', professor_id);
       if (upErr) throw upErr;
 
@@ -81,10 +79,14 @@ serve(async (req: Request) => {
         .eq('auth_id', auth_id)
         .maybeSingle();
 
+      let userDeletado = false;
       if (!aluno) {
-        // Sem vínculo com aluno → pode deletar do auth com segurança
+        // Sem vínculo com aluno → tenta deletar do auth
         const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr) throw delErr;
+        if (delErr && !delErr.message.includes('User not found')) {
+          throw delErr;
+        }
+        userDeletado = true;
       }
 
       // De qualquer forma, limpa auth_id e email do professor
@@ -94,7 +96,7 @@ serve(async (req: Request) => {
         .eq('id', professor_id);
       if (upErr) throw upErr;
 
-      return resp({ removido: true, user_deletado: !aluno });
+      return resp({ removido: true, user_deletado: userDeletado });
     }
 
     // ── TROCAR EMAIL ──────────────────────────────────────────────────────────
@@ -112,21 +114,23 @@ serve(async (req: Request) => {
 
       if (!aluno) {
         const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr) throw delErr;
+        if (delErr && !delErr.message.includes('User not found')) {
+          throw delErr;
+        }
       }
 
       // 2. Cria novo user com o novo email (ou reusa existente)
-      const { data: { users } } = await admin.auth.admin.listUsers();
-      const existente = users.find((u) => u.email === email.trim().toLowerCase());
+      const emailNormalizado = email.trim().toLowerCase();
+      const { data: { users }, error: listErr2 } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr2) throw listErr2;
+      const existente = users.find((u) => u.email === emailNormalizado);
 
       let novoAuthId: string;
       if (existente) {
         novoAuthId = existente.id;
       } else {
-        const { data, error } = await admin.auth.admin.createUser({
-          email: email.trim().toLowerCase(),
-          email_confirm: true,
-          user_metadata: { nome, role: 'professor' },
+        const { data, error } = await admin.auth.admin.inviteUserByEmail(emailNormalizado, {
+          data: { nome, role: 'professor' },
         });
         if (error) throw error;
         novoAuthId = data.user.id;

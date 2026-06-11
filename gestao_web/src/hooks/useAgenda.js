@@ -25,6 +25,8 @@ export function useAgenda() {
     aulas: queryGrade.data || [],
     feriados: queryFeriados.data || [],
     loading: queryGrade.isLoading || queryFeriados.isLoading,
+    isError: queryGrade.isError || queryFeriados.isError,
+    error: queryGrade.error || queryFeriados.error,
     refetch
   };
 }

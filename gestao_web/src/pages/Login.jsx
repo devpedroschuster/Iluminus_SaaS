@@ -12,7 +12,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  
+
   const navigate = useNavigate();
   const modalRecuperar = useModal();
 
@@ -30,30 +30,71 @@ export default function Login() {
 
       if (error) throw error;
 
-      // Verificar primeiro_acesso diretamente no banco — fonte de verdade confiável.
-      // Busca por auth_id (não por email) para evitar colisão caso exista
-      // mais de um registro com o mesmo e-mail em situações de migração.
+      // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
       const { data: alunoData } = await supabase
         .from('alunos')
-        .select('primeiro_acesso, nome_completo')
+        .select('primeiro_acesso, nome_completo, role')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
       if (alunoData?.primeiro_acesso) {
         const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
-        showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
-        navigate('/redefinir-senha');
+        navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
         return;
       }
 
-      showToast.success("Login realizado com sucesso!");
+      // ── 2. Verificar primeiro_acesso em professores ───────────────────────
+      if (!alunoData) {
+        const { data: profData } = await supabase
+          .from('professores')
+          .select('primeiro_acesso, nome, id')
+          .eq('auth_id', authData.user.id)
+          .maybeSingle();
+
+        if (profData?.primeiro_acesso) {
+          const primeiroNome = (profData.nome || 'Professor').split(' ')[0];
+          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
+          return;
+        }
+
+        if (profData) {
+          const primeiroNome = (profData.nome || '').split(' ')[0];
+          showToast.success(
+            primeiroNome
+              ? `Bem-vindo de volta, ${primeiroNome}! 👋`
+              : 'Login realizado com sucesso!'
+          );
+          navigate('/agenda');
+          return;
+        }
+      }
+
+      // Admin ou aluno com acesso normal
+      if (alunoData) {
+        const primeiroNome = (alunoData.nome_completo || '').split(' ')[0];
+        showToast.success(
+          primeiroNome
+            ? `Bem-vindo de volta, ${primeiroNome}! 👋`
+            : 'Login realizado com sucesso!'
+        );
+        navigate(rotaPorPerfil(alunoData.role === 'admin' ? 'admin' : 'aluno'));
+        return;
+      }
+
+      // Fallback (sem perfil correspondente)
+      showToast.success('Login realizado com sucesso!');
       navigate('/');
 
     } catch (err) {
-      if (err.message.includes("Invalid login")) {
-        showToast.error("E-mail ou senha incorretos.");
+      // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código
+      if (err.code === 'invalid_credentials' || err.message?.includes('Invalid login')) {
+        showToast.error('E-mail ou senha não conferem. Esqueceu a senha?');
+      } else if (err.code === 'email_not_confirmed') {
+        showToast.error('Confirme seu e-mail antes de acessar.');
+      } else if (err.message?.includes('expired') || err.message?.includes('invalid')) {
+        showToast.error('Link expirado. Solicite um novo link de recuperação.');
       } else {
-        showToast.error(err.message || "Erro ao conectar.");
+        showToast.error('Erro ao conectar. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -62,29 +103,34 @@ export default function Login() {
 
   // RECUPERAR SENHA
   async function handleRecuperarSenha(emailRecuperacao) {
-    if (!emailRecuperacao) return;
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRecuperacao?.trim());
+    if (!emailRecuperacao || !emailValido) {
+      showToast.error('Digite um e-mail válido.');
+      return;
+    }
+
     setLoadingRecuperar(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(emailRecuperacao, {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailRecuperacao.trim(), {
         redirectTo: `${window.location.origin}/redefinir-senha`,
       });
 
       if (error) throw error;
 
-      showToast.success("Link enviado! Verifique seu e-mail.");
+      showToast.success(`Pronto! Enviamos um link para ${emailRecuperacao.trim()}. Verifique também o spam.`);
       modalRecuperar.fechar();
     } catch (err) {
-      showToast.error("Erro ao enviar link: " + err.message);
+      showToast.error('Erro ao enviar link: ' + err.message);
     } finally {
       setLoadingRecuperar(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#FDF8F5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-[40px] shadow-xl p-10 border border-orange-50 animate-in fade-in zoom-in-95 duration-500">
-        
+
         {/* Cabeçalho */}
         <div className="text-center mb-10">
           <div className="bg-orange-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6 transform rotate-3">
@@ -99,9 +145,11 @@ export default function Login() {
           <div className="space-y-4">
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
-              <input 
+              <input
                 type="email"
                 required
+                autoFocus
+                autoComplete="email"
                 placeholder="Seu e-mail"
                 className="w-full pl-14 pr-4 py-5 bg-gray-50 rounded-[22px] border-2 border-transparent outline-none focus:border-orange-100 focus:bg-white transition-all font-medium text-gray-600"
                 value={email}
@@ -111,9 +159,10 @@ export default function Login() {
 
             <div className="relative group">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
-              <input 
+              <input
                 type="password"
                 required
+                autoComplete="current-password"
                 placeholder="Sua senha"
                 className="w-full pl-14 pr-4 py-5 bg-gray-50 rounded-[22px] border-2 border-transparent outline-none focus:border-orange-100 focus:bg-white transition-all font-medium text-gray-600"
                 value={senha}
@@ -122,19 +171,19 @@ export default function Login() {
             </div>
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="w-full bg-primary text-primary-foreground py-5 rounded-[22px] font-black text-lg shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
           >
             {loading ? <RefreshCw className="animate-spin" size={24} /> : (
-              <>Entrar no Sistema <ArrowRight size={20} /></>
+              <>Entrar <ArrowRight size={20} /></>
             )}
           </button>
         </form>
 
         <div className="mt-8 text-center">
-          <button 
+          <button
             onClick={modalRecuperar.abrir}
             className="text-sm font-bold text-gray-400 hover:text-primary transition-colors"
           >
@@ -143,14 +192,14 @@ export default function Login() {
         </div>
       </div>
 
-      <Modal 
-        isOpen={modalRecuperar.isOpen} 
+      <Modal
+        isOpen={modalRecuperar.isOpen}
         onClose={modalRecuperar.fechar}
         titulo="Recuperar Acesso"
       >
-        <RecuperarFormInterno 
-          onSubmit={handleRecuperarSenha} 
-          loading={loadingRecuperar} 
+        <RecuperarFormInterno
+          onSubmit={handleRecuperarSenha}
+          loading={loadingRecuperar}
         />
       </Modal>
     </div>
@@ -173,19 +222,21 @@ function RecuperarFormInterno({ onSubmit, loading }) {
         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
         <input
           type="email"
-          placeholder="Digite seu e-mail cadastrado"
-          className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-100 font-medium"
+          required
+          autoComplete="email"
+          placeholder="Seu e-mail"
+          className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-100 transition-all font-medium text-gray-600"
           value={emailRecup}
           onChange={(e) => setEmailRecup(e.target.value)}
         />
       </div>
-      
+
       <button
         onClick={() => onSubmit(emailRecup)}
         disabled={loading || !emailRecup}
-        className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold hover:bg-gray-700 transition-all disabled:opacity-50 flex justify-center"
+        className="w-full bg-primary text-primary-foreground py-4 rounded-[22px] font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
-        {loading ? <RefreshCw className="animate-spin" size={20} /> : "Enviar Link de Recuperação"}
+        {loading ? <RefreshCw className="animate-spin" size={20} /> : 'Enviar Link de Recuperação'}
       </button>
     </div>
   );

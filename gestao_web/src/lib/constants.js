@@ -48,11 +48,10 @@ export const TIPOS_AULA = [
   { valor: 'avulsa', label: 'Aula Avulsa' },
 ];
 
-
 export const LIMITES = {
   NOME_MIN: 3,
   NOME_MAX: 100,
-  SENHA_MIN: 6,
+  SENHA_MIN: 8,
   CAPACIDADE_AULA_MIN: 1,
   CAPACIDADE_AULA_MAX: 50,
   VALOR_PLANO_MIN: 0,
@@ -65,8 +64,8 @@ export const MENSAGENS = {
     semPermissao: 'Você não tem permissão para realizar esta ação.',
     naoAutenticado: 'Você precisa estar autenticado.',
     camposObrigatorios: 'Preencha todos os campos obrigatórios.',
-    emailInvalido: 'Digite um email válido.',
-    senhaFraca: 'A senha deve ter no mínimo 6 caracteres.',
+    emailInvalido: 'Digite um e-mail válido.',
+    senhaFraca: 'A senha deve ter no mínimo 8 caracteres.',
   },
   sucesso: {
     cadastrado: 'Cadastrado com sucesso!',

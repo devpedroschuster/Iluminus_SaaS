@@ -132,14 +132,20 @@ export const gradeService = {
     }
   },
 
-  async listarMatriculasFixas() {
-    const { data, error } = await supabase
-      .from('agenda_fixa')
-      .select('aula_id, alunos (id, nome_completo)');
-    if (error) {
-      console.error('Erro ao buscar alunos fixos:', error);
-      return [];
-    }
-    return data;
-  },
+  async listarMatriculasFixas(aulasIds = null) {
+  let query = supabase
+    .from('agenda_fixa')
+    .select('aula_id, alunos (id, nome_completo, data_inicio_plano, data_fim_plano)');
+
+  if (aulasIds !== null) {
+    query = query.in('aula_id', aulasIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erro ao buscar alunos fixos:', error);
+    return [];
+  }
+  return data;
+},
 };

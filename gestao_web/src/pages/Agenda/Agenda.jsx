@@ -27,6 +27,9 @@ import ModalNovaAula from './components/ModalNovaAula';
 import ModalListaPresenca from './components/ModalListaPresenca';
 import ModalFeriados from './components/ModalFeriados';
 import ModalAcoesEvento from './components/ModalAcoesEvento';
+import EmptyState from '../../components/ui/EmptyState';
+import { Dumbbell, Music, CalendarX } from 'lucide-react';
+import { useMemo } from 'react';
 
 const INITIAL_FORM_STATE = {
   id: null,
@@ -45,7 +48,7 @@ const INITIAL_FORM_STATE = {
 };
 
 export default function Agenda() {
-  const { perfil } = useOutletContext();
+  const { perfil, professorId: professorIdLogado } = useOutletContext();
   const isAdmin = perfil === 'admin';
 
   const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
@@ -53,7 +56,7 @@ export default function Agenda() {
   const [aulaParaLista, setAulaParaLista] = useState(null);
   const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
 
-  const { aulas, feriados, loading, refetch } = useAgenda();
+  const { aulas, feriados, loading, isError, refetch } = useAgenda();
 
   const { data: listaAlunos = [] } = useQuery({
     queryKey: ['alunos', 'ativos-agendamento'],
@@ -61,27 +64,60 @@ export default function Agenda() {
     staleTime: 1000 * 60 * 5,
   });
 
+  // A1: professor não precisa da lista de professores, modalidades nem matrículas fixas
   const { data: professores = [] } = useQuery({
     queryKey: ['professores'],
     queryFn: () => gradeService.listarProfessores(),
     staleTime: 1000 * 60 * 5,
+    enabled: isAdmin,
   });
 
   const { data: modalidades = [] } = useQuery({
     queryKey: ['modalidades'],
     queryFn: () => gradeService.listarModalidades(),
     staleTime: 1000 * 60 * 5,
+    enabled: isAdmin,
   });
 
   const { data: matriculasFixas = [] } = useQuery({
-    queryKey: ['matriculas-fixas'],
-    queryFn: () => gradeService.listarMatriculasFixas(),
-    staleTime: 1000 * 60 * 5,
-  });
+  queryKey: ['matriculas-fixas', isAdmin ? 'admin' : (aulas || []).map(a => a.id).join(',')],
+  queryFn: () => {
+    if (isAdmin) return gradeService.listarMatriculasFixas();
+    // Para professor: filtra só pelas aulas que ele leciona
+    const idsAulas = (aulas || []).map(a => a.id);
+    if (idsAulas.length === 0) return [];
+    return gradeService.listarMatriculasFixas(idsAulas);
+  },
+  staleTime: 1000 * 60 * 5,
+  enabled: isAdmin ? true : (aulas || []).length > 0, // ← aguarda aulas carregarem
+});
 
   const dadosIniciais = { professores, modalidades, matriculasFixas };
 
   const pageState = useAgendaPage();
+
+const espacosDisponiveis = useMemo(() => {
+  if (isAdmin || !aulas?.length) return undefined;
+  const set = new Set(aulas.map(a => a.espaco || 'funcional'));
+  return set;
+}, [isAdmin, aulas]);
+
+const emptyStateEspaco = useMemo(() => {
+  if (pageState.filtroEspaco === 'todos') return null;
+
+  const labels = { funcional: 'Funcional', danca: 'Dança' };
+  const icons  = { funcional: <Dumbbell size={28} />, danca: <Music size={28} /> };
+  const label  = labels[pageState.filtroEspaco] ?? pageState.filtroEspaco;
+
+  return {
+    icon:        icons[pageState.filtroEspaco] ?? <CalendarX size={28} />,
+    title:       `Sem aulas de ${label}`,
+    description: isAdmin
+      ? `Nenhuma aula de ${label} cadastrada para este período.`
+      : `Você não tem aulas de ${label} cadastradas neste período.`,
+  };
+}, [pageState.filtroEspaco, isAdmin]);
+
   const dadosMes = useAgendaDadosMes(pageState.currentDate);
 
   const modais = {
@@ -158,27 +194,66 @@ export default function Agenda() {
         </div>
       </div>
 
-      <FiltrosAgenda {...pageState} professores={dadosIniciais.professores} isAdmin={isAdmin} />
+      <FiltrosAgenda 
+  {...pageState} 
+  professores={dadosIniciais.professores} 
+  isAdmin={isAdmin}
+  espacosDisponiveis={espacosDisponiveis}
+/>
 
       <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm" style={{ height: '750px' }}>
-        {loading ? (
-          <TableSkeleton />
-        ) : (
-          <CalendarioGrade
-            eventos={eventosCalendario}
-            currentDate={pageState.currentDate}
-            setCurrentDate={pageState.setCurrentDate}
-            currentView={pageState.currentView}
-            setCurrentView={pageState.setCurrentView}
-            handleSelectSlot={handleSelectSlot}
-            handleSelectEvent={(ev) => {
-              ev.isFeriado
-                ? showToast.error(`Dia bloqueado: ${ev.dadosOriginais.descricao}`)
-                : (setEventoSelecionado(ev), modais.acoesEvento.abrir());
-            }}
-          />
-        )}
-      </div>
+  {isError ? (
+    <div className="h-full flex items-center justify-center">
+      <EmptyState
+        icon={<CalendarX size={28} />}
+        title="Erro ao carregar agenda"
+        description="Não foi possível buscar as aulas. Verifique sua conexão e tente novamente."
+        action={
+          <button
+            onClick={refetch}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            Tentar novamente
+          </button>
+        }
+      />
+    </div>
+  ) : loading ? (
+    <TableSkeleton />
+  ) : eventosCalendario.filter(e => !e.isFeriado).length === 0 && emptyStateEspaco ? (
+    // Filtro de espaço ativo mas sem eventos — EmptyState contextual
+    <div className="h-full flex items-center justify-center">
+      <EmptyState
+        icon={emptyStateEspaco.icon}
+        title={emptyStateEspaco.title}
+        description={emptyStateEspaco.description}
+        action={
+          <button
+            onClick={() => pageState.setFiltroEspaco('todos')}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            Ver todos os espaços
+          </button>
+        }
+      />
+    </div>
+  ) : (
+    <CalendarioGrade
+      eventos={eventosCalendario}
+      currentDate={pageState.currentDate}
+      setCurrentDate={pageState.setCurrentDate}
+      currentView={pageState.currentView}
+      setCurrentView={pageState.setCurrentView}
+      handleSelectSlot={handleSelectSlot}
+      isAdmin={isAdmin}
+      handleSelectEvent={(ev) => {
+        ev.isFeriado
+          ? showToast.error(`Dia bloqueado: ${ev.dadosOriginais.descricao}`)
+          : (setEventoSelecionado(ev), modais.acoesEvento.abrir());
+      }}
+    />
+  )}
+</div>
 
       <Modal isOpen={modais.agendamento.isOpen} onClose={modais.agendamento.fechar} titulo="Agendamento">
         <ModalAgendamento {...hookAgendamento} aulas={aulas} listaAlunos={listaAlunos} />
@@ -197,7 +272,7 @@ export default function Agenda() {
         />
       </Modal>
       <Modal isOpen={modais.lista.isOpen} onClose={modais.lista.fechar} titulo="Chamada">
-        <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} />
+        <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} isAdmin={isAdmin} />
       </Modal>
       {isAdmin && (
         <Modal isOpen={modais.feriados.isOpen} onClose={modais.feriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
@@ -209,6 +284,7 @@ export default function Agenda() {
         <ModalAcoesEvento
           evento={eventoSelecionado}
           isAdmin={isAdmin}
+          professorIdLogado={professorIdLogado}
           onAgendar={(ev) => {
             modais.acoesEvento.fechar();
             hookAgendamento.setAgendamentoForm({

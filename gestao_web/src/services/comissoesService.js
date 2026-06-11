@@ -12,10 +12,10 @@ export const comissoesService = {
   },
 
   async buscarDetalhes(professorId, mesAno) {
-    const inicio = `${mesAno}-01T00:00:00`;
+    const inicio = `${mesAno}-01`;
     const [ano, mes] = mesAno.split('-').map(Number);
-    const ultimo = new Date(ano, mes, 0).toISOString().split('T')[0];
-    const fim = `${ultimo}T23:59:59`;
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
     const { data: fechamento } = await supabase
       .from('fechamento_comissoes')
@@ -26,12 +26,12 @@ export const comissoesService = {
 
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
-      .select('id, valor, tipo_aula, modalidade, created_at, alunos(nome_completo)')
+      .select('id, valor, tipo_aula, modalidade, data_referencia, pago_em, status, alunos(nome_completo)')
       .eq('professor_id', professorId)
-      .gte('created_at', inicio)
-      .lte('created_at', fim)
-      .order('created_at', { ascending: false });
-      
+      .gte('data_referencia', inicio)
+      .lte('data_referencia', fim)
+      .order('data_referencia', { ascending: false });
+
     if (error) throw error;
 
     const total = (lancamentos || []).reduce((s, l) => s + Number(l.valor), 0);
@@ -59,7 +59,7 @@ export const comissoesService = {
         mes_referencia: `${mesAno}-01`,
         valor_total: valorTotal
       }]);
-      
+
     if (error) throw error;
     return true;
   }

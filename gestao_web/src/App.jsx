@@ -12,6 +12,7 @@ import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import { PWABanners } from './components/PWABanners';
+import PaginaNaoEncontrada from './components/PaginaNaoEncontrada'; // #19
 
 import Login from './pages/Login';
 import RedefinirSenha from './pages/RedefinirSenha';
@@ -47,6 +48,8 @@ const queryClient = new QueryClient({
   },
 });
 
+const resolverPerfilLayout = (perfil) => perfil;
+
 function Spinner() {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -55,18 +58,29 @@ function Spinner() {
   );
 }
 
-const LayoutComSidebar = ({ perfil }) => {
+// #17 — recebe nomeUsuario e repassa para Sidebar
+const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
     <div className="flex h-screen bg-background transition-colors duration-300 overflow-hidden w-full">
-      <Sidebar perfil={perfil} menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
+      <Sidebar
+        perfil={perfil}
+        nomeUsuario={nomeUsuario}
+        menuAberto={menuAberto}
+        setMenuAberto={setMenuAberto}
+      />
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden w-full max-w-full">
 
         {/* Header Superior Mobile */}
         <div className="md:hidden flex items-center justify-between bg-card border-b border-border p-4 shrink-0 z-10 shadow-sm transition-colors duration-300">
-          <h2 className="text-xl font-black text-primary tracking-tight">Iluminus</h2>
+          <div>
+            <h2 className="text-xl font-black text-primary tracking-tight leading-none">Iluminus</h2>
+            {resolverPerfilLayout(perfil) === 'professor' && (
+              <p className="text-[11px] font-bold text-muted-foreground mt-0.5">Área do Professor</p>
+            )}
+          </div>
           <button
             onClick={() => setMenuAberto(true)}
             className="p-2 text-muted-foreground bg-muted rounded-xl hover:bg-subtle transition-colors"
@@ -96,7 +110,8 @@ const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
 };
 
 export default function App() {
-  const { sessao, perfil, loading } = useAuth();
+  // #18 — desestrutura nomeUsuario do hook
+  const { sessao, perfil, loading, nomeUsuario } = useAuth();
 
   if (loading) return <Spinner />;
 
@@ -126,7 +141,8 @@ export default function App() {
 
               {/* Rotas Compartilhadas (Admin e Professor) */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin', 'professor']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} />}>
+                {/* #17/#18 — passa nomeUsuario para o layout */}
+                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/agenda"               element={<Agenda />} />
                   <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
                   <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
@@ -135,7 +151,8 @@ export default function App() {
 
               {/* Rotas Exclusivas do Admin */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} />}>
+                {/* #17/#18 — passa nomeUsuario para o layout */}
+                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/dashboard"                  element={<Dashboard />} />
                   <Route path="/leads"                      element={<Leads />} />
                   <Route path="/alunos"                     element={<Alunos />} />
@@ -156,7 +173,13 @@ export default function App() {
                 </Route>
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* #19 — 404 personalizado com redirect automático */}
+              <Route
+                path="*"
+                element={
+                  <PaginaNaoEncontrada destino={sessao ? rotaPorPerfil(perfil) : '/'} />
+                }
+              />
             </Routes>
           </BrowserRouter>
         </ThemeProvider>

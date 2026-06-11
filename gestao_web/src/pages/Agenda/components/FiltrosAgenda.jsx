@@ -1,16 +1,29 @@
 import React from 'react';
-import { Dumbbell, Music, Filter } from 'lucide-react';
+import { Dumbbell, Music, Filter, LayoutGrid } from 'lucide-react';
 import Surface from '../../../components/ui/Surface';
 import Input from '../../../components/ui/Input';
 
+// espacosDisponiveis: Set<'funcional'|'danca'> — undefined = mostrar tudo (admin)
 export default function FiltrosAgenda({ 
   filtroEspaco, 
   setFiltroEspaco, 
   filtroProf, 
   setFiltroProf, 
   professores, 
-  isAdmin 
+  isAdmin,
+  espacosDisponiveis,   // novo
 }) {
+  // Se não foi passado (admin), todos os espaços estão disponíveis
+  const temFuncional = !espacosDisponiveis || espacosDisponiveis.has('funcional');
+  const temDanca     = !espacosDisponiveis || espacosDisponiveis.has('danca');
+
+  // Se o filtro ativo foi removido (professor não leciona naquele espaço),
+  // volta para 'todos' de forma segura.
+  React.useEffect(() => {
+    if (filtroEspaco === 'funcional' && !temFuncional) setFiltroEspaco('todos');
+    if (filtroEspaco === 'danca'     && !temDanca)     setFiltroEspaco('todos');
+  }, [temFuncional, temDanca]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Surface 
       variant="card" 
@@ -29,26 +42,32 @@ export default function FiltrosAgenda({
         >
           Todos
         </button>
-        <button 
-          onClick={() => setFiltroEspaco('funcional')} 
-          className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-            filtroEspaco === 'funcional' 
-              ? 'bg-warning-soft text-warning shadow-sm border border-warning/20' 
-              : 'text-muted-foreground hover:text-warning'
-          }`}
-        >
-          <Dumbbell size={16} /> Funcional
-        </button>
-        <button 
-          onClick={() => setFiltroEspaco('danca')} 
-          className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-            filtroEspaco === 'danca' 
-              ? 'bg-purple-soft text-purple shadow-sm border border-purple/20' 
-              : 'text-muted-foreground hover:text-purple'
-          }`}
-        >
-          <Music size={16} /> Dança
-        </button>
+
+        {temFuncional && (
+          <button 
+            onClick={() => setFiltroEspaco('funcional')} 
+            className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+              filtroEspaco === 'funcional' 
+                ? 'bg-warning-soft text-warning shadow-sm border border-warning/20' 
+                : 'text-muted-foreground hover:text-warning'
+            }`}
+          >
+            <Dumbbell size={16} /> Funcional
+          </button>
+        )}
+
+        {temDanca && (
+          <button 
+            onClick={() => setFiltroEspaco('danca')} 
+            className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+              filtroEspaco === 'danca' 
+                ? 'bg-purple-soft text-purple shadow-sm border border-purple/20' 
+                : 'text-muted-foreground hover:text-purple'
+            }`}
+          >
+            <Music size={16} /> Dança
+          </button>
+        )}
       </div>
 
       {/* Select de Professor (Somente Admin) */}

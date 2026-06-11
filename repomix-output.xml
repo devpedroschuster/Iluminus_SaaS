@@ -67,6 +67,7 @@ gestao_web/src/App.jsx
 gestao_web/src/assets/react.svg
 gestao_web/src/components/ModalAdicionarPagamentoManual.jsx
 gestao_web/src/components/ModalRenovarPlano.jsx
+gestao_web/src/components/PaginaNaoEncontrada.jsx
 gestao_web/src/components/PWABanners.jsx
 gestao_web/src/components/RepasseAlunoCard.jsx
 gestao_web/src/components/SelectFormaPagamento.jsx
@@ -246,6 +247,43 @@ If you are developing a production application, we recommend using TypeScript wi
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
 </file>
 
+<file path="gestao_web/src/components/PaginaNaoEncontrada.jsx">
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
+
+export default function PaginaNaoEncontrada({ destino = '/' }) {
+  const navigate = useNavigate();
+  const [contador, setContador] = useState(2);
+
+  useEffect(() => {
+    if (contador <= 0) {
+      navigate(destino, { replace: true });
+      return;
+    }
+    const timer = setTimeout(() => setContador((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [contador, navigate, destino]);
+
+  return (
+    <div className="h-screen w-screen flex flex-col items-center justify-center gap-6 bg-background px-6 text-center">
+      <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center">
+        <MapPin size={32} className="text-muted-foreground" />
+      </div>
+
+      <div className="space-y-1">
+        <h1 className="text-4xl font-black text-foreground tracking-tight">404</h1>
+        <p className="text-lg font-bold text-foreground">Página não encontrada</p>
+        <p className="text-sm text-muted-foreground">
+          Esta rota não existe. Redirecionando em{' '}
+          <span className="font-bold text-primary">{contador}s</span>…
+        </p>
+      </div>
+    </div>
+  );
+}
+</file>
+
 <file path="gestao_web/src/lib/security.js">
 export function generateSecurePassword(length = 10) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
@@ -264,6 +302,17 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+</file>
+
+<file path="gestao_web/vercel.json">
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
 </file>
 
 <file path="supabase/.gitignore">
@@ -1029,6 +1078,8 @@ export function useRepassesProfessor(professorId, mesAno) {
     queryKey: ['repasses', professorId, mesAno],
     queryFn: () => listarRepassesProfessor(professorId, mesAno),
     enabled: !!professorId && !!mesAno,
+    retry: 2,
+    staleTime: 1000 * 60 * 5, // 5 min
   });
 }
 </file>
@@ -1060,10 +1111,17 @@ export function rotaPorPerfil(perfil) {
 
 <file path="gestao_web/src/pages/Agenda/hooks/useAgendaPage.js">
 import { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 
 export function useAgendaPage() {
+  const { perfil } = useOutletContext();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  // UX: mobile usa 'day' para legibilidade; desktop usa 'week' para ambos os perfis
+  const defaultView = isMobile ? 'day' : 'week';
+
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState('week');
+  const [currentView, setCurrentView] = useState(defaultView);
   const [filtroProf, setFiltroProf] = useState('todos');
   const [filtroEspaco, setFiltroEspaco] = useState('todos');
 
@@ -1077,9 +1135,12 @@ export function useAgendaPage() {
 </file>
 
 <file path="gestao_web/src/pages/Professor/ProfessorAlunos.jsx">
-import React, { useEffect, useState } from 'react';
-import { Search, Users } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Search, Users, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { useDebounce } from '../../hooks/useDebounce';
 import { showToast } from '../../components/shared/Toast';
 import Surface from '../../components/ui/Surface';
 import Input from '../../components/ui/Input';
@@ -1087,78 +1148,134 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 
+const PAGE_SIZE = 10;
+
+// Formata data de última presença em texto legível
+function formatarUltimaPresenca(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  const hoje = new Date();
+  const diffDias = Math.floor((hoje - d) / 86400000);
+  if (diffDias === 0) return 'Hoje';
+  if (diffDias === 1) return 'Ontem';
+  if (diffDias <= 7) return `${diffDias}d atrás`;
+  if (diffDias <= 30) return `${Math.floor(diffDias / 7)}sem atrás`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+// Formata telefone para wa.me (remove tudo que não é dígito, adiciona 55 se não tiver)
+function formatarWhatsApp(telefone) {
+  if (!telefone) return null;
+  const digits = telefone.replace(/\D/g, '');
+  return digits.startsWith('55') ? digits : `55${digits}`;
+}
+
 export default function ProfessorAlunos() {
+  const { professorId } = useAuth();
+  const navigate = useNavigate();
+
   const [alunos, setAlunos] = useState([]);
+  const [ultimaPresencaMap, setUltimaPresencaMap] = useState({});
+  const [modalidades, setModalidades] = useState([]); // para o filtro
+  const [modalidadesMap, setModalidadesMap] = useState(new Map()); // id→{id,nome} para resolver nomes
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
+  const [filtroModalidade, setFiltroModalidade] = useState('');
+  const [pagina, setPagina] = useState(1);
+
+  const buscaDebounced = useDebounce(busca, 300);
 
   useEffect(() => {
-    carregarAlunos();
-  }, []);
+    if (professorId) carregarAlunos();
+  }, [professorId]);
 
   async function carregarAlunos() {
     setLoading(true);
     try {
-      // 1. Descobre o professor_id a partir do auth_id da sessão
-      const { data: { session } } = await supabase.auth.getSession();
-      const authId = session?.user?.id;
-      if (!authId) return;
-
-      const { data: prof } = await supabase
-        .from('professores')
-        .select('id')
-        .eq('auth_id', authId)
-        .maybeSingle();
-
-      if (!prof) return;
-      const professorId = prof.id;
-
-      // 2. Busca modalidades vinculadas a este professor
-      const { data: modalidades } = await supabase
-        .from('modalidades')
-        .select('id, nome')
-        .eq('professor_id', professorId);
-
-      // 3. Também inclui aulas onde o professor está diretamente vinculado
-      const { data: aulasDoProf } = await supabase
-        .from('agenda')
-        .select('modalidade_id')
-        .eq('professor_id', professorId);
-
-      const idsModalidadesViaAulas = (aulasDoProf || [])
-        .map(a => a.modalidade_id)
-        .filter(Boolean);
+      // Busca modalidades do professor (por ownership e por aulas na agenda)
+      const [{ data: modalidadesOwn }, { data: aulasDoProf }] = await Promise.all([
+        supabase
+          .from('modalidades')
+          .select('id, nome')
+          .eq('professor_id', professorId),
+        supabase
+          .from('agenda')
+          .select('modalidade_id')
+          .eq('professor_id', professorId),
+      ]);
 
       const idsModalidades = [
         ...new Set([
-          ...(modalidades || []).map(m => m.id),
-          ...idsModalidadesViaAulas,
+          ...(modalidadesOwn || []).map(m => m.id),
+          ...(aulasDoProf || []).map(a => a.modalidade_id).filter(Boolean),
         ]),
       ];
 
       if (idsModalidades.length === 0) {
         setAlunos([]);
+        setModalidades([]);
         return;
       }
 
-      // 4. Busca alunos ativos que tenham ao menos uma dessas modalidades
-      //    no array modalidades_selecionadas
-      const { data: todosAlunos, error } = await supabase
+      // Busca nomes das modalidades da agenda que ainda não estão em modalidadesOwn
+      const idsApenasAgenda = (aulasDoProf || [])
+        .map(a => a.modalidade_id)
+        .filter(Boolean)
+        .filter(id => !(modalidadesOwn || []).some(m => m.id === id));
+
+      let modalidadesAgenda = [];
+      if (idsApenasAgenda.length > 0) {
+        const { data } = await supabase
+          .from('modalidades')
+          .select('id, nome')
+          .in('id', idsApenasAgenda);
+        modalidadesAgenda = data || [];
+      }
+
+      // Mapa id → nome para resolver nomes na renderização sem FK join
+      const modalidadesMap = new Map([
+        ...(modalidadesOwn || []).map(m => [m.id, m]),
+        ...modalidadesAgenda.map(m => [m.id, m]),
+      ]);
+
+      const todasModalidades = [...modalidadesMap.values()];
+      setModalidades(todasModalidades);
+      setModalidadesMap(modalidadesMap);
+
+      const { data: alunosFiltrados, error } = await supabase
         .from('alunos')
-        .select('id, nome_completo, email, telefone, ativo, planos(nome), modalidades_selecionadas')
+        .select(
+          'id, nome_completo, email, telefone, ativo, planos(nome), modalidades_selecionadas'
+        )
         .eq('ativo', true)
         .eq('role', 'aluno')
+        // Usa .overlaps() — traduzido pelo PostgREST para o operador && do Postgres (uuid[])
+        .overlaps('modalidades_selecionadas', idsModalidades)
         .order('nome_completo');
 
       if (error) throw error;
 
-      // Filtra no client-side: aluno deve ter ao menos 1 modalidade do professor
-      const alunosFiltrados = (todosAlunos || []).filter(aluno => {
-        const mods = aluno.modalidades_selecionadas || [];
-        return mods.some(id => idsModalidades.includes(id));
-      });
+      const listaAlunos = alunosFiltrados || [];
+      setAlunos(listaAlunos);
 
-      setAlunos(alunosFiltrados);
+      // Busca última presença de cada aluno em paralelo (batch único)
+      if (listaAlunos.length > 0) {
+        const alunoIds = listaAlunos.map(a => a.id);
+        const { data: presencas } = await supabase
+          .from('presencas')
+          .select('aluno_id, data_checkin')
+          .in('aluno_id', alunoIds)
+          .order('data_checkin', { ascending: false });
+
+        // Mantém apenas a última presença por aluno (O(n) com Map)
+        const mapa = {};
+        for (const p of presencas || []) {
+          if (!mapa[p.aluno_id]) {
+            mapa[p.aluno_id] = p.data_checkin;
+          }
+        }
+        setUltimaPresencaMap(mapa);
+      }
     } catch (err) {
       showToast.error('Erro ao carregar alunos.');
       console.error(err);
@@ -1167,28 +1284,74 @@ export default function ProfessorAlunos() {
     }
   }
 
-  const alunosFiltrados = alunos.filter(a =>
-    !busca ||
-    a.nome_completo?.toLowerCase().includes(busca.toLowerCase()) ||
-    a.email?.toLowerCase().includes(busca.toLowerCase())
+  // Filtragem client-side: busca + modalidade
+  const alunosFiltrados = useMemo(() => {
+    return alunos.filter(a => {
+      const matchBusca =
+        !buscaDebounced ||
+        a.nome_completo?.toLowerCase().includes(buscaDebounced.toLowerCase()) ||
+        a.email?.toLowerCase().includes(buscaDebounced.toLowerCase());
+
+      const matchModalidade =
+  !filtroModalidade ||
+  (Array.isArray(a.modalidades_selecionadas) &&
+    a.modalidades_selecionadas.includes(filtroModalidade));
+
+      return matchBusca && matchModalidade;
+    });
+  }, [alunos, buscaDebounced, filtroModalidade]);
+
+  // Reseta para página 1 quando filtros mudam
+  useEffect(() => { setPagina(1); }, [buscaDebounced, filtroModalidade]);
+
+  // T3 FIX: paginação client-side
+  const totalPaginas = Math.max(1, Math.ceil(alunosFiltrados.length / PAGE_SIZE));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const alunosPagina = alunosFiltrados.slice(
+    (paginaAtual - 1) * PAGE_SIZE,
+    paginaAtual * PAGE_SIZE
   );
 
+  // Título com contador
+  const titulo = loading
+    ? 'Meus Alunos'
+    : `Meus Alunos · ${alunosFiltrados.length} ativo${alunosFiltrados.length !== 1 ? 's' : ''}`;
+
   return (
-    <div className="p-8 space-y-6 animate-in fade-in duration-500">
+    <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-black text-foreground tracking-tight">Meus Alunos</h1>
+        <h1 className="text-3xl font-black text-foreground tracking-tight">{titulo}</h1>
         <p className="text-muted-foreground font-medium">
-          Alunos matriculados nas suas modalidades.
+          Todos os alunos ativos nas suas turmas.
         </p>
       </div>
 
-      <Input
-        leftIcon={<Search size={18} />}
-        placeholder="Buscar por nome ou e-mail..."
-        value={busca}
-        onChange={e => setBusca(e.target.value)}
-      />
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <Input
+            leftIcon={<Search size={18} />}
+            placeholder="Buscar por nome ou e-mail..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+          />
+        </div>
+        {modalidades.length > 1 && (
+          <select
+            value={filtroModalidade}
+            onChange={e => setFiltroModalidade(e.target.value)}
+            className="h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <option value="">Todas as modalidades</option>
+            {modalidades.map(m => (
+              <option key={m.id} value={m.id}>{m.nome}</option>
+            ))}
+          </select>
+        )}
+      </div>
 
+      {/* Conteúdo */}
       {loading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -1197,40 +1360,234 @@ export default function ProfessorAlunos() {
         <EmptyState
           icon={<Users size={28} />}
           title="Nenhum aluno encontrado"
-          description="Não há alunos matriculados nas suas modalidades ainda."
+          description={
+            alunos.length === 0
+              ? 'Você ainda não tem alunos nas suas modalidades. Fale com o admin.'
+              : 'Nenhum aluno corresponde aos filtros aplicados.'
+          }
         />
       ) : (
-        <Surface variant="card" padding="none" className="rounded-[32px] overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
-              <tr>
-                <th className="px-8 py-5">Aluno</th>
-                <th className="px-8 py-5">Plano</th>
-                <th className="px-8 py-5">Telefone</th>
-                <th className="px-8 py-5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {alunosFiltrados.map(aluno => (
-                <tr key={aluno.id} className="hover:bg-primary-soft/30 transition-colors">
-                  <td className="px-8 py-5">
-                    <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-                    <p className="text-xs text-muted-foreground">{aluno.email}</p>
-                  </td>
-                  <td className="px-8 py-5 text-sm font-medium text-foreground">
-                    {aluno.planos?.nome || '—'}
-                  </td>
-                  <td className="px-8 py-5 text-sm text-muted-foreground">
-                    {aluno.telefone || '—'}
-                  </td>
-                  <td className="px-8 py-5">
-                    <Badge tone="success" variant="soft">Ativo</Badge>
-                  </td>
+        <>
+          {/* DESKTOP: tabela */}
+          <Surface variant="card" padding="none" className="hidden md:block rounded-[32px] overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
+                <tr>
+                  <th className="px-8 py-5">Aluno</th>
+                  <th className="px-8 py-5">Modalidade / Plano</th>
+                  <th className="px-8 py-5">Contato</th>
+                  <th className="px-8 py-5">Última Presença</th>
+                  <th className="px-8 py-5">Status</th>
+                  <th className="px-8 py-5"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Surface>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {alunosPagina.map(aluno => {
+                  const ultimaPresenca = ultimaPresencaMap[aluno.id];
+                  const whatsapp = formatarWhatsApp(aluno.telefone);
+                  return (
+                    <tr
+                      key={aluno.id}
+                      className="hover:bg-primary-soft/30 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/alunos/${aluno.id}`)}
+                    >
+                      <td className="px-8 py-5">
+                        <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+                        {aluno.email ? (
+                          <a
+                            href={`mailto:${aluno.email}`}
+                            className="text-xs text-primary hover:underline"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {aluno.email}
+                          </a>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">—</p>
+                        )}
+                      </td>
+
+                      {/* T4 FIX: plano em Badge destacado */}
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-foreground">
+                          {Array.isArray(aluno.modalidades_selecionadas) && aluno.modalidades_selecionadas.length > 0
+                            ? aluno.modalidades_selecionadas
+                                .map(id => modalidadesMap.get(id)?.nome)
+                                .filter(Boolean)
+                                .join(', ') || '—'
+                            : '—'}
+                        </p>
+                        {aluno.planos?.nome && (
+                          <Badge tone="info" variant="soft" className="mt-1 text-xs">
+                            {aluno.planos.nome}
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="px-8 py-5">
+                        <div className="flex flex-col gap-1">
+                          {aluno.telefone ? (
+                            <a
+                              href={`tel:${aluno.telefone}`}
+                              className="text-sm text-primary font-medium hover:underline"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {aluno.telefone}
+                            </a>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                          {whatsapp && (
+                            <a
+                              href={`https://wa.me/${whatsapp}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-emerald-600 font-medium hover:underline"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              Abrir WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-8 py-5">
+                        {ultimaPresenca ? (
+                          <span
+                            className={`text-sm font-medium ${
+                              (new Date() - new Date(ultimaPresenca)) / 86400000 > 14
+                                ? 'text-amber-500'
+                                : 'text-foreground'
+                            }`}
+                          >
+                            {formatarUltimaPresenca(ultimaPresenca)}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Sem registro</span>
+                        )}
+                      </td>
+
+                      <td className="px-8 py-5">
+                        <Badge tone="success" variant="soft">Ativo</Badge>
+                      </td>
+
+                      {/* T5 FIX: botão de acesso ao perfil */}
+                      <td className="px-8 py-5">
+                        <button
+                          className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                          onClick={e => { e.stopPropagation(); navigate(`/alunos/${aluno.id}`); }}
+                          title="Ver perfil completo"
+                        >
+                          <ExternalLink size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Surface>
+
+          {/* MOBILE: cards */}
+          <div className="md:hidden space-y-3">
+            {alunosPagina.map(aluno => {
+              const ultimaPresenca = ultimaPresencaMap[aluno.id];
+              const whatsapp = formatarWhatsApp(aluno.telefone);
+              const semanas = ultimaPresenca
+                ? (new Date() - new Date(ultimaPresenca)) / 86400000
+                : null;
+              return (
+                <Surface
+                  key={aluno.id}
+                  variant="card"
+                  className="rounded-2xl p-4 cursor-pointer active:scale-[0.99] transition-transform"
+                  onClick={() => navigate(`/alunos/${aluno.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-foreground truncate">{aluno.nome_completo}</p>
+                      {aluno.email && (
+                        <p className="text-xs text-muted-foreground truncate">{aluno.email}</p>
+                      )}
+                    </div>
+                    <Badge tone="success" variant="soft" className="shrink-0">Ativo</Badge>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {Array.isArray(aluno.modalidades_selecionadas) && aluno.modalidades_selecionadas.length > 0 && (
+                      <span className="font-medium text-foreground">
+                        {aluno.modalidades_selecionadas
+                          .map(id => modalidadesMap.get(id)?.nome)
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    )}
+                    {aluno.planos?.nome && (
+                      <Badge tone="info" variant="soft">{aluno.planos.nome}</Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex gap-3">
+                      {aluno.telefone && (
+                        <a
+                          href={`tel:${aluno.telefone}`}
+                          className="text-xs text-primary font-medium"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {aluno.telefone}
+                        </a>
+                      )}
+                      {whatsapp && (
+                        <a
+                          href={`https://wa.me/${whatsapp}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-600 font-medium"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+                    </div>
+                    {ultimaPresenca && (
+                      <span className={`text-xs font-medium ${semanas > 14 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                        Presença: {formatarUltimaPresenca(ultimaPresenca)}
+                      </span>
+                    )}
+                  </div>
+                </Surface>
+              );
+            })}
+          </div>
+
+          {/* T3: Paginação */}
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-sm text-muted-foreground">
+                {(paginaAtual - 1) * PAGE_SIZE + 1}–{Math.min(paginaAtual * PAGE_SIZE, alunosFiltrados.length)} de {alunosFiltrados.length}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  disabled={paginaAtual === 1}
+                  onClick={() => setPagina(p => p - 1)}
+                  className="p-2 rounded-lg border border-border disabled:opacity-30 hover:bg-muted transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="px-3 py-2 text-sm font-medium">
+                  {paginaAtual} / {totalPaginas}
+                </span>
+                <button
+                  disabled={paginaAtual === totalPaginas}
+                  onClick={() => setPagina(p => p + 1)}
+                  className="p-2 rounded-lg border border-border disabled:opacity-30 hover:bg-muted transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1238,154 +1595,295 @@ export default function ProfessorAlunos() {
 </file>
 
 <file path="gestao_web/src/pages/Professor/ProfessorComissoes.jsx">
-import React, { useEffect, useState } from 'react';
-import { Percent, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { supabase } from '../../lib/supabase';
-import { comissoesService } from '../../services/comissoesService';
-import { formatarMoeda } from '../../lib/utils';
-import { showToast } from '../../components/shared/Toast';
+// gestao_web/src/pages/Professor/ProfessorComissoes.jsx
+import React, { useMemo, useState } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  AlertCircle,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+} from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { useRepassesProfessor } from '../../hooks/useRepasses';
 import Surface from '../../components/ui/Surface';
 import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
+import Button from '../../components/ui/Button';
 
-export default function ProfessorComissoes() {
-  const hoje = new Date();
-  const [mesAno, setMesAno] = useState(
-    `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function mesAnoLabel(mesAno) {
+  const [ano, mes] = mesAno.split('-').map(Number);
+  return new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function navegarMes(mesAno, delta) {
+  const [ano, mes] = mesAno.split('-').map(Number);
+  const d = new Date(ano, mes - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function mesAnoAtual() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatarMoeda(v) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
+}
+
+function formatarData(iso) {
+  if (!iso) return '—';
+  const [ano, mes, dia] = iso.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+function statusBadge(status) {
+  if (status === 'pago') return <Badge tone="success">Pago</Badge>;
+  if (status === 'cancelado') return <Badge tone="destructive">Cancelado</Badge>;
+  return <Badge tone="warning">Pendente</Badge>;
+}
+
+function tipoAulaLabel(tipo) {
+  const mapa = {
+    fixo: 'Aula Fixa',
+    avulsa: 'Aula Avulsa',
+    reposicao: 'Reposição',
+    experimental: 'Experimental',
+  };
+  return mapa[tipo] ?? tipo ?? '—';
+}
+
+// ─── export CSV ──────────────────────────────────────────────────────────────
+
+function exportarCSV(repasses, mesAno) {
+  const cabecalho = ['Data', 'Aluno', 'Modalidade', 'Tipo de Aula', 'Valor', 'Status'];
+  const linhas = repasses.map(r => [
+    formatarData(r.data_referencia),
+    r.alunos?.nome_completo ?? '—',
+    r.modalidade ?? '—',
+    tipoAulaLabel(r.tipo_aula),
+    String(r.valor ?? 0).replace('.', ','),
+    r.status ?? 'pendente',
+  ]);
+
+  const csv = [cabecalho, ...linhas]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `repasses-${mesAno}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── KPI card ────────────────────────────────────────────────────────────────
+
+function KPICard({ icon, label, value, tone = 'neutral', loading }) {
+  const toneClasses = {
+    brand: 'text-primary bg-primary-soft',
+    success: 'text-success bg-success-soft',
+    warning: 'text-warning bg-warning-soft',
+    neutral: 'text-muted-foreground bg-muted',
+  };
+  return (
+    <Surface variant="card" className="flex items-center gap-4 p-6">
+      <span className={`rounded-2xl p-3 ${toneClasses[tone]}`}>{icon}</span>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        {loading ? (
+          <Skeleton className="h-7 w-24 mt-1" />
+        ) : (
+          <p className="text-2xl font-black text-foreground">{value}</p>
+        )}
+      </div>
+    </Surface>
   );
-  const [dados, setDados] = useState(null);
-  const [loading, setLoading] = useState(true);
+}
 
-  useEffect(() => {
-    carregarComissoes();
-  }, [mesAno]);
+// ─── página ──────────────────────────────────────────────────────────────────
 
-  async function carregarComissoes() {
-    setLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const authId = session?.user?.id;
-      if (!authId) return;
+// R1 FIX — nome do componente alinhado com o nome do arquivo
+export default function ProfessorComissoes() {
+  const { professorId } = useAuth();
+  const [mesAno, setMesAno] = useState(mesAnoAtual);
 
-      const { data: prof } = await supabase
-        .from('professores')
-        .select('id')
-        .eq('auth_id', authId)
-        .maybeSingle();
+  // R2 FIX — isError e error desestruturados para feedback visual
+  const { data: repasses, isLoading, isError, error } = useRepassesProfessor(professorId, mesAno);
 
-      if (!prof) return;
-
-      const resultado = await comissoesService.buscarDetalhes(prof.id, mesAno);
-      setDados(resultado);
-    } catch (err) {
-      showToast.error('Erro ao carregar comissões.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function navegarMes(delta) {
-    const [ano, mes] = mesAno.split('-').map(Number);
-    const novaData = new Date(ano, mes - 1 + delta, 1);
-    setMesAno(
-      `${novaData.getFullYear()}-${String(novaData.getMonth() + 1).padStart(2, '0')}`
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    if (!repasses) return { total: 0, confirmado: 0, pendente: 0 };
+    return repasses.reduce(
+      (acc, r) => {
+        const v = r.valor ?? 0;
+        acc.total += v;
+        if (r.status === 'pago') acc.confirmado += v;
+        else acc.pendente += v;
+        return acc;
+      },
+      { total: 0, confirmado: 0, pendente: 0 }
     );
-  }
+  }, [repasses]);
 
-  const mesLabel = format(new Date(mesAno + '-15'), 'MMMM yyyy', { locale: ptBR });
+  const podeFuturo = mesAno < mesAnoAtual();
 
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+
+      {/* ── cabeçalho ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-foreground tracking-tight">Minhas Comissões</h1>
-          <p className="text-muted-foreground font-medium">Seus lançamentos de repasse por período.</p>
+          {/* 5.3 Copywriting */}
+          <h1 className="text-3xl font-black text-foreground tracking-tight">
+            Repasses & Comissões
+          </h1>
+          <p className="text-muted-foreground font-medium capitalize">
+            {mesAnoLabel(mesAno)}
+          </p>
         </div>
-        {/* Navegação de mês */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navegarMes(-1)}
-            className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+
+        {/* ── navegação de mês ── */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setMesAno(m => navegarMes(m, -1))}
+            aria-label="Mês anterior"
           >
-            <ChevronLeft size={20} />
-          </button>
-          <span className="font-black text-foreground capitalize w-36 text-center">{mesLabel}</span>
-          <button
-            onClick={() => navegarMes(1)}
-            className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+            <ChevronLeft size={18} />
+          </Button>
+          <span className="min-w-[130px] text-center text-sm font-bold text-foreground capitalize">
+            {mesAnoLabel(mesAno)}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setMesAno(m => navegarMes(m, 1))}
+            disabled={!podeFuturo}
+            aria-label="Próximo mês"
           >
-            <ChevronRight size={20} />
-          </button>
+            <ChevronRight size={18} />
+          </Button>
+
+          {repasses?.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<Download size={15} />}
+              onClick={() => exportarCSV(repasses, mesAno)}
+            >
+              Exportar CSV
+            </Button>
+          )}
         </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-        </div>
-      ) : !dados || dados.lancamentos.length === 0 ? (
-        <EmptyState
-          icon={<Percent size={28} />}
-          title="Sem lançamentos"
-          description={`Nenhuma comissão registrada em ${mesLabel}.`}
+      {/* ── KPI cards ──────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KPICard
+          icon={<TrendingUp size={20} />}
+          label="Total a receber"
+          value={formatarMoeda(kpis.total)}
+          tone="brand"
+          loading={isLoading}
         />
-      ) : (
-        <>
-          {/* Card de resumo */}
-          <Surface variant="card" padding="xl" className="rounded-[32px]">
-            <p className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-2">
-              Total do mês
-            </p>
-            <p className="text-4xl font-black text-success">
-              {formatarMoeda(dados.resumo.total_comissao)}
-            </p>
-            {dados.fechamento && (
-              <Badge tone="success" variant="soft" className="mt-3">
-                Mês fechado
-              </Badge>
-            )}
-          </Surface>
+        <KPICard
+          icon={<CheckCircle2 size={20} />}
+          label="Confirmado"
+          value={formatarMoeda(kpis.confirmado)}
+          tone="success"
+          loading={isLoading}
+        />
+        <KPICard
+          icon={<Clock size={20} />}
+          label="Pendente"
+          value={formatarMoeda(kpis.pendente)}
+          tone="warning"
+          loading={isLoading}
+        />
+      </div>
 
-          {/* Tabela de lançamentos */}
+      {/* ── erro (R2) ──────────────────────────────────────────────────────── */}
+      {isError && (
+        <Surface variant="card" className="flex items-center gap-3 p-5 border border-destructive/30 bg-destructive-soft">
+          <AlertCircle size={20} className="text-destructive shrink-0" />
+          <div>
+            <p className="font-bold text-destructive text-sm">Erro ao carregar repasses</p>
+            <p className="text-xs text-muted-foreground">
+              {error?.message ?? 'Tente novamente em instantes.'}
+            </p>
+          </div>
+        </Surface>
+      )}
+
+      {/* ── skeleton ───────────────────────────────────────────────────────── */}
+      {isLoading && (
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      )}
+
+      {/* ── tabela ─────────────────────────────────────────────────────────── */}
+      {!isLoading && !isError && (
+        repasses?.length === 0 ? (
+          <EmptyState
+            icon={<TrendingUp size={28} />}
+            title={`Nenhum repasse em ${mesAnoLabel(mesAno)}`}
+            // 5.3 Copywriting
+            description={`Seus repasses de ${mesAnoLabel(mesAno)} aparecerão aqui após o fechamento do mês.`}
+          />
+        ) : (
           <Surface variant="card" padding="none" className="rounded-[32px] overflow-hidden">
             <table className="w-full text-left">
               <thead className="bg-muted/50 text-[10px] font-black uppercase text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-8 py-5">Data</th>
                   <th className="px-8 py-5">Aluno</th>
-                  <th className="px-8 py-5">Modalidade</th>
-                  <th className="px-8 py-5">Tipo</th>
-                  <th className="px-8 py-5 text-right">Valor</th>
+                  <th className="px-8 py-5">Modalidade / Tipo</th>
+                  <th className="px-8 py-5">Valor</th>
+                  <th className="px-8 py-5">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {dados.lancamentos.map(l => (
-                  <tr key={l.id} className="hover:bg-primary-soft/30 transition-colors">
-                    <td className="px-8 py-5 text-sm text-muted-foreground">
-                      {format(new Date(l.created_at), 'dd/MM/yyyy')}
-                    </td>
-                    <td className="px-8 py-5 font-bold text-foreground">
-                      {l.alunos?.nome_completo || '—'}
-                    </td>
-                    <td className="px-8 py-5 text-sm text-muted-foreground">
-                      {l.modalidade || '—'}
+                {repasses.map(r => (
+                  <tr key={r.id} className="hover:bg-primary-soft/30 transition-colors">
+                    <td className="px-8 py-5 text-sm text-muted-foreground whitespace-nowrap">
+                      {formatarData(r.data_referencia)}
                     </td>
                     <td className="px-8 py-5">
-                      <Badge tone="info" variant="soft">{l.tipo_aula}</Badge>
+                      <p className="font-bold text-foreground">
+                        {r.alunos?.nome_completo ?? '—'}
+                      </p>
                     </td>
-                    <td className="px-8 py-5 text-right font-black text-success">
-                      {formatarMoeda(l.valor)}
+                    <td className="px-8 py-5">
+                      <p className="text-sm font-bold text-foreground">{r.modalidade ?? '—'}</p>
+                      <p className="text-xs text-muted-foreground">{tipoAulaLabel(r.tipo_aula)}</p>
+                    </td>
+                    <td className="px-8 py-5 font-bold text-foreground whitespace-nowrap">
+                      {formatarMoeda(r.valor)}
+                    </td>
+                    <td className="px-8 py-5">
+                      {statusBadge(r.status)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Surface>
-        </>
+        )
       )}
     </div>
   );
@@ -2982,17 +3480,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 </file>
 
-<file path="gestao_web/vercel.json">
-{
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
-}
-</file>
-
 <file path="supabase/functions/gerar-mensalidades/config.toml">
 [functions.gerar-mensalidades]
 verify_jwt = false  # Permite chamada do cron sem auth
@@ -3965,13 +4452,17 @@ export const coresStatus = {
 import { useQuery } from '@tanstack/react-query';
 import { agendamentoService } from '../../../services/agendamentoService';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../hooks/useAuth';
 
 export function useAgendaDadosMes(currentDate) {
+  const { perfil } = useAuth();
   const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
   const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
 
   const { data, isLoading } = useQuery({
     queryKey: ['agenda', 'dadosMes', inicio, fim],
+    // A6: aguarda o perfil estar resolvido antes de disparar queries
+    enabled: perfil !== null,
     queryFn: async () => {
       const [dadosAvulsos, dadosExcecoes] = await Promise.all([
          agendamentoService.listarPresencasPeriodo(inicio, fim),
@@ -3995,37 +4486,132 @@ export function useAgendaDadosMes(currentDate) {
 </file>
 
 <file path="gestao_web/src/pages/RedefinirSenha.jsx">
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { rotaPorPerfil } from '../lib/navigation';
 import { showToast } from '../components/shared/Toast';
+import { LIMITES } from '../lib/constants';
+
+const SENHA_MIN = LIMITES.SENHA_MIN;
+
+function calcularForca(senha) {
+  if (!senha) return 0;
+  let pontos = 0;
+  if (senha.length >= SENHA_MIN)   pontos++;
+  if (/[A-Z]/.test(senha))        pontos++;
+  if (/[0-9]/.test(senha))        pontos++;
+  if (/[^A-Za-z0-9]/.test(senha)) pontos++;
+  if (pontos === 0) return 0;
+  if (pontos === 1) return 1;
+  if (pontos <= 3)  return 2;
+  return 3;
+}
+
+const FORCA_CONFIG = [
+  null,
+  { label: 'Fraca',  segmentos: 1, cor: 'bg-red-400',    texto: 'text-red-500'    },
+  { label: 'Média',  segmentos: 2, cor: 'bg-yellow-400',  texto: 'text-yellow-600' },
+  { label: 'Forte',  segmentos: 3, cor: 'bg-green-500',   texto: 'text-green-600'  },
+];
+
+function IndicadorForca({ senha }) {
+  const nivel = useMemo(() => calcularForca(senha), [senha]);
+  const config = FORCA_CONFIG[nivel];
+
+  return (
+    <div className="mt-2 px-1 space-y-1.5">
+      <div className="flex gap-1.5">
+        {[1, 2, 3].map(i => (
+          <div
+            key={i}
+            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+              nivel > 0 && i <= config.segmentos ? config.cor : 'bg-gray-200'
+            }`}
+          />
+        ))}
+      </div>
+      {senha.length > 0 && config && (
+        <p className={`text-[10px] font-black uppercase tracking-wider ${config.texto} transition-all`}>
+          Senha {config.label}
+          {nivel < 3 && (
+            <span className="font-medium normal-case tracking-normal text-gray-400 ml-1">
+              {nivel === 1 && '— adicione letras maiúsculas e números'}
+              {nivel === 2 && '— adicione um caractere especial para fortalecer'}
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function RedefinirSenha() {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessaoValida, setSessaoValida] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const primeiroAcesso = location.state?.primeiroAcesso ?? false;
+  const nomeUsuario = location.state?.nome ?? '';
+
+  // Valida sessão levando em conta o fluxo do link de redefinição:
+  // o Supabase popula a sessão via fragmento de URL (#access_token=...) apenas
+  // no evento onAuthStateChange — getSession() pode retornar null no primeiro
+  // render antes desse evento chegar. Por isso, se getSession() não tiver sessão,
+  // aguardamos o evento PASSWORD_RECOVERY/SIGNED_IN antes de redirecionar.
+  useEffect(() => {
+    let subscription = null;
+    let timeoutId = null;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Sessão já presente (primeiro acesso vindo do Login, ou tab recarregada)
+        setSessaoValida(true);
+        return;
+      }
+
+      // Sem sessão imediata: aguarda o evento do link de redefinição
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+          setSessaoValida(true);
+          subscription?.unsubscribe();
+          clearTimeout(timeoutId);
+        }
+      });
+      subscription = data.subscription;
+
+      // Timeout de segurança: se em 6s nenhum evento válido chegar, redireciona
+      timeoutId = setTimeout(() => {
+        subscription?.unsubscribe();
+        showToast.error('Link expirado ou inválido. Solicite um novo.');
+        navigate('/login');
+      }, 6000);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+      clearTimeout(timeoutId);
+    };
+  }, [navigate]);
 
   async function handleUpdatePassword(e) {
     e.preventDefault();
-    
-    // ✅ Correto — mínimo 8, com indicador de força
-const SENHA_MIN = 8;
-if (novaSenha.length < SENHA_MIN) {
-  showToast.error(`A senha deve ter pelo menos ${SENHA_MIN} caracteres.`);
-  return;
-}
-// Opcional: verificar presença de número e letra maiúscula
-const temVariedade = /[A-Z]/.test(novaSenha) && /[0-9]/.test(novaSenha);
-if (!temVariedade) {
-  showToast.error('Use ao menos uma letra maiúscula e um número.');
-  return;
-}
 
+    if (novaSenha.length < SENHA_MIN) {
+      showToast.error(`A senha deve ter pelo menos ${SENHA_MIN} caracteres.`);
+      return;
+    }
+    const temVariedade = /[A-Z]/.test(novaSenha) && /[0-9]/.test(novaSenha);
+    if (!temVariedade) {
+      showToast.error('Use ao menos uma letra maiúscula e um número.');
+      return;
+    }
     if (novaSenha !== confirmarSenha) {
-      showToast.error("As senhas não coincidem.");
+      showToast.error('As senhas não coincidem.');
       return;
     }
 
@@ -4036,7 +4622,7 @@ if (!temVariedade) {
       if (error) throw error;
 
       const { data: { user } } = await supabase.auth.getUser();
-      let rotaDestino = rotaPorPerfil(null); // fallback seguro
+      let rotaDestino = rotaPorPerfil(null);
 
       if (user) {
         const { data: alunoData } = await supabase
@@ -4046,63 +4632,90 @@ if (!temVariedade) {
           .maybeSingle();
 
         if (alunoData) {
-          await supabase.from('alunos').update({ primeiro_acesso: false }).eq('auth_id', user.id);
+          await supabase
+            .from('alunos')
+            .update({ primeiro_acesso: false })
+            .eq('auth_id', user.id);
           rotaDestino = rotaPorPerfil(alunoData.role);
         } else {
           const { data: profData } = await supabase
             .from('professores')
             .select('id')
-            .eq('email', user.email)
+            .eq('auth_id', user.id)
             .maybeSingle();
 
           if (profData) {
+            await supabase
+              .from('professores')
+              .update({ primeiro_acesso: false })
+              .eq('auth_id', user.id);
             rotaDestino = rotaPorPerfil('professor');
           }
         }
       }
 
-      showToast.success("Senha definida com sucesso!");
-      
+      showToast.success('Senha definida com sucesso!');
       setTimeout(() => navigate(rotaDestino), 1000);
-      
+
     } catch (error) {
-      showToast.error("Erro ao atualizar: " + error.message);
+      showToast.error('Erro ao atualizar: ' + error.message);
     } finally {
       setLoading(false);
     }
   }
 
+  // Não renderiza nada enquanto valida sessão (evita flash do form e redirect prematuro)
+  if (!sessaoValida) return null;
+
   return (
-    <div className="min-h-screen bg-[#FDF8F5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-[40px] shadow-xl p-10 border border-orange-50 animate-in slide-in-from-bottom-4 duration-500">
         <div className="text-center mb-8">
           <div className="bg-green-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6">
             <Lock className="text-green-600" size={32} />
           </div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight">Nova Senha</h1>
-          <p className="text-gray-400 font-medium mt-2">Crie uma senha segura para seu acesso pessoal.</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight">
+            {primeiroAcesso ? 'Bem-vindo!' : 'Nova Senha'}
+          </h1>
+          <p className="text-gray-400 font-medium mt-2">
+            {primeiroAcesso
+              ? `Olá${nomeUsuario ? `, ${nomeUsuario}` : ''}! Para continuar, crie sua senha pessoal de acesso.`
+              : 'Crie uma senha segura para seu acesso pessoal.'}
+          </p>
         </div>
 
         <form onSubmit={handleUpdatePassword} className="space-y-5">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Senha</label>
-            <input 
-              type="password" required placeholder="Mínimo 6 caracteres"
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              placeholder={`Mínimo ${SENHA_MIN} caracteres`}
               className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-100 transition-all font-bold text-gray-700"
-              value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
             />
+            <IndicadorForca senha={novaSenha} />
           </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 uppercase ml-4">Confirmar Senha</label>
-            <input 
-              type="password" required placeholder="Repita a senha"
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              placeholder="Repita a senha"
               className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-100 transition-all font-bold text-gray-700"
-              value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
+              value={confirmarSenha}
+              onChange={(e) => setConfirmarSenha(e.target.value)}
             />
           </div>
 
-          <button disabled={loading} className="w-full bg-gray-800 text-white py-5 rounded-[22px] font-black text-lg shadow-lg hover:bg-gray-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
+          <button
+            disabled={loading}
+            className="w-full bg-gray-800 text-white py-5 rounded-[22px] font-black text-lg shadow-lg hover:bg-gray-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
+          >
             {loading ? <RefreshCw className="animate-spin" size={24} /> : <><CheckCircle2 size={20} /> Salvar e Acessar</>}
           </button>
         </form>
@@ -5386,6 +5999,8 @@ export function useAgenda() {
     aulas: queryGrade.data || [],
     feriados: queryFeriados.data || [],
     loading: queryGrade.isLoading || queryFeriados.isLoading,
+    isError: queryGrade.isError || queryFeriados.isError,
+    error: queryGrade.error || queryFeriados.error,
     refetch
   };
 }
@@ -5418,18 +6033,31 @@ export const alunoSchema = yup.object().shape({
 
 <file path="gestao_web/src/pages/Agenda/components/FiltrosAgenda.jsx">
 import React from 'react';
-import { Dumbbell, Music, Filter } from 'lucide-react';
+import { Dumbbell, Music, Filter, LayoutGrid } from 'lucide-react';
 import Surface from '../../../components/ui/Surface';
 import Input from '../../../components/ui/Input';
 
+// espacosDisponiveis: Set<'funcional'|'danca'> — undefined = mostrar tudo (admin)
 export default function FiltrosAgenda({ 
   filtroEspaco, 
   setFiltroEspaco, 
   filtroProf, 
   setFiltroProf, 
   professores, 
-  isAdmin 
+  isAdmin,
+  espacosDisponiveis,   // novo
 }) {
+  // Se não foi passado (admin), todos os espaços estão disponíveis
+  const temFuncional = !espacosDisponiveis || espacosDisponiveis.has('funcional');
+  const temDanca     = !espacosDisponiveis || espacosDisponiveis.has('danca');
+
+  // Se o filtro ativo foi removido (professor não leciona naquele espaço),
+  // volta para 'todos' de forma segura.
+  React.useEffect(() => {
+    if (filtroEspaco === 'funcional' && !temFuncional) setFiltroEspaco('todos');
+    if (filtroEspaco === 'danca'     && !temDanca)     setFiltroEspaco('todos');
+  }, [temFuncional, temDanca]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Surface 
       variant="card" 
@@ -5448,26 +6076,32 @@ export default function FiltrosAgenda({
         >
           Todos
         </button>
-        <button 
-          onClick={() => setFiltroEspaco('funcional')} 
-          className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-            filtroEspaco === 'funcional' 
-              ? 'bg-warning-soft text-warning shadow-sm border border-warning/20' 
-              : 'text-muted-foreground hover:text-warning'
-          }`}
-        >
-          <Dumbbell size={16} /> Funcional
-        </button>
-        <button 
-          onClick={() => setFiltroEspaco('danca')} 
-          className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-            filtroEspaco === 'danca' 
-              ? 'bg-purple-soft text-purple shadow-sm border border-purple/20' 
-              : 'text-muted-foreground hover:text-purple'
-          }`}
-        >
-          <Music size={16} /> Dança
-        </button>
+
+        {temFuncional && (
+          <button 
+            onClick={() => setFiltroEspaco('funcional')} 
+            className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+              filtroEspaco === 'funcional' 
+                ? 'bg-warning-soft text-warning shadow-sm border border-warning/20' 
+                : 'text-muted-foreground hover:text-warning'
+            }`}
+          >
+            <Dumbbell size={16} /> Funcional
+          </button>
+        )}
+
+        {temDanca && (
+          <button 
+            onClick={() => setFiltroEspaco('danca')} 
+            className={`px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+              filtroEspaco === 'danca' 
+                ? 'bg-purple-soft text-purple shadow-sm border border-purple/20' 
+                : 'text-muted-foreground hover:text-purple'
+            }`}
+          >
+            <Music size={16} /> Dança
+          </button>
+        )}
       </div>
 
       {/* Select de Professor (Somente Admin) */}
@@ -5497,11 +6131,12 @@ export default function FiltrosAgenda({
 </file>
 
 <file path="gestao_web/src/pages/ConfiguracoesRepasse.jsx">
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Save, RefreshCw, Calculator, Percent, DollarSign } from 'lucide-react';
+import { Save, RefreshCw, Calculator, Percent, DollarSign, Info } from 'lucide-react';
 
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -5512,19 +6147,65 @@ import {
   useSalvarConfiguracoesRepasse,
 } from '../hooks/useConfiguracoesRepasse';
 
+// ─── CR1 FIX: soma-avulsa agora valida aula_avulsa igual ao soma-livre ────────
 const schema = yup.object().shape({
-  valor_1_modalidade: yup.number().min(0).required("Campo obrigatório"),
-  valor_multi_modalidade: yup.number().min(0).required("Campo obrigatório"),
-  plano_livre_pct_casa: yup.number().min(0).max(100).required("Campo obrigatório"),
-  plano_livre_pct_prof: yup.number().min(0).max(100).required("Campo obrigatório"),
-  aula_experimental_valor: yup.number().min(0).required("Campo obrigatório"),
-  aula_experimental_pct_prof: yup.number().min(0).max(100).required("Campo obrigatório"),
-  aula_avulsa_valor: yup.number().min(0).required("Campo obrigatório"),
-  aula_avulsa_pct_casa: yup.number().min(0).max(100).required("Campo obrigatório"),
-  aula_avulsa_pct_prof: yup.number().min(0).max(100).required("Campo obrigatório"),
-}).test('soma-livre', 'A soma do Plano Livre deve ser 100%', function(values) {
-  return (Number(values.plano_livre_pct_casa) + Number(values.plano_livre_pct_prof)) === 100;
-});
+  valor_1_modalidade: yup.number().min(0).required('Campo obrigatório'),
+  valor_multi_modalidade: yup.number().min(0).required('Campo obrigatório'),
+  plano_livre_pct_casa: yup.number().min(0).max(100).required('Campo obrigatório'),
+  plano_livre_pct_prof: yup.number().min(0).max(100).required('Campo obrigatório'),
+  aula_experimental_valor: yup
+    .number()
+    .min(0)
+    .required('Campo obrigatório'),
+  aula_experimental_pct_prof: yup.number().min(0).max(100).required('Campo obrigatório'),
+  aula_avulsa_valor: yup
+    .number()
+    .min(0)
+    .required('Campo obrigatório'),
+  aula_avulsa_pct_casa: yup.number().min(0).max(100).required('Campo obrigatório'),
+  aula_avulsa_pct_prof: yup.number().min(0).max(100).required('Campo obrigatório'),
+})
+  .test('soma-livre', 'A soma do Plano Livre deve ser 100%', (values) => {
+    return (Number(values.plano_livre_pct_casa) + Number(values.plano_livre_pct_prof)) === 100;
+  })
+  // CR1 FIX: validação de soma para aula avulsa
+  .test('soma-avulsa', 'A soma da Aula Avulsa (% Casa + % Prof.) deve ser 100%', (values) => {
+    return (Number(values.aula_avulsa_pct_casa) + Number(values.aula_avulsa_pct_prof)) === 100;
+  });
+
+// ─── Tooltip simples ──────────────────────────────────────────────────────────
+function Tooltip({ text }) {
+  return (
+    <span className="group relative inline-flex items-center cursor-help">
+      <Info size={13} className="text-muted-foreground/50 hover:text-primary transition-colors" />
+      <span className="
+        pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+        w-56 rounded-xl bg-foreground/90 text-background text-[11px] font-medium leading-snug
+        px-3 py-2 shadow-lg
+        opacity-0 group-hover:opacity-100 transition-opacity duration-150
+      ">
+        {text}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground/90" />
+      </span>
+    </span>
+  );
+}
+
+// ─── Simulador de divisão em R$ ───────────────────────────────────────────────
+function DivisaoSimulada({ label, valor, pctProf, pctCasa, pctCasaLabel = '% Casa' }) {
+  if (!valor || valor <= 0) return null;
+  const prof = ((pctProf / 100) * valor).toFixed(2);
+  const casa = pctCasa != null ? ((pctCasa / 100) * valor).toFixed(2) : null;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-[11px] font-semibold text-muted-foreground bg-muted/40 rounded-xl px-3 py-2 mt-1">
+      <Calculator size={12} className="text-primary shrink-0" />
+      <span>Exemplo com <span className="text-foreground">R$ {Number(valor).toFixed(2)}</span>:</span>
+      <span className="text-emerald-600">Prof. → R$ {prof}</span>
+      {casa != null && <span className="text-amber-600">Casa → R$ {casa}</span>}
+    </div>
+  );
+}
 
 export default function ConfiguracoesRepasse() {
   const { data: configs, isLoading } = useConfiguracoesRepasse();
@@ -5534,10 +6215,35 @@ export default function ConfiguracoesRepasse() {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isDirty },
   } = useForm({
     resolver: yupResolver(schema),
   });
+
+  // ─── CR3 FIX: bloquear navegação com alterações não salvas ────────────────
+  // useBlocker requer data router; usamos beforeunload + navegação imperativa.
+  const navigate = useNavigate();
+  const isDirtyRef = useRef(isDirty);
+  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+
+  // Bloqueia reload/fechar aba
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  // Helper para navegar com confirmação (use em links/botões internos desta página)
+  // eslint-disable-next-line no-unused-vars
+  const navegarComConfirmacao = useCallback((destino) => {
+    if (isDirtyRef.current) {
+      const confirmar = window.confirm('Você tem alterações não salvas. Deseja sair sem salvar?');
+      if (!confirmar) return;
+    }
+    navigate(destino);
+  }, [navigate]);
 
   useEffect(() => {
     if (configs) reset(configs);
@@ -5545,10 +6251,16 @@ export default function ConfiguracoesRepasse() {
 
   const onSubmit = (data) => mutation.mutate(data);
 
-  const Field = ({ label, name, suffix, icon: Icon }) => (
+  // Watch dos valores para o simulador em tempo real
+  const watched = useWatch({ control });
+
+  // ─── Field component (definido fora do render para evitar re-mount) ───────
+  const Field = useCallback(({ label, name, suffix, icon: Icon, tooltip }) => (
     <div className="space-y-1.5">
       <label className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
-        {Icon && <Icon size={12} />} {label}
+        {Icon && <Icon size={12} />}
+        {label}
+        {tooltip && <Tooltip text={tooltip} />}
       </label>
       <div className="relative">
         <Input
@@ -5556,7 +6268,7 @@ export default function ConfiguracoesRepasse() {
           step="0.01"
           error={!!errors[name]}
           {...register(name)}
-          className={suffix ? "pr-10" : ""}
+          className={suffix ? 'pr-10' : ''}
         />
         {suffix && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground/60 select-none">
@@ -5570,7 +6282,7 @@ export default function ConfiguracoesRepasse() {
         </p>
       )}
     </div>
-  );
+  ), [errors, register]);
 
   if (isLoading) {
     return (
@@ -5580,6 +6292,10 @@ export default function ConfiguracoesRepasse() {
     );
   }
 
+  // CR2: avisos de valor zero
+  const avisoExperimental = Number(watched.aula_experimental_valor) === 0;
+  const avisoAvulsa = Number(watched.aula_avulsa_valor) === 0;
+
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -5587,10 +6303,10 @@ export default function ConfiguracoesRepasse() {
           <h1 className="text-3xl font-black text-foreground tracking-tight">Configurações de Repasse</h1>
           <p className="text-muted-foreground">Defina as regras financeiras e valores padrão do espaço.</p>
         </div>
-        
-        <Button 
-          onClick={handleSubmit(onSubmit)} 
-          variant="brand" 
+
+        <Button
+          onClick={handleSubmit(onSubmit)}
+          variant="brand"
           size="lg"
           disabled={!isDirty || mutation.isPending}
           className="shadow-lg shadow-primary/20 min-w-[200px]"
@@ -5604,50 +6320,120 @@ export default function ConfiguracoesRepasse() {
       </header>
 
       <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
+
+        {/* Mensalidade */}
         <Surface variant="card" padding="lg" className="space-y-6">
           <h2 className="font-black text-foreground flex items-center gap-2 border-b border-border pb-4">
             <Calculator className="text-primary" size={20} /> Valores de Mensalidade
           </h2>
           <div className="grid grid-cols-1 gap-6">
-            <Field label="Valor 1 Modalidade" name="valor_1_modalidade" suffix="R$" icon={DollarSign} />
-            <Field label="Valor Multi-Modalidade (Livre)" name="valor_multi_modalidade" suffix="R$" icon={DollarSign} />
+            <Field
+              label="Valor 1 Modalidade"
+              name="valor_1_modalidade"
+              suffix="R$"
+              icon={DollarSign}
+              tooltip="Mensalidade padrão para alunos matriculados em uma única modalidade."
+            />
+            <Field
+              label="Valor Multi-Modalidade (Livre)"
+              name="valor_multi_modalidade"
+              suffix="R$"
+              icon={DollarSign}
+              tooltip="Mensalidade para alunos no Plano Livre, que frequentam múltiplas modalidades sem restrição de turma."
+            />
           </div>
         </Surface>
 
+        {/* Plano Livre */}
         <Surface variant="card" padding="lg" className="space-y-6">
           <h2 className="font-black text-foreground flex items-center gap-2 border-b border-border pb-4">
             <Percent className="text-warning" size={20} /> Divisão Plano Livre
+            <Tooltip text="No Plano Livre, a mensalidade é dividida proporcionalmente entre a casa e os professores com base nas aulas frequentadas. A soma deve ser 100%." />
           </h2>
           <div className="grid grid-cols-2 gap-4">
             <Field label="% Casa" name="plano_livre_pct_casa" suffix="%" />
             <Field label="% Professores" name="plano_livre_pct_prof" suffix="%" />
           </div>
+          {/* Simulador em tempo real */}
+          <DivisaoSimulada
+            valor={watched.valor_multi_modalidade}
+            pctProf={watched.plano_livre_pct_prof}
+            pctCasa={watched.plano_livre_pct_casa}
+          />
           <p className="text-[10px] text-muted-foreground font-medium italic">
             * A soma das porcentagens do plano livre deve totalizar 100%.
           </p>
         </Surface>
 
-        <Surface variant="card" padding="lg" className="space-y-6">
+        {/* Experimental & Avulsa */}
+        <Surface variant="card" padding="lg" className="space-y-6 md:col-span-2">
           <h2 className="font-black text-foreground flex items-center gap-2 border-b border-border pb-4">
-             Experimental & Avulsa
+             Experimental &amp; Avulsa
           </h2>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Valor Experimental" name="aula_experimental_valor" suffix="R$" />
-              <Field label="% Prof. Experimental" name="aula_experimental_pct_prof" suffix="%" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            {/* Experimental */}
+            <div className="space-y-4">
+              <p className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
+                Aula Experimental
+                <Tooltip text="Aula única para novos alunos conhecerem a turma. O valor aqui define quanto é cobrado e qual percentual fica com o professor." />
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Valor" name="aula_experimental_valor" suffix="R$" icon={DollarSign} />
+                <Field label="% Prof." name="aula_experimental_pct_prof" suffix="%" />
+              </div>
+              {/* CR2: aviso de valor zero */}
+              {avisoExperimental && (
+                <p className="text-[11px] text-warning font-semibold flex items-center gap-1.5">
+                  <Info size={12} /> Valor R$ 0,00 — os repasses desta aula serão zerados.
+                </p>
+              )}
+              {/* Simulador */}
+              <DivisaoSimulada
+                valor={watched.aula_experimental_valor}
+                pctProf={watched.aula_experimental_pct_prof}
+              />
             </div>
-            <div className="border-t border-border/50 pt-6 grid grid-cols-3 gap-3">
-              <Field label="Valor Avulsa" name="aula_avulsa_valor" suffix="R$" />
-              <Field label="% Casa" name="aula_avulsa_pct_casa" suffix="%" />
-              <Field label="% Prof." name="aula_avulsa_pct_prof" suffix="%" />
+
+            {/* Avulsa */}
+            <div className="space-y-4">
+              <p className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
+                Aula Avulsa
+                <Tooltip text="Aula paga de forma avulsa, sem vínculo com plano. O valor total é dividido entre casa e professor. A soma % Casa + % Prof. deve ser 100%." />
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Valor" name="aula_avulsa_valor" suffix="R$" />
+                <Field label="% Casa" name="aula_avulsa_pct_casa" suffix="%" />
+                <Field label="% Prof." name="aula_avulsa_pct_prof" suffix="%" />
+              </div>
+              {/* CR2: aviso de valor zero */}
+              {avisoAvulsa && (
+                <p className="text-[11px] text-warning font-semibold flex items-center gap-1.5">
+                  <Info size={12} /> Valor R$ 0,00 — os repasses desta aula serão zerados.
+                </p>
+              )}
+              {/* Simulador */}
+              <DivisaoSimulada
+                valor={watched.aula_avulsa_valor}
+                pctProf={watched.aula_avulsa_pct_prof}
+                pctCasa={watched.aula_avulsa_pct_casa}
+              />
             </div>
           </div>
         </Surface>
 
-        {errors[''] && (
+        {/* Erros de validação de soma (nível do schema) */}
+        {(errors[''] || errors['soma-livre'] || errors['soma-avulsa']) && (
           <Surface variant="subtle" className="md:col-span-2 border border-destructive/20 p-4 rounded-2xl">
-             <p className="text-sm text-destructive font-black text-center">{errors[''].message}</p>
+            {errors[''] && (
+              <p className="text-sm text-destructive font-black text-center">{errors[''].message}</p>
+            )}
+            {errors['soma-livre'] && (
+              <p className="text-sm text-destructive font-black text-center">{errors['soma-livre'].message}</p>
+            )}
+            {errors['soma-avulsa'] && (
+              <p className="text-sm text-destructive font-black text-center">{errors['soma-avulsa'].message}</p>
+            )}
           </Surface>
         )}
       </form>
@@ -6831,10 +7617,10 @@ export const comissoesService = {
   },
 
   async buscarDetalhes(professorId, mesAno) {
-    const inicio = `${mesAno}-01T00:00:00`;
+    const inicio = `${mesAno}-01`;
     const [ano, mes] = mesAno.split('-').map(Number);
-    const ultimo = new Date(ano, mes, 0).toISOString().split('T')[0];
-    const fim = `${ultimo}T23:59:59`;
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
     const { data: fechamento } = await supabase
       .from('fechamento_comissoes')
@@ -6845,12 +7631,12 @@ export const comissoesService = {
 
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
-      .select('id, valor, tipo_aula, modalidade, created_at, alunos(nome_completo)')
+      .select('id, valor, tipo_aula, modalidade, data_referencia, pago_em, status, alunos(nome_completo)')
       .eq('professor_id', professorId)
-      .gte('created_at', inicio)
-      .lte('created_at', fim)
-      .order('created_at', { ascending: false });
-      
+      .gte('data_referencia', inicio)
+      .lte('data_referencia', fim)
+      .order('data_referencia', { ascending: false });
+
     if (error) throw error;
 
     const total = (lancamentos || []).reduce((s, l) => s + Number(l.valor), 0);
@@ -6878,7 +7664,7 @@ export const comissoesService = {
         mes_referencia: `${mesAno}-01`,
         valor_total: valorTotal
       }]);
-      
+
     if (error) throw error;
     return true;
   }
@@ -7325,11 +8111,10 @@ export const TIPOS_AULA = [
   { valor: 'avulsa', label: 'Aula Avulsa' },
 ];
 
-
 export const LIMITES = {
   NOME_MIN: 3,
   NOME_MAX: 100,
-  SENHA_MIN: 6,
+  SENHA_MIN: 8,
   CAPACIDADE_AULA_MIN: 1,
   CAPACIDADE_AULA_MAX: 50,
   VALOR_PLANO_MIN: 0,
@@ -7342,8 +8127,8 @@ export const MENSAGENS = {
     semPermissao: 'Você não tem permissão para realizar esta ação.',
     naoAutenticado: 'Você precisa estar autenticado.',
     camposObrigatorios: 'Preencha todos os campos obrigatórios.',
-    emailInvalido: 'Digite um email válido.',
-    senhaFraca: 'A senha deve ter no mínimo 6 caracteres.',
+    emailInvalido: 'Digite um e-mail válido.',
+    senhaFraca: 'A senha deve ter no mínimo 8 caracteres.',
   },
   sucesso: {
     cadastrado: 'Cadastrado com sucesso!',
@@ -7420,17 +8205,63 @@ export default {
 import React from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { UserPlus, Users, Edit2, Ban, Trash2 } from 'lucide-react';
+import { 
+  UserPlus, Users, Edit2, Ban, Trash2,
+  Clock, MapPin, Dumbbell, Music, User, Hash
+} from 'lucide-react';
 import { PALETA_CORES } from '../../../lib/constants';
 import Button from '../../../components/ui/Button';
 
-export default function ModalAcoesEvento({ evento, isAdmin, onAgendar, onChamada, onEditar, onEncerrar, onExcluir }) {
+// ─── Ficha de informações somente-leitura (professor) ──────────────────────
+function DetalheAula({ evento, corTema }) {
+  const d = evento.dadosOriginais;
+  const duracaoLabel = d.duracao_minutos
+    ? d.duracao_minutos < 60
+      ? `${d.duracao_minutos} min`
+      : `${Math.floor(d.duracao_minutos / 60)}h${d.duracao_minutos % 60 ? ` ${d.duracao_minutos % 60} min` : ''}`
+    : '—';
+
+  const rows = [
+    { icon: <User       size={15} />, label: 'Professor',   value: d.professores?.nome || 'Não definido' },
+    { icon: <Hash       size={15} />, label: 'Modalidade',  value: d.modalidades?.nome || '—'            },
+    { icon: <Clock      size={15} />, label: 'Horário',     value: `${format(evento.start, 'HH:mm')} · ${duracaoLabel}` },
+    { icon: <MapPin     size={15} />, label: 'Espaço',
+      value: d.espaco === 'funcional' ? 'Funcional' : 'Dança',
+      icon2: d.espaco === 'funcional' ? <Dumbbell size={15} /> : <Music size={15} />,
+    },
+    { icon: <Users      size={15} />, label: 'Vagas',       value: d.capacidade ? `${d.capacidade} alunos` : '—' },
+  ];
+
+  return (
+    <div className="mt-3 space-y-2">
+      {rows.map(({ icon, icon2, label, value }) => (
+        <div key={label} className="flex items-center gap-3 px-1 py-1.5">
+          <span className="text-muted-foreground flex-shrink-0">{icon2 ?? icon}</span>
+          <span className="text-xs font-bold text-muted-foreground uppercase w-24 flex-shrink-0">{label}</span>
+          <span className="text-sm font-semibold text-foreground">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Componente principal ──────────────────────────────────────────────────
+export default function ModalAcoesEvento({ 
+  evento, isAdmin, professorIdLogado, onAgendar, onChamada, onEditar, onEncerrar, onExcluir 
+}) {
   if (!evento) return null;
+
+  // A4: professor só pode agendar em aulas que são dele
+  const podeAgendar = isAdmin || (
+    professorIdLogado &&
+    String(evento.dadosOriginais.professor_id) === String(professorIdLogado)
+  );
 
   const corTema = PALETA_CORES.find(c => c.id === (evento.dadosOriginais.cor || 'laranja')) || PALETA_CORES[0];
 
   return (
     <div className="space-y-4 pt-2">
+      {/* Card colorido com nome e horário */}
       <div className="p-5 rounded-2xl border" style={{ backgroundColor: corTema.bg, borderColor: corTema.border }}>
         <div className="flex justify-between items-start mb-2">
           <h3 className="font-black text-xl" style={{ color: corTema.text }}>{evento.title}</h3>
@@ -7442,53 +8273,42 @@ export default function ModalAcoesEvento({ evento, isAdmin, onAgendar, onChamada
           Prof: {evento.dadosOriginais.professores?.nome || 'Não definido'}
         </p>
         <p className="text-sm font-medium" style={{ color: corTema.text, opacity: 0.7 }}>
-  Modalidade: {evento.dadosOriginais.modalidades?.nome || '—'}
-</p>
+          Modalidade: {evento.dadosOriginais.modalidades?.nome || '—'}
+        </p>
       </div>
 
-      <Button 
-        variant="success" 
-        size="lg" 
-        fullWidth 
-        onClick={() => onAgendar(evento)}
-      >
-        <UserPlus size={20} /> Agendar Aluno nesta Turma
+      {/* Ficha de detalhes — professor vê mais info, admin vê resumo igual */}
+      {!isAdmin && <DetalheAula evento={evento} corTema={corTema} />}
+
+      {/* Ações disponíveis para todos os perfis */}
+      {podeAgendar && (
+        <Button variant="success" size="lg" fullWidth onClick={() => onAgendar(evento)}>
+          <UserPlus size={20} /> Agendar Aluno nesta Turma
+        </Button>
+      )}
+
+      <Button variant="info" size="lg" fullWidth onClick={() => onChamada(evento)}>
+        <Users size={20} /> Lista de Presença
       </Button>
-      
-      <Button 
-        variant="info" 
-        size="lg" 
-        fullWidth 
-        onClick={() => onChamada(evento)}
-      >
-        <Users size={20} /> Fazer Chamada / Lista de Alunos
-      </Button>
-      
+
+      {/* Ações exclusivas de admin */}
       {isAdmin && (
         <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border">
-          <Button 
-            variant="secondary" 
-            fullWidth 
-            onClick={() => onEditar(evento)}
-          >
+          <Button variant="secondary" fullWidth onClick={() => onEditar(evento)}>
             <Edit2 size={18} /> Editar Cadastro da Grade
           </Button>
-          
+
           <div className="flex gap-2">
             {evento.dadosOriginais.eh_recorrente && !evento.dadosOriginais.data_fim && (
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="flex-1 bg-warning-soft text-warning hover:bg-warning/20"
                 onClick={() => onEncerrar(evento)}
               >
-                <Ban size={18} /> Encerrar Turma
+                <Ban size={18} /> Cancelar Aula
               </Button>
             )}
-            <Button 
-              variant="destructive" 
-              className="flex-1"
-              onClick={() => onExcluir(evento)}
-            >
+            <Button variant="destructive" className="flex-1" onClick={() => onExcluir(evento)}>
               <Trash2 size={18} /> Excluir Grade
             </Button>
           </div>
@@ -8855,6 +9675,7 @@ export default function CalendarioGrade({
   setCurrentView,
   handleSelectSlot,
   handleSelectEvent,
+  isAdmin = false,
 }) {
   return (
     <div className="h-full style-calendar-wrapper">
@@ -8899,7 +9720,7 @@ export default function CalendarioGrade({
           .rbc-event-content { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
           .rbc-toolbar { display: none; }
           @media (max-width: 768px) {
-            .rbc-calendar { min-width: 700px; }
+            .rbc-month-view { min-width: 600px; }
             .style-calendar-wrapper { overflow-x: auto; padding-bottom: 20px; }
           }
         `,
@@ -8916,7 +9737,7 @@ export default function CalendarioGrade({
         onNavigate={setCurrentDate}
         view={currentView}
         onView={setCurrentView}
-        selectable={true}
+        selectable={isAdmin}
         onSelectSlot={handleSelectSlot}
         onSelectEvent={handleSelectEvent}
         eventPropGetter={eventPropGetter}
@@ -8943,7 +9764,8 @@ import Input, { Label } from '../../../components/ui/Input';
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
   handleRegistrarFalta, handleDesfazerFalta,
-  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey
+  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey,
+  isAdmin,
 }) {
   if (!aulaParaLista) return null;
   return (
@@ -8997,7 +9819,7 @@ export default function ModalListaPresenca({
                         Informar Falta
                       </Button>
                     )
-                  ) : (
+                  ) : isAdmin ? (
                     <Button
                       variant="destructive"
                       size="sm"
@@ -9006,7 +9828,7 @@ export default function ModalListaPresenca({
                     >
                       Remover
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -9774,7 +10596,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  
+
   const navigate = useNavigate();
   const modalRecuperar = useModal();
 
@@ -9792,30 +10614,71 @@ export default function Login() {
 
       if (error) throw error;
 
-      // Verificar primeiro_acesso diretamente no banco — fonte de verdade confiável.
-      // Busca por auth_id (não por email) para evitar colisão caso exista
-      // mais de um registro com o mesmo e-mail em situações de migração.
+      // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
       const { data: alunoData } = await supabase
         .from('alunos')
-        .select('primeiro_acesso, nome_completo')
+        .select('primeiro_acesso, nome_completo, role')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
       if (alunoData?.primeiro_acesso) {
         const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
-        showToast.info(`Olá, ${primeiroNome}! Defina sua senha pessoal.`);
-        navigate('/redefinir-senha');
+        navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
         return;
       }
 
-      showToast.success("Login realizado com sucesso!");
+      // ── 2. Verificar primeiro_acesso em professores ───────────────────────
+      if (!alunoData) {
+        const { data: profData } = await supabase
+          .from('professores')
+          .select('primeiro_acesso, nome, id')
+          .eq('auth_id', authData.user.id)
+          .maybeSingle();
+
+        if (profData?.primeiro_acesso) {
+          const primeiroNome = (profData.nome || 'Professor').split(' ')[0];
+          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
+          return;
+        }
+
+        if (profData) {
+          const primeiroNome = (profData.nome || '').split(' ')[0];
+          showToast.success(
+            primeiroNome
+              ? `Bem-vindo de volta, ${primeiroNome}! 👋`
+              : 'Login realizado com sucesso!'
+          );
+          navigate('/agenda');
+          return;
+        }
+      }
+
+      // Admin ou aluno com acesso normal
+      if (alunoData) {
+        const primeiroNome = (alunoData.nome_completo || '').split(' ')[0];
+        showToast.success(
+          primeiroNome
+            ? `Bem-vindo de volta, ${primeiroNome}! 👋`
+            : 'Login realizado com sucesso!'
+        );
+        navigate(rotaPorPerfil(alunoData.role === 'admin' ? 'admin' : 'aluno'));
+        return;
+      }
+
+      // Fallback (sem perfil correspondente)
+      showToast.success('Login realizado com sucesso!');
       navigate('/');
 
     } catch (err) {
-      if (err.message.includes("Invalid login")) {
-        showToast.error("E-mail ou senha incorretos.");
+      // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código
+      if (err.code === 'invalid_credentials' || err.message?.includes('Invalid login')) {
+        showToast.error('E-mail ou senha não conferem. Esqueceu a senha?');
+      } else if (err.code === 'email_not_confirmed') {
+        showToast.error('Confirme seu e-mail antes de acessar.');
+      } else if (err.message?.includes('expired') || err.message?.includes('invalid')) {
+        showToast.error('Link expirado. Solicite um novo link de recuperação.');
       } else {
-        showToast.error(err.message || "Erro ao conectar.");
+        showToast.error('Erro ao conectar. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -9824,29 +10687,34 @@ export default function Login() {
 
   // RECUPERAR SENHA
   async function handleRecuperarSenha(emailRecuperacao) {
-    if (!emailRecuperacao) return;
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRecuperacao?.trim());
+    if (!emailRecuperacao || !emailValido) {
+      showToast.error('Digite um e-mail válido.');
+      return;
+    }
+
     setLoadingRecuperar(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(emailRecuperacao, {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailRecuperacao.trim(), {
         redirectTo: `${window.location.origin}/redefinir-senha`,
       });
 
       if (error) throw error;
 
-      showToast.success("Link enviado! Verifique seu e-mail.");
+      showToast.success(`Pronto! Enviamos um link para ${emailRecuperacao.trim()}. Verifique também o spam.`);
       modalRecuperar.fechar();
     } catch (err) {
-      showToast.error("Erro ao enviar link: " + err.message);
+      showToast.error('Erro ao enviar link: ' + err.message);
     } finally {
       setLoadingRecuperar(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#FDF8F5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-[40px] shadow-xl p-10 border border-orange-50 animate-in fade-in zoom-in-95 duration-500">
-        
+
         {/* Cabeçalho */}
         <div className="text-center mb-10">
           <div className="bg-orange-50 w-20 h-20 rounded-[30px] flex items-center justify-center mx-auto mb-6 transform rotate-3">
@@ -9861,9 +10729,11 @@ export default function Login() {
           <div className="space-y-4">
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
-              <input 
+              <input
                 type="email"
                 required
+                autoFocus
+                autoComplete="email"
                 placeholder="Seu e-mail"
                 className="w-full pl-14 pr-4 py-5 bg-gray-50 rounded-[22px] border-2 border-transparent outline-none focus:border-orange-100 focus:bg-white transition-all font-medium text-gray-600"
                 value={email}
@@ -9873,9 +10743,10 @@ export default function Login() {
 
             <div className="relative group">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
-              <input 
+              <input
                 type="password"
                 required
+                autoComplete="current-password"
                 placeholder="Sua senha"
                 className="w-full pl-14 pr-4 py-5 bg-gray-50 rounded-[22px] border-2 border-transparent outline-none focus:border-orange-100 focus:bg-white transition-all font-medium text-gray-600"
                 value={senha}
@@ -9884,19 +10755,19 @@ export default function Login() {
             </div>
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="w-full bg-primary text-primary-foreground py-5 rounded-[22px] font-black text-lg shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
           >
             {loading ? <RefreshCw className="animate-spin" size={24} /> : (
-              <>Entrar no Sistema <ArrowRight size={20} /></>
+              <>Entrar <ArrowRight size={20} /></>
             )}
           </button>
         </form>
 
         <div className="mt-8 text-center">
-          <button 
+          <button
             onClick={modalRecuperar.abrir}
             className="text-sm font-bold text-gray-400 hover:text-primary transition-colors"
           >
@@ -9905,14 +10776,14 @@ export default function Login() {
         </div>
       </div>
 
-      <Modal 
-        isOpen={modalRecuperar.isOpen} 
+      <Modal
+        isOpen={modalRecuperar.isOpen}
         onClose={modalRecuperar.fechar}
         titulo="Recuperar Acesso"
       >
-        <RecuperarFormInterno 
-          onSubmit={handleRecuperarSenha} 
-          loading={loadingRecuperar} 
+        <RecuperarFormInterno
+          onSubmit={handleRecuperarSenha}
+          loading={loadingRecuperar}
         />
       </Modal>
     </div>
@@ -9935,19 +10806,21 @@ function RecuperarFormInterno({ onSubmit, loading }) {
         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
         <input
           type="email"
-          placeholder="Digite seu e-mail cadastrado"
-          className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-100 font-medium"
+          required
+          autoComplete="email"
+          placeholder="Seu e-mail"
+          className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-100 transition-all font-medium text-gray-600"
           value={emailRecup}
           onChange={(e) => setEmailRecup(e.target.value)}
         />
       </div>
-      
+
       <button
         onClick={() => onSubmit(emailRecup)}
         disabled={loading || !emailRecup}
-        className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold hover:bg-gray-700 transition-all disabled:opacity-50 flex justify-center"
+        className="w-full bg-primary text-primary-foreground py-4 rounded-[22px] font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
       >
-        {loading ? <RefreshCw className="animate-spin" size={20} /> : "Enviar Link de Recuperação"}
+        {loading ? <RefreshCw className="animate-spin" size={20} /> : 'Enviar Link de Recuperação'}
       </button>
     </div>
   );
@@ -10145,9 +11018,13 @@ export function useAuth() {
   const [sessao, setSessao] = useState(null);
   const [perfil, setPerfil] = useState(null);
   const [professorId, setProfessorId] = useState(null);
+  const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
   const [loading, setLoading] = useState(true);
 
   const perfilJaCarregado = useRef(false);
+  // FIX Issue 2: rastreia para qual auth_id o perfil foi carregado,
+  // para detectar troca de usuário mesmo sem SIGNED_OUT (ex: tab recarregada).
+  const perfilCarregadoParaId = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -10156,58 +11033,83 @@ export function useAuth() {
       if (cancelled) return;
 
       if (!session) {
-        if (!cancelled) { setSessao(null); setPerfil(null); setProfessorId(null); setLoading(false); }
+        if (!cancelled) {
+          setSessao(null);
+          setPerfil(null);
+          setProfessorId(null);
+          setNomeUsuario(null); // #18
+          setLoading(false);
+        }
         return;
       }
 
       if (!cancelled) setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
 
-      if (perfilJaCarregado.current) {
+      // FIX Issue 2: se o perfil já foi carregado para este mesmo user.id, reutiliza.
+      // Se for um user.id diferente (login de outro usuário na mesma aba),
+      // força recarregar mesmo que perfilJaCarregado.current seja true.
+      if (perfilJaCarregado.current && perfilCarregadoParaId.current === session.user.id) {
         if (!cancelled) setLoading(false);
         return;
       }
 
-      const email = session.user.email;
+      // Reset para garantir que um usuário diferente não herde o perfil do anterior.
+      perfilJaCarregado.current = false;
+
+      // Usa auth_id (UUID do Supabase Auth) em vez de email.
+      // Isso garante que alterações de email no painel do Auth não quebrem o lookup.
+      const authId = session.user.id;
 
       try {
         const { data: usuario, error: errAluno } = await supabase
-          .from('alunos').select('id, role').eq('email', email).maybeSingle();
+          .from('alunos').select('id, role').eq('auth_id', authId).maybeSingle();
         if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
 
         if (cancelled) return;
 
         if (usuario) {
           perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
           setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
           setProfessorId(null);
+          setNomeUsuario(null); // alunos não têm nome exposto aqui
           setLoading(false);
           return;
         }
 
+        // #18 — busca 'nome' além de 'id'
         const { data: professor, error: errProf } = await supabase
-          .from('professores').select('id').eq('email', email).maybeSingle();
+          .from('professores').select('id, nome').eq('auth_id', authId).maybeSingle();
         if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
 
         if (cancelled) return;
 
         if (professor) {
           perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
           setPerfil('professor');
+          // Number() garante que o id seja sempre number,
+          // independente do Supabase retornar bigint como string.
           setProfessorId(professor.id);
+          setNomeUsuario(professor.nome ?? null); // #18
           setLoading(false);
           return;
         }
 
         perfilJaCarregado.current = true;
-        console.warn('Nenhum perfil encontrado para:', email);
+        perfilCarregadoParaId.current = authId;
+        console.warn('Nenhum perfil encontrado para auth_id:', authId);
         setPerfil(null);
         setProfessorId(null);
+        setNomeUsuario(null);
       } catch (error) {
         console.error('Erro fatal ao carregar perfil:', error);
         if (cancelled) return;
         perfilJaCarregado.current = true;
+        perfilCarregadoParaId.current = authId;
         setPerfil(null);
         setProfessorId(null);
+        setNomeUsuario(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -10224,13 +11126,15 @@ export function useAuth() {
 
       if (event === 'SIGNED_OUT') {
         perfilJaCarregado.current = false;
+        perfilCarregadoParaId.current = null;
         setSessao(null);
         setPerfil(null);
         setProfessorId(null);
+        setNomeUsuario(null); // #18
         setLoading(false);
 
       } else if (event === 'SIGNED_IN') {
-        if (perfilJaCarregado.current) {
+        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
           setSessao(session);
           return;
         }
@@ -10240,7 +11144,7 @@ export function useAuth() {
         carregarPerfilUsuario(session);
 
       } else {
-        if (perfilJaCarregado.current) {
+        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
           setSessao(session);
         } else {
           carregarPerfilUsuario(session);
@@ -10254,7 +11158,7 @@ export function useAuth() {
     };
   }, []);
 
-  return { sessao, perfil, professorId, loading };
+  return { sessao, perfil, professorId, nomeUsuario, loading }; // #18 — expõe nomeUsuario
 }
 </file>
 
@@ -13449,16 +14353,22 @@ export const gradeService = {
     }
   },
 
-  async listarMatriculasFixas() {
-    const { data, error } = await supabase
-      .from('agenda_fixa')
-      .select('aula_id, alunos (id, nome_completo)');
-    if (error) {
-      console.error('Erro ao buscar alunos fixos:', error);
-      return [];
-    }
-    return data;
-  },
+  async listarMatriculasFixas(aulasIds = null) {
+  let query = supabase
+    .from('agenda_fixa')
+    .select('aula_id, alunos (id, nome_completo, data_inicio_plano, data_fim_plano)');
+
+  if (aulasIds !== null) {
+    query = query.in('aula_id', aulasIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erro ao buscar alunos fixos:', error);
+    return [];
+  }
+  return data;
+},
 };
 </file>
 
@@ -18015,6 +18925,359 @@ export default function Alunos() {
 }
 </file>
 
+<file path="gestao_web/src/pages/Agenda/Agenda.jsx">
+import React, { useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { Plus, Ban, UserCheck } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+
+import { gradeService } from '../../services/gradeService';
+import { alunosService } from '../../services/alunosService';
+import { useAgenda } from '../../hooks/useAgenda';
+import Modal, { useModal, ModalConfirmacao } from '../../components/ui/Modal';
+import { TableSkeleton } from '../../components/shared/Loading';
+import { showToast } from '../../components/shared/Toast';
+
+import { useAgendaPage } from './hooks/useAgendaPage';
+import { useAgendaDadosMes } from './hooks/useAgendaDadosMes';
+import { useGradeMutations } from './hooks/useGradeMutations';
+import { useEventosCalendario } from './hooks/useEventosCalendario';
+import { useAgendamento } from './hooks/useAgendamento';
+import { useListaPresenca } from './hooks/useListaPresenca';
+import { useFeriados } from './hooks/useFeriados';
+
+import FiltrosAgenda from './components/FiltrosAgenda';
+import CalendarioGrade from './components/CalendarioGrade';
+import ModalAgendamento from './components/ModalAgendamento';
+import ModalNovaAula from './components/ModalNovaAula';
+import ModalListaPresenca from './components/ModalListaPresenca';
+import ModalFeriados from './components/ModalFeriados';
+import ModalAcoesEvento from './components/ModalAcoesEvento';
+import EmptyState from '../../components/ui/EmptyState';
+import { Dumbbell, Music, CalendarX } from 'lucide-react';
+import { useMemo } from 'react';
+
+const INITIAL_FORM_STATE = {
+  id: null,
+  atividade: '',
+  modalidadeId: '',
+  professorId: '',
+  diaSemana: 'segunda-feira',
+  horario: '',
+  capacidade: 15,
+  ehRecorrente: true,
+  dataEspecifica: '',
+  espaco: 'funcional',
+  valorPorAluno: '',
+  cor: 'laranja',
+  duracaoMinutos: 60, // padrão 1h
+};
+
+export default function Agenda() {
+  const { perfil, professorId: professorIdLogado } = useOutletContext();
+  const isAdmin = perfil === 'admin';
+
+  const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
+  const [eventoSelecionado, setEventoSelecionado] = useState(null);
+  const [aulaParaLista, setAulaParaLista] = useState(null);
+  const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
+
+  const { aulas, feriados, loading, isError, refetch } = useAgenda();
+
+  const { data: listaAlunos = [] } = useQuery({
+    queryKey: ['alunos', 'ativos-agendamento'],
+    queryFn: () => alunosService.listarAtivos(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // A1: professor não precisa da lista de professores, modalidades nem matrículas fixas
+  const { data: professores = [] } = useQuery({
+    queryKey: ['professores'],
+    queryFn: () => gradeService.listarProfessores(),
+    staleTime: 1000 * 60 * 5,
+    enabled: isAdmin,
+  });
+
+  const { data: modalidades = [] } = useQuery({
+    queryKey: ['modalidades'],
+    queryFn: () => gradeService.listarModalidades(),
+    staleTime: 1000 * 60 * 5,
+    enabled: isAdmin,
+  });
+
+  const { data: matriculasFixas = [] } = useQuery({
+  queryKey: ['matriculas-fixas', isAdmin ? 'admin' : professorIdLogado],
+  queryFn: () => {
+    if (isAdmin) return gradeService.listarMatriculasFixas();
+    // Para professor: filtra só pelas aulas que ele leciona
+    const idsAulas = (aulas || []).map(a => a.id);
+    if (idsAulas.length === 0) return [];
+    return gradeService.listarMatriculasFixas(idsAulas);
+  },
+  staleTime: 1000 * 60 * 5,
+  enabled: isAdmin ? true : (aulas || []).length > 0, // ← aguarda aulas carregarem
+});
+
+  const dadosIniciais = { professores, modalidades, matriculasFixas };
+
+  const pageState = useAgendaPage();
+
+const espacosDisponiveis = useMemo(() => {
+  if (isAdmin || !aulas?.length) return undefined;
+  const set = new Set(aulas.map(a => a.espaco || 'funcional'));
+  return set;
+}, [isAdmin, aulas]);
+
+const emptyStateEspaco = useMemo(() => {
+  if (pageState.filtroEspaco === 'todos') return null;
+
+  const labels = { funcional: 'Funcional', danca: 'Dança' };
+  const icons  = { funcional: <Dumbbell size={28} />, danca: <Music size={28} /> };
+  const label  = labels[pageState.filtroEspaco] ?? pageState.filtroEspaco;
+
+  return {
+    icon:        icons[pageState.filtroEspaco] ?? <CalendarX size={28} />,
+    title:       `Sem aulas de ${label}`,
+    description: isAdmin
+      ? `Nenhuma aula de ${label} cadastrada para este período.`
+      : `Você não tem aulas de ${label} cadastradas neste período.`,
+  };
+}, [pageState.filtroEspaco, isAdmin]);
+
+  const dadosMes = useAgendaDadosMes(pageState.currentDate);
+
+  const modais = {
+    novaAula: useModal(), agendamento: useModal(), lista: useModal(),
+    acoesEvento: useModal(), feriados: useModal(), excluir: useModal(), encerrar: useModal(),
+  };
+
+  const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados);
+  const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen);
+  const hookFeriados = useFeriados(refetch);
+  const eventosCalendario = useEventosCalendario({ aulas, feriados, ...dadosMes, matriculasFixas: dadosIniciais.matriculasFixas, ...pageState });
+
+  const mutations = useGradeMutations({
+    onSuccess: () => {
+      Object.values(modais).forEach((m) => m.isOpen && m.fechar());
+      refetch();
+    },
+  });
+
+  const handleSelectSlot = ({ start }) => {
+    if (!isAdmin) return;
+    const dataStr = format(start, 'yyyy-MM-dd');
+    const ehFeriado = feriados.find((f) => f.data === dataStr && f.bloqueia_agenda);
+    if (ehFeriado) return showToast.error(`Data bloqueada: ${ehFeriado.descricao}`);
+
+    const dia = format(start, 'eeee', { locale: ptBR }).toLowerCase();
+    setNovaAula({
+      ...INITIAL_FORM_STATE,
+      horario: format(start, 'HH:mm'),
+      diaSemana: dia,
+      dataEspecifica: dataStr,
+    });
+    modais.novaAula.abrir();
+  };
+
+  const btnBase = 'px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-colors disabled:opacity-50';
+  const btnSecondary = `${btnBase} bg-muted text-muted-foreground hover:bg-subtle`;
+  const btnInfo = `${btnBase} bg-info text-info-foreground hover:bg-info/90`;
+  const btnPrimary = `${btnBase} bg-primary text-primary-foreground hover:bg-primary/90`;
+
+  return (
+    <div className="p-8 space-y-6 animate-in fade-in duration-500 min-h-screen flex flex-col bg-background">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+        <div>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">Grade de Aulas</h1>
+          <p className="text-muted-foreground font-medium">Visualize e organize a agenda do estúdio.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {isAdmin && (
+            <button onClick={modais.feriados.abrir} className={btnSecondary}>
+              <Ban size={20} /> Bloqueios ({feriados.length})
+            </button>
+          )}
+          <button
+            onClick={() => {
+              hookAgendamento.setAgendamentoForm({ ...hookAgendamento.agendamentoForm, aula_id: '', data_aula: '' });
+              modais.agendamento.abrir();
+            }}
+            className={btnInfo}
+          >
+            <UserCheck size={20} /> {isAdmin ? 'Agendar na Turma' : 'Agendar Aluno'}
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setNovaAula(INITIAL_FORM_STATE);
+                modais.novaAula.abrir();
+              }}
+              className={btnPrimary}
+            >
+              <Plus size={20} /> Nova Aula
+            </button>
+          )}
+        </div>
+      </div>
+
+      <FiltrosAgenda 
+  {...pageState} 
+  professores={dadosIniciais.professores} 
+  isAdmin={isAdmin}
+  espacosDisponiveis={espacosDisponiveis}
+/>
+
+      <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm" style={{ height: '750px' }}>
+  {isError ? (
+    <div className="h-full flex items-center justify-center">
+      <EmptyState
+        icon={<CalendarX size={28} />}
+        title="Erro ao carregar agenda"
+        description="Não foi possível buscar as aulas. Verifique sua conexão e tente novamente."
+        action={
+          <button
+            onClick={refetch}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            Tentar novamente
+          </button>
+        }
+      />
+    </div>
+  ) : loading ? (
+    <TableSkeleton />
+  ) : eventosCalendario.filter(e => !e.isFeriado).length === 0 && emptyStateEspaco ? (
+    // Filtro de espaço ativo mas sem eventos — EmptyState contextual
+    <div className="h-full flex items-center justify-center">
+      <EmptyState
+        icon={emptyStateEspaco.icon}
+        title={emptyStateEspaco.title}
+        description={emptyStateEspaco.description}
+        action={
+          <button
+            onClick={() => pageState.setFiltroEspaco('todos')}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            Ver todos os espaços
+          </button>
+        }
+      />
+    </div>
+  ) : (
+    <CalendarioGrade
+      eventos={eventosCalendario}
+      currentDate={pageState.currentDate}
+      setCurrentDate={pageState.setCurrentDate}
+      currentView={pageState.currentView}
+      setCurrentView={pageState.setCurrentView}
+      handleSelectSlot={handleSelectSlot}
+      isAdmin={isAdmin}
+      handleSelectEvent={(ev) => {
+        ev.isFeriado
+          ? showToast.error(`Dia bloqueado: ${ev.dadosOriginais.descricao}`)
+          : (setEventoSelecionado(ev), modais.acoesEvento.abrir());
+      }}
+    />
+  )}
+</div>
+
+      <Modal isOpen={modais.agendamento.isOpen} onClose={modais.agendamento.fechar} titulo="Agendamento">
+        <ModalAgendamento {...hookAgendamento} aulas={aulas} listaAlunos={listaAlunos} />
+      </Modal>
+      <Modal isOpen={modais.novaAula.isOpen} onClose={modais.novaAula.fechar} titulo={novaAula.id ? 'Editar Atividade' : 'Nova Aula'}>
+        <ModalNovaAula
+          novaAula={novaAula}
+          setNovaAula={setNovaAula}
+          modalidades={dadosIniciais.modalidades}
+          professores={dadosIniciais.professores}
+          savingAula={mutations.savingAula}
+          salvarAula={(e) => {
+            e.preventDefault();
+            mutations.salvarAula(novaAula);
+          }}
+        />
+      </Modal>
+      <Modal isOpen={modais.lista.isOpen} onClose={modais.lista.fechar} titulo="Chamada">
+        <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} isAdmin={isAdmin} />
+      </Modal>
+      {isAdmin && (
+        <Modal isOpen={modais.feriados.isOpen} onClose={modais.feriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
+          <ModalFeriados feriados={feriados} {...hookFeriados} />
+        </Modal>
+      )}
+
+      <Modal isOpen={modais.acoesEvento.isOpen} onClose={modais.acoesEvento.fechar} titulo="Detalhes da Aula">
+        <ModalAcoesEvento
+          evento={eventoSelecionado}
+          isAdmin={isAdmin}
+          professorIdLogado={professorIdLogado}
+          onAgendar={(ev) => {
+            modais.acoesEvento.fechar();
+            hookAgendamento.setAgendamentoForm({
+              tipo: 'cadastrado',
+              aluno_id: '',
+              nome_visitante: '',
+              aula_id: ev.dadosOriginais.id,
+              data_aula: format(ev.start, 'yyyy-MM-dd'),
+            });
+            modais.agendamento.abrir();
+          }}
+          onChamada={(ev) => {
+            modais.acoesEvento.fechar();
+            setAulaParaLista(ev.dadosOriginais);
+            setDataLista(format(ev.start, 'yyyy-MM-dd'));
+            modais.lista.abrir();
+          }}
+          onEditar={(ev) => {
+            modais.acoesEvento.fechar();
+            const d = ev.dadosOriginais;
+            setNovaAula({
+              id: d.id,
+              atividade: d.atividade,
+              modalidadeId: d.modalidade_id || '',
+              professorId: d.professor_id || '',
+              diaSemana: String(d.dia_semana || 'segunda-feira').toLowerCase(),
+              horario: d.horario,
+              capacidade: d.capacidade,
+              ehRecorrente: d.eh_recorrente,
+              dataEspecifica: d.data_especifica || '',
+              espaco: d.espaco,
+              valorPorAluno: d.valor_por_aluno || '',
+              cor: d.cor,
+              duracaoMinutos: d.duracao_minutos ?? 60, // carrega duração salva ao editar
+            });
+            modais.novaAula.abrir();
+          }}
+          onEncerrar={() => modais.encerrar.abrir()}
+          onExcluir={() => modais.excluir.abrir()}
+        />
+      </Modal>
+
+      <ModalConfirmacao
+        isOpen={modais.excluir.isOpen}
+        onClose={modais.excluir.fechar}
+        onConfirm={() => mutations.excluirAula(eventoSelecionado.dadosOriginais.id)}
+        titulo="Excluir Grade Permanentemente"
+        mensagem="Atenção: Ao confirmar, todas as aulas e presenças desta grade serão apagadas. Esta ação NÃO pode ser desfeita."
+        tipo="danger"
+      />
+      <ModalConfirmacao
+        isOpen={modais.encerrar.isOpen}
+        onClose={modais.encerrar.fechar}
+        onConfirm={() => mutations.encerrarAula(eventoSelecionado.dadosOriginais.id, eventoSelecionado.start)}
+        titulo="Encerrar Turma"
+        mensagem={`O histórico será mantido, mas esta turma não aparecerá mais a partir de ${
+          eventoSelecionado ? format(eventoSelecionado.start, 'dd/MM/yyyy') : ''
+        }. Confirma?`}
+        tipo="warning"
+      />
+    </div>
+  );
+}
+</file>
+
 <file path="gestao_web/src/pages/Financeiro.jsx">
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
@@ -18096,6 +19359,7 @@ export default function Financeiro() {
   const [professorId, setProfessorId] = useState('');
   const [modalidadeNome, setModalidadeNome] = useState('');
   const [professores, setProfessores] = useState([]);
+  const [dataPagamentoConfirmar, setDataPagamentoConfirmar] = useState('');
   const [resultadoRepasse, setResultadoRepasse] = useState(null);
   const [dadosPagamento, setDadosPagamento] = useState(null);
   const [gerando, setGerando] = useState(false);
@@ -18138,6 +19402,9 @@ export default function Financeiro() {
     setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
     setProfessorId('');
     setModalidadeNome('');
+    const d = new Date();
+    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setDataPagamentoConfirmar(hoje);
     modalPagamento.abrir();
   };
 
@@ -18150,7 +19417,8 @@ export default function Financeiro() {
       forma_pagamento: formaPagamento,
       tipo_aula: tipoAula,
       professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
-      modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null
+      modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null,
+      data_pagamento: dataPagamentoConfirmar,
     };
     const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
     showToast.success('Pagamento processado com sucesso!');
@@ -18160,7 +19428,7 @@ export default function Financeiro() {
     setDadosPagamento({
       valor_pago:      valorFormatado,
       forma_pagamento: formaPagamento,
-      data_pagamento:  new Date().toISOString(),
+      data_pagamento:  dataPagamentoConfirmar,
     });
     modalResultado.abrir();
   } catch (error) {
@@ -18199,6 +19467,7 @@ export default function Financeiro() {
       forma_pagamento: item.forma_pagamento || '',
       data_vencimento: item.data_vencimento || '',
       status: item.status || 'pendente',
+      data_pagamento: item.data_pagamento || '',
     });
     modalEditar.abrir();
   };
@@ -18212,6 +19481,7 @@ export default function Financeiro() {
         status: formEdicao.status,
         forma_pagamento: formEdicao.forma_pagamento || null,
         valor_pago: formEdicao.valor_pago !== '' ? parseFloat(String(formEdicao.valor_pago).replace(/\./g, '').replace(',', '.')) : null,
+        data_pagamento: formEdicao.data_pagamento || null,
       };
       // Se voltando para pendente, limpa dados de pagamento
       if (formEdicao.status === 'pendente') {
@@ -18562,6 +19832,17 @@ export default function Financeiro() {
             </div>
             <div>
               <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Data do Pagamento
+              </label>
+              <Input
+                type="date"
+                value={dataPagamentoConfirmar}
+                onChange={(e) => setDataPagamentoConfirmar(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
                 Tipo de Aula
               </label>
               <Input
@@ -18702,8 +19983,19 @@ export default function Financeiro() {
                 />
               </div>
             </div>
-            {formEdicao.status === 'pendente' && (
-              <Surface variant="muted" padding="sm">
+            {formEdicao.status === 'pago' && (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Data do Pagamento
+                </label>
+                <Input
+                  type="date"
+                  value={formEdicao.data_pagamento}
+                  onChange={(e) => setFormEdicao({ ...formEdicao, data_pagamento: e.target.value })}
+                />
+              </div>
+            )}
+            {formEdicao.status === 'pendente' && (              <Surface variant="muted" padding="sm">
                 <p className="text-xs text-muted-foreground">
                   Ao definir como <strong>Pendente</strong>, os dados de pagamento serão removidos.
                 </p>
@@ -18755,283 +20047,6 @@ const CardMetrica = ({ titulo, valor, icone, tone }) => (
     </div>
   </Surface>
 );
-</file>
-
-<file path="gestao_web/src/pages/Agenda/Agenda.jsx">
-import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { Plus, Ban, UserCheck } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
-
-import { gradeService } from '../../services/gradeService';
-import { alunosService } from '../../services/alunosService';
-import { useAgenda } from '../../hooks/useAgenda';
-import Modal, { useModal, ModalConfirmacao } from '../../components/ui/Modal';
-import { TableSkeleton } from '../../components/shared/Loading';
-import { showToast } from '../../components/shared/Toast';
-
-import { useAgendaPage } from './hooks/useAgendaPage';
-import { useAgendaDadosMes } from './hooks/useAgendaDadosMes';
-import { useGradeMutations } from './hooks/useGradeMutations';
-import { useEventosCalendario } from './hooks/useEventosCalendario';
-import { useAgendamento } from './hooks/useAgendamento';
-import { useListaPresenca } from './hooks/useListaPresenca';
-import { useFeriados } from './hooks/useFeriados';
-
-import FiltrosAgenda from './components/FiltrosAgenda';
-import CalendarioGrade from './components/CalendarioGrade';
-import ModalAgendamento from './components/ModalAgendamento';
-import ModalNovaAula from './components/ModalNovaAula';
-import ModalListaPresenca from './components/ModalListaPresenca';
-import ModalFeriados from './components/ModalFeriados';
-import ModalAcoesEvento from './components/ModalAcoesEvento';
-
-const INITIAL_FORM_STATE = {
-  id: null,
-  atividade: '',
-  modalidadeId: '',
-  professorId: '',
-  diaSemana: 'segunda-feira',
-  horario: '',
-  capacidade: 15,
-  ehRecorrente: true,
-  dataEspecifica: '',
-  espaco: 'funcional',
-  valorPorAluno: '',
-  cor: 'laranja',
-  duracaoMinutos: 60, // padrão 1h
-};
-
-export default function Agenda() {
-  const { perfil } = useOutletContext();
-  const isAdmin = perfil === 'admin';
-
-  const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
-  const [eventoSelecionado, setEventoSelecionado] = useState(null);
-  const [aulaParaLista, setAulaParaLista] = useState(null);
-  const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
-
-  const { aulas, feriados, loading, refetch } = useAgenda();
-
-  const { data: listaAlunos = [] } = useQuery({
-    queryKey: ['alunos', 'ativos-agendamento'],
-    queryFn: () => alunosService.listarAtivos(),
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: professores = [] } = useQuery({
-    queryKey: ['professores'],
-    queryFn: () => gradeService.listarProfessores(),
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: modalidades = [] } = useQuery({
-    queryKey: ['modalidades'],
-    queryFn: () => gradeService.listarModalidades(),
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: matriculasFixas = [] } = useQuery({
-    queryKey: ['matriculas-fixas'],
-    queryFn: () => gradeService.listarMatriculasFixas(),
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const dadosIniciais = { professores, modalidades, matriculasFixas };
-
-  const pageState = useAgendaPage();
-  const dadosMes = useAgendaDadosMes(pageState.currentDate);
-
-  const modais = {
-    novaAula: useModal(), agendamento: useModal(), lista: useModal(),
-    acoesEvento: useModal(), feriados: useModal(), excluir: useModal(), encerrar: useModal(),
-  };
-
-  const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados);
-  const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen);
-  const hookFeriados = useFeriados(refetch);
-  const eventosCalendario = useEventosCalendario({ aulas, feriados, ...dadosMes, matriculasFixas: dadosIniciais.matriculasFixas, ...pageState });
-
-  const mutations = useGradeMutations({
-    onSuccess: () => {
-      Object.values(modais).forEach((m) => m.isOpen && m.fechar());
-      refetch();
-    },
-  });
-
-  const handleSelectSlot = ({ start }) => {
-    if (!isAdmin) return;
-    const dataStr = format(start, 'yyyy-MM-dd');
-    const ehFeriado = feriados.find((f) => f.data === dataStr && f.bloqueia_agenda);
-    if (ehFeriado) return showToast.error(`Data bloqueada: ${ehFeriado.descricao}`);
-
-    const dia = format(start, 'eeee', { locale: ptBR }).toLowerCase();
-    setNovaAula({
-      ...INITIAL_FORM_STATE,
-      horario: format(start, 'HH:mm'),
-      diaSemana: dia,
-      dataEspecifica: dataStr,
-    });
-    modais.novaAula.abrir();
-  };
-
-  const btnBase = 'px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-colors disabled:opacity-50';
-  const btnSecondary = `${btnBase} bg-muted text-muted-foreground hover:bg-subtle`;
-  const btnInfo = `${btnBase} bg-info text-info-foreground hover:bg-info/90`;
-  const btnPrimary = `${btnBase} bg-primary text-primary-foreground hover:bg-primary/90`;
-
-  return (
-    <div className="p-8 space-y-6 animate-in fade-in duration-500 min-h-screen flex flex-col bg-background">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-        <div>
-          <h1 className="text-3xl font-black text-foreground tracking-tight">Grade de Aulas</h1>
-          <p className="text-muted-foreground font-medium">Visualize e organize a agenda do estúdio.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {isAdmin && (
-            <button onClick={modais.feriados.abrir} className={btnSecondary}>
-              <Ban size={20} /> Bloqueios ({feriados.length})
-            </button>
-          )}
-          <button
-            onClick={() => {
-              hookAgendamento.setAgendamentoForm({ ...hookAgendamento.agendamentoForm, aula_id: '', data_aula: '' });
-              modais.agendamento.abrir();
-            }}
-            className={btnInfo}
-          >
-            <UserCheck size={20} /> {isAdmin ? 'Agendar na Turma' : 'Agendar Aluno'}
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => {
-                setNovaAula(INITIAL_FORM_STATE);
-                modais.novaAula.abrir();
-              }}
-              className={btnPrimary}
-            >
-              <Plus size={20} /> Nova Aula
-            </button>
-          )}
-        </div>
-      </div>
-
-      <FiltrosAgenda {...pageState} professores={dadosIniciais.professores} isAdmin={isAdmin} />
-
-      <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm" style={{ height: '750px' }}>
-        {loading ? (
-          <TableSkeleton />
-        ) : (
-          <CalendarioGrade
-            eventos={eventosCalendario}
-            currentDate={pageState.currentDate}
-            setCurrentDate={pageState.setCurrentDate}
-            currentView={pageState.currentView}
-            setCurrentView={pageState.setCurrentView}
-            handleSelectSlot={handleSelectSlot}
-            handleSelectEvent={(ev) => {
-              ev.isFeriado
-                ? showToast.error(`Dia bloqueado: ${ev.dadosOriginais.descricao}`)
-                : (setEventoSelecionado(ev), modais.acoesEvento.abrir());
-            }}
-          />
-        )}
-      </div>
-
-      <Modal isOpen={modais.agendamento.isOpen} onClose={modais.agendamento.fechar} titulo="Agendamento">
-        <ModalAgendamento {...hookAgendamento} aulas={aulas} listaAlunos={listaAlunos} />
-      </Modal>
-      <Modal isOpen={modais.novaAula.isOpen} onClose={modais.novaAula.fechar} titulo={novaAula.id ? 'Editar Atividade' : 'Nova Aula'}>
-        <ModalNovaAula
-          novaAula={novaAula}
-          setNovaAula={setNovaAula}
-          modalidades={dadosIniciais.modalidades}
-          professores={dadosIniciais.professores}
-          savingAula={mutations.savingAula}
-          salvarAula={(e) => {
-            e.preventDefault();
-            mutations.salvarAula(novaAula);
-          }}
-        />
-      </Modal>
-      <Modal isOpen={modais.lista.isOpen} onClose={modais.lista.fechar} titulo="Chamada">
-        <ModalListaPresenca {...hookLista} aulaParaLista={aulaParaLista} dataLista={dataLista} setDataLista={setDataLista} />
-      </Modal>
-      {isAdmin && (
-        <Modal isOpen={modais.feriados.isOpen} onClose={modais.feriados.fechar} titulo="Gerenciar Bloqueios (Feriados)">
-          <ModalFeriados feriados={feriados} {...hookFeriados} />
-        </Modal>
-      )}
-
-      <Modal isOpen={modais.acoesEvento.isOpen} onClose={modais.acoesEvento.fechar} titulo="Detalhes da Aula">
-        <ModalAcoesEvento
-          evento={eventoSelecionado}
-          isAdmin={isAdmin}
-          onAgendar={(ev) => {
-            modais.acoesEvento.fechar();
-            hookAgendamento.setAgendamentoForm({
-              tipo: 'cadastrado',
-              aluno_id: '',
-              nome_visitante: '',
-              aula_id: ev.dadosOriginais.id,
-              data_aula: format(ev.start, 'yyyy-MM-dd'),
-            });
-            modais.agendamento.abrir();
-          }}
-          onChamada={(ev) => {
-            modais.acoesEvento.fechar();
-            setAulaParaLista(ev.dadosOriginais);
-            setDataLista(format(ev.start, 'yyyy-MM-dd'));
-            modais.lista.abrir();
-          }}
-          onEditar={(ev) => {
-            modais.acoesEvento.fechar();
-            const d = ev.dadosOriginais;
-            setNovaAula({
-              id: d.id,
-              atividade: d.atividade,
-              modalidadeId: d.modalidade_id || '',
-              professorId: d.professor_id || '',
-              diaSemana: String(d.dia_semana || 'segunda-feira').toLowerCase(),
-              horario: d.horario,
-              capacidade: d.capacidade,
-              ehRecorrente: d.eh_recorrente,
-              dataEspecifica: d.data_especifica || '',
-              espaco: d.espaco,
-              valorPorAluno: d.valor_por_aluno || '',
-              cor: d.cor,
-              duracaoMinutos: d.duracao_minutos ?? 60, // carrega duração salva ao editar
-            });
-            modais.novaAula.abrir();
-          }}
-          onEncerrar={() => modais.encerrar.abrir()}
-          onExcluir={() => modais.excluir.abrir()}
-        />
-      </Modal>
-
-      <ModalConfirmacao
-        isOpen={modais.excluir.isOpen}
-        onClose={modais.excluir.fechar}
-        onConfirm={() => mutations.excluirAula(eventoSelecionado.dadosOriginais.id)}
-        titulo="Excluir Grade Permanentemente"
-        mensagem="Atenção: Ao confirmar, todas as aulas e presenças desta grade serão apagadas. Esta ação NÃO pode ser desfeita."
-        tipo="danger"
-      />
-      <ModalConfirmacao
-        isOpen={modais.encerrar.isOpen}
-        onClose={modais.encerrar.fechar}
-        onConfirm={() => mutations.encerrarAula(eventoSelecionado.dadosOriginais.id, eventoSelecionado.start)}
-        titulo="Encerrar Turma"
-        mensagem={`O histórico será mantido, mas esta turma não aparecerá mais a partir de ${
-          eventoSelecionado ? format(eventoSelecionado.start, 'dd/MM/yyyy') : ''
-        }. Confirma?`}
-        tipo="warning"
-      />
-    </div>
-  );
-}
 </file>
 
 <file path="gestao_web/src/pages/NovoAluno.jsx">
@@ -20476,6 +21491,7 @@ import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import { PWABanners } from './components/PWABanners';
+import PaginaNaoEncontrada from './components/PaginaNaoEncontrada'; // #19
 
 import Login from './pages/Login';
 import RedefinirSenha from './pages/RedefinirSenha';
@@ -20511,6 +21527,8 @@ const queryClient = new QueryClient({
   },
 });
 
+const resolverPerfilLayout = (perfil) => perfil;
+
 function Spinner() {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -20519,18 +21537,29 @@ function Spinner() {
   );
 }
 
-const LayoutComSidebar = ({ perfil }) => {
+// #17 — recebe nomeUsuario e repassa para Sidebar
+const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
     <div className="flex h-screen bg-background transition-colors duration-300 overflow-hidden w-full">
-      <Sidebar perfil={perfil} menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
+      <Sidebar
+        perfil={perfil}
+        nomeUsuario={nomeUsuario}
+        menuAberto={menuAberto}
+        setMenuAberto={setMenuAberto}
+      />
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden w-full max-w-full">
 
         {/* Header Superior Mobile */}
         <div className="md:hidden flex items-center justify-between bg-card border-b border-border p-4 shrink-0 z-10 shadow-sm transition-colors duration-300">
-          <h2 className="text-xl font-black text-primary tracking-tight">Iluminus</h2>
+          <div>
+            <h2 className="text-xl font-black text-primary tracking-tight leading-none">Iluminus</h2>
+            {resolverPerfilLayout(perfil) === 'professor' && (
+              <p className="text-[11px] font-bold text-muted-foreground mt-0.5">Área do Professor</p>
+            )}
+          </div>
           <button
             onClick={() => setMenuAberto(true)}
             className="p-2 text-muted-foreground bg-muted rounded-xl hover:bg-subtle transition-colors"
@@ -20560,7 +21589,8 @@ const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
 };
 
 export default function App() {
-  const { sessao, perfil, loading } = useAuth();
+  // #18 — desestrutura nomeUsuario do hook
+  const { sessao, perfil, loading, nomeUsuario } = useAuth();
 
   if (loading) return <Spinner />;
 
@@ -20590,7 +21620,8 @@ export default function App() {
 
               {/* Rotas Compartilhadas (Admin e Professor) */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin', 'professor']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} />}>
+                {/* #17/#18 — passa nomeUsuario para o layout */}
+                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/agenda"               element={<Agenda />} />
                   <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
                   <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
@@ -20599,7 +21630,8 @@ export default function App() {
 
               {/* Rotas Exclusivas do Admin */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} />}>
+                {/* #17/#18 — passa nomeUsuario para o layout */}
+                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/dashboard"                  element={<Dashboard />} />
                   <Route path="/leads"                      element={<Leads />} />
                   <Route path="/alunos"                     element={<Alunos />} />
@@ -20620,7 +21652,13 @@ export default function App() {
                 </Route>
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* #19 — 404 personalizado com redirect automático */}
+              <Route
+                path="*"
+                element={
+                  <PaginaNaoEncontrada destino={sessao ? rotaPorPerfil(perfil) : '/'} />
+                }
+              />
             </Routes>
           </BrowserRouter>
         </ThemeProvider>
@@ -20651,7 +21689,14 @@ function resolverPerfil(perfil) {
   return String(valor).toLowerCase().trim();
 }
 
-function Sidebar({ perfil, menuAberto, setMenuAberto }) {
+// S3 UX — extrai inicial do nome para o avatar
+function inicialNome(nome) {
+  if (!nome) return '?';
+  return nome.trim().charAt(0).toUpperCase();
+}
+
+// #17 — recebe nomeUsuario como prop
+function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -20692,11 +21737,12 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   ];
 
   const menuProfessor = [
-  { label: 'Menu Professor' },
-  { name: 'Minha Agenda',      path: '/agenda',             icon: Calendar },
-  { name: 'Meus Alunos',       path: '/professor/alunos',   icon: Users    },
-  { name: 'Minhas Comissões',  path: '/professor/comissoes', icon: Percent  },
-];
+    { label: 'Menu Professor' },
+    { name: 'Minha Agenda',           path: '/agenda',              icon: Calendar },
+    { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
+    // S1 FIX — renomeado de "Minhas Comissões" para refletir que inclui repasses
+    { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
+  ];
 
   const isProfessor = resolverPerfil(perfil) === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
@@ -20727,9 +21773,17 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
             <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
               <span className="text-primary-foreground font-black text-xl">I</span>
             </div>
-            <h1 className="text-2xl font-black text-foreground tracking-tighter">
-              Iluminus
-            </h1>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tighter leading-none">
+                Iluminus
+              </h1>
+              {/* UX — label de contexto abaixo do logo para o professor */}
+              {isProfessor && (
+                <p className="text-[10px] font-bold text-muted-foreground tracking-wide mt-0.5">
+                  Área do Professor
+                </p>
+              )}
+            </div>
           </div>
           
           <button 
@@ -20739,6 +21793,23 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
             <X size={20} />
           </button>
         </div>
+
+        {/* S3 UX — Avatar + nome do professor no topo da nav (apenas para professor) */}
+        {isProfessor && nomeUsuario && (
+          <div className="px-6 pb-4">
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary-soft rounded-2xl">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow shadow-primary/20">
+                <span className="text-primary-foreground font-black text-sm">
+                  {inicialNome(nomeUsuario)}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground font-medium">Bem-vindo,</p>
+                <p className="font-black text-sm text-foreground truncate">{nomeUsuario}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Navegação */}
         <nav className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
@@ -20775,27 +21846,39 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
         {/* Rodapé da Sidebar */}
         <div className="p-4 border-t border-border mt-auto space-y-2">
+
+          {/* #17 / S3 FIX — chip de identidade: exibe para admin; professor já tem avatar no topo */}
+          {nomeUsuario && !isProfessor && (
+            <div className="px-4 py-3 bg-muted rounded-xl">
+              <p className="text-xs text-muted-foreground">Logado como</p>
+              <p className="font-bold text-sm text-foreground truncate">{nomeUsuario}</p>
+            </div>
+          )}
+
           <div className="flex justify-center w-full pb-2">
             <ThemeToggle />
           </div>
 
           {canInstall && (
-    <button 
-      onClick={install}
-      className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
-    >
-      <Download size={20} />
-      <span className="text-sm">Instalar Aplicativo</span>
-    </button>
-  )}
+            <button 
+              onClick={install}
+              className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
+            >
+              <Download size={20} />
+              <span className="text-sm">Instalar Aplicativo</span>
+            </button>
+          )}
 
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
-          >
-            <LogOut size={20} />
-            <span className="text-sm">Sair do Sistema</span>
-          </button>
+          {/* UX — divisor visual antes do logout */}
+          <div className="border-t border-border pt-2">
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
+            >
+              <LogOut size={20} />
+              <span className="text-sm">Sair do Sistema</span>
+            </button>
+          </div>
           
           <div className="px-4 py-2">
             <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">

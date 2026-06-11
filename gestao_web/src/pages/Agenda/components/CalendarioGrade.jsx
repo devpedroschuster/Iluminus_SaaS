@@ -171,6 +171,7 @@ export default function CalendarioGrade({
   setCurrentView,
   handleSelectSlot,
   handleSelectEvent,
+  isAdmin = false,
 }) {
   return (
     <div className="h-full style-calendar-wrapper">
@@ -215,7 +216,7 @@ export default function CalendarioGrade({
           .rbc-event-content { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
           .rbc-toolbar { display: none; }
           @media (max-width: 768px) {
-            .rbc-calendar { min-width: 700px; }
+            .rbc-month-view { min-width: 600px; }
             .style-calendar-wrapper { overflow-x: auto; padding-bottom: 20px; }
           }
         `,
@@ -232,7 +233,7 @@ export default function CalendarioGrade({
         onNavigate={setCurrentDate}
         view={currentView}
         onView={setCurrentView}
-        selectable={true}
+        selectable={isAdmin}
         onSelectSlot={handleSelectSlot}
         onSelectEvent={handleSelectEvent}
         eventPropGetter={eventPropGetter}

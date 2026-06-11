@@ -17,7 +17,14 @@ function resolverPerfil(perfil) {
   return String(valor).toLowerCase().trim();
 }
 
-function Sidebar({ perfil, menuAberto, setMenuAberto }) {
+// S3 UX — extrai inicial do nome para o avatar
+function inicialNome(nome) {
+  if (!nome) return '?';
+  return nome.trim().charAt(0).toUpperCase();
+}
+
+// #17 — recebe nomeUsuario como prop
+function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -58,11 +65,12 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
   ];
 
   const menuProfessor = [
-  { label: 'Menu Professor' },
-  { name: 'Minha Agenda',      path: '/agenda',             icon: Calendar },
-  { name: 'Meus Alunos',       path: '/professor/alunos',   icon: Users    },
-  { name: 'Minhas Comissões',  path: '/professor/comissoes', icon: Percent  },
-];
+    { label: 'Menu Professor' },
+    { name: 'Minha Agenda',           path: '/agenda',              icon: Calendar },
+    { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
+    // S1 FIX — renomeado de "Minhas Comissões" para refletir que inclui repasses
+    { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
+  ];
 
   const isProfessor = resolverPerfil(perfil) === 'professor';
   const itensMenu = isProfessor ? menuProfessor : menuAdmin;
@@ -93,9 +101,17 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
             <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
               <span className="text-primary-foreground font-black text-xl">I</span>
             </div>
-            <h1 className="text-2xl font-black text-foreground tracking-tighter">
-              Iluminus
-            </h1>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tighter leading-none">
+                Iluminus
+              </h1>
+              {/* UX — label de contexto abaixo do logo para o professor */}
+              {isProfessor && (
+                <p className="text-[10px] font-bold text-muted-foreground tracking-wide mt-0.5">
+                  Área do Professor
+                </p>
+              )}
+            </div>
           </div>
           
           <button 
@@ -105,6 +121,23 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
             <X size={20} />
           </button>
         </div>
+
+        {/* S3 UX — Avatar + nome do professor no topo da nav (apenas para professor) */}
+        {isProfessor && nomeUsuario && (
+          <div className="px-6 pb-4">
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary-soft rounded-2xl">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow shadow-primary/20">
+                <span className="text-primary-foreground font-black text-sm">
+                  {inicialNome(nomeUsuario)}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground font-medium">Bem-vindo,</p>
+                <p className="font-black text-sm text-foreground truncate">{nomeUsuario}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Navegação */}
         <nav className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
@@ -141,27 +174,39 @@ function Sidebar({ perfil, menuAberto, setMenuAberto }) {
 
         {/* Rodapé da Sidebar */}
         <div className="p-4 border-t border-border mt-auto space-y-2">
+
+          {/* #17 / S3 FIX — chip de identidade: exibe para admin; professor já tem avatar no topo */}
+          {nomeUsuario && !isProfessor && (
+            <div className="px-4 py-3 bg-muted rounded-xl">
+              <p className="text-xs text-muted-foreground">Logado como</p>
+              <p className="font-bold text-sm text-foreground truncate">{nomeUsuario}</p>
+            </div>
+          )}
+
           <div className="flex justify-center w-full pb-2">
             <ThemeToggle />
           </div>
 
           {canInstall && (
-    <button 
-      onClick={install}
-      className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
-    >
-      <Download size={20} />
-      <span className="text-sm">Instalar Aplicativo</span>
-    </button>
-  )}
+            <button 
+              onClick={install}
+              className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
+            >
+              <Download size={20} />
+              <span className="text-sm">Instalar Aplicativo</span>
+            </button>
+          )}
 
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
-          >
-            <LogOut size={20} />
-            <span className="text-sm">Sair do Sistema</span>
-          </button>
+          {/* UX — divisor visual antes do logout */}
+          <div className="border-t border-border pt-2">
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
+            >
+              <LogOut size={20} />
+              <span className="text-sm">Sair do Sistema</span>
+            </button>
+          </div>
           
           <div className="px-4 py-2">
             <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">

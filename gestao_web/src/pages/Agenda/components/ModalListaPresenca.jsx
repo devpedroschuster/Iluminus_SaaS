@@ -7,7 +7,8 @@ import Input, { Label } from '../../../components/ui/Input';
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
   handleRegistrarFalta, handleDesfazerFalta,
-  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey
+  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey,
+  isAdmin,
 }) {
   if (!aulaParaLista) return null;
   return (
@@ -61,7 +62,7 @@ export default function ModalListaPresenca({
                         Informar Falta
                       </Button>
                     )
-                  ) : (
+                  ) : isAdmin ? (
                     <Button
                       variant="destructive"
                       size="sm"
@@ -70,7 +71,7 @@ export default function ModalListaPresenca({
                     >
                       Remover
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </li>
             ))}

@@ -80,7 +80,7 @@ export default function Agenda() {
   });
 
   const { data: matriculasFixas = [] } = useQuery({
-  queryKey: ['matriculas-fixas', isAdmin ? 'admin' : (aulas || []).map(a => a.id).join(',')],
+  queryKey: ['matriculas-fixas', isAdmin ? 'admin' : professorIdLogado],
   queryFn: () => {
     if (isAdmin) return gradeService.listarMatriculasFixas();
     // Para professor: filtra só pelas aulas que ele leciona
@@ -171,15 +171,17 @@ const emptyStateEspaco = useMemo(() => {
               <Ban size={20} /> Bloqueios ({feriados.length})
             </button>
           )}
-          <button
-            onClick={() => {
-              hookAgendamento.setAgendamentoForm({ ...hookAgendamento.agendamentoForm, aula_id: '', data_aula: '' });
-              modais.agendamento.abrir();
-            }}
-            className={btnInfo}
-          >
-            <UserCheck size={20} /> {isAdmin ? 'Agendar na Turma' : 'Agendar Aluno'}
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                hookAgendamento.setAgendamentoForm({ ...hookAgendamento.agendamentoForm, aula_id: '', data_aula: '' });
+                modais.agendamento.abrir();
+              }}
+              className={btnInfo}
+            >
+              <UserCheck size={20} /> Agendar na Turma
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => {

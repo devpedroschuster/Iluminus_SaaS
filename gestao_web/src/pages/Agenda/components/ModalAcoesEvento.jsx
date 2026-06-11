@@ -47,12 +47,6 @@ export default function ModalAcoesEvento({
 }) {
   if (!evento) return null;
 
-  // A4: professor só pode agendar em aulas que são dele
-  const podeAgendar = isAdmin || (
-    professorIdLogado &&
-    String(evento.dadosOriginais.professor_id) === String(professorIdLogado)
-  );
-
   const corTema = PALETA_CORES.find(c => c.id === (evento.dadosOriginais.cor || 'laranja')) || PALETA_CORES[0];
 
   return (
@@ -77,7 +71,7 @@ export default function ModalAcoesEvento({
       {!isAdmin && <DetalheAula evento={evento} corTema={corTema} />}
 
       {/* Ações disponíveis para todos os perfis */}
-      {podeAgendar && (
+      {isAdmin && (
         <Button variant="success" size="lg" fullWidth onClick={() => onAgendar(evento)}>
           <UserPlus size={20} /> Agendar Aluno nesta Turma
         </Button>

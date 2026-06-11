@@ -23,6 +23,8 @@ export default function Professores() {
   const [formProfessor, setFormProfessor] = useState({
     id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null,
   });
+  // Guarda o estado original ao abrir edição para detectar mudanças de acesso
+  const [acessoOriginal, setAcessoOriginal] = useState({ email: '', auth_id: null });
   const [profSelecionado, setProfSelecionado] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -48,6 +50,7 @@ export default function Professores() {
 
   function abrirModalCriar() {
     setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
+    setAcessoOriginal({ email: '', auth_id: null });
     modalForm.abrir();
   }
 
@@ -60,6 +63,7 @@ export default function Professores() {
       pix_comissao: prof.pix_comissao || '',
       auth_id: prof.auth_id || null,
     });
+    setAcessoOriginal({ email: prof.email || '', auth_id: prof.auth_id || null });
     modalForm.abrir();
   }
 
@@ -69,43 +73,91 @@ export default function Professores() {
     setSaving(true);
 
     try {
-      let isNovoAcesso = false;
-      let payloadProfessor = { ...formProfessor };
+      const emailNovo   = formProfessor.email.trim().toLowerCase();
+      const emailAntigo = acessoOriginal.email.trim().toLowerCase();
+      const authIdAtual = acessoOriginal.auth_id;
 
-      if (payloadProfessor.email && !payloadProfessor.auth_id) {
-        const { data: alunoExistente } = await supabase
-          .from('alunos')
-          .select('auth_id')
-          .eq('email', payloadProfessor.email.trim())
-          .maybeSingle();
+      // ── Detecta qual operação de acesso é necessária ──────────────────────
+      //
+      //  1. Novo cadastro com email         → criar acesso
+      //  2. Edição: tinha email, limpou      → remover acesso
+      //  3. Edição: tinha email, trocou      → trocar_email
+      //  4. Edição: não tinha, adicionou     → criar acesso
+      //  5. Sem email em nenhum dos dois     → só salva dados do professor
+      //  6. Email não mudou                  → só salva dados do professor
 
-        if (alunoExistente) {
-          payloadProfessor.auth_id = alunoExistente.auth_id;
-        } else {
-          const { data: funcData, error: funcError } = await supabase.functions.invoke('criar_usuario', {
-            body: { email: payloadProfessor.email.trim(), nome: payloadProfessor.nome, role: 'professor' },
-          });
+      const isNovoCadastro = !formProfessor.id;
+      const tinhaAcesso    = !!authIdAtual;
+      const temEmailNovo   = !!emailNovo;
+      const emailMudou     = emailNovo !== emailAntigo;
 
-          if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-          if (funcData?.error) {
-            throw new Error(
-              funcData.error === 'User already registered'
-                ? 'Este e-mail já possui um acesso no sistema.'
-                : funcData.error,
-            );
-          }
+      let toastMsg = 'Professor salvo com sucesso!';
 
-          payloadProfessor.auth_id = funcData.user.id;
-          isNovoAcesso = true;
-        }
+      if (isNovoCadastro && temEmailNovo) {
+        // Caso 1 — novo cadastro com email: chama Edge Function e ela já salva auth_id
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'criar', professor_id: null, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        // Para novo cadastro a função não tem professor_id ainda — salvamos sem auth_id
+        // e atualizamos logo após ter o id retornado pelo insert
+        const professorSalvo = await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        // A função foi chamada sem professor_id; corrige agora
+        await supabase.from('professores').update({ auth_id: funcData.auth_id }).eq('id', professorSalvo.id);
+        toastMsg = funcData.reutilizado
+          ? 'Professor vinculado ao acesso existente!'
+          : 'Professor cadastrado e acesso criado!';
+
+      } else if (!isNovoCadastro && tinhaAcesso && !temEmailNovo) {
+        // Caso 2 — removeu o email: exclui acesso
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'remover', professor_id: formProfessor.id, auth_id: authIdAtual } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        // Salva o restante dos campos (email e auth_id já foram limpos pela função)
+        await professoresService.salvar({ ...formProfessor, email: null, auth_id: null });
+        toastMsg = funcData.user_deletado
+          ? 'E-mail removido e acesso excluído.'
+          : 'E-mail removido. Acesso mantido pois pertence a um aluno.';
+
+      } else if (!isNovoCadastro && emailMudou && tinhaAcesso && temEmailNovo) {
+        // Caso 3 — trocou o email: deleta antigo, cria novo
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'trocar_email', professor_id: formProfessor.id, auth_id: authIdAtual, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        toastMsg = 'E-mail atualizado e novo acesso criado!';
+
+      } else if (!isNovoCadastro && !tinhaAcesso && temEmailNovo) {
+        // Caso 4 — não tinha acesso, adicionou email: cria acesso
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'criar', professor_id: formProfessor.id, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        toastMsg = funcData.reutilizado
+          ? 'Professor vinculado ao acesso existente!'
+          : 'Acesso criado e professor atualizado!';
+
+      } else {
+        // Casos 5 e 6 — sem mudança de acesso, salva só os dados
+        await professoresService.salvar({ ...formProfessor, email: emailNovo || null });
       }
 
-      await professoresService.salvar(payloadProfessor);
-      showToast.success(
-        isNovoAcesso
-          ? 'Professor cadastrado e Acesso criado!'
-          : 'Professor vinculado ao acesso existente com sucesso!',
-      );
+      showToast.success(toastMsg);
       modalForm.fechar();
       carregarProfessores();
     } catch (error) {

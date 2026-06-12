@@ -1,4 +1,3 @@
-// gestao_web/src/pages/Professor/ProfessorComissoes.jsx
 import React, { useMemo, useState } from 'react';
 import {
   ChevronLeft,
@@ -8,6 +7,7 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
+  Hash,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRepassesProfessor } from '../../hooks/useRepasses';
@@ -92,7 +92,7 @@ function exportarCSV(repasses, mesAno) {
 
 // ─── KPI card ────────────────────────────────────────────────────────────────
 
-function KPICard({ icon, label, value, tone = 'neutral', loading }) {
+function KPICard({ icon, label, value, subtitle, tone = 'neutral', loading }) {
   const toneClasses = {
     brand: 'text-primary bg-primary-soft',
     success: 'text-success bg-success-soft',
@@ -107,7 +107,12 @@ function KPICard({ icon, label, value, tone = 'neutral', loading }) {
         {loading ? (
           <Skeleton className="h-7 w-24 mt-1" />
         ) : (
-          <p className="text-2xl font-black text-foreground">{value}</p>
+          <>
+            <p className="text-2xl font-black text-foreground">{value}</p>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
+          </>
         )}
       </div>
     </Surface>
@@ -129,16 +134,22 @@ export default function ProfessorComissoes() {
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    if (!repasses) return { total: 0, confirmado: 0, pendente: 0 };
+    if (!repasses) return { total: 0, confirmado: 0, pendente: 0, qtdTotal: 0, qtdPaga: 0, qtdPendente: 0 };
     return repasses.reduce(
       (acc, r) => {
         const v = r.valor ?? 0;
         acc.total += v;
-        if (r.status === 'pago') acc.confirmado += v;
-        else acc.pendente += v;
+        acc.qtdTotal += 1;
+        if (r.status === 'pago') {
+          acc.confirmado += v;
+          acc.qtdPaga += 1;
+        } else {
+          acc.pendente += v;
+          acc.qtdPendente += 1;
+        }
         return acc;
       },
-      { total: 0, confirmado: 0, pendente: 0 }
+      { total: 0, confirmado: 0, pendente: 0, qtdTotal: 0, qtdPaga: 0, qtdPendente: 0 }
     );
   }, [repasses]);
 
@@ -196,12 +207,24 @@ export default function ProfessorComissoes() {
       </div>
 
       {/* ── KPI cards ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <KPICard
           icon={<TrendingUp size={20} />}
           label="Total a receber"
           value={formatarMoeda(kpis.total)}
           tone="brand"
+          loading={carregando}
+        />
+        <KPICard
+          icon={<Hash size={20} />}
+          label="Comissões"
+          value={`${kpis.qtdTotal}`}
+          subtitle={
+            carregando
+              ? null
+              : `${kpis.qtdPaga} recebida${kpis.qtdPaga === 1 ? '' : 's'} · ${kpis.qtdPendente} pendente${kpis.qtdPendente === 1 ? '' : 's'}`
+          }
+          tone="neutral"
           loading={carregando}
         />
       </div>

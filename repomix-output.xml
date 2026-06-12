@@ -757,6 +757,59 @@ projeto-iluminus-contexto.txt
 repomix.config.json
 </file>
 
+<file path="gestao_web/package.json">
+{
+  "name": "iluminus-admin",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@supabase/supabase-js": "^2.95.3",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.0",
+    "react-big-calendar": "^1.19.4",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.71.1",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "xlsx": "^0.18.5",
+    "yup": "^1.7.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.24",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vite": "^8.0.0-beta.13"
+  },
+  "overrides": {
+    "vite": "^8.0.0-beta.13"
+  }
+}
+</file>
+
 <file path="gestao_web/public/favicon.svg">
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
 </file>
@@ -946,9 +999,24 @@ export function useLeadsPendentes() {
     queryKey: ['leads', 'pendentes'],
     queryFn: async () => {
       const data = await leadsService.listarLeadsPendentes();
-      return data as unknown as Lead[]; 
+      return data as unknown as Lead[];
     },
-    staleTime: 1000 * 30, 
+    staleTime: 1000 * 30,
+  });
+}
+
+/**
+ * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
+ * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
+ */
+export function useLeadsPendentesPorMes(ano: number, mes: number) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'pendentes', 'mes', ano, mes],
+    queryFn: async () => {
+      const data = await leadsService.listarLeadsPendentesPorMes({ ano, mes });
+      return data as unknown as Lead[];
+    },
+    staleTime: 1000 * 30,
   });
 }
 
@@ -959,11 +1027,119 @@ export function useHistoricoLeads() {
       const data = await leadsService.listarHistoricoLeads({ pageParam, limit: 30 });
       return data as unknown as Lead[];
     },
-    initialPageParam: 0, 
+    initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.length === 30 ? allPages.length * 30 : undefined;
     },
     staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * Histórico de leads filtrado por mês/ano específico.
+ * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
+ */
+export function useHistoricoLeadsPorMes(ano: number, mes: number) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'historico', 'mes', ano, mes],
+    queryFn: async () => {
+      const data = await leadsService.listarHistoricoLeadsPorMes({ ano, mes });
+      return data as unknown as Lead[];
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+interface ResumoLead {
+  id: string;
+  data_checkin: string;
+  status_conversao: 'pendente' | 'convertido' | 'perdido';
+}
+
+export interface ResumoMensal {
+  ano: number;
+  mes: number; // 0-indexado
+  chave: string; // 'AAAA-MM'
+  label: string; // 'Junho 2026'
+  total: number;
+  convertidos: number;
+  pendentes: number;
+  perdidos: number;
+  taxa: number | null;
+}
+
+function agruparPorMes(data: ResumoLead[]): ResumoMensal[] {
+  const mapa = new Map<string, ResumoMensal>();
+
+  for (const lead of data) {
+    const d = new Date(lead.data_checkin);
+    const ano = d.getFullYear();
+    const mes = d.getMonth();
+    const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+
+    if (!mapa.has(chave)) {
+      mapa.set(chave, {
+        ano,
+        mes,
+        chave,
+        label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        total: 0,
+        convertidos: 0,
+        pendentes: 0,
+        perdidos: 0,
+        taxa: null,
+      });
+    }
+
+    const item = mapa.get(chave)!;
+    item.total += 1;
+    if (lead.status_conversao === 'convertido') item.convertidos += 1;
+    else if (lead.status_conversao === 'pendente') item.pendentes += 1;
+    else if (lead.status_conversao === 'perdido') item.perdidos += 1;
+  }
+
+  const resultado = Array.from(mapa.values()).map(item => ({
+    ...item,
+    taxa: item.total > 0 ? item.convertidos / item.total : null,
+    // Capitaliza a primeira letra do label (ex: "junho 2026" → "Junho 2026")
+    label: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+  }));
+
+  // Mais recente primeiro
+  resultado.sort((a, b) => b.chave.localeCompare(a.chave));
+
+  return resultado;
+}
+
+/**
+ * Carrega todos os leads (campos leves) e agrupa por mês/ano,
+ * gerando contagens e taxa de conversão para cada período.
+ * Usado para alimentar o seletor de meses na Visão Histórico.
+ */
+export function useResumoMensalLeads() {
+  return useQuery<ResumoMensal[]>({
+    queryKey: ['leads', 'resumo-mensal'],
+    queryFn: async () => {
+      const data = await leadsService.listarResumoLeads() as unknown as ResumoLead[];
+      return agruparPorMes(data);
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * Igual ao resumo mensal, mas considerando apenas leads pendentes.
+ * Usado para alimentar o seletor de meses na Visão Ação (organização
+ * de leads em aberto por período de realização da experimental).
+ */
+export function useResumoMensalLeadsPendentes() {
+  return useQuery<ResumoMensal[]>({
+    queryKey: ['leads', 'resumo-mensal-pendentes'],
+    queryFn: async () => {
+      const data = await leadsService.listarResumoLeadsPendentes() as unknown as ResumoLead[];
+      return agruparPorMes(data);
+    },
+    staleTime: 1000 * 30,
   });
 }
 
@@ -1008,6 +1184,49 @@ export function useAtualizarStatusLead() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
+/**
+ * Salva a observação livre da administração sobre o lead.
+ * Atualiza o cache otimisticamente nas listas de pendentes e histórico
+ * (incluindo páginas paginadas e filtradas por mês).
+ */
+export function useAtualizarObservacaoLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, observacao }: { id: string, observacao: string }) => {
+      return await leadsService.atualizarObservacaoLead(id, observacao);
+    },
+    onMutate: async ({ id, observacao }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const atualizarLista = (old?: Lead[]) =>
+        old?.map(l => l.id === id ? { ...l, observacao_lead: observacao } : l);
+
+      // Listas simples (pendentes, pendentes por mês, histórico por mês)
+      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'pendentes'] }, (old) => atualizarLista(old) ?? old);
+      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'historico', 'mes'] }, (old) => atualizarLista(old) ?? old);
+
+      // Histórico paginado (infinite query)
+      queryClient.setQueriesData<InfiniteData<Lead[]>>({ queryKey: ['leads', 'historico'], exact: false }, (oldData) => {
+        if (!oldData || !('pages' in oldData)) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) =>
+            page.map((l) => l.id === id ? { ...l, observacao_lead: observacao } : l)
+          ),
+        };
+      });
+    },
+    onError: () => {
+      showToast.error("Erro ao salvar observação. Tente novamente.");
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onSuccess: () => {
+      showToast.success("Observação salva.");
     },
   });
 }
@@ -2125,30 +2344,108 @@ export const dreService = {
 <file path="gestao_web/src/services/leadsService.js">
 import { supabase } from '../lib/supabase';
 
+const SELECT_BASE = 'id, nome_visitante, telefone_visitante, data_checkin, status_conversao, observacao_lead, agenda(atividade)';
+
 export const leadsService = {
   async listarLeadsPendentes() {
     const { data, error } = await supabase
       .from('presencas')
-      .select('id, nome_visitante, telefone_visitante, data_checkin, status_conversao, agenda(atividade)')
+      .select(SELECT_BASE)
       .not('nome_visitante', 'is', null)
       .eq('status_conversao', 'pendente')
       .order('data_checkin', { ascending: false });
-      
+
     if (error) throw error;
     return data;
   },
 
+  /**
+   * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
+   * `mes` é 0-indexado (igual ao Date.getMonth()).
+   */
+  async listarLeadsPendentesPorMes({ ano, mes }) {
+    const inicio = new Date(ano, mes, 1);
+    const fim = new Date(ano, mes + 1, 1);
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .select(SELECT_BASE)
+      .not('nome_visitante', 'is', null)
+      .eq('status_conversao', 'pendente')
+      .gte('data_checkin', inicio.toISOString())
+      .lt('data_checkin', fim.toISOString())
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Histórico paginado (modo "Todos os períodos").
+   */
   async listarHistoricoLeads({ pageParam = 0, limit = 30 }) {
     const from = pageParam;
     const to = from + limit - 1;
 
     const { data, error } = await supabase
       .from('presencas')
-      .select('id, nome_visitante, telefone_visitante, data_checkin, status_conversao, agenda(atividade)')
+      .select(SELECT_BASE)
       .not('nome_visitante', 'is', null)
       .order('data_checkin', { ascending: false })
       .range(from, to);
-      
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Histórico filtrado por mês/ano específico (ex: 2026, 5 → Junho/2026).
+   * `mes` é 0-indexado (igual ao Date.getMonth()).
+   */
+  async listarHistoricoLeadsPorMes({ ano, mes }) {
+    const inicio = new Date(ano, mes, 1);
+    const fim = new Date(ano, mes + 1, 1);
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .select(SELECT_BASE)
+      .not('nome_visitante', 'is', null)
+      .gte('data_checkin', inicio.toISOString())
+      .lt('data_checkin', fim.toISOString())
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Retorna todos os registros (apenas campos necessários para agregação)
+   * usados para montar o resumo mensal e a lista de meses disponíveis.
+   * Mantém payload leve: sem telefone/agenda/observação.
+   */
+  async listarResumoLeads() {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select('id, data_checkin, status_conversao')
+      .not('nome_visitante', 'is', null)
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Resumo mensal apenas dos leads pendentes (para o filtro de período
+   * na Visão Ação). Payload leve.
+   */
+  async listarResumoLeadsPendentes() {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select('id, data_checkin, status_conversao')
+      .not('nome_visitante', 'is', null)
+      .eq('status_conversao', 'pendente')
+      .order('data_checkin', { ascending: false });
+
     if (error) throw error;
     return data;
   },
@@ -2158,7 +2455,21 @@ export const leadsService = {
       .from('presencas')
       .update({ status_conversao: novoStatus })
       .eq('id', presencaId);
-      
+
+    if (error) throw error;
+    return true;
+  },
+
+  /**
+   * Salva/atualiza a observação livre da administração sobre o lead
+   * (ex: "não fechou por preço", "aguardando dinheiro").
+   */
+  async atualizarObservacaoLead(presencaId, observacao) {
+    const { error } = await supabase
+      .from('presencas')
+      .update({ observacao_lead: observacao || null })
+      .eq('id', presencaId);
+
     if (error) throw error;
     return true;
   }
@@ -2290,8 +2601,9 @@ export interface Lead {
   telefone_visitante: string | null;
   data_checkin: string;
   status_conversao: 'pendente' | 'convertido' | 'perdido';
-  agenda: { 
-    atividade: string 
+  observacao_lead: string | null;
+  agenda: {
+    atividade: string
   } | null;
 }
 </file>
@@ -2947,59 +3259,6 @@ out/
 *.sw?
 .vercel
 .env*.local
-</file>
-
-<file path="gestao_web/package.json">
-{
-  "name": "iluminus-admin",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@supabase/supabase-js": "^2.95.3",
-    "@tailwindcss/postcss": "^4.1.18",
-    "@tanstack/react-query": "^5.90.21",
-    "@tanstack/react-query-devtools": "^5.91.3",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "lucide-react": "^0.563.0",
-    "react": "^19.2.0",
-    "react-big-calendar": "^1.19.4",
-    "react-dom": "^19.2.0",
-    "react-hook-form": "^7.71.1",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.13.0",
-    "recharts": "^3.7.0",
-    "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "xlsx": "^0.18.5",
-    "yup": "^1.7.1"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "autoprefixer": "^10.4.24",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^16.5.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18",
-    "vite": "^8.0.0-beta.13"
-  },
-  "overrides": {
-    "vite": "^8.0.0-beta.13"
-  }
-}
 </file>
 
 <file path="gestao_web/public/manifest.json">
@@ -5801,165 +6060,6 @@ const valorTotal = Number(plano.preco);
 });
 </file>
 
-<file path="supabase/functions/gerenciar-acesso-professor/index.ts">
-// supabase/functions/gerenciar-acesso-professor/index.ts
-//
-// Gerencia o ciclo de vida do acesso (auth.users) de um professor.
-//
-// Ações:
-//   criar        — cria novo user no auth e retorna { user }
-//   remover      — deleta o user do auth (requer auth_id)
-//   trocar_email — deleta o user antigo e cria um novo (requer auth_id + novo_email)
-//
-// Todos os casos atualizam auth_id na tabela professores atomicamente.
-
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function resp(body: object, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const admin       = createClient(supabaseUrl, serviceKey);
-
-  try {
-    const { acao, professor_id, auth_id, email, nome } = await req.json();
-
-    // ── CRIAR ────────────────────────────────────────────────────────────────
-    if (acao === 'criar') {
-      if (!email || !professor_id) return resp({ error: 'email e professor_id são obrigatórios' }, 400);
-
-      // Verifica se já existe um auth user com esse email
-      const emailNormalizado = email.trim().toLowerCase();
-      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      if (listErr) throw listErr;
-
-      const existente = users.find((u) => u.email === emailNormalizado);
-
-      let novoAuthId: string;
-
-      if (existente) {
-        novoAuthId = existente.id;
-      } else {
-        const { data, error } = await admin.auth.admin.inviteUserByEmail(emailNormalizado, {
-          data: { nome, role: 'professor' },
-        });
-        if (error) throw error;
-        novoAuthId = data.user.id;
-      }
-
-      // Atualiza professores.auth_id
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({ auth_id: novoAuthId, email: emailNormalizado })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ auth_id: novoAuthId, reutilizado: !!existente });
-    }
-
-    // ── REMOVER ───────────────────────────────────────────────────────────────
-    if (acao === 'remover') {
-      if (!auth_id || !professor_id) return resp({ error: 'auth_id e professor_id são obrigatórios' }, 400);
-
-      // Verifica se o mesmo auth_id está vinculado a um aluno — nesse caso NÃO deleta o user,
-      // apenas desvincula do professor (o aluno continua existindo)
-      const { data: aluno } = await admin
-        .from('alunos')
-        .select('id')
-        .eq('auth_id', auth_id)
-        .maybeSingle();
-
-      let userDeletado = false;
-      if (!aluno) {
-        // Sem vínculo com aluno → tenta deletar do auth
-        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr && !delErr.message.includes('User not found')) {
-          throw delErr;
-        }
-        userDeletado = true;
-      }
-
-      // De qualquer forma, limpa auth_id e email do professor
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({ auth_id: null, email: null })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ removido: true, user_deletado: userDeletado });
-    }
-
-    // ── TROCAR EMAIL ──────────────────────────────────────────────────────────
-    if (acao === 'trocar_email') {
-      if (!auth_id || !email || !professor_id) {
-        return resp({ error: 'auth_id, email e professor_id são obrigatórios' }, 400);
-      }
-
-      // 1. Remove o acesso antigo (reutiliza lógica acima via chamada interna)
-      const { data: aluno } = await admin
-        .from('alunos')
-        .select('id')
-        .eq('auth_id', auth_id)
-        .maybeSingle();
-
-      if (!aluno) {
-        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr && !delErr.message.includes('User not found')) {
-          throw delErr;
-        }
-      }
-
-      // 2. Cria novo user com o novo email (ou reusa existente)
-      const emailNormalizado = email.trim().toLowerCase();
-      const { data: { users }, error: listErr2 } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      if (listErr2) throw listErr2;
-      const existente = users.find((u) => u.email === emailNormalizado);
-
-      let novoAuthId: string;
-      if (existente) {
-        novoAuthId = existente.id;
-      } else {
-        const { data, error } = await admin.auth.admin.inviteUserByEmail(emailNormalizado, {
-          data: { nome, role: 'professor' },
-        });
-        if (error) throw error;
-        novoAuthId = data.user.id;
-      }
-
-      // 3. Atualiza professor com novo auth_id e email
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({ auth_id: novoAuthId, email: email.trim().toLowerCase() })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ auth_id: novoAuthId, reutilizado: !!existente });
-    }
-
-    return resp({ error: `Ação desconhecida: ${acao}` }, 400);
-
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro interno';
-    console.error('[gerenciar-acesso-professor]', msg);
-    return resp({ error: msg }, 500);
-  }
-});
-</file>
-
 <file path="gestao_web/src/components/PWABanners.jsx">
 import React, { useState } from 'react';
 import { X, Share } from 'lucide-react';
@@ -7645,6 +7745,167 @@ serve(async (req: Request) => {
 });
 </file>
 
+<file path="supabase/functions/gerenciar-acesso-professor/index.ts">
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const SENHA_PADRAO = 'Iluminus576';
+
+function resp(body: object, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const admin       = createClient(supabaseUrl, serviceKey);
+
+  try {
+    const { acao, professor_id, auth_id, email, nome } = await req.json();
+
+    // ── CRIAR ────────────────────────────────────────────────────────────────
+    if (acao === 'criar') {
+      if (!email || !professor_id) return resp({ error: 'email e professor_id são obrigatórios' }, 400);
+
+      const emailNormalizado = email.trim().toLowerCase();
+
+      // Verifica se já existe um auth user com esse email
+      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr) throw listErr;
+
+      const existente = users.find((u) => u.email === emailNormalizado);
+
+      let novoAuthId: string;
+      let reutilizado = false;
+
+      if (existente) {
+        // Usuário já existe: apenas vincula, não cria nem reseta senha
+        novoAuthId = existente.id;
+        reutilizado = true;
+      } else {
+        // Cria usuário com senha padrão + primeiro_acesso via user_metadata
+        const { data, error } = await admin.auth.admin.createUser({
+          email: emailNormalizado,
+          password: SENHA_PADRAO,
+          email_confirm: true,           // pula confirmação por email
+          user_metadata: { nome, role: 'professor' },
+        });
+        if (error) throw error;
+        novoAuthId = data.user.id;
+      }
+
+      // Atualiza professores: auth_id, email e primeiro_acesso = true
+      const { error: upErr } = await admin
+        .from('professores')
+        .update({
+          auth_id: novoAuthId,
+          email: emailNormalizado,
+          primeiro_acesso: !reutilizado, // só marca primeiro_acesso para usuários novos
+        })
+        .eq('id', professor_id);
+      if (upErr) throw upErr;
+
+      return resp({ auth_id: novoAuthId, reutilizado });
+    }
+
+    // ── REMOVER ───────────────────────────────────────────────────────────────
+    if (acao === 'remover') {
+      if (!auth_id || !professor_id) return resp({ error: 'auth_id e professor_id são obrigatórios' }, 400);
+
+      const { data: aluno } = await admin
+        .from('alunos')
+        .select('id')
+        .eq('auth_id', auth_id)
+        .maybeSingle();
+
+      let userDeletado = false;
+      if (!aluno) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
+        if (delErr && !delErr.message.includes('User not found')) throw delErr;
+        userDeletado = true;
+      }
+
+      const { error: upErr } = await admin
+        .from('professores')
+        .update({ auth_id: null, email: null, primeiro_acesso: false })
+        .eq('id', professor_id);
+      if (upErr) throw upErr;
+
+      return resp({ removido: true, user_deletado: userDeletado });
+    }
+
+    // ── TROCAR EMAIL ──────────────────────────────────────────────────────────
+    if (acao === 'trocar_email') {
+      if (!auth_id || !email || !professor_id) {
+        return resp({ error: 'auth_id, email e professor_id são obrigatórios' }, 400);
+      }
+
+      const { data: aluno } = await admin
+        .from('alunos')
+        .select('id')
+        .eq('auth_id', auth_id)
+        .maybeSingle();
+
+      if (!aluno) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
+        if (delErr && !delErr.message.includes('User not found')) throw delErr;
+      }
+
+      const emailNormalizado = email.trim().toLowerCase();
+      const { data: { users }, error: listErr2 } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr2) throw listErr2;
+      const existente = users.find((u) => u.email === emailNormalizado);
+
+      let novoAuthId: string;
+      let reutilizado = false;
+
+      if (existente) {
+        novoAuthId = existente.id;
+        reutilizado = true;
+      } else {
+        const { data, error } = await admin.auth.admin.createUser({
+          email: emailNormalizado,
+          password: SENHA_PADRAO,
+          email_confirm: true,
+          user_metadata: { nome, role: 'professor' },
+        });
+        if (error) throw error;
+        novoAuthId = data.user.id;
+      }
+
+      const { error: upErr } = await admin
+        .from('professores')
+        .update({
+          auth_id: novoAuthId,
+          email: emailNormalizado,
+          primeiro_acesso: !reutilizado,
+        })
+        .eq('id', professor_id);
+      if (upErr) throw upErr;
+
+      return resp({ auth_id: novoAuthId, reutilizado });
+    }
+
+    return resp({ error: `Ação desconhecida: ${acao}` }, 400);
+
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro interno';
+    console.error('[gerenciar-acesso-professor]', msg);
+    return resp({ error: msg }, 500);
+  }
+});
+</file>
+
 <file path="gestao_web/index.html">
 <!doctype html>
 <html lang="pt-BR">
@@ -8456,6 +8717,71 @@ async obterComissoes(inicioMes) {
     if (error) throw error;
     return data || [];
   },
+};
+</file>
+
+<file path="gestao_web/src/services/modalidadeService.js">
+import { supabase } from '../lib/supabase';
+
+export const modalidadeService = {
+  async listar() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*, professores (nome)')
+      .order('area')
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+
+async buscarPerfil(id, nome) {
+  const { data: horarios } = await supabase
+    .from('agenda')
+    .select('dia_semana, horario')
+    .eq('modalidade_id', id)
+    .eq('eh_recorrente', true)
+    .order('dia_semana')
+    .order('horario');
+
+  // ✅ busca por ID
+  const { data: alunos, error: errAlunos } = await supabase
+    .from('alunos')
+    .select('id, nome_completo, planos(nome)')
+    .eq('ativo', true)
+    .contains('modalidades_selecionadas', [id])
+    .order('nome_completo');
+
+  if (errAlunos) throw errAlunos;
+  return { horarios: horarios || [], alunos: alunos || [] };
+},
+
+  async salvar(modalidade) {
+    const payload = {
+      nome: modalidade.nome,
+      area: modalidade.area || 'Dança',
+      professor_id: modalidade.professor_id || null,
+      taxa_professor: Number(modalidade.taxa_professor) || 0,
+      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
+      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
+      capacidade_padrao: modalidade.capacidade_padrao
+    };
+
+    if (modalidade.id) {
+      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('modalidades').insert([payload]);
+      if (error) throw error;
+    }
+    return true;
+  },
+
+  async excluir(id) {
+    const { error } = await supabase.from('modalidades').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
 };
 </file>
 
@@ -9902,71 +10228,6 @@ export default function ConfiguracoesFeriados() {
 }
 </file>
 
-<file path="gestao_web/src/services/modalidadeService.js">
-import { supabase } from '../lib/supabase';
-
-export const modalidadeService = {
-  async listar() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*, professores (nome)')
-      .order('area')
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-
-async buscarPerfil(id, nome) {
-  const { data: horarios } = await supabase
-    .from('agenda')
-    .select('dia_semana, horario')
-    .eq('modalidade_id', id)
-    .eq('eh_recorrente', true)
-    .order('dia_semana')
-    .order('horario');
-
-  // ✅ busca por ID
-  const { data: alunos, error: errAlunos } = await supabase
-    .from('alunos')
-    .select('id, nome_completo, planos(nome)')
-    .eq('ativo', true)
-    .contains('modalidades_selecionadas', [id])
-    .order('nome_completo');
-
-  if (errAlunos) throw errAlunos;
-  return { horarios: horarios || [], alunos: alunos || [] };
-},
-
-  async salvar(modalidade) {
-    const payload = {
-      nome: modalidade.nome,
-      area: modalidade.area || 'Dança',
-      professor_id: modalidade.professor_id || null,
-      taxa_professor: Number(modalidade.taxa_professor) || 0,
-      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
-      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
-      capacidade_padrao: modalidade.capacidade_padrao
-    };
-
-    if (modalidade.id) {
-      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('modalidades').insert([payload]);
-      if (error) throw error;
-    }
-    return true;
-  },
-
-  async excluir(id) {
-    const { error } = await supabase.from('modalidades').delete().eq('id', id);
-    if (error) throw error;
-    return true;
-  }
-};
-</file>
-
 <file path="gestao_web/public/sw.js">
 const CACHE_NAME = 'iluminus-v3';
 const STATIC_CACHE_NAME = 'iluminus-static-v3';
@@ -10618,6 +10879,460 @@ function RecuperarFormInterno({ onSubmit, loading }) {
       >
         {loading ? <RefreshCw className="animate-spin" size={20} /> : 'Enviar Link de Recuperação'}
       </button>
+    </div>
+  );
+}
+</file>
+
+<file path="gestao_web/src/pages/Modalidades.jsx">
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
+import { showToast } from '../components/shared/Toast';
+import Modal from '../components/ui/Modal';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Surface from '../components/ui/Surface';
+import { modalidadeService } from '../services/modalidadeService'; 
+
+export default function Modalidades() {
+  const [modalidades, setModalidades] = useState([]);
+  const [professores, setProfessores] = useState([]);
+  
+  const [loadingList, setLoadingList] = useState(true); 
+  const [creating, setCreating] = useState(false);      
+  const [deletingId, setDeletingId] = useState(null);   
+
+  const [novaModalidade, setNovaModalidade] = useState({ 
+    nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
+  });
+
+  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [modalidadeEmEdicao, setModalidadeEmEdicao] = useState(null);
+
+  const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
+  const [modPerfil, setModPerfil] = useState(null);
+  const [dadosPerfil, setDadosPerfil] = useState({ horarios: [], alunos: [] });
+  const [loadingPerfil, setLoadingPerfil] = useState(false);
+
+  const totalTaxasNova = Number(novaModalidade.taxa_professor) + Number(novaModalidade.taxa_espaco) + Number(novaModalidade.taxa_direcao);
+  const isNovaValida = totalTaxasNova === 100;
+
+  const totalTaxasEdicao = modalidadeEmEdicao ? (Number(modalidadeEmEdicao.taxa_professor) + Number(modalidadeEmEdicao.taxa_espaco) + Number(modalidadeEmEdicao.taxa_direcao)) : 0;
+  const isEdicaoValida = totalTaxasEdicao === 100;
+
+  useEffect(() => { 
+    fetchDados(); 
+  }, []);
+
+  async function fetchDados() {
+    try {
+      const { data: profs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
+      if (profs) setProfessores(profs);
+
+      const mods = await modalidadeService.listar();
+      if (mods) setModalidades(mods);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  async function abrirPerfil(mod) {
+    setModPerfil(mod);
+    setModalPerfilAberto(true);
+    setLoadingPerfil(true);
+    try {
+      const dados = await modalidadeService.buscarPerfil(mod.id, mod.nome);
+      setDadosPerfil(dados);
+    } catch (error) {
+      showToast.error("Erro ao carregar Raio-X da modalidade.");
+    } finally {
+      setLoadingPerfil(false);
+    }
+  }
+
+  async function handleCriarModalidade(e) {
+    e.preventDefault();
+    if (creating || !novaModalidade.nome || !isNovaValida) return; 
+    setCreating(true);    
+
+    try {
+        const payload = {
+          ...novaModalidade,
+          capacidade_padrao: Number(novaModalidade.capacidade_padrao)
+        };
+        await modalidadeService.salvar(payload);
+        showToast.success("Modalidade adicionada com sucesso!");
+        setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
+        fetchDados();
+    } catch (err) {
+        showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
+    } finally {
+        setCreating(false); 
+    }
+  }
+
+  async function excluirModalidade(id, e) {
+    e.stopPropagation(); 
+    if (!confirm("Tem certeza que deseja remover esta modalidade?")) return;
+    setDeletingId(id); 
+    try {
+        await modalidadeService.excluir(id);
+        showToast.success("Modalidade removida.");
+        fetchDados();
+    } catch (err) {
+        showToast.error("Erro ao excluir. Pode haver aulas atreladas a ela.");
+    } finally {
+        setDeletingId(null);
+    }
+  }
+
+  function abrirEdicao(mod, e) {
+    e?.stopPropagation(); 
+    setModalidadeEmEdicao({
+      id: mod.id,
+      nome: mod.nome,
+      area: mod.area || 'Dança', 
+      professor_id: mod.professor_id || '',
+      capacidade_padrao: mod.capacidade_padrao || 15,
+      taxa_professor: mod.taxa_professor || 0,
+      taxa_espaco: mod.taxa_espaco || 0,
+      taxa_direcao: mod.taxa_direcao || 0
+    });
+    setModalEdicaoAberto(true);
+  }
+
+  async function handleSalvarEdicao(e) {
+    e.preventDefault();
+    if (!modalidadeEmEdicao?.nome || !isEdicaoValida) return;
+    setSavingEdit(true);
+
+    try {
+      const payload = {
+        ...modalidadeEmEdicao,
+        capacidade_padrao: Number(modalidadeEmEdicao.capacidade_padrao)
+      };
+      await modalidadeService.salvar(payload);
+      showToast.success("Modalidade atualizada com sucesso!");
+      setModalEdicaoAberto(false);
+      if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
+          setModPerfil({...modPerfil, ...modalidadeEmEdicao});
+      }
+      fetchDados(); 
+    } catch (err) {
+      showToast.error("Erro ao atualizar modalidade.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  const getAreaColor = (area) => {
+    switch (area) {
+      case 'Dança': return 'bg-purple-soft text-purple border-purple/20';
+      case 'Funcional': return 'bg-warning-soft text-warning border-warning/20';
+      default: return 'bg-muted text-muted-foreground border-border';
+    }
+  };
+
+  return (
+    <div className="p-8 space-y-8 animate-in fade-in">
+       <div>
+          <h1 className="text-3xl font-black text-foreground">Modalidades & Comissões</h1>
+          <p className="text-muted-foreground">Cadastre as atividades, limites de vagas e regras financeiras.</p>
+       </div>
+
+      {/* FORMULÁRIO DE NOVA MODALIDADE */}
+      <Surface variant="card" padding="lg" className="space-y-6">
+        <h3 className="font-bold text-foreground flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
+        
+        <form onSubmit={handleCriarModalidade} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome da Modalidade</label>
+              <Input 
+                required placeholder="Ex: Dança Criativa"
+                value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
+              />
+            </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+              <Input as="select"
+                value={novaModalidade.area}
+                onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
+              >
+                <option value="Dança">Dança</option>
+                <option value="Funcional">Funcional</option>
+                <option value="Livre/Todos">Livre / Outros</option>
+              </Input>
+            </div>
+            
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Responsável (Opcional)</label>
+              <Input as="select"
+                value={novaModalidade.professor_id}
+                onChange={e => setNovaModalidade({...novaModalidade, professor_id: e.target.value})}
+              >
+                <option value="">Sem professor fixo</option>
+                {professores.map(prof => (
+                  <option key={prof.id} value={prof.id}>{prof.nome}</option>
+                ))}
+              </Input>
+            </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+              <Input 
+                required type="number" min="1"
+                className="font-black text-info focus-visible:ring-info" 
+                value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
+              />
+            </div>
+          </div>
+
+          <Surface variant="subtle" className="border border-border p-6 rounded-3xl">
+            <div className="flex justify-between items-end mb-4">
+               <div>
+                 <h4 className="font-bold text-foreground flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
+                 <p className="text-xs text-muted-foreground font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
+               </div>
+               <div className={`text-xl font-black ${isNovaValida ? 'text-success' : 'text-destructive'}`}>
+                 Total: {totalTaxasNova}%
+               </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-info uppercase block mb-1">Professor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-info" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-warning uppercase block mb-1">Espaço (Caixa)</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-warning" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-purple uppercase block mb-1">Diretor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-purple" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
+              </div>
+            </div>
+          </Surface>
+
+          <div className="flex justify-end">
+             <Button type="submit" variant="brand" size="lg" disabled={creating || !isNovaValida} className="w-full md:w-auto font-black flex gap-3">
+               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
+             </Button>
+          </div>
+        </form>
+      </Surface>
+
+      {/* GRADE MODALIDADES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loadingList ? (
+           [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)
+        ) : modalidades.map(mod => (
+          <Surface 
+            key={mod.id} 
+            variant="card"
+            padding="md"
+            onClick={() => abrirPerfil(mod)}
+            className="flex justify-between items-center hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
+          >
+            <div className="flex items-center gap-4">
+               <div className="w-12 h-12 bg-primary-soft rounded-2xl text-primary flex items-center justify-center">
+                 <Activity size={24}/>
+               </div>
+               <div>
+                 <div className="flex items-center gap-2 mb-0.5">
+                   <h3 className="font-bold text-foreground leading-none">{mod.nome}</h3>
+                   <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
+                     {mod.area || 'Dança'}
+                   </span>
+                 </div>
+                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mt-1">
+                   <span className="flex items-center gap-1"><Users size={12} className="text-info"/> {mod.capacidade_padrao || 15} vagas</span>
+                 </p>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all" title="Editar">
+                <Edit2 size={18}/>
+              </button>
+              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all" title="Excluir">
+                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-destructive" size={18}/> : <Trash2 size={18}/>}
+              </button>
+            </div>
+          </Surface>
+        ))}
+      </div>
+
+      <Modal isOpen={modalPerfilAberto} onClose={() => setModalPerfilAberto(false)} titulo="Raio-X da Turma">
+        {modPerfil && (
+          <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
+            
+            <div className="bg-card border border-border p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h2 className="text-2xl font-black text-foreground">{modPerfil.nome}</h2>
+                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)}`}>
+                        {modPerfil.area || 'Dança'}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                        <Users size={16} className="text-info"/> {modPerfil.capacidade_padrao || 15} vagas por aula
+                    </p>
+                </div>
+                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-subtle hover:bg-muted text-foreground p-3 rounded-xl transition-all border border-border" title="Editar Configurações">
+                    <Edit2 size={20} />
+                </button>
+                <div className="absolute -right-8 -top-8 text-muted/5 rotate-12">
+                    <Activity size={120} />
+                </div>
+            </div>
+
+            {loadingPerfil ? (
+                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-muted-foreground" size={32} /></div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                        <h4 className="font-bold text-foreground flex items-center gap-2 mb-4">
+                            <Users size={18} className="text-info"/> Alunos Ativos ({dadosPerfil.alunos.length})
+                        </h4>
+                        
+                        {dadosPerfil.alunos.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno vinculado no momento.</p>
+                        ) : (
+                            <ul className="space-y-2">
+                                {dadosPerfil.alunos.map(aluno => (
+                                    <li key={aluno.id} className="bg-card p-3 rounded-xl border border-border shadow-sm flex items-center justify-between">
+                                        <span className="font-bold text-sm text-foreground">{aluno.nome_completo}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-info bg-info-soft px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Surface>
+
+                    <div className="flex flex-col gap-4">
+                        <Surface variant="card" className="p-5 rounded-3xl flex-1">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-4"><Clock size={18} className="text-purple"/> Horários na Grade</h4>
+                            {dadosPerfil.horarios.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
+                            ) : (
+                                <ul className="flex flex-col gap-2">
+                                    {dadosPerfil.horarios.map((h, i) => (
+                                        <li key={i} className="bg-purple-soft text-purple border border-purple/20 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
+                                            <Calendar size={16} /> {h.dia_semana}, {h.horario.slice(0,5)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </Surface>
+
+                        <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-info uppercase">Prof</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_professor || 0}%</span>
+                                </div>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-warning uppercase">Caixa</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_espaco || 0}%</span>
+                                </div>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-purple uppercase">Dir</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_direcao || 0}%</span>
+                                </div>
+                            </div>
+                        </Surface>
+                    </div>
+                </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
+        {modalidadeEmEdicao && (
+          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome</label>
+                  <Input 
+                      required 
+                      value={modalidadeEmEdicao.nome} 
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
+                  />
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+                  <Input as="select"
+                    value={modalidadeEmEdicao.area}
+                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
+                  >
+                    <option value="Dança">Dança</option>
+                    <option value="Funcional">Funcional</option>
+                    <option value="Livre/Todos">Livre / Outros</option>
+                  </Input>
+                </div>
+                
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Fixo</label>
+                  <Input as="select"
+                      value={modalidadeEmEdicao.professor_id}
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
+                  >
+                      <option value="">Sem professor</option>
+                      {professores.map(prof => (
+                      <option key={prof.id} value={prof.id}>{prof.nome}</option>
+                      ))}
+                  </Input>
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+                  <Input 
+                    required type="number" min="1"
+                    className="font-black text-info focus-visible:ring-info" 
+                    value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
+                  />
+                </div>
+            </div>
+
+            <Surface variant="subtle" className="border border-border p-4 rounded-2xl">
+                <div className="flex justify-between items-center mb-3">
+                    <label className="text-xs font-black text-muted-foreground uppercase block">Divisão da Comissão</label>
+                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-success' : 'text-destructive'}`}>Total: {totalTaxasEdicao}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-info mb-1 block">Prof</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-info" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
+                    </div>
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-warning mb-1 block">Espaço</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-warning" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
+                    </div>
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-purple mb-1 block">Diretor</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-purple" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
+                    </div>
+                </div>
+                {!isEdicaoValida && <p className="text-[10px] font-bold text-destructive mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
+            </Surface>
+
+            <Button type="submit" variant="brand" disabled={savingEdit || !isEdicaoValida} className="w-full font-black text-lg gap-2">
+              {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
+            </Button>
+          </form>
+        )}
+      </Modal>
+
     </div>
   );
 }
@@ -13830,9 +14545,18 @@ export default function Despesas() {
 <file path="gestao_web/src/pages/Leads.jsx">
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus, Calendar, MessageSquare } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
-import { useLeadsPendentes, useHistoricoLeads, useAtualizarStatusLead } from '../hooks/useLeads';
+import {
+  useLeadsPendentes,
+  useLeadsPendentesPorMes,
+  useHistoricoLeads,
+  useHistoricoLeadsPorMes,
+  useResumoMensalLeads,
+  useResumoMensalLeadsPendentes,
+  useAtualizarStatusLead,
+  useAtualizarObservacaoLead,
+} from '../hooks/useLeads';
 import Badge   from '../components/ui/Badge';
 import Button  from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
@@ -13840,6 +14564,9 @@ import EmptyState from '../components/ui/EmptyState';
 
 // Média histórica de referência para comparação (pode ser ajustada conforme o negócio)
 const MEDIA_HISTORICA = 0.55;
+
+// Valor especial usado no seletor de período para representar "todos os meses"
+const TODOS_PERIODOS = 'todos';
 
 // ── Dropdown de Status Inline ───────────────────────────────────────────────
 function StatusDropdown({ lead, onAlterarStatus, isProcessando }) {
@@ -13914,39 +14641,143 @@ function StatusDropdown({ lead, onAlterarStatus, isProcessando }) {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
+// ── Seletor de Período (mês/ano) ────────────────────────────────────────────
+function SeletorPeriodo({ resumoMensal, periodoSelecionado, onSelecionarPeriodo, labelTotal = 'experimentais' }) {
+  return (
+    <div className="relative">
+      <select
+        value={periodoSelecionado}
+        onChange={(e) => onSelecionarPeriodo(e.target.value)}
+        className="appearance-none bg-card border border-border rounded-xl pl-10 pr-9 py-2.5 text-sm font-bold text-foreground cursor-pointer hover:border-primary/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+      >
+        <option value={TODOS_PERIODOS}>Todos os períodos</option>
+        {resumoMensal.map(item => (
+          <option key={item.chave} value={item.chave}>
+            {item.label} · {item.total} {item.total === 1 ? labelTotal.replace(/s$/, '') : labelTotal}
+          </option>
+        ))}
+      </select>
+      <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── Campo de Observação (textarea com auto-save no blur) ────────────────────
+function ObservacaoLead({ lead, onSalvar, isSalvando }) {
+  const [valor, setValor] = useState(lead.observacao_lead || '');
+  const [expandido, setExpandido] = useState(!!lead.observacao_lead);
+
+  useEffect(() => {
+    setValor(lead.observacao_lead || '');
+  }, [lead.observacao_lead]);
+
+  function handleBlur() {
+    const valorTratado = valor.trim();
+    if (valorTratado !== (lead.observacao_lead || '')) {
+      onSalvar(lead.id, valorTratado);
+    }
+  }
+
+  if (!expandido) {
+    return (
+      <button
+        onClick={() => setExpandido(true)}
+        className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-primary transition-colors py-1.5 rounded-lg hover:bg-primary/5 border border-dashed border-border"
+      >
+        <MessageSquare size={13} /> Adicionar observação
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 relative">
+      <textarea
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={handleBlur}
+        placeholder="Ex: não fechou por preço, aguardando dinheiro..."
+        rows={2}
+        className="w-full text-xs font-medium text-foreground bg-muted border border-border rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground placeholder:italic"
+      />
+      {isSalvando && (
+        <RefreshCw size={12} className="animate-spin text-muted-foreground absolute top-2 right-2" />
+      )}
+    </div>
+  );
+}
+// ───────────────────────────────────────────────────────────────────────────
+
 export default function Leads() {
   const navigate = useNavigate();
   const [visaoAtiva, setVisaoAtiva] = useState('cards');
   const [confirmandoId, setConfirmandoId] = useState(null);
 
-  const { data: leadsPendentes = [], isLoading: loadingPendentes } = useLeadsPendentes();
+  // ── Período selecionado em cada visão (independentes) ────────────────────
+  // 'todos' ou uma chave 'AAAA-MM'
+  const [periodoAcao, setPeriodoAcao] = useState(TODOS_PERIODOS);
+  const [periodoHistorico, setPeriodoHistorico] = useState(TODOS_PERIODOS);
+
+  // ── Visão Ação (cards pendentes) ──────────────────────────────────────────
+  const { data: leadsPendentesTodos = [], isLoading: loadingPendentesTodos } = useLeadsPendentes();
+  const { data: resumoMensalPendentes = [], isLoading: loadingResumoPendentes } = useResumoMensalLeadsPendentes();
+
+  const usandoFiltroAcao = periodoAcao !== TODOS_PERIODOS;
+  const [anoAcao, mesAcao] = usandoFiltroAcao ? periodoAcao.split('-').map(Number) : [0, 0];
+
+  const {
+    data: leadsPendentesMes = [],
+    isLoading: loadingPendentesMes,
+  } = useLeadsPendentesPorMes(anoAcao, mesAcao);
+
+  const leadsPendentes = usandoFiltroAcao ? leadsPendentesMes : leadsPendentesTodos;
+  const loadingPendentes = usandoFiltroAcao ? loadingPendentesMes : loadingPendentesTodos;
+
+  // ── Visão Histórico ────────────────────────────────────────────────────────
+  const { data: resumoMensal = [], isLoading: loadingResumo } = useResumoMensalLeads();
+
   const {
     data: historicoData,
-    isLoading: loadingHistorico,
+    isLoading: loadingHistoricoCompleto,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
   } = useHistoricoLeads();
+
+  const usandoFiltroHistorico = periodoHistorico !== TODOS_PERIODOS;
+  const [anoHistorico, mesHistorico] = usandoFiltroHistorico ? periodoHistorico.split('-').map(Number) : [0, 0];
+
+  const {
+    data: historicoMes = [],
+    isLoading: loadingHistoricoMes,
+  } = useHistoricoLeadsPorMes(anoHistorico, mesHistorico);
+
   const mutationStatus = useAtualizarStatusLead();
-  const leadsHistorico = historicoData?.pages.flatMap(page => page) || [];
+  const mutationObservacao = useAtualizarObservacaoLead();
 
-  // ── Métricas do mês atual ──────────────────────────────────────────
+  const leadsHistoricoCompleto = historicoData?.pages.flatMap(page => page) || [];
+  const leadsHistorico = usandoFiltroHistorico ? historicoMes : leadsHistoricoCompleto;
+  const loadingHistorico = usandoFiltroHistorico ? loadingHistoricoMes : loadingHistoricoCompleto;
+
+  // ── Métricas do período selecionado (Visão Histórico) ───────────────────
   const metricas = useMemo(() => {
-    const agora = new Date();
-    const anoAtual = agora.getFullYear();
-    const mesAtual = agora.getMonth();
+    if (usandoFiltroHistorico) {
+      const resumoDoMes = resumoMensal.find(r => r.chave === periodoHistorico);
+      if (resumoDoMes) {
+        return { total: resumoDoMes.total, convertidos: resumoDoMes.convertidos, taxa: resumoDoMes.taxa };
+      }
+      const total = leadsHistorico.length;
+      const convertidos = leadsHistorico.filter(l => l.status_conversao === 'convertido').length;
+      return { total, convertidos, taxa: total > 0 ? convertidos / total : null };
+    }
 
-    const doMes = leadsHistorico.filter(lead => {
-      const d = new Date(lead.data_checkin);
-      return d.getFullYear() === anoAtual && d.getMonth() === mesAtual;
-    });
-
-    const total = doMes.length;
-    const convertidos = doMes.filter(l => l.status_conversao === 'convertido').length;
+    // Modo "Todos os períodos": agrega tudo a partir do resumo mensal
+    const total = resumoMensal.reduce((acc, r) => acc + r.total, 0);
+    const convertidos = resumoMensal.reduce((acc, r) => acc + r.convertidos, 0);
     const taxa = total > 0 ? convertidos / total : null;
-
     return { total, convertidos, taxa };
-  }, [leadsHistorico]);
+  }, [usandoFiltroHistorico, periodoHistorico, resumoMensal, leadsHistorico]);
 
   const comparacaoMedia =
     metricas.taxa === null
@@ -13957,7 +14788,14 @@ export default function Leads() {
       ? 'abaixo'
       : 'igual';
 
-  // ──────────────────────────────────────────────────────────────────
+  // ── Label descritivo do período exibido no banner ────────────────────────
+  const labelPeriodoHistorico = useMemo(() => {
+    if (!usandoFiltroHistorico) return 'Em todos os períodos';
+    const resumoDoMes = resumoMensal.find(r => r.chave === periodoHistorico);
+    return resumoDoMes ? `Em ${resumoDoMes.label}` : 'No período selecionado';
+  }, [usandoFiltroHistorico, periodoHistorico, resumoMensal]);
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   function alterarStatus(leadId, novoStatus) {
     const mensagens = {
@@ -13968,6 +14806,10 @@ export default function Leads() {
     mutationStatus.mutate({ id: leadId, status: novoStatus }, {
       onSuccess: () => showToast.success(mensagens[novoStatus] ?? 'Status atualizado.'),
     });
+  }
+
+  function salvarObservacao(leadId, observacao) {
+    mutationObservacao.mutate({ id: leadId, observacao });
   }
 
   function marcarComoPerdido(leadId) {
@@ -14005,6 +14847,7 @@ export default function Leads() {
   }
 
   const isProcessando = (id) => mutationStatus.isPending && mutationStatus.variables?.id === id;
+  const isSalvandoObservacao = (id) => mutationObservacao.isPending && mutationObservacao.variables?.id === id;
   const loading = visaoAtiva === 'cards' ? loadingPendentes : loadingHistorico;
 
   return (
@@ -14027,7 +14870,7 @@ export default function Leads() {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <LayoutGrid size={18} /> Ação ({leadsPendentes.length})
+            <LayoutGrid size={18} /> Ação ({leadsPendentesTodos.length})
           </button>
           <button
             onClick={() => setVisaoAtiva('lista')}
@@ -14042,8 +14885,8 @@ export default function Leads() {
         </div>
       </div>
 
-      {/* ── Banner de Taxa de Conversão ─────────────────────────────── */}
-      {!loadingHistorico && metricas.taxa !== null && (
+      {/* ── Banner de Taxa de Conversão (apenas na Visão Histórico) ──── */}
+      {visaoAtiva === 'lista' && !loadingResumo && metricas.taxa !== null && (
         <div
           className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border px-5 py-4 ${
             comparacaoMedia === 'acima'
@@ -14056,7 +14899,7 @@ export default function Leads() {
           <div className="flex items-center gap-3">
             <span className="text-xl">📊</span>
             <span className="text-sm font-bold text-foreground">
-              Este mês:{' '}
+              {labelPeriodoHistorico}:{' '}
               <span className="font-black">{metricas.total} experimentais</span>
               {' → '}
               <span className="font-black">{metricas.convertidos} convertidos</span>
@@ -14103,619 +14946,264 @@ export default function Leads() {
           <RefreshCw className="animate-spin text-primary" size={40} />
         </div>
       ) : visaoAtiva === 'cards' ? (
-        /* Visão Cards */
-        leadsPendentes.length === 0 ? (
-          <EmptyState
-            icon={<CheckCircle size={28} />}
-            title="Caixa de Entrada Zerada!"
-            description="Todos os leads já foram contatados ou convertidos."
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {leadsPendentes.map(lead => (
-              <Surface key={lead.id} variant="card" padding="lg" className="flex flex-col relative group hover:shadow-brand transition-all">
-                {/* Popover de Confirmação / Descartar */}
-                {confirmandoId === lead.id ? (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-card p-1 rounded-xl shadow-card border border-destructive/20 animate-in fade-in zoom-in-95 z-10">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => marcarComoPerdido(lead.id)}
-                    >
-                      Marcar como perdido
-                    </Button>
+        /* Visão Cards (Ação) */
+        <div className="space-y-4">
+          {/* Filtro de período */}
+          {(resumoMensalPendentes.length > 0 || usandoFiltroAcao) && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm font-bold text-muted-foreground">
+                {usandoFiltroAcao
+                  ? `Exibindo ${leadsPendentes.length} ${leadsPendentes.length === 1 ? 'lead pendente' : 'leads pendentes'} do período selecionado.`
+                  : `Exibindo todos os ${leadsPendentesTodos.length} leads pendentes.`}
+              </p>
+              <SeletorPeriodo
+                resumoMensal={resumoMensalPendentes}
+                periodoSelecionado={periodoAcao}
+                onSelecionarPeriodo={setPeriodoAcao}
+                labelTotal="pendentes"
+              />
+            </div>
+          )}
+
+          {/* Cards de resumo por mês */}
+          {resumoMensalPendentes.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {resumoMensalPendentes.map(item => (
+                <button
+                  key={item.chave}
+                  onClick={() => setPeriodoAcao(prev => prev === item.chave ? TODOS_PERIODOS : item.chave)}
+                  className={`flex-shrink-0 text-left rounded-2xl border px-4 py-3 min-w-[150px] transition-all ${
+                    periodoAcao === item.chave
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-card hover:border-primary/40'
+                  }`}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                  <p className="text-lg font-black text-foreground mt-1">
+                    {item.total} <span className="text-xs font-bold text-muted-foreground">{item.total === 1 ? 'pendente' : 'pendentes'}</span>
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {leadsPendentes.length === 0 ? (
+            <EmptyState
+              icon={<CheckCircle size={28} />}
+              title={usandoFiltroAcao ? "Sem pendências neste período" : "Caixa de Entrada Zerada!"}
+              description={usandoFiltroAcao
+                ? "Não há leads pendentes para o mês selecionado."
+                : "Todos os leads já foram contatados ou convertidos."}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {leadsPendentes.map(lead => (
+                <Surface key={lead.id} variant="card" padding="lg" className="flex flex-col relative group hover:shadow-brand transition-all">
+                  {/* Popover de Confirmação / Descartar */}
+                  {confirmandoId === lead.id ? (
+                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-card p-1 rounded-xl shadow-card border border-destructive/20 animate-in fade-in zoom-in-95 z-10">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => marcarComoPerdido(lead.id)}
+                      >
+                        Marcar como perdido
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setConfirmandoId(null)}
+                        title="Cancelar"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  ) : (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setConfirmandoId(null)}
-                      title="Cancelar"
+                      onClick={() => setConfirmandoId(lead.id)}
+                      disabled={isProcessando(lead.id)}
+                      title="Descartar visitante"
+                      className="absolute top-4 right-4 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     >
-                      <X size={16} />
+                      {isProcessando(lead.id)
+                        ? <RefreshCw size={18} className="animate-spin text-destructive" />
+                        : <XCircle size={18} />
+                      }
+                    </Button>
+                  )}
+                  {/* Dados Lead */}
+                  <div className="mb-4">
+                    <Badge tone="brand" variant="soft" className="mb-3 rounded-lg">
+                      {lead.agenda?.atividade}
+                    </Badge>
+                    <h3 className="font-black text-foreground text-xl leading-tight">{lead.nome_visitante}</h3>
+                    <p className="text-xs font-bold text-muted-foreground mt-1">Realizou em: {formatarData(lead.data_checkin)}</p>
+                  </div>
+                  <Surface variant="muted" padding="sm" className="mb-6 flex items-center gap-3 rounded-xl border border-border">
+                    <MessageCircle size={18} className={lead.telefone_visitante ? "text-success" : "text-muted-foreground"} />
+                    <span className={`text-sm font-bold ${lead.telefone_visitante ? "text-foreground" : "text-muted-foreground italic"}`}>
+                      {lead.telefone_visitante || "Sem telefone cadastrado"}
+                    </span>
+                  </Surface>
+                  {/* Ações do Card */}
+                  <div className="flex gap-2 mt-auto">
+                    <Button
+                      variant="success"
+                      size="md"
+                      fullWidth
+                      leftIcon={<Phone size={18} />}
+                      onClick={() => contatarWhatsApp(lead)}
+                      disabled={!lead.telefone_visitante}
+                    >
+                      Contatar
+                    </Button>
+                    <Button
+                      variant="info"
+                      size="md"
+                      fullWidth
+                      leftIcon={<CheckCircle size={18} />}
+                      onClick={() => iniciarMatricula(lead)}
+                    >
+                      Matricular
                     </Button>
                   </div>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setConfirmandoId(lead.id)}
+                  {/* ── Ação rápida: marcar convertido sem matricular ── */}
+                  <button
+                    onClick={() => alterarStatus(lead.id, 'convertido')}
                     disabled={isProcessando(lead.id)}
-                    title="Descartar visitante"
-                    className="absolute top-4 right-4 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    className="mt-3 w-full text-xs font-bold text-muted-foreground hover:text-success transition-colors text-center py-1 rounded-lg hover:bg-success/5 disabled:opacity-40"
                   >
-                    {isProcessando(lead.id)
-                      ? <RefreshCw size={18} className="animate-spin text-destructive" />
-                      : <XCircle size={18} />
-                    }
-                  </Button>
-                )}
-                {/* Dados Lead */}
-                <div className="mb-4">
-                  <Badge tone="brand" variant="soft" className="mb-3 rounded-lg">
-                    {lead.agenda?.atividade}
-                  </Badge>
-                  <h3 className="font-black text-foreground text-xl leading-tight">{lead.nome_visitante}</h3>
-                  <p className="text-xs font-bold text-muted-foreground mt-1">Realizou em: {formatarData(lead.data_checkin)}</p>
-                </div>
-                <Surface variant="muted" padding="sm" className="mb-6 flex items-center gap-3 rounded-xl border border-border">
-                  <MessageCircle size={18} className={lead.telefone_visitante ? "text-success" : "text-muted-foreground"} />
-                  <span className={`text-sm font-bold ${lead.telefone_visitante ? "text-foreground" : "text-muted-foreground italic"}`}>
-                    {lead.telefone_visitante || "Sem telefone cadastrado"}
-                  </span>
+                    Já matriculado? Marcar como convertido
+                  </button>
+                  {/* ── Observação livre da administração ── */}
+                  <ObservacaoLead
+                    lead={lead}
+                    onSalvar={salvarObservacao}
+                    isSalvando={isSalvandoObservacao(lead.id)}
+                  />
                 </Surface>
-                {/* Ações do Card */}
-                <div className="flex gap-2 mt-auto">
-                  <Button
-                    variant="success"
-                    size="md"
-                    fullWidth
-                    leftIcon={<Phone size={18} />}
-                    onClick={() => contatarWhatsApp(lead)}
-                    disabled={!lead.telefone_visitante}
-                  >
-                    Contatar
-                  </Button>
-                  <Button
-                    variant="info"
-                    size="md"
-                    fullWidth
-                    leftIcon={<CheckCircle size={18} />}
-                    onClick={() => iniciarMatricula(lead)}
-                  >
-                    Matricular
-                  </Button>
-                </div>
-                {/* ── Ação rápida: marcar convertido sem matricular ── */}
-                <button
-                  onClick={() => alterarStatus(lead.id, 'convertido')}
-                  disabled={isProcessando(lead.id)}
-                  className="mt-3 w-full text-xs font-bold text-muted-foreground hover:text-success transition-colors text-center py-1 rounded-lg hover:bg-success/5 disabled:opacity-40"
-                >
-                  Já matriculado? Marcar como convertido
-                </button>
-              </Surface>
-            ))}
-          </div>
-        )
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         /* Visão Histórico */
-        <Surface variant="card" padding="none" className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-muted text-muted-foreground text-[11px] uppercase tracking-wider border-b border-border">
-                  <th className="p-4 font-black">Data da Aula</th>
-                  <th className="p-4 font-black">Visitante</th>
-                  <th className="p-4 font-black">Contato</th>
-                  <th className="p-4 font-black">Modalidade</th>
-                  <th className="p-4 font-black">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {leadsHistorico.map(lead => (
-                  <tr key={lead.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="p-4 text-sm font-bold text-muted-foreground">{formatarDataHora(lead.data_checkin)}</td>
-                    <td className="p-4 text-sm font-black text-foreground">{lead.nome_visitante}</td>
-                    <td className="p-4 text-sm font-medium text-muted-foreground">{lead.telefone_visitante || '-'}</td>
-                    <td className="p-4">
-                      <Badge tone="neutral" variant="soft" className="rounded-md">
-                        {lead.agenda?.atividade}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <StatusDropdown
-                        lead={lead}
-                        onAlterarStatus={alterarStatus}
-                        isProcessando={isProcessando(lead.id)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {leadsHistorico.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="p-8 text-center text-muted-foreground font-medium">
-                      Nenhum histórico registrado.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {visaoAtiva === 'lista' && hasNextPage && (
-                <tfoot>
-                  <tr>
-                    <td colSpan="5" className="p-4 bg-muted/40 text-center border-t border-border">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fetchNextPage()}
-                        disabled={isFetchingNextPage}
-                        leftIcon={isFetchingNextPage
-                          ? <RefreshCw size={16} className="animate-spin" />
-                          : <ChevronDown size={16} />
-                        }
-                      >
-                        {isFetchingNextPage ? 'Carregando mais...' : 'Carregar registros anteriores'}
-                      </Button>
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </Surface>
-      )}
-    </div>
-  );
-}
-</file>
-
-<file path="gestao_web/src/pages/Modalidades.jsx">
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
-import { showToast } from '../components/shared/Toast';
-import Modal from '../components/ui/Modal';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import Surface from '../components/ui/Surface';
-import { modalidadeService } from '../services/modalidadeService'; 
-
-export default function Modalidades() {
-  const [modalidades, setModalidades] = useState([]);
-  const [professores, setProfessores] = useState([]);
-  
-  const [loadingList, setLoadingList] = useState(true); 
-  const [creating, setCreating] = useState(false);      
-  const [deletingId, setDeletingId] = useState(null);   
-
-  const [novaModalidade, setNovaModalidade] = useState({ 
-    nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
-  });
-
-  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [modalidadeEmEdicao, setModalidadeEmEdicao] = useState(null);
-
-  const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
-  const [modPerfil, setModPerfil] = useState(null);
-  const [dadosPerfil, setDadosPerfil] = useState({ horarios: [], alunos: [] });
-  const [loadingPerfil, setLoadingPerfil] = useState(false);
-
-  const totalTaxasNova = Number(novaModalidade.taxa_professor) + Number(novaModalidade.taxa_espaco) + Number(novaModalidade.taxa_direcao);
-  const isNovaValida = totalTaxasNova === 100;
-
-  const totalTaxasEdicao = modalidadeEmEdicao ? (Number(modalidadeEmEdicao.taxa_professor) + Number(modalidadeEmEdicao.taxa_espaco) + Number(modalidadeEmEdicao.taxa_direcao)) : 0;
-  const isEdicaoValida = totalTaxasEdicao === 100;
-
-  useEffect(() => { 
-    fetchDados(); 
-  }, []);
-
-  async function fetchDados() {
-    try {
-      const { data: profs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
-      if (profs) setProfessores(profs);
-
-      const mods = await modalidadeService.listar();
-      if (mods) setModalidades(mods);
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-    } finally {
-      setLoadingList(false);
-    }
-  }
-
-  async function abrirPerfil(mod) {
-    setModPerfil(mod);
-    setModalPerfilAberto(true);
-    setLoadingPerfil(true);
-    try {
-      const dados = await modalidadeService.buscarPerfil(mod.id, mod.nome);
-      setDadosPerfil(dados);
-    } catch (error) {
-      showToast.error("Erro ao carregar Raio-X da modalidade.");
-    } finally {
-      setLoadingPerfil(false);
-    }
-  }
-
-  async function handleCriarModalidade(e) {
-    e.preventDefault();
-    if (creating || !novaModalidade.nome || !isNovaValida) return; 
-    setCreating(true);    
-
-    try {
-        const payload = {
-          ...novaModalidade,
-          capacidade_padrao: Number(novaModalidade.capacidade_padrao)
-        };
-        await modalidadeService.salvar(payload);
-        showToast.success("Modalidade adicionada com sucesso!");
-        setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
-        fetchDados();
-    } catch (err) {
-        showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
-    } finally {
-        setCreating(false); 
-    }
-  }
-
-  async function excluirModalidade(id, e) {
-    e.stopPropagation(); 
-    if (!confirm("Tem certeza que deseja remover esta modalidade?")) return;
-    setDeletingId(id); 
-    try {
-        await modalidadeService.excluir(id);
-        showToast.success("Modalidade removida.");
-        fetchDados();
-    } catch (err) {
-        showToast.error("Erro ao excluir. Pode haver aulas atreladas a ela.");
-    } finally {
-        setDeletingId(null);
-    }
-  }
-
-  function abrirEdicao(mod, e) {
-    e?.stopPropagation(); 
-    setModalidadeEmEdicao({
-      id: mod.id,
-      nome: mod.nome,
-      area: mod.area || 'Dança', 
-      professor_id: mod.professor_id || '',
-      capacidade_padrao: mod.capacidade_padrao || 15,
-      taxa_professor: mod.taxa_professor || 0,
-      taxa_espaco: mod.taxa_espaco || 0,
-      taxa_direcao: mod.taxa_direcao || 0
-    });
-    setModalEdicaoAberto(true);
-  }
-
-  async function handleSalvarEdicao(e) {
-    e.preventDefault();
-    if (!modalidadeEmEdicao?.nome || !isEdicaoValida) return;
-    setSavingEdit(true);
-
-    try {
-      const payload = {
-        ...modalidadeEmEdicao,
-        capacidade_padrao: Number(modalidadeEmEdicao.capacidade_padrao)
-      };
-      await modalidadeService.salvar(payload);
-      showToast.success("Modalidade atualizada com sucesso!");
-      setModalEdicaoAberto(false);
-      if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
-          setModPerfil({...modPerfil, ...modalidadeEmEdicao});
-      }
-      fetchDados(); 
-    } catch (err) {
-      showToast.error("Erro ao atualizar modalidade.");
-    } finally {
-      setSavingEdit(false);
-    }
-  }
-
-  const getAreaColor = (area) => {
-    switch (area) {
-      case 'Dança': return 'bg-purple-soft text-purple border-purple/20';
-      case 'Funcional': return 'bg-warning-soft text-warning border-warning/20';
-      default: return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
-  return (
-    <div className="p-8 space-y-8 animate-in fade-in">
-       <div>
-          <h1 className="text-3xl font-black text-foreground">Modalidades & Comissões</h1>
-          <p className="text-muted-foreground">Cadastre as atividades, limites de vagas e regras financeiras.</p>
-       </div>
-
-      {/* FORMULÁRIO DE NOVA MODALIDADE */}
-      <Surface variant="card" padding="lg" className="space-y-6">
-        <h3 className="font-bold text-foreground flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
-        
-        <form onSubmit={handleCriarModalidade} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome da Modalidade</label>
-              <Input 
-                required placeholder="Ex: Dança Criativa"
-                value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
-              />
-            </div>
-
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-              <Input as="select"
-                value={novaModalidade.area}
-                onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
-              >
-                <option value="Dança">Dança</option>
-                <option value="Funcional">Funcional</option>
-                <option value="Livre/Todos">Livre / Outros</option>
-              </Input>
-            </div>
-            
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Responsável (Opcional)</label>
-              <Input as="select"
-                value={novaModalidade.professor_id}
-                onChange={e => setNovaModalidade({...novaModalidade, professor_id: e.target.value})}
-              >
-                <option value="">Sem professor fixo</option>
-                {professores.map(prof => (
-                  <option key={prof.id} value={prof.id}>{prof.nome}</option>
-                ))}
-              </Input>
-            </div>
-
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
-              <Input 
-                required type="number" min="1"
-                className="font-black text-info focus-visible:ring-info" 
-                value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
-              />
-            </div>
+        <div className="space-y-4">
+          {/* Filtro de período */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm font-bold text-muted-foreground">
+              {usandoFiltroHistorico
+                ? `Exibindo ${leadsHistorico.length} ${leadsHistorico.length === 1 ? 'registro' : 'registros'} do período selecionado.`
+                : 'Exibindo todos os registros (carregamento incremental).'}
+            </p>
+            <SeletorPeriodo
+              resumoMensal={resumoMensal}
+              periodoSelecionado={periodoHistorico}
+              onSelecionarPeriodo={setPeriodoHistorico}
+            />
           </div>
 
-          <Surface variant="subtle" className="border border-border p-6 rounded-3xl">
-            <div className="flex justify-between items-end mb-4">
-               <div>
-                 <h4 className="font-bold text-foreground flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
-                 <p className="text-xs text-muted-foreground font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
-               </div>
-               <div className={`text-xl font-black ${isNovaValida ? 'text-success' : 'text-destructive'}`}>
-                 Total: {totalTaxasNova}%
-               </div>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-info uppercase block mb-1">Professor</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-info" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-warning uppercase block mb-1">Espaço (Caixa)</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-warning" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-purple uppercase block mb-1">Diretor</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-purple" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
-              </div>
-            </div>
-          </Surface>
-
-          <div className="flex justify-end">
-             <Button type="submit" variant="brand" size="lg" disabled={creating || !isNovaValida} className="w-full md:w-auto font-black flex gap-3">
-               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
-             </Button>
-          </div>
-        </form>
-      </Surface>
-
-      {/* GRADE MODALIDADES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loadingList ? (
-           [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)
-        ) : modalidades.map(mod => (
-          <Surface 
-            key={mod.id} 
-            variant="card"
-            padding="md"
-            onClick={() => abrirPerfil(mod)}
-            className="flex justify-between items-center hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
-          >
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-primary-soft rounded-2xl text-primary flex items-center justify-center">
-                 <Activity size={24}/>
-               </div>
-               <div>
-                 <div className="flex items-center gap-2 mb-0.5">
-                   <h3 className="font-bold text-foreground leading-none">{mod.nome}</h3>
-                   <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
-                     {mod.area || 'Dança'}
-                   </span>
-                 </div>
-                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mt-1">
-                   <span className="flex items-center gap-1"><Users size={12} className="text-info"/> {mod.capacidade_padrao || 15} vagas</span>
-                 </p>
-               </div>
-            </div>
-
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all" title="Editar">
-                <Edit2 size={18}/>
-              </button>
-              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all" title="Excluir">
-                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-destructive" size={18}/> : <Trash2 size={18}/>}
-              </button>
-            </div>
-          </Surface>
-        ))}
-      </div>
-
-      <Modal isOpen={modalPerfilAberto} onClose={() => setModalPerfilAberto(false)} titulo="Raio-X da Turma">
-        {modPerfil && (
-          <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
-            
-            <div className="bg-card border border-border p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-black text-foreground">{modPerfil.nome}</h2>
-                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)}`}>
-                        {modPerfil.area || 'Dança'}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
-                        <Users size={16} className="text-info"/> {modPerfil.capacidade_padrao || 15} vagas por aula
-                    </p>
-                </div>
-                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-subtle hover:bg-muted text-foreground p-3 rounded-xl transition-all border border-border" title="Editar Configurações">
-                    <Edit2 size={20} />
+          {/* Cards de resumo por mês */}
+          {resumoMensal.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {resumoMensal.map(item => (
+                <button
+                  key={item.chave}
+                  onClick={() => setPeriodoHistorico(prev => prev === item.chave ? TODOS_PERIODOS : item.chave)}
+                  className={`flex-shrink-0 text-left rounded-2xl border px-4 py-3 min-w-[160px] transition-all ${
+                    periodoHistorico === item.chave
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-card hover:border-primary/40'
+                  }`}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                  <p className="text-lg font-black text-foreground mt-1">
+                    {item.total} <span className="text-xs font-bold text-muted-foreground">experimentais</span>
+                  </p>
+                  <p className="text-xs font-bold text-success mt-0.5">
+                    {item.convertidos} convertidos
+                    {item.taxa !== null && ` · ${Math.round(item.taxa * 100)}%`}
+                  </p>
                 </button>
-                <div className="absolute -right-8 -top-8 text-muted/5 rotate-12">
-                    <Activity size={120} />
-                </div>
+              ))}
             </div>
+          )}
 
-            {loadingPerfil ? (
-                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-muted-foreground" size={32} /></div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
-                        <h4 className="font-bold text-foreground flex items-center gap-2 mb-4">
-                            <Users size={18} className="text-info"/> Alunos Ativos ({dadosPerfil.alunos.length})
-                        </h4>
-                        
-                        {dadosPerfil.alunos.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno vinculado no momento.</p>
-                        ) : (
-                            <ul className="space-y-2">
-                                {dadosPerfil.alunos.map(aluno => (
-                                    <li key={aluno.id} className="bg-card p-3 rounded-xl border border-border shadow-sm flex items-center justify-between">
-                                        <span className="font-bold text-sm text-foreground">{aluno.nome_completo}</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-info bg-info-soft px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Surface>
-
-                    <div className="flex flex-col gap-4">
-                        <Surface variant="card" className="p-5 rounded-3xl flex-1">
-                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-4"><Clock size={18} className="text-purple"/> Horários na Grade</h4>
-                            {dadosPerfil.horarios.length === 0 ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
-                            ) : (
-                                <ul className="flex flex-col gap-2">
-                                    {dadosPerfil.horarios.map((h, i) => (
-                                        <li key={i} className="bg-purple-soft text-purple border border-purple/20 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
-                                            <Calendar size={16} /> {h.dia_semana}, {h.horario.slice(0,5)}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </Surface>
-
-                        <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
-                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
-                            <div className="flex gap-2">
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-info uppercase">Prof</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_professor || 0}%</span>
-                                </div>
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-warning uppercase">Caixa</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_espaco || 0}%</span>
-                                </div>
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-purple uppercase">Dir</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_direcao || 0}%</span>
-                                </div>
-                            </div>
-                        </Surface>
-                    </div>
-                </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
-        {modalidadeEmEdicao && (
-          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome</label>
-                  <Input 
-                      required 
-                      value={modalidadeEmEdicao.nome} 
-                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
-                  />
-                </div>
-
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-                  <Input as="select"
-                    value={modalidadeEmEdicao.area}
-                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
-                  >
-                    <option value="Dança">Dança</option>
-                    <option value="Funcional">Funcional</option>
-                    <option value="Livre/Todos">Livre / Outros</option>
-                  </Input>
-                </div>
-                
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Fixo</label>
-                  <Input as="select"
-                      value={modalidadeEmEdicao.professor_id}
-                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
-                  >
-                      <option value="">Sem professor</option>
-                      {professores.map(prof => (
-                      <option key={prof.id} value={prof.id}>{prof.nome}</option>
-                      ))}
-                  </Input>
-                </div>
-
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
-                  <Input 
-                    required type="number" min="1"
-                    className="font-black text-info focus-visible:ring-info" 
-                    value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
-                  />
-                </div>
+          <Surface variant="card" padding="none" className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-muted text-muted-foreground text-[11px] uppercase tracking-wider border-b border-border">
+                    <th className="p-4 font-black">Data da Aula</th>
+                    <th className="p-4 font-black">Visitante</th>
+                    <th className="p-4 font-black">Contato</th>
+                    <th className="p-4 font-black">Modalidade</th>
+                    <th className="p-4 font-black">Status</th>
+                    <th className="p-4 font-black">Observação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {leadsHistorico.map(lead => (
+                    <tr key={lead.id} className="hover:bg-muted/50 transition-colors">
+                      <td className="p-4 text-sm font-bold text-muted-foreground whitespace-nowrap">{formatarDataHora(lead.data_checkin)}</td>
+                      <td className="p-4 text-sm font-black text-foreground">{lead.nome_visitante}</td>
+                      <td className="p-4 text-sm font-medium text-muted-foreground whitespace-nowrap">{lead.telefone_visitante || '-'}</td>
+                      <td className="p-4">
+                        <Badge tone="neutral" variant="soft" className="rounded-md">
+                          {lead.agenda?.atividade}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <StatusDropdown
+                          lead={lead}
+                          onAlterarStatus={alterarStatus}
+                          isProcessando={isProcessando(lead.id)}
+                        />
+                      </td>
+                      <td className="p-4 min-w-[220px]">
+                        <ObservacaoLead
+                          lead={lead}
+                          onSalvar={salvarObservacao}
+                          isSalvando={isSalvandoObservacao(lead.id)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  {leadsHistorico.length === 0 && (
+                    <tr>
+                      <td colSpan="6" className="p-8 text-center text-muted-foreground font-medium">
+                        Nenhum histórico registrado{usandoFiltroHistorico ? ' neste período.' : '.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {!usandoFiltroHistorico && hasNextPage && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan="6" className="p-4 bg-muted/40 text-center border-t border-border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchNextPage()}
+                          disabled={isFetchingNextPage}
+                          leftIcon={isFetchingNextPage
+                            ? <RefreshCw size={16} className="animate-spin" />
+                            : <ChevronDown size={16} />
+                          }
+                        >
+                          {isFetchingNextPage ? 'Carregando mais...' : 'Carregar registros anteriores'}
+                        </Button>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
-
-            <Surface variant="subtle" className="border border-border p-4 rounded-2xl">
-                <div className="flex justify-between items-center mb-3">
-                    <label className="text-xs font-black text-muted-foreground uppercase block">Divisão da Comissão</label>
-                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-success' : 'text-destructive'}`}>Total: {totalTaxasEdicao}%</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-info mb-1 block">Prof</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-info" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
-                    </div>
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-warning mb-1 block">Espaço</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-warning" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
-                    </div>
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-purple mb-1 block">Diretor</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-purple" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
-                    </div>
-                </div>
-                {!isEdicaoValida && <p className="text-[10px] font-bold text-destructive mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
-            </Surface>
-
-            <Button type="submit" variant="brand" disabled={savingEdit || !isEdicaoValida} className="w-full font-black text-lg gap-2">
-              {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
-            </Button>
-          </form>
-        )}
-      </Modal>
-
+          </Surface>
+        </div>
+      )}
     </div>
   );
 }
@@ -15119,6 +15607,12 @@ export default function Professores() {
     </div>
   );
 }
+</file>
+
+<file path="gestao_web/src/services/agendaService.js">
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';
 </file>
 
 <file path="gestao_web/src/hooks/useAuth.js">
@@ -15920,12 +16414,6 @@ export default function Dashboard() {
     </div>
   );
 }
-</file>
-
-<file path="gestao_web/src/services/agendaService.js">
-export { gradeService } from './gradeService';
-export { agendamentoService } from './agendamentoService';
-export { leadsService } from './leadsService';
 </file>
 
 <file path="gestao_web/src/services/financeiroService.js">

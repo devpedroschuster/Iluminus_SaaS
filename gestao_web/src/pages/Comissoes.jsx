@@ -1,9 +1,7 @@
-// gestao_web/src/pages/Comissoes.jsx
-
 import React, { useState, useEffect } from 'react';
 import {
   CheckCircle, Search, Users, DollarSign, FileSpreadsheet,
-  PieChart, Calendar, Wallet, RefreshCw, AlertTriangle, ChevronDown, ChevronUp,
+  PieChart, Calendar, Wallet, RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Hash,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -123,7 +121,7 @@ export default function Comissoes() {
   const exportarExcel = () => {
     if (!dados || !dados.lancamentos.length) return;
     const linhas = dados.lancamentos.map((l) => ({
-      Data: new Date(l.created_at).toLocaleDateString('pt-BR'),
+      Data: new Date(l.data_referencia + 'T00:00:00').toLocaleDateString('pt-BR'),
       Aluno: l.alunos?.nome_completo || 'Desconhecido',
       'Tipo de Aula': l.tipo_aula.toUpperCase(),
       Modalidade: l.modalidade || '-',
@@ -138,6 +136,14 @@ export default function Comissoes() {
 
   const profSelecionado = professores.find((p) => p.id === filtros.professorId)?.nome || '';
   const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
+
+  const contagem = React.useMemo(() => {
+    const lancamentos = dados?.lancamentos || [];
+    const total = lancamentos.length;
+    const pagas = lancamentos.filter((l) => l.status === 'pago').length;
+    const pendentes = total - pagas;
+    return { total, pagas, pendentes };
+  }, [dados]);
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">
@@ -274,38 +280,50 @@ export default function Comissoes() {
             </Surface>
           )}
 
-          {/* RESUMO TOTAL */}
-          <Surface
-            variant="card"
-            padding="lg"
-            className="flex flex-col md:flex-row justify-between items-center shadow-lg border-primary/20"
-          >
-            <div>
-              <p className="text-muted-foreground font-bold uppercase text-xs mb-1">
-                Total a Pagar (Líquido)
-              </p>
-              <h2 className="text-4xl font-black text-foreground">
-                {formatarMoeda(dados.resumo.total_comissao)}
-              </h2>
-            </div>
-            <div className="mt-4 md:mt-0 flex gap-3">
-              <Button
-                variant="outline"
-                onClick={exportarExcel}
-                className="font-bold flex items-center gap-2"
-              >
-                <FileSpreadsheet size={18} /> Exportar
-              </Button>
-              {!dados.fechamento && dados.resumo.total_comissao > 0 && (
+          {/* RESUMO TOTAL + CONTADOR */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Surface
+              variant="card"
+              padding="lg"
+              className="md:col-span-2 flex flex-col md:flex-row justify-between items-center shadow-lg border-primary/20"
+            >
+              <div>
+                <p className="text-muted-foreground font-bold uppercase text-xs mb-1">
+                  Total a Pagar (Líquido)
+                </p>
+                <h2 className="text-4xl font-black text-foreground">
+                  {formatarMoeda(dados.resumo.total_comissao)}
+                </h2>
+              </div>
+              <div className="mt-4 md:mt-0 flex gap-3">
                 <Button
-                  onClick={modalFechamento.abrir}
-                  className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
+                  variant="outline"
+                  onClick={exportarExcel}
+                  className="font-bold flex items-center gap-2"
                 >
-                  <CheckCircle size={20} /> Aprovar Fechamento
+                  <FileSpreadsheet size={18} /> Exportar
                 </Button>
-              )}
-            </div>
-          </Surface>
+                {!dados.fechamento && dados.resumo.total_comissao > 0 && (
+                  <Button
+                    onClick={modalFechamento.abrir}
+                    className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
+                  >
+                    <CheckCircle size={20} /> Aprovar Fechamento
+                  </Button>
+                )}
+              </div>
+            </Surface>
+
+            <Surface variant="card" padding="lg" className="flex flex-col justify-center">
+              <p className="text-muted-foreground font-bold uppercase text-xs mb-1 flex items-center gap-2">
+                <Hash size={14} className="text-primary" /> Comissões
+              </p>
+              <h2 className="text-4xl font-black text-foreground">{contagem.total}</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {contagem.pagas} recebida{contagem.pagas === 1 ? '' : 's'} · {contagem.pendentes} pendente{contagem.pendentes === 1 ? '' : 's'}
+              </p>
+            </Surface>
+          </div>
 
           {/* TABELA DE LANÇAMENTOS */}
           <Surface variant="card" padding="none" className="overflow-hidden">
@@ -341,7 +359,7 @@ export default function Comissoes() {
                     {dados.lancamentos.map((l) => (
                       <tr key={l.id} className="hover:bg-subtle transition-colors group">
                         <td className="p-4 text-muted-foreground font-medium">
-                          {new Date(l.created_at).toLocaleDateString('pt-BR')}
+                          {new Date(l.data_referencia + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </td>
                         <td className="p-4 font-bold text-foreground">
                           {l.alunos?.nome_completo || 'N/A'}

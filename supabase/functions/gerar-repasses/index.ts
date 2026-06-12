@@ -116,6 +116,20 @@ serve(async (req: Request) => {
       data_referencia: string;
     }[] = [];
 
+    // ── 3b. Repasses já gerados pelo lote mensal (mensalidade_id IS NULL) ────
+    // Usados para não duplicar 'regular'/'plano_livre' já lançados via matrícula.
+    const { data: repassesLote } = await supabase
+      .from('repasses_lancamentos')
+      .select('id, modalidade, tipo_aula')
+      .eq('aluno_id', mensalidade.aluno_id)
+      .eq('data_referencia', dataReferencia)
+      .is('mensalidade_id', null);
+
+    const loteJaGerado = new Map<string, string>(); // chave -> id
+    for (const r of repassesLote ?? []) {
+      loteJaGerado.set(`${r.modalidade}|${r.tipo_aula}`, r.id);
+    }
+
     // ── 4a. PLANO LIVRE ─────────────────────────────────────────────────────
     if (mensalidade.tipo_aula === 'plano_livre') {
 
@@ -170,6 +184,11 @@ serve(async (req: Request) => {
       const valorPorMod = Math.round((parteProfs / modMap.size) * 100) / 100;
 
       for (const [, mod] of modMap) {
+        const chave = `${mod.nome}|plano_livre`;
+        const idLote = loteJaGerado.get(chave);
+        if (idLote) {
+          await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+        }
         itens.push({
           professor_id: mod.professor_id,
           aluno_id: mensalidade.aluno_id!,
@@ -212,6 +231,11 @@ serve(async (req: Request) => {
         : Number(cfg.valor_multi_modalidade);
 
       for (const mod of modsValidas) {
+        const chave = `${mod.nome}|regular`;
+        const idLote = loteJaGerado.get(chave);
+        if (idLote) {
+          await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+        }
         itens.push({
           professor_id: mod.professor_id,
           aluno_id: mensalidade.aluno_id!,

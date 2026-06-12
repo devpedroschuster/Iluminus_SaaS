@@ -84,10 +84,15 @@ serve(async (req: Request) => {
     const fimPeriodo = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
 
     // ── 1. Previne dupla geração no mesmo mês ───────────────────────────────
+    // Bloqueia apenas se já existirem repasses do LOTE MENSAL (mensalidade_id IS NULL)
+    // para este mês. Repasses originados de pagamentos individuais (gerar-repasses,
+    // mensalidade_id preenchido) não bloqueiam o lote — eles serão deduplicados
+    // no passo 8 abaixo.
     const { data: jaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
       .eq('data_referencia', dataReferencia)
+      .is('mensalidade_id', null)
       .limit(1);
 
     if (jaExistem && jaExistem.length > 0) {
@@ -95,6 +100,20 @@ serve(async (req: Request) => {
         error: `Repasses de ${mesStr}/${ano} já foram gerados. Exclua-os antes de regerar.`,
         jaGerados: true,
       }, 409);
+    }
+
+    // ── 1b. Repasses já gerados via pagamento individual neste mês ──────────
+    // (mensalidade_id IS NOT NULL) — usados para não duplicar no lote.
+    const { data: repassesPagamento } = await supabase
+      .from('repasses_lancamentos')
+      .select('aluno_id, modalidade, tipo_aula')
+      .eq('data_referencia', dataReferencia)
+      .not('mensalidade_id', 'is', null);
+
+    // Chave: aluno_id|modalidade|tipo_aula
+    const repassesJaPagos = new Set<string>();
+    for (const r of repassesPagamento ?? []) {
+      repassesJaPagos.add(`${r.aluno_id}|${r.modalidade}|${r.tipo_aula}`);
     }
 
     // ── 2. Configurações de repasse ─────────────────────────────────────────
@@ -242,6 +261,11 @@ const valorTotal = Number(plano.preco);
         const valorPorMod = parteProfs / modsLivreValidas.length;
 
         for (const mod of modsLivreValidas) {
+          const chave = `${aluno.id}|${mod.nome}|plano_livre`;
+          if (repassesJaPagos.has(chave)) {
+            avisos.push(`"${aluno.nome_completo}" (plano livre, ${mod.nome}): repasse já gerado via pagamento — ignorado no lote.`);
+            continue;
+          }
           itens.push({
             professor_id: mod.professor_id,
             aluno_id: aluno.id,
@@ -269,6 +293,11 @@ const valorTotal = Number(plano.preco);
 
         for (const modId of modValidas) {
           const mod = mapaMods.get(modId)!;
+          const chave = `${aluno.id}|${mod.nome}|regular`;
+          if (repassesJaPagos.has(chave)) {
+            avisos.push(`"${aluno.nome_completo}" (${mod.nome}): repasse já gerado via pagamento — ignorado no lote.`);
+            continue;
+          }
           itens.push({
             professor_id: mod.professor_id,
             aluno_id: aluno.id,

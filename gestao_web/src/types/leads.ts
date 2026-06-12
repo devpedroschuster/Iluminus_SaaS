@@ -4,7 +4,8 @@ export interface Lead {
   telefone_visitante: string | null;
   data_checkin: string;
   status_conversao: 'pendente' | 'convertido' | 'perdido';
-  agenda: { 
-    atividade: string 
+  observacao_lead: string | null;
+  agenda: {
+    atividade: string
   } | null;
 }

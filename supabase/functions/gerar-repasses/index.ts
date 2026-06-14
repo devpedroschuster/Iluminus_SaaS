@@ -3,11 +3,11 @@
 // Gera repasses para UMA mensalidade específica ao ser confirmada.
 //
 // Lógica por tipo de aula:
-//   - regular    → valor fixo por modalidade matriculada (cfg.valor_1_modalidade ou valor_multi)
-//   - plano_livre → valor_pago × pct_prof, dividido igualmente entre modalidades frequentadas no mês.
-//                   Se nenhuma presença → sem repasse (100% fica para o espaço).
-//   - avulsa     → cfg.valor_1_modalidade para o professor vinculado
-//   - experimental → sem repasse
+//   - regular      → valor fixo por modalidade matriculada (cfg.valor_1_modalidade ou valor_multi)
+//   - plano_livre  → valor_pago × pct_prof, dividido igualmente entre modalidades frequentadas no mês.
+//                    Se nenhuma presença → sem repasse (100% fica para o espaço).
+//   - avulsa       → valor_pago × aula_avulsa_pct_prof para o professor vinculado
+//   - experimental → valor_pago × aula_experimental_pct_prof se pct_prof > 0, caso contrário sem repasse
 //
 // Chamada via: supabase.functions.invoke('gerar-repasses', { body: { mensalidadeId } })
 
@@ -26,11 +26,35 @@ function response(body: object, status = 200): Response {
   });
 }
 
+// REP-07: distribui `total` em centavos exatos entre `n` parcelas.
+// Trunca todas as parcelas para 2 casas decimais e redistribui os centavos
+// restantes (1 centavo por vez) para as últimas parcelas, garantindo que
+// sum(parcelas) === total sem acúmulo de erro de arredondamento.
+//
+// Exemplo: distribuirCentavos(50.00, 3) → [16.66, 16.67, 16.67]  (soma 50.00)
+//          distribuirCentavos(100.00, 3) → [33.33, 33.33, 33.34]  (soma 100.00)
+function distribuirCentavos(total: number, n: number): number[] {
+  const base = Math.floor((total / n) * 100) / 100;
+  const parcelas = Array(n).fill(base);
+  const restoCentavos = Math.round((total - base * n) * 100);
+  for (let i = 0; i < restoCentavos; i++) {
+    parcelas[n - 1 - i] += 0.01;
+    parcelas[n - 1 - i] = Math.round(parcelas[n - 1 - i] * 100) / 100;
+  }
+  return parcelas;
+}
+
+// REP-01: interface expandida com campos de avulsa e experimental
 interface ConfigRepasse {
   valor_1_modalidade: number;
   valor_multi_modalidade: number;
   plano_livre_pct_casa: number;
   plano_livre_pct_prof: number;
+  aula_avulsa_valor: number;
+  aula_avulsa_pct_prof: number;
+  aula_avulsa_pct_casa: number;
+  aula_experimental_valor: number;
+  aula_experimental_pct_prof: number;
 }
 
 interface Mensalidade {
@@ -74,18 +98,16 @@ serve(async (req: Request) => {
 
     const mensalidade = mens as Mensalidade;
 
-    // Visitante ou experimental não geram repasse
+    // Visitante sem aluno vinculado nunca gera repasse
     if (!mensalidade.aluno_id) {
       return response({ aviso: 'Mensalidade sem aluno vinculado. Nenhum repasse gerado.', gerados: 0 });
     }
-    if (mensalidade.tipo_aula === 'experimental') {
-      return response({ aviso: 'Aula experimental não gera repasse.', gerados: 0 });
-    }
 
     // ── 2. Configurações de repasse ─────────────────────────────────────────
+    // REP-01: select expandido com campos de avulsa e experimental
     const { data: config, error: errConfig } = await supabase
       .from('configuracoes_repasse')
-      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof')
+      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof, aula_avulsa_valor, aula_avulsa_pct_prof, aula_avulsa_pct_casa, aula_experimental_valor, aula_experimental_pct_prof')
       .single();
 
     if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
@@ -181,9 +203,15 @@ serve(async (req: Request) => {
       const valorTotal = Number(mensalidade.valor_pago);
       const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
       const parteProfs = valorTotal * pctProf;
-      const valorPorMod = Math.round((parteProfs / modMap.size) * 100) / 100;
 
-      for (const [, mod] of modMap) {
+      // REP-07: distribui parteProfs sem perda de centavo.
+      // Antes: Math.round(parteProfs / n * 100) / 100 igual para todas as
+      // modalidades podia gerar soma ≠ parteProfs em ±R$0,01.
+      const modsArray = [...modMap.values()];
+      const valoresPorMod = distribuirCentavos(parteProfs, modsArray.length);
+
+      for (let i = 0; i < modsArray.length; i++) {
+        const mod = modsArray[i];
         const chave = `${mod.nome}|plano_livre`;
         const idLote = loteJaGerado.get(chave);
         if (idLote) {
@@ -195,7 +223,7 @@ serve(async (req: Request) => {
           mensalidade_id: mensalidadeId,
           tipo_aula: 'plano_livre',
           modalidade: mod.nome,
-          valor: valorPorMod,
+          valor: valoresPorMod[i],
           data_referencia: dataReferencia,
         });
       }
@@ -248,10 +276,13 @@ serve(async (req: Request) => {
       }
 
     // ── 4c. AVULSA ──────────────────────────────────────────────────────────
+    // REP-01: usa percentual do valor pago (aula_avulsa_pct_prof), não valor fixo
     } else if (mensalidade.tipo_aula === 'avulsa') {
       if (!mensalidade.professor_id) {
-        return response({ aviso: 'Aula avulsa sem professor vinculado. Repasse não gerado.', gerados: 0 });
+        return response({ aviso: 'Aula avulsa sem professor. Repasse não gerado.', gerados: 0 });
       }
+
+      const valorRepasse = Math.round(Number(mensalidade.valor_pago) * (cfg.aula_avulsa_pct_prof / 100) * 100) / 100;
 
       itens.push({
         professor_id: mensalidade.professor_id,
@@ -259,7 +290,33 @@ serve(async (req: Request) => {
         mensalidade_id: mensalidadeId,
         tipo_aula: 'avulsa',
         modalidade: mensalidade.modalidade_nome ?? 'Avulsa',
-        valor: Number(cfg.valor_1_modalidade),
+        valor: valorRepasse,
+        data_referencia: dataReferencia,
+      });
+
+    // ── 4d. EXPERIMENTAL ────────────────────────────────────────────────────
+    // Gera repasse apenas se aula_experimental_pct_prof > 0 nas configurações.
+    // Se o percentual for 0, a experimental não remunera o professor — sem repasse.
+    } else if (mensalidade.tipo_aula === 'experimental') {
+      const pctProf = Number(cfg.aula_experimental_pct_prof);
+
+      if (pctProf <= 0) {
+        return response({ aviso: 'Aula experimental com percentual 0. Nenhum repasse gerado.', gerados: 0 });
+      }
+
+      if (!mensalidade.professor_id) {
+        return response({ aviso: 'Aula experimental sem professor vinculado. Repasse não gerado.', gerados: 0 });
+      }
+
+      const valorRepasse = Math.round(Number(mensalidade.valor_pago) * (pctProf / 100) * 100) / 100;
+
+      itens.push({
+        professor_id: mensalidade.professor_id,
+        aluno_id: mensalidade.aluno_id!,
+        mensalidade_id: mensalidadeId,
+        tipo_aula: 'experimental',
+        modalidade: mensalidade.modalidade_nome ?? 'Experimental',
+        valor: valorRepasse,
         data_referencia: dataReferencia,
       });
     }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Save, RefreshCw, Calculator, Percent, DollarSign, Info } from 'lucide-react';
+import { Save, RefreshCw, Calculator, Percent, DollarSign, Info, CheckCircle2 } from 'lucide-react';
 
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -89,7 +89,6 @@ export default function ConfiguracoesRepasse() {
   });
 
   // ─── CR3 FIX: bloquear navegação com alterações não salvas ────────────────
-  // useBlocker requer data router; usamos beforeunload + navegação imperativa.
   const navigate = useNavigate();
   const isDirtyRef = useRef(isDirty);
   useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
@@ -102,7 +101,7 @@ export default function ConfiguracoesRepasse() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // Helper para navegar com confirmação (use em links/botões internos desta página)
+  // Helper para navegar com confirmação
   // eslint-disable-next-line no-unused-vars
   const navegarComConfirmacao = useCallback((destino) => {
     if (isDirtyRef.current) {
@@ -243,8 +242,17 @@ export default function ConfiguracoesRepasse() {
             <div className="space-y-4">
               <p className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
                 Aula Experimental
-                <Tooltip text="Aula única para novos alunos conhecerem a turma. O valor aqui define quanto é cobrado e qual percentual fica com o professor." />
+                <Tooltip text="Aula única para novos alunos conhecerem a turma. O valor e o percentual configurados aqui são aplicados diretamente no cálculo do repasse ao professor." />
               </p>
+
+              {/* UX-06: aviso confirmando que o campo é ativo e aplicado pela engine */}
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-success-soft border border-success/20">
+                <CheckCircle2 size={13} className="text-success shrink-0 mt-0.5" />
+                <p className="text-[11px] text-success font-medium leading-snug">
+                  Aulas experimentais <strong>geram repasse ao professor</strong>. O valor e o percentual abaixo são usados pela engine no momento do pagamento.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Valor" name="aula_experimental_valor" suffix="R$" icon={DollarSign} />
                 <Field label="% Prof." name="aula_experimental_pct_prof" suffix="%" />

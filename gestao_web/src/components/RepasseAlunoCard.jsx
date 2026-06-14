@@ -1,4 +1,4 @@
-import { CheckCircle2, Printer } from 'lucide-react';
+import { CheckCircle2, Printer, UserX } from 'lucide-react';
 import { formatarMoeda } from '../lib/utils';
 
 // Mapa de labels para forma de pagamento
@@ -17,6 +17,26 @@ const TIPO_AULA_LABELS = {
   avulsa: 'Avulsa',
   reposicao: 'Reposição',
 };
+
+// UX-05: mensagem contextual quando não há itens de repasse
+function MensagemSemRepasse({ tipoAula }) {
+  if (tipoAula === 'experimental') {
+    return (
+      <div className="flex items-start gap-2 py-1 mb-3">
+        <UserX size={14} className="text-muted-foreground/50 shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground italic">
+          Aula experimental sem professor vinculado — nenhum repasse foi gerado.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="text-sm text-muted-foreground mb-3 italic">
+      Nenhum repasse gerado para esta cobrança.
+    </p>
+  );
+}
 
 /**
  * RepasseAlunoCard
@@ -78,6 +98,7 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
           td:last-child { text-align: right; font-weight: 600; }
           .secao-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 20px 0 8px; }
           .repasse-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+          .sem-repasse { font-size: 12px; color: #9ca3af; font-style: italic; padding: 4px 0; }
           .retencao { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; padding-top: 12px; border-top: 2px solid #111; margin-top: 8px; }
           .aviso { background: #fffbeb; color: #92400e; border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-top: 16px; }
           .rodape { margin-top: 32px; font-size: 11px; color: #9ca3af; text-align: center; }
@@ -96,15 +117,20 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
             <tr><td>Forma de Pagamento</td><td>${FORMA_LABELS[formaPagamento] || formaPagamento || '—'}</td></tr>
             <tr><td>Data / Hora</td><td>${dataFormatada}</td></tr>
           </table>
-          ${resultado.itens?.length > 0 ? `
-            <div class="secao-titulo">Repasses a Professores</div>
-            ${resultado.itens.map(it => `
-              <div class="repasse-item">
-                <span>${it.professor_nome || 'Professor'}${it.modalidade ? ` (${it.modalidade})` : ''}</span>
-                <span>${formatarMoeda(it.valor)}</span>
-              </div>
-            `).join('')}
-          ` : ''}
+          <div class="secao-titulo">Repasses a Professores</div>
+          ${resultado.itens?.length > 0
+            ? resultado.itens.map(it => `
+                <div class="repasse-item">
+                  <span>${it.professor_nome || 'Professor'}${it.modalidade ? ` (${it.modalidade})` : ''}</span>
+                  <span>${formatarMoeda(it.valor)}</span>
+                </div>
+              `).join('')
+            : `<div class="sem-repasse">${
+                tipoAula === 'experimental'
+                  ? 'Aula experimental sem professor vinculado.'
+                  : 'Nenhum repasse gerado para esta cobrança.'
+              }</div>`
+          }
           <div class="retencao">
             <span>Retenção Casa</span>
             <span>${formatarMoeda(resultado.retencao_casa)}</span>
@@ -178,6 +204,7 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
           Repasses a Professores
         </p>
 
+        {/* UX-05: lista de itens ou mensagem contextual */}
         {resultado.itens?.length > 0 ? (
           <ul className="space-y-2 mb-3">
             {resultado.itens.map((it, idx) => (
@@ -193,7 +220,7 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground mb-3">Sem repasse a professores.</p>
+          <MensagemSemRepasse tipoAula={tipoAula} />
         )}
 
         <div className="flex justify-between border-t border-border pt-3 text-sm">

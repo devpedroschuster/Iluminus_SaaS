@@ -3,8 +3,15 @@
 // Gera repasses para todos os professores com base nos alunos MATRICULADOS.
 //
 // Lógica por tipo de plano:
-//   - Regular   → valor fixo por modalidade matriculada (cfg.valor_1_modalidade / valor_multi_modalidade)
-//   - Plano Livre → 50% casa + 50% dividido entre as modalidades FREQUENTADAS no mês (via presencas)
+//   - Regular    → valor fixo por modalidade matriculada (cfg.valor_1_modalidade / valor_multi_modalidade)
+//   - Plano Livre → pct_prof × preço do plano, dividido entre as modalidades FREQUENTADAS no mês (via presencas)
+//
+// NOTA ARQUITETURAL — Avulsa e Experimental NÃO são processadas aqui:
+//   Aulas avulsas e experimentais são cobranças pontuais sem vínculo de matrícula.
+//   Os respectivos repasses já são gerados no momento do pagamento via `gerar-repasses`
+//   (com mensalidade_id preenchido). O lote mensal só trata tipos com matrícula
+//   (regular / plano_livre). O Set `repassesJaPagos` garante que pagamentos individuais
+//   já confirmados não sejam duplicados pelo lote.
 //
 // Chamada manual via: supabase.functions.invoke('gerar-repasses-mensais', { body: { mes, ano } })
 
@@ -52,11 +59,38 @@ interface ResumoProf {
   alunos: number;
 }
 
+// REP-03: interface expandida com todos os campos da tabela configuracoes_repasse.
+// Os campos de avulsa/experimental não são usados no lote mensal (ver nota arquitetural
+// acima), mas são declarados aqui para manter a interface em sincronia com a tabela
+// e facilitar futuras extensões sem necessidade de descoberta.
 interface ConfigRepasse {
   valor_1_modalidade: number;
   valor_multi_modalidade: number;
   plano_livre_pct_casa: number;
   plano_livre_pct_prof: number;
+  aula_avulsa_valor: number;
+  aula_avulsa_pct_prof: number;
+  aula_avulsa_pct_casa: number;
+  aula_experimental_valor: number;
+  aula_experimental_pct_prof: number;
+}
+
+// REP-07: distribui `total` em centavos exatos entre `n` parcelas.
+// Trunca todas as parcelas para 2 casas decimais e redistribui os centavos
+// restantes (1 centavo por vez) para as últimas parcelas, garantindo que
+// sum(parcelas) === total sem acúmulo de erro de arredondamento.
+//
+// Exemplo: distribuirCentavos(50.00, 3) → [16.66, 16.67, 16.67]  (soma 50.00)
+//          distribuirCentavos(100.00, 3) → [33.33, 33.33, 33.34]  (soma 100.00)
+function distribuirCentavos(total: number, n: number): number[] {
+  const base = Math.floor((total / n) * 100) / 100;         // trunca, não arredonda
+  const parcelas = Array(n).fill(base);
+  const restoCentavos = Math.round((total - base * n) * 100); // centavos que sobram
+  for (let i = 0; i < restoCentavos; i++) {
+    parcelas[n - 1 - i] += 0.01;                             // distribui do fim para o início
+    parcelas[n - 1 - i] = Math.round(parcelas[n - 1 - i] * 100) / 100; // limpa float noise
+  }
+  return parcelas;
 }
 
 serve(async (req: Request) => {
@@ -117,9 +151,20 @@ serve(async (req: Request) => {
     }
 
     // ── 2. Configurações de repasse ─────────────────────────────────────────
+    // REP-03: select expandido com todos os campos da tabela.
     const { data: config, error: errConfig } = await supabase
       .from('configuracoes_repasse')
-      .select('valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_casa, plano_livre_pct_prof')
+      .select(`
+        valor_1_modalidade,
+        valor_multi_modalidade,
+        plano_livre_pct_casa,
+        plano_livre_pct_prof,
+        aula_avulsa_valor,
+        aula_avulsa_pct_prof,
+        aula_avulsa_pct_casa,
+        aula_experimental_valor,
+        aula_experimental_pct_prof
+      `)
       .single();
 
     if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
@@ -243,24 +288,29 @@ serve(async (req: Request) => {
         }
 
         // Busca o preço do plano diretamente
-const { data: plano } = await supabase
-  .from('planos')
-  .select('preco')
-  .eq('id', aluno.plano_id)
-  .single();
+        const { data: plano } = await supabase
+          .from('planos')
+          .select('preco')
+          .eq('id', aluno.plano_id)
+          .single();
 
-if (!plano?.preco) {
-  avisos.push(`"${aluno.nome_completo}" (plano livre): plano sem preço definido — sem repasse.`);
-  continue;
-}
+        if (!plano?.preco) {
+          avisos.push(`"${aluno.nome_completo}" (plano livre): plano sem preço definido — sem repasse.`);
+          continue;
+        }
 
-const valorTotal = Number(plano.preco);
-
+        const valorTotal = Number(plano.preco);
         const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
         const parteProfs = valorTotal * pctProf;
-        const valorPorMod = parteProfs / modsLivreValidas.length;
 
-        for (const mod of modsLivreValidas) {
+        // REP-07: distribui parteProfs entre as modalidades sem perda de centavo.
+        // Antes: Math.round(parteProfs / n * 100) / 100 repetido n vezes podia
+        // gerar soma ≠ parteProfs em ±R$0,01 por aluno.
+        const n = modsLivreValidas.length;
+        const valoresPorMod = distribuirCentavos(parteProfs, n);
+
+        for (let i = 0; i < n; i++) {
+          const mod = modsLivreValidas[i];
           const chave = `${aluno.id}|${mod.nome}|plano_livre`;
           if (repassesJaPagos.has(chave)) {
             avisos.push(`"${aluno.nome_completo}" (plano livre, ${mod.nome}): repasse já gerado via pagamento — ignorado no lote.`);
@@ -271,7 +321,7 @@ const valorTotal = Number(plano.preco);
             aluno_id: aluno.id,
             tipo_aula: 'plano_livre',
             modalidade: mod.nome,
-            valor: Math.round(valorPorMod * 100) / 100,
+            valor: valoresPorMod[i],
             data_referencia: dataReferencia,
           });
         }
@@ -291,6 +341,7 @@ const valorTotal = Number(plano.preco);
             ? Number(cfg.valor_1_modalidade)
             : Number(cfg.valor_multi_modalidade);
 
+        // Regular usa valor fixo por modalidade — sem divisão, sem problema de arredondamento.
         for (const modId of modValidas) {
           const mod = mapaMods.get(modId)!;
           const chave = `${aluno.id}|${mod.nome}|regular`;

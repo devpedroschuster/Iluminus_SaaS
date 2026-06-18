@@ -48,6 +48,29 @@ export async function gerarRepassesMensais(mes, ano) {
   return data;
 }
 
+// Adicionar em: src/services/repasseService.js (ou repasseService.ts)
+//
+// Cole esta função junto das demais exportações do arquivo.
+
+/**
+ * Reprocessa os repasses de uma mensalidade específica invocando
+ * a Edge Function `gerar-repasses`. Idempotente: apaga os lançamentos
+ * anteriores e recria com base no estado atual do aluno.
+ *
+ * @param {string} mensalidadeId
+ * @returns {{ gerados: number, itens: Array }} resultado da função
+ */
+export async function reprocessarRepasse(mensalidadeId) {
+  const { data, error } = await supabase.functions.invoke('gerar-repasses', {
+    body: { mensalidadeId },
+  });
+
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+
+  return data;
+}
+
 /**
  * Lista os repasses de um professor em um determinado mês/ano.
  * Usado na página de comissões do professor e pelo admin.

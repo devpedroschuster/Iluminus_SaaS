@@ -795,59 +795,6 @@ projeto-iluminus-contexto.txt
 repomix.config.json
 </file>
 
-<file path="gestao_web/package.json">
-{
-  "name": "iluminus-admin",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@supabase/supabase-js": "^2.95.3",
-    "@tailwindcss/postcss": "^4.1.18",
-    "@tanstack/react-query": "^5.90.21",
-    "@tanstack/react-query-devtools": "^5.91.3",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "lucide-react": "^0.563.0",
-    "react": "^19.2.0",
-    "react-big-calendar": "^1.19.4",
-    "react-dom": "^19.2.0",
-    "react-hook-form": "^7.71.1",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.13.0",
-    "recharts": "^3.7.0",
-    "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "xlsx": "^0.18.5",
-    "yup": "^1.7.1"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "autoprefixer": "^10.4.24",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^16.5.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18",
-    "vite": "^8.0.0-beta.13"
-  },
-  "overrides": {
-    "vite": "^8.0.0-beta.13"
-  }
-}
-</file>
-
 <file path="gestao_web/public/favicon.svg">
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
 </file>
@@ -1549,6 +1496,31 @@ export function rotaPorPerfil(perfil) {
   if (perfil === 'professor') return '/agenda';
   return '/area-aluno'; // aluno ou qualquer valor inesperado
 }
+</file>
+
+<file path="gestao_web/src/lib/validation.js">
+import * as yup from 'yup';
+import { validarCPF } from '../lib/utils';
+
+export const alunoSchema = yup.object().shape({
+  nome_completo: yup.string().required('O nome completo é obrigatório.'),
+  email: yup.string().email('Insira um e-mail válido.').required('O e-mail é obrigatório.'),
+  cpf: yup.string()
+  .nullable()
+  .optional()
+  .test('cpf-valido', 'CPF inválido. Verifique os dígitos.', (value) => {
+    if (!value) return true;
+    return validarCPF(value);
+  }),
+  role: yup.string().oneOf(['aluno', 'admin']).default('aluno'),
+  plano_id: yup.string().nullable().optional(),
+  data_nascimento: yup.string().nullable().optional(),
+  telefone: yup.string().nullable().optional(),
+  cep: yup.string().nullable().optional(),
+  rua: yup.string().nullable().optional(),
+  numero: yup.string().nullable().optional(),
+  bairro: yup.string().nullable().optional(),
+});
 </file>
 
 <file path="gestao_web/src/pages/ResultadoFinanceiro.jsx">
@@ -3649,6 +3621,60 @@ serve(async (req: Request) => {
 });
 </file>
 
+<file path="gestao_web/package.json">
+{
+  "name": "iluminus-admin",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@supabase/supabase-js": "^2.95.3",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.0",
+    "react-big-calendar": "^1.19.4",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.71.1",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tslib": "^2.8.1",
+    "xlsx": "^0.18.5",
+    "yup": "^1.7.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.24",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vite": "^8.0.0-beta.13"
+  },
+  "overrides": {
+    "vite": "^8.0.0-beta.13"
+  }
+}
+</file>
+
 <file path="gestao_web/public/manifest.json">
 {
   "name": "Espaço Iluminus",
@@ -4610,31 +4636,6 @@ export const coresStatus = {
   ativo:    { bg: 'bg-success-soft', text: 'text-success' },
   inativo:  { bg: 'bg-muted', text: 'text-muted-foreground' },
 };
-</file>
-
-<file path="gestao_web/src/lib/validation.js">
-import * as yup from 'yup';
-import { validarCPF } from '../lib/utils';
-
-export const alunoSchema = yup.object().shape({
-  nome_completo: yup.string().required('O nome completo é obrigatório.'),
-  email: yup.string().email('Insira um e-mail válido.').required('O e-mail é obrigatório.'),
-  cpf: yup.string()
-  .nullable()
-  .optional()
-  .test('cpf-valido', 'CPF inválido. Verifique os dígitos.', (value) => {
-    if (!value) return true;
-    return validarCPF(value);
-  }),
-  role: yup.string().oneOf(['aluno', 'admin']).default('aluno'),
-  plano_id: yup.string().nullable().optional(),
-  data_nascimento: yup.string().nullable().optional(),
-  telefone: yup.string().nullable().optional(),
-  cep: yup.string().nullable().optional(),
-  rua: yup.string().nullable().optional(),
-  numero: yup.string().nullable().optional(),
-  bairro: yup.string().nullable().optional(),
-});
 </file>
 
 <file path="gestao_web/src/pages/Agenda/hooks/useAgendaPage.js">
@@ -7649,6 +7650,71 @@ export const agendamentoService = {
 };
 </file>
 
+<file path="gestao_web/src/services/modalidadeService.js">
+import { supabase } from '../lib/supabase';
+
+export const modalidadeService = {
+  async listar() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*, professores (nome)')
+      .order('area')
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+
+async buscarPerfil(id, nome) {
+  const { data: horarios } = await supabase
+    .from('agenda')
+    .select('dia_semana, horario')
+    .eq('modalidade_id', id)
+    .eq('eh_recorrente', true)
+    .order('dia_semana')
+    .order('horario');
+
+  // ✅ busca por ID
+  const { data: alunos, error: errAlunos } = await supabase
+    .from('alunos')
+    .select('id, nome_completo, planos(nome)')
+    .eq('ativo', true)
+    .contains('modalidades_selecionadas', [id])
+    .order('nome_completo');
+
+  if (errAlunos) throw errAlunos;
+  return { horarios: horarios || [], alunos: alunos || [] };
+},
+
+  async salvar(modalidade) {
+    const payload = {
+      nome: modalidade.nome,
+      area: modalidade.area || 'Dança',
+      professor_id: modalidade.professor_id || null,
+      taxa_professor: Number(modalidade.taxa_professor) || 0,
+      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
+      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
+      capacidade_padrao: modalidade.capacidade_padrao
+    };
+
+    if (modalidade.id) {
+      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('modalidades').insert([payload]);
+      if (error) throw error;
+    }
+    return true;
+  },
+
+  async excluir(id) {
+    const { error } = await supabase.from('modalidades').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+};
+</file>
+
 <file path="supabase/functions/gerenciar-acesso-professor/index.ts">
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -8501,15 +8567,12 @@ export const comissoesService = {
   },
 
   // UX-04: resumo consolidado de todos os professores para um mês.
-  // O Supabase SDK não expõe GROUP BY nativo, então buscamos todos os lançamentos
-  // do mês e agregamos no client — volume esperado é pequeno (centenas de linhas/mês).
   async resumoMensal(mesAno) {
     const inicio = `${mesAno}-01`;
     const [ano, mes] = mesAno.split('-').map(Number);
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
-    // Lançamentos do mês com nome do professor via join
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
       .select('professor_id, valor, tipo_aula, status, professores(id, nome)')
@@ -8518,7 +8581,6 @@ export const comissoesService = {
 
     if (error) throw error;
 
-    // Fechamentos do mês
     const { data: fechamentos } = await supabase
       .from('fechamento_comissoes')
       .select('professor_id, valor_total, fechado_em')
@@ -8528,7 +8590,6 @@ export const comissoesService = {
       (fechamentos || []).map(f => [f.professor_id, f])
     );
 
-    // Agrega por professor
     const porProf = new Map();
     for (const l of lancamentos || []) {
       if (!l.professor_id) continue;
@@ -8559,7 +8620,7 @@ export const comissoesService = {
     return [...porProf.values()].sort((a, b) => b.total - a.total);
   },
 
-  // REP-04: upsert com constraint (professor_id, mes_referencia) para garantir idempotência.
+  // REP-04: upsert com constraint (professor_id, mes_referencia).
   async fecharMes(professorId, mesAno, valorTotal) {
     const { error } = await supabase
       .from('fechamento_comissoes')
@@ -8572,7 +8633,39 @@ export const comissoesService = {
 
     if (error) throw error;
     return true;
-  }
+  },
+
+  // EDIT-01: atualiza valor e/ou tipo_aula de um lançamento individual.
+  // Só permite edição se o mês ainda não foi fechado (verificado na UI).
+  async updateLancamento(id, campos) {
+    const permitidos = ['valor', 'tipo_aula', 'modalidade', 'data_referencia', 'status'];
+    const payload = Object.fromEntries(
+      Object.entries(campos).filter(([k]) => permitidos.includes(k))
+    );
+    if (Object.keys(payload).length === 0) throw new Error('Nenhum campo válido para atualizar.');
+
+    const { data, error } = await supabase
+      .from('repasses_lancamentos')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // EDIT-02: exclui um lançamento individual.
+  // Só permite exclusão se o mês ainda não foi fechado (verificado na UI).
+  async deleteLancamento(id) {
+    const { error } = await supabase
+      .from('repasses_lancamentos')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  },
 };
 </file>
 
@@ -8696,71 +8789,6 @@ async obterComissoes(inicioMes) {
     if (error) throw error;
     return data || [];
   },
-};
-</file>
-
-<file path="gestao_web/src/services/modalidadeService.js">
-import { supabase } from '../lib/supabase';
-
-export const modalidadeService = {
-  async listar() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*, professores (nome)')
-      .order('area')
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-
-async buscarPerfil(id, nome) {
-  const { data: horarios } = await supabase
-    .from('agenda')
-    .select('dia_semana, horario')
-    .eq('modalidade_id', id)
-    .eq('eh_recorrente', true)
-    .order('dia_semana')
-    .order('horario');
-
-  // ✅ busca por ID
-  const { data: alunos, error: errAlunos } = await supabase
-    .from('alunos')
-    .select('id, nome_completo, planos(nome)')
-    .eq('ativo', true)
-    .contains('modalidades_selecionadas', [id])
-    .order('nome_completo');
-
-  if (errAlunos) throw errAlunos;
-  return { horarios: horarios || [], alunos: alunos || [] };
-},
-
-  async salvar(modalidade) {
-    const payload = {
-      nome: modalidade.nome,
-      area: modalidade.area || 'Dança',
-      professor_id: modalidade.professor_id || null,
-      taxa_professor: Number(modalidade.taxa_professor) || 0,
-      taxa_espaco: Number(modalidade.taxa_espaco) || 0,
-      taxa_direcao: Number(modalidade.taxa_direcao) || 0,
-      capacidade_padrao: modalidade.capacidade_padrao
-    };
-
-    if (modalidade.id) {
-      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('modalidades').insert([payload]);
-      if (error) throw error;
-    }
-    return true;
-  },
-
-  async excluir(id) {
-    const { error } = await supabase.from('modalidades').delete().eq('id', id);
-    if (error) throw error;
-    return true;
-  }
 };
 </file>
 
@@ -10877,6 +10905,460 @@ export default function ConfiguracoesRepasse() {
 }
 </file>
 
+<file path="gestao_web/src/pages/Modalidades.jsx">
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
+import { showToast } from '../components/shared/Toast';
+import Modal from '../components/ui/Modal';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Surface from '../components/ui/Surface';
+import { modalidadeService } from '../services/modalidadeService'; 
+
+export default function Modalidades() {
+  const [modalidades, setModalidades] = useState([]);
+  const [professores, setProfessores] = useState([]);
+  
+  const [loadingList, setLoadingList] = useState(true); 
+  const [creating, setCreating] = useState(false);      
+  const [deletingId, setDeletingId] = useState(null);   
+
+  const [novaModalidade, setNovaModalidade] = useState({ 
+    nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
+  });
+
+  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [modalidadeEmEdicao, setModalidadeEmEdicao] = useState(null);
+
+  const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
+  const [modPerfil, setModPerfil] = useState(null);
+  const [dadosPerfil, setDadosPerfil] = useState({ horarios: [], alunos: [] });
+  const [loadingPerfil, setLoadingPerfil] = useState(false);
+
+  const totalTaxasNova = Number(novaModalidade.taxa_professor) + Number(novaModalidade.taxa_espaco) + Number(novaModalidade.taxa_direcao);
+  const isNovaValida = totalTaxasNova === 100;
+
+  const totalTaxasEdicao = modalidadeEmEdicao ? (Number(modalidadeEmEdicao.taxa_professor) + Number(modalidadeEmEdicao.taxa_espaco) + Number(modalidadeEmEdicao.taxa_direcao)) : 0;
+  const isEdicaoValida = totalTaxasEdicao === 100;
+
+  useEffect(() => { 
+    fetchDados(); 
+  }, []);
+
+  async function fetchDados() {
+    try {
+      const { data: profs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
+      if (profs) setProfessores(profs);
+
+      const mods = await modalidadeService.listar();
+      if (mods) setModalidades(mods);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  async function abrirPerfil(mod) {
+    setModPerfil(mod);
+    setModalPerfilAberto(true);
+    setLoadingPerfil(true);
+    try {
+      const dados = await modalidadeService.buscarPerfil(mod.id, mod.nome);
+      setDadosPerfil(dados);
+    } catch (error) {
+      showToast.error("Erro ao carregar Raio-X da modalidade.");
+    } finally {
+      setLoadingPerfil(false);
+    }
+  }
+
+  async function handleCriarModalidade(e) {
+    e.preventDefault();
+    if (creating || !novaModalidade.nome || !isNovaValida) return; 
+    setCreating(true);    
+
+    try {
+        const payload = {
+          ...novaModalidade,
+          capacidade_padrao: Number(novaModalidade.capacidade_padrao)
+        };
+        await modalidadeService.salvar(payload);
+        showToast.success("Modalidade adicionada com sucesso!");
+        setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
+        fetchDados();
+    } catch (err) {
+        showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
+    } finally {
+        setCreating(false); 
+    }
+  }
+
+  async function excluirModalidade(id, e) {
+    e.stopPropagation(); 
+    if (!confirm("Tem certeza que deseja remover esta modalidade?")) return;
+    setDeletingId(id); 
+    try {
+        await modalidadeService.excluir(id);
+        showToast.success("Modalidade removida.");
+        fetchDados();
+    } catch (err) {
+        showToast.error("Erro ao excluir. Pode haver aulas atreladas a ela.");
+    } finally {
+        setDeletingId(null);
+    }
+  }
+
+  function abrirEdicao(mod, e) {
+    e?.stopPropagation(); 
+    setModalidadeEmEdicao({
+      id: mod.id,
+      nome: mod.nome,
+      area: mod.area || 'Dança', 
+      professor_id: mod.professor_id || '',
+      capacidade_padrao: mod.capacidade_padrao || 15,
+      taxa_professor: mod.taxa_professor || 0,
+      taxa_espaco: mod.taxa_espaco || 0,
+      taxa_direcao: mod.taxa_direcao || 0
+    });
+    setModalEdicaoAberto(true);
+  }
+
+  async function handleSalvarEdicao(e) {
+    e.preventDefault();
+    if (!modalidadeEmEdicao?.nome || !isEdicaoValida) return;
+    setSavingEdit(true);
+
+    try {
+      const payload = {
+        ...modalidadeEmEdicao,
+        capacidade_padrao: Number(modalidadeEmEdicao.capacidade_padrao)
+      };
+      await modalidadeService.salvar(payload);
+      showToast.success("Modalidade atualizada com sucesso!");
+      setModalEdicaoAberto(false);
+      if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
+          setModPerfil({...modPerfil, ...modalidadeEmEdicao});
+      }
+      fetchDados(); 
+    } catch (err) {
+      showToast.error("Erro ao atualizar modalidade.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  const getAreaColor = (area) => {
+    switch (area) {
+      case 'Dança': return 'bg-purple-soft text-purple border-purple/20';
+      case 'Funcional': return 'bg-warning-soft text-warning border-warning/20';
+      default: return 'bg-muted text-muted-foreground border-border';
+    }
+  };
+
+  return (
+    <div className="p-8 space-y-8 animate-in fade-in">
+       <div>
+          <h1 className="text-3xl font-black text-foreground">Modalidades & Comissões</h1>
+          <p className="text-muted-foreground">Cadastre as atividades, limites de vagas e regras financeiras.</p>
+       </div>
+
+      {/* FORMULÁRIO DE NOVA MODALIDADE */}
+      <Surface variant="card" padding="lg" className="space-y-6">
+        <h3 className="font-bold text-foreground flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
+        
+        <form onSubmit={handleCriarModalidade} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome da Modalidade</label>
+              <Input 
+                required placeholder="Ex: Dança Criativa"
+                value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
+              />
+            </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+              <Input as="select"
+                value={novaModalidade.area}
+                onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
+              >
+                <option value="Dança">Dança</option>
+                <option value="Funcional">Funcional</option>
+                <option value="Livre/Todos">Livre / Outros</option>
+              </Input>
+            </div>
+            
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Responsável (Opcional)</label>
+              <Input as="select"
+                value={novaModalidade.professor_id}
+                onChange={e => setNovaModalidade({...novaModalidade, professor_id: e.target.value})}
+              >
+                <option value="">Sem professor fixo</option>
+                {professores.map(prof => (
+                  <option key={prof.id} value={prof.id}>{prof.nome}</option>
+                ))}
+              </Input>
+            </div>
+
+            <div className="w-full">
+              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+              <Input 
+                required type="number" min="1"
+                className="font-black text-info focus-visible:ring-info" 
+                value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
+              />
+            </div>
+          </div>
+
+          <Surface variant="subtle" className="border border-border p-6 rounded-3xl">
+            <div className="flex justify-between items-end mb-4">
+               <div>
+                 <h4 className="font-bold text-foreground flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
+                 <p className="text-xs text-muted-foreground font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
+               </div>
+               <div className={`text-xl font-black ${isNovaValida ? 'text-success' : 'text-destructive'}`}>
+                 Total: {totalTaxasNova}%
+               </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-info uppercase block mb-1">Professor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-info" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-warning uppercase block mb-1">Espaço (Caixa)</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-warning" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-purple uppercase block mb-1">Diretor</label>
+                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-purple" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
+              </div>
+            </div>
+          </Surface>
+
+          <div className="flex justify-end">
+             <Button type="submit" variant="brand" size="lg" disabled={creating || !isNovaValida} className="w-full md:w-auto font-black flex gap-3">
+               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
+             </Button>
+          </div>
+        </form>
+      </Surface>
+
+      {/* GRADE MODALIDADES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loadingList ? (
+           [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)
+        ) : modalidades.map(mod => (
+          <Surface 
+            key={mod.id} 
+            variant="card"
+            padding="md"
+            onClick={() => abrirPerfil(mod)}
+            className="flex justify-between items-center hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
+          >
+            <div className="flex items-center gap-4">
+               <div className="w-12 h-12 bg-primary-soft rounded-2xl text-primary flex items-center justify-center">
+                 <Activity size={24}/>
+               </div>
+               <div>
+                 <div className="flex items-center gap-2 mb-0.5">
+                   <h3 className="font-bold text-foreground leading-none">{mod.nome}</h3>
+                   <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
+                     {mod.area || 'Dança'}
+                   </span>
+                 </div>
+                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mt-1">
+                   <span className="flex items-center gap-1"><Users size={12} className="text-info"/> {mod.capacidade_padrao || 15} vagas</span>
+                 </p>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all" title="Editar">
+                <Edit2 size={18}/>
+              </button>
+              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all" title="Excluir">
+                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-destructive" size={18}/> : <Trash2 size={18}/>}
+              </button>
+            </div>
+          </Surface>
+        ))}
+      </div>
+
+      <Modal isOpen={modalPerfilAberto} onClose={() => setModalPerfilAberto(false)} titulo="Raio-X da Turma">
+        {modPerfil && (
+          <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
+            
+            <div className="bg-card border border-border p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h2 className="text-2xl font-black text-foreground">{modPerfil.nome}</h2>
+                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)}`}>
+                        {modPerfil.area || 'Dança'}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                        <Users size={16} className="text-info"/> {modPerfil.capacidade_padrao || 15} vagas por aula
+                    </p>
+                </div>
+                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-subtle hover:bg-muted text-foreground p-3 rounded-xl transition-all border border-border" title="Editar Configurações">
+                    <Edit2 size={20} />
+                </button>
+                <div className="absolute -right-8 -top-8 text-muted/5 rotate-12">
+                    <Activity size={120} />
+                </div>
+            </div>
+
+            {loadingPerfil ? (
+                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-muted-foreground" size={32} /></div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                        <h4 className="font-bold text-foreground flex items-center gap-2 mb-4">
+                            <Users size={18} className="text-info"/> Alunos Ativos ({dadosPerfil.alunos.length})
+                        </h4>
+                        
+                        {dadosPerfil.alunos.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno vinculado no momento.</p>
+                        ) : (
+                            <ul className="space-y-2">
+                                {dadosPerfil.alunos.map(aluno => (
+                                    <li key={aluno.id} className="bg-card p-3 rounded-xl border border-border shadow-sm flex items-center justify-between">
+                                        <span className="font-bold text-sm text-foreground">{aluno.nome_completo}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-info bg-info-soft px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Surface>
+
+                    <div className="flex flex-col gap-4">
+                        <Surface variant="card" className="p-5 rounded-3xl flex-1">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-4"><Clock size={18} className="text-purple"/> Horários na Grade</h4>
+                            {dadosPerfil.horarios.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
+                            ) : (
+                                <ul className="flex flex-col gap-2">
+                                    {dadosPerfil.horarios.map((h, i) => (
+                                        <li key={i} className="bg-purple-soft text-purple border border-purple/20 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
+                                            <Calendar size={16} /> {h.dia_semana}, {h.horario.slice(0,5)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </Surface>
+
+                        <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
+                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-info uppercase">Prof</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_professor || 0}%</span>
+                                </div>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-warning uppercase">Caixa</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_espaco || 0}%</span>
+                                </div>
+                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
+                                    <span className="block text-[10px] font-black text-purple uppercase">Dir</span>
+                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_direcao || 0}%</span>
+                                </div>
+                            </div>
+                        </Surface>
+                    </div>
+                </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
+        {modalidadeEmEdicao && (
+          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome</label>
+                  <Input 
+                      required 
+                      value={modalidadeEmEdicao.nome} 
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
+                  />
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
+                  <Input as="select"
+                    value={modalidadeEmEdicao.area}
+                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
+                  >
+                    <option value="Dança">Dança</option>
+                    <option value="Funcional">Funcional</option>
+                    <option value="Livre/Todos">Livre / Outros</option>
+                  </Input>
+                </div>
+                
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Fixo</label>
+                  <Input as="select"
+                      value={modalidadeEmEdicao.professor_id}
+                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
+                  >
+                      <option value="">Sem professor</option>
+                      {professores.map(prof => (
+                      <option key={prof.id} value={prof.id}>{prof.nome}</option>
+                      ))}
+                  </Input>
+                </div>
+
+                <div className="w-full">
+                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
+                  <Input 
+                    required type="number" min="1"
+                    className="font-black text-info focus-visible:ring-info" 
+                    value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
+                  />
+                </div>
+            </div>
+
+            <Surface variant="subtle" className="border border-border p-4 rounded-2xl">
+                <div className="flex justify-between items-center mb-3">
+                    <label className="text-xs font-black text-muted-foreground uppercase block">Divisão da Comissão</label>
+                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-success' : 'text-destructive'}`}>Total: {totalTaxasEdicao}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-info mb-1 block">Prof</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-info" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
+                    </div>
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-warning mb-1 block">Espaço</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-warning" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
+                    </div>
+                    <div>
+                        <span className="text-[10px] uppercase font-bold text-purple mb-1 block">Diretor</span>
+                        <Input type="number" className="text-center font-bold focus-visible:ring-purple" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
+                    </div>
+                </div>
+                {!isEdicaoValida && <p className="text-[10px] font-bold text-destructive mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
+            </Surface>
+
+            <Button type="submit" variant="brand" disabled={savingEdit || !isEdicaoValida} className="w-full font-black text-lg gap-2">
+              {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
+            </Button>
+          </form>
+        )}
+      </Modal>
+
+    </div>
+  );
+}
+</file>
+
 <file path="gestao_web/src/services/repasseService.js">
 // gestao_web/src/services/repasseService.js
 
@@ -11959,460 +12441,6 @@ function RecuperarFormInterno({ onSubmit, loading }) {
       >
         {loading ? <RefreshCw className="animate-spin" size={20} /> : 'Enviar Link de Recuperação'}
       </button>
-    </div>
-  );
-}
-</file>
-
-<file path="gestao_web/src/pages/Modalidades.jsx">
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
-import { showToast } from '../components/shared/Toast';
-import Modal from '../components/ui/Modal';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
-import Surface from '../components/ui/Surface';
-import { modalidadeService } from '../services/modalidadeService'; 
-
-export default function Modalidades() {
-  const [modalidades, setModalidades] = useState([]);
-  const [professores, setProfessores] = useState([]);
-  
-  const [loadingList, setLoadingList] = useState(true); 
-  const [creating, setCreating] = useState(false);      
-  const [deletingId, setDeletingId] = useState(null);   
-
-  const [novaModalidade, setNovaModalidade] = useState({ 
-    nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 
-  });
-
-  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [modalidadeEmEdicao, setModalidadeEmEdicao] = useState(null);
-
-  const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
-  const [modPerfil, setModPerfil] = useState(null);
-  const [dadosPerfil, setDadosPerfil] = useState({ horarios: [], alunos: [] });
-  const [loadingPerfil, setLoadingPerfil] = useState(false);
-
-  const totalTaxasNova = Number(novaModalidade.taxa_professor) + Number(novaModalidade.taxa_espaco) + Number(novaModalidade.taxa_direcao);
-  const isNovaValida = totalTaxasNova === 100;
-
-  const totalTaxasEdicao = modalidadeEmEdicao ? (Number(modalidadeEmEdicao.taxa_professor) + Number(modalidadeEmEdicao.taxa_espaco) + Number(modalidadeEmEdicao.taxa_direcao)) : 0;
-  const isEdicaoValida = totalTaxasEdicao === 100;
-
-  useEffect(() => { 
-    fetchDados(); 
-  }, []);
-
-  async function fetchDados() {
-    try {
-      const { data: profs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
-      if (profs) setProfessores(profs);
-
-      const mods = await modalidadeService.listar();
-      if (mods) setModalidades(mods);
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-    } finally {
-      setLoadingList(false);
-    }
-  }
-
-  async function abrirPerfil(mod) {
-    setModPerfil(mod);
-    setModalPerfilAberto(true);
-    setLoadingPerfil(true);
-    try {
-      const dados = await modalidadeService.buscarPerfil(mod.id, mod.nome);
-      setDadosPerfil(dados);
-    } catch (error) {
-      showToast.error("Erro ao carregar Raio-X da modalidade.");
-    } finally {
-      setLoadingPerfil(false);
-    }
-  }
-
-  async function handleCriarModalidade(e) {
-    e.preventDefault();
-    if (creating || !novaModalidade.nome || !isNovaValida) return; 
-    setCreating(true);    
-
-    try {
-        const payload = {
-          ...novaModalidade,
-          capacidade_padrao: Number(novaModalidade.capacidade_padrao)
-        };
-        await modalidadeService.salvar(payload);
-        showToast.success("Modalidade adicionada com sucesso!");
-        setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
-        fetchDados();
-    } catch (err) {
-        showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
-    } finally {
-        setCreating(false); 
-    }
-  }
-
-  async function excluirModalidade(id, e) {
-    e.stopPropagation(); 
-    if (!confirm("Tem certeza que deseja remover esta modalidade?")) return;
-    setDeletingId(id); 
-    try {
-        await modalidadeService.excluir(id);
-        showToast.success("Modalidade removida.");
-        fetchDados();
-    } catch (err) {
-        showToast.error("Erro ao excluir. Pode haver aulas atreladas a ela.");
-    } finally {
-        setDeletingId(null);
-    }
-  }
-
-  function abrirEdicao(mod, e) {
-    e?.stopPropagation(); 
-    setModalidadeEmEdicao({
-      id: mod.id,
-      nome: mod.nome,
-      area: mod.area || 'Dança', 
-      professor_id: mod.professor_id || '',
-      capacidade_padrao: mod.capacidade_padrao || 15,
-      taxa_professor: mod.taxa_professor || 0,
-      taxa_espaco: mod.taxa_espaco || 0,
-      taxa_direcao: mod.taxa_direcao || 0
-    });
-    setModalEdicaoAberto(true);
-  }
-
-  async function handleSalvarEdicao(e) {
-    e.preventDefault();
-    if (!modalidadeEmEdicao?.nome || !isEdicaoValida) return;
-    setSavingEdit(true);
-
-    try {
-      const payload = {
-        ...modalidadeEmEdicao,
-        capacidade_padrao: Number(modalidadeEmEdicao.capacidade_padrao)
-      };
-      await modalidadeService.salvar(payload);
-      showToast.success("Modalidade atualizada com sucesso!");
-      setModalEdicaoAberto(false);
-      if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
-          setModPerfil({...modPerfil, ...modalidadeEmEdicao});
-      }
-      fetchDados(); 
-    } catch (err) {
-      showToast.error("Erro ao atualizar modalidade.");
-    } finally {
-      setSavingEdit(false);
-    }
-  }
-
-  const getAreaColor = (area) => {
-    switch (area) {
-      case 'Dança': return 'bg-purple-soft text-purple border-purple/20';
-      case 'Funcional': return 'bg-warning-soft text-warning border-warning/20';
-      default: return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
-  return (
-    <div className="p-8 space-y-8 animate-in fade-in">
-       <div>
-          <h1 className="text-3xl font-black text-foreground">Modalidades & Comissões</h1>
-          <p className="text-muted-foreground">Cadastre as atividades, limites de vagas e regras financeiras.</p>
-       </div>
-
-      {/* FORMULÁRIO DE NOVA MODALIDADE */}
-      <Surface variant="card" padding="lg" className="space-y-6">
-        <h3 className="font-bold text-foreground flex items-center gap-2"><Activity size={20}/> Nova Modalidade</h3>
-        
-        <form onSubmit={handleCriarModalidade} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome da Modalidade</label>
-              <Input 
-                required placeholder="Ex: Dança Criativa"
-                value={novaModalidade.nome} onChange={e => setNovaModalidade({...novaModalidade, nome: e.target.value})} 
-              />
-            </div>
-
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-              <Input as="select"
-                value={novaModalidade.area}
-                onChange={e => setNovaModalidade({...novaModalidade, area: e.target.value})}
-              >
-                <option value="Dança">Dança</option>
-                <option value="Funcional">Funcional</option>
-                <option value="Livre/Todos">Livre / Outros</option>
-              </Input>
-            </div>
-            
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Responsável (Opcional)</label>
-              <Input as="select"
-                value={novaModalidade.professor_id}
-                onChange={e => setNovaModalidade({...novaModalidade, professor_id: e.target.value})}
-              >
-                <option value="">Sem professor fixo</option>
-                {professores.map(prof => (
-                  <option key={prof.id} value={prof.id}>{prof.nome}</option>
-                ))}
-              </Input>
-            </div>
-
-            <div className="w-full">
-              <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
-              <Input 
-                required type="number" min="1"
-                className="font-black text-info focus-visible:ring-info" 
-                value={novaModalidade.capacidade_padrao} onChange={e => setNovaModalidade({...novaModalidade, capacidade_padrao: e.target.value})} 
-              />
-            </div>
-          </div>
-
-          <Surface variant="subtle" className="border border-border p-6 rounded-3xl">
-            <div className="flex justify-between items-end mb-4">
-               <div>
-                 <h4 className="font-bold text-foreground flex items-center gap-2 text-sm"><DollarSign size={16}/> Divisão de Repasses (%)</h4>
-                 <p className="text-xs text-muted-foreground font-medium mt-1">A soma deve ser obrigatoriamente 100%.</p>
-               </div>
-               <div className={`text-xl font-black ${isNovaValida ? 'text-success' : 'text-destructive'}`}>
-                 Total: {totalTaxasNova}%
-               </div>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-info uppercase block mb-1">Professor</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-info" value={novaModalidade.taxa_professor} onChange={e => setNovaModalidade({...novaModalidade, taxa_professor: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-warning uppercase block mb-1">Espaço (Caixa)</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-warning" value={novaModalidade.taxa_espaco} onChange={e => setNovaModalidade({...novaModalidade, taxa_espaco: e.target.value})} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-purple uppercase block mb-1">Diretor</label>
-                <Input type="number" min="0" max="100" className="text-center font-black focus-visible:ring-purple" value={novaModalidade.taxa_direcao} onChange={e => setNovaModalidade({...novaModalidade, taxa_direcao: e.target.value})} />
-              </div>
-            </div>
-          </Surface>
-
-          <div className="flex justify-end">
-             <Button type="submit" variant="brand" size="lg" disabled={creating || !isNovaValida} className="w-full md:w-auto font-black flex gap-3">
-               {creating ? <RefreshCw className="animate-spin" size={24}/> : <Plus size={24}/>} Salvar Modalidade
-             </Button>
-          </div>
-        </form>
-      </Surface>
-
-      {/* GRADE MODALIDADES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loadingList ? (
-           [1,2,3].map(i => <div key={i} className="h-24 bg-muted rounded-3xl animate-pulse" />)
-        ) : modalidades.map(mod => (
-          <Surface 
-            key={mod.id} 
-            variant="card"
-            padding="md"
-            onClick={() => abrirPerfil(mod)}
-            className="flex justify-between items-center hover:border-primary/30 hover:-translate-y-1 cursor-pointer transition-all group"
-          >
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-primary-soft rounded-2xl text-primary flex items-center justify-center">
-                 <Activity size={24}/>
-               </div>
-               <div>
-                 <div className="flex items-center gap-2 mb-0.5">
-                   <h3 className="font-bold text-foreground leading-none">{mod.nome}</h3>
-                   <span className={`px-2 py-0.5 border rounded-lg text-[9px] font-black uppercase tracking-wider ${getAreaColor(mod.area)}`}>
-                     {mod.area || 'Dança'}
-                   </span>
-                 </div>
-                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mt-1">
-                   <span className="flex items-center gap-1"><Users size={12} className="text-info"/> {mod.capacidade_padrao || 15} vagas</span>
-                 </p>
-               </div>
-            </div>
-
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-              <button onClick={(e) => abrirEdicao(mod, e)} className="p-3 text-muted-foreground hover:text-info hover:bg-info-soft rounded-xl transition-all" title="Editar">
-                <Edit2 size={18}/>
-              </button>
-              <button onClick={(e) => excluirModalidade(mod.id, e)} disabled={deletingId === mod.id} className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all" title="Excluir">
-                  {deletingId === mod.id ? <RefreshCw className="animate-spin text-destructive" size={18}/> : <Trash2 size={18}/>}
-              </button>
-            </div>
-          </Surface>
-        ))}
-      </div>
-
-      <Modal isOpen={modalPerfilAberto} onClose={() => setModalPerfilAberto(false)} titulo="Raio-X da Turma">
-        {modPerfil && (
-          <div className="space-y-6 pt-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
-            
-            <div className="bg-card border border-border p-6 rounded-3xl flex justify-between items-center relative overflow-hidden">
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-black text-foreground">{modPerfil.nome}</h2>
-                      <span className={`px-2 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider ${getAreaColor(modPerfil.area)}`}>
-                        {modPerfil.area || 'Dança'}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
-                        <Users size={16} className="text-info"/> {modPerfil.capacidade_padrao || 15} vagas por aula
-                    </p>
-                </div>
-                <button onClick={() => abrirEdicao(modPerfil)} className="relative z-10 bg-subtle hover:bg-muted text-foreground p-3 rounded-xl transition-all border border-border" title="Editar Configurações">
-                    <Edit2 size={20} />
-                </button>
-                <div className="absolute -right-8 -top-8 text-muted/5 rotate-12">
-                    <Activity size={120} />
-                </div>
-            </div>
-
-            {loadingPerfil ? (
-                <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-muted-foreground" size={32} /></div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
-                        <h4 className="font-bold text-foreground flex items-center gap-2 mb-4">
-                            <Users size={18} className="text-info"/> Alunos Ativos ({dadosPerfil.alunos.length})
-                        </h4>
-                        
-                        {dadosPerfil.alunos.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno vinculado no momento.</p>
-                        ) : (
-                            <ul className="space-y-2">
-                                {dadosPerfil.alunos.map(aluno => (
-                                    <li key={aluno.id} className="bg-card p-3 rounded-xl border border-border shadow-sm flex items-center justify-between">
-                                        <span className="font-bold text-sm text-foreground">{aluno.nome_completo}</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-info bg-info-soft px-2 py-1 rounded-md">{aluno.planos?.nome || 'Sem plano'}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Surface>
-
-                    <div className="flex flex-col gap-4">
-                        <Surface variant="card" className="p-5 rounded-3xl flex-1">
-                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-4"><Clock size={18} className="text-purple"/> Horários na Grade</h4>
-                            {dadosPerfil.horarios.length === 0 ? (
-                                <p className="text-sm text-muted-foreground text-center py-4">Não há aulas recorrentes cadastradas no calendário.</p>
-                            ) : (
-                                <ul className="flex flex-col gap-2">
-                                    {dadosPerfil.horarios.map((h, i) => (
-                                        <li key={i} className="bg-purple-soft text-purple border border-purple/20 px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
-                                            <Calendar size={16} /> {h.dia_semana}, {h.horario.slice(0,5)}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </Surface>
-
-                        <Surface variant="subtle" className="border border-border p-5 rounded-3xl">
-                            <h4 className="font-bold text-foreground flex items-center gap-2 mb-3 text-sm"><DollarSign size={16}/> Regras de Repasse</h4>
-                            <div className="flex gap-2">
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-info uppercase">Prof</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_professor || 0}%</span>
-                                </div>
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-warning uppercase">Caixa</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_espaco || 0}%</span>
-                                </div>
-                                <div className="flex-1 bg-card border border-border p-2 rounded-xl text-center shadow-sm">
-                                    <span className="block text-[10px] font-black text-purple uppercase">Dir</span>
-                                    <span className="text-sm font-black text-foreground">{modPerfil.taxa_direcao || 0}%</span>
-                                </div>
-                            </div>
-                        </Surface>
-                    </div>
-                </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      <Modal isOpen={modalEdicaoAberto} onClose={() => setModalEdicaoAberto(false)} titulo="Editar Configurações">
-        {modalidadeEmEdicao && (
-          <form onSubmit={handleSalvarEdicao} className="space-y-6 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Nome</label>
-                  <Input 
-                      required 
-                      value={modalidadeEmEdicao.nome} 
-                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, nome: e.target.value})} 
-                  />
-                </div>
-
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-1"><Tag size={12}/> Área / Categoria</label>
-                  <Input as="select"
-                    value={modalidadeEmEdicao.area}
-                    onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, area: e.target.value})}
-                  >
-                    <option value="Dança">Dança</option>
-                    <option value="Funcional">Funcional</option>
-                    <option value="Livre/Todos">Livre / Outros</option>
-                  </Input>
-                </div>
-                
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Professor Fixo</label>
-                  <Input as="select"
-                      value={modalidadeEmEdicao.professor_id}
-                      onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, professor_id: e.target.value})}
-                  >
-                      <option value="">Sem professor</option>
-                      {professores.map(prof => (
-                      <option key={prof.id} value={prof.id}>{prof.nome}</option>
-                      ))}
-                  </Input>
-                </div>
-
-                <div className="w-full">
-                  <label className="text-xs font-black text-muted-foreground uppercase mb-2 block">Vagas Padrão</label>
-                  <Input 
-                    required type="number" min="1"
-                    className="font-black text-info focus-visible:ring-info" 
-                    value={modalidadeEmEdicao.capacidade_padrao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, capacidade_padrao: e.target.value})} 
-                  />
-                </div>
-            </div>
-
-            <Surface variant="subtle" className="border border-border p-4 rounded-2xl">
-                <div className="flex justify-between items-center mb-3">
-                    <label className="text-xs font-black text-muted-foreground uppercase block">Divisão da Comissão</label>
-                    <span className={`text-xs font-black ${isEdicaoValida ? 'text-success' : 'text-destructive'}`}>Total: {totalTaxasEdicao}%</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-info mb-1 block">Prof</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-info" value={modalidadeEmEdicao.taxa_professor} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_professor: e.target.value})} />
-                    </div>
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-warning mb-1 block">Espaço</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-warning" value={modalidadeEmEdicao.taxa_espaco} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_espaco: e.target.value})} />
-                    </div>
-                    <div>
-                        <span className="text-[10px] uppercase font-bold text-purple mb-1 block">Diretor</span>
-                        <Input type="number" className="text-center font-bold focus-visible:ring-purple" value={modalidadeEmEdicao.taxa_direcao} onChange={e => setModalidadeEmEdicao({...modalidadeEmEdicao, taxa_direcao: e.target.value})} />
-                    </div>
-                </div>
-                {!isEdicaoValida && <p className="text-[10px] font-bold text-destructive mt-2 flex items-center gap-1"><AlertCircle size={12}/> A soma das 3 partes deve dar 100%.</p>}
-            </Surface>
-
-            <Button type="submit" variant="brand" disabled={savingEdit || !isEdicaoValida} className="w-full font-black text-lg gap-2">
-              {savingEdit ? <RefreshCw className="animate-spin" size={20}/> : "Salvar Alterações"}
-            </Button>
-          </form>
-        )}
-      </Modal>
-
     </div>
   );
 }
@@ -13842,6 +13870,12 @@ function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
     </Surface>
   );
 }
+</file>
+
+<file path="gestao_web/src/services/agendaService.js">
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';
 </file>
 
 <file path="gestao_web/src/utils/calendarioParser.js">
@@ -15616,12 +15650,6 @@ export default function Professores() {
 }
 </file>
 
-<file path="gestao_web/src/services/agendaService.js">
-export { gradeService } from './gradeService';
-export { agendamentoService } from './agendamentoService';
-export { leadsService } from './leadsService';
-</file>
-
 <file path="gestao_web/src/hooks/useAuth.js">
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
@@ -17090,170 +17118,6 @@ export default function Leads() {
 }
 </file>
 
-<file path="gestao_web/src/services/financeiroService.js">
-import { supabase } from '../lib/supabase';
-import { gerarRepassesDaMensalidade } from './repasseService';
-
-export const financeiroService = {
-  async listarMensalidades(inicio, fim) {
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .select(`
-        *,
-        alunos (nome_completo),
-        planos (nome, preco, is_plano_livre)
-      `)
-      .gte('data_vencimento', inicio)
-      .lte('data_vencimento', fim)
-      .order('data_vencimento', { ascending: true });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Gera mensalidades para um determinado mês/ano.
-   *
-   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
-   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
-   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
-   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
-   */
-  async gerarMensalidades(mesNumero, ano) {
-    if (mesNumero < 1 || mesNumero > 12) {
-      throw new Error(
-        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
-        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
-      );
-    }
-
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, plano_id')
-      .eq('ativo', true)
-      .not('plano_id', 'is', null);
-
-    if (errAlunos) throw errAlunos;
-
-    const tresMesesAtras = new Date();
-    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
-    const filtroData = tresMesesAtras.toISOString().split('T')[0];
-
-    const { data: ultimasMensalidades } = await supabase
-      .from('mensalidades')
-      .select('aluno_id, data_vencimento')
-      .gte('data_vencimento', filtroData)
-      .order('data_vencimento', { ascending: false });
-
-    const mapaUltimasDatas = new Map();
-    ultimasMensalidades?.forEach(m => {
-      if (!mapaUltimasDatas.has(m.aluno_id)) {
-        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
-      }
-    });
-
-    const novasCobrancas = [];
-
-    alunos.forEach(aluno => {
-      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
-
-      let proximaData;
-      if (ultimaDataStr) {
-        const d = new Date(ultimaDataStr + 'T12:00:00');
-        d.setDate(d.getDate() + 30);
-        proximaData = d.toISOString().split('T')[0];
-      } else {
-        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
-        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
-      }
-
-      const [pAno, pMes] = proximaData.split('-').map(Number);
-
-      if (pAno === ano && pMes === mesNumero) {
-        novasCobrancas.push({
-          aluno_id: aluno.id,
-          plano_id: aluno.plano_id,
-          data_vencimento: proximaData,
-          status: 'pendente'
-        });
-      }
-    });
-
-    if (novasCobrancas.length > 0) {
-      const { error: errInsert } = await supabase
-        .from('mensalidades')
-        .insert(novasCobrancas);
-      if (errInsert) throw errInsert;
-    }
-
-    return true;
-  },
-
-  async adicionarPagamentoManual(dados) {
-    const payload = {
-      aluno_id: dados.aluno_id ? dados.aluno_id : null,
-      nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
-      plano_id: dados.plano_id ? dados.plano_id : null,
-      professor_id: dados.professor_id ? dados.professor_id : null,
-      modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
-
-      tipo_aula: dados.tipo_aula,
-      valor_pago: Number(dados.valor_pago),
-      status: dados.status || 'pago',
-
-      forma_pagamento: dados.forma_pagamento,
-
-      data_vencimento: dados.data_vencimento,
-      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
-    };
-
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .insert([payload])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Erro detalhado do Supabase:", error);
-      throw error;
-    }
-
-    if (dados.status === 'pago') {
-      try {
-        await gerarRepassesDaMensalidade(data.id);
-      } catch (repasseError) {
-        // Pagamento salvo com sucesso; apenas o repasse falhou.
-        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
-        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
-        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
-      }
-    }
-    return data;
-  },
-
-  async confirmarPagamento(id, dados) {
-    const payload = {
-      status: 'pago',
-      valor_pago: dados.valor_pago,
-      forma_pagamento: dados.forma_pagamento,
-      tipo_aula: dados.tipo_aula || 'regular',
-      professor_id: dados.professor_id || null,
-      modalidade_nome: dados.modalidade_nome || null,
-      data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
-    };
-
-    const { error } = await supabase
-      .from('mensalidades')
-      .update(payload)
-      .eq('id', id);
-    if (error) throw error;
-
-    const resultado = await gerarRepassesDaMensalidade(id);
-    return { ok: true, resultado };
-  },
-};
-</file>
-
 <file path="gestao_web/src/services/gradeService.js">
 import { supabase } from '../lib/supabase';
 
@@ -17691,7 +17555,7 @@ import {
   CheckCircle, Users, DollarSign, FileSpreadsheet,
   PieChart, Calendar, Wallet, RefreshCw, AlertTriangle,
   ChevronDown, ChevronUp, Hash, LayoutGrid, UserCheck,
-  TrendingUp, Filter, ArrowRight,
+  TrendingUp, Filter, ArrowRight, Pencil, Trash2, X, Check,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -17761,7 +17625,205 @@ function TipoAulaBadge({ tipo }) {
   );
 }
 
-// ─── Aba: Detalhe por Professor (UX-02 incluído) ─────────────────────────────
+// ─── Linha editável da tabela de lançamentos ──────────────────────────────────
+
+function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
+  const [editando, setEditando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [confirmandoDelete, setConfirmandoDelete] = useState(false);
+
+  const [camposEdit, setCamposEdit] = useState({
+    valor: '',
+    tipo_aula: '',
+    modalidade: '',
+  });
+
+  function abrirEdicao() {
+    setCamposEdit({
+      valor: Number(lancamento.valor).toFixed(2),
+      tipo_aula: lancamento.tipo_aula ?? '',
+      modalidade: lancamento.modalidade ?? '',
+    });
+    setEditando(true);
+  }
+
+  function cancelarEdicao() {
+    setEditando(false);
+    setConfirmandoDelete(false);
+  }
+
+  async function salvar() {
+    const valor = parseFloat(camposEdit.valor.replace(',', '.'));
+    if (isNaN(valor) || valor < 0) {
+      showToast.error('Valor inválido.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const atualizado = await comissoesService.updateLancamento(lancamento.id, {
+        valor,
+        tipo_aula: camposEdit.tipo_aula,
+        modalidade: camposEdit.modalidade,
+      });
+      showToast.success('Lançamento atualizado.');
+      setEditando(false);
+      onSaved(atualizado);
+    } catch (err) {
+      console.error(err);
+      showToast.error('Erro ao salvar alteração.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function excluir() {
+    setSalvando(true);
+    try {
+      await comissoesService.deleteLancamento(lancamento.id);
+      showToast.success('Lançamento excluído.');
+      onDeleted(lancamento.id);
+    } catch (err) {
+      console.error(err);
+      showToast.error('Erro ao excluir lançamento.');
+    } finally {
+      setSalvando(false);
+      setConfirmandoDelete(false);
+    }
+  }
+
+  if (editando) {
+    return (
+      <tr className="bg-primary/5 border-b border-primary/20">
+        <td className="p-4 text-muted-foreground font-medium">
+          {formatarData(lancamento.data_referencia)}
+        </td>
+        <td className="p-4 font-bold text-foreground">
+          {lancamento.alunos?.nome_completo || 'N/A'}
+        </td>
+        <td className="p-4">
+          <select
+            value={camposEdit.tipo_aula}
+            onChange={e => setCamposEdit(c => ({ ...c, tipo_aula: e.target.value }))}
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {TIPOS_AULA.filter(t => t.value).map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </td>
+        <td className="p-4">
+          <input
+            type="text"
+            value={camposEdit.modalidade}
+            onChange={e => setCamposEdit(c => ({ ...c, modalidade: e.target.value }))}
+            placeholder="Modalidade"
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground w-32 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </td>
+        <td className="p-4 text-right">
+          <input
+            type="text"
+            value={camposEdit.valor}
+            onChange={e => setCamposEdit(c => ({ ...c, valor: e.target.value }))}
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground w-28 text-right font-black focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </td>
+        <td className="p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={salvar}
+              disabled={salvando}
+              title="Salvar"
+              className="p-1.5 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors disabled:opacity-50"
+            >
+              <Check size={15} />
+            </button>
+            <button
+              onClick={cancelarEdicao}
+              disabled={salvando}
+              title="Cancelar"
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (confirmandoDelete) {
+    return (
+      <tr className="bg-destructive/5 border-b border-destructive/20">
+        <td colSpan={5} className="p-4">
+          <span className="text-sm font-bold text-destructive">
+            Confirma exclusão do lançamento de {lancamento.alunos?.nome_completo}?
+          </span>
+        </td>
+        <td className="p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={excluir}
+              disabled={salvando}
+              title="Confirmar exclusão"
+              className="p-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+            >
+              <Check size={15} />
+            </button>
+            <button
+              onClick={cancelarEdicao}
+              disabled={salvando}
+              title="Cancelar"
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-subtle transition-colors group">
+      <td className="p-4 text-muted-foreground font-medium">
+        {formatarData(lancamento.data_referencia)}
+      </td>
+      <td className="p-4 font-bold text-foreground">
+        {lancamento.alunos?.nome_completo || 'N/A'}
+      </td>
+      <td className="p-4">
+        <TipoAulaBadge tipo={lancamento.tipo_aula} />
+      </td>
+      <td className="p-4 text-muted-foreground">{lancamento.modalidade || '-'}</td>
+      <td className="p-4 font-black text-success text-right">
+        {formatarMoeda(lancamento.valor)}
+      </td>
+      <td className="p-4">
+        {!fechado && (
+          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={abrirEdicao}
+              title="Editar lançamento"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={() => setConfirmandoDelete(true)}
+              title="Excluir lançamento"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── Aba: Detalhe por Professor ───────────────────────────────────────────────
 
 function AbaDetalhe({
   professores,
@@ -17773,22 +17835,34 @@ function AbaDetalhe({
   const modalFechamento = useModal();
   const [fechando, setFechando] = useState(false);
 
+  // Estado local de lançamentos para permitir edição/exclusão sem refetch completo
+  const [lancamentosLocais, setLancamentosLocais] = useState(null);
+
   const {
     data: dados,
     isLoading: loading,
     error: erroDados,
   } = useComissoesProfessor(filtros.professorId, filtros.mesAno);
 
+  // Sincroniza estado local sempre que o query retornar novos dados
+  useEffect(() => {
+    if (dados?.lancamentos) {
+      setLancamentosLocais(dados.lancamentos);
+    }
+  }, [dados?.lancamentos]);
+
   useEffect(() => {
     if (erroDados) showToast.error('Erro ao buscar detalhes das comissões');
   }, [erroDados]);
 
-  // UX-02: filtra lançamentos por tipo_aula no client
+  // Lançamentos efetivos = locais (com edições) ou os do servidor
+  const lancamentosEfetivos = lancamentosLocais ?? dados?.lancamentos ?? [];
+
+  // Filtra por tipo_aula no client
   const lancamentosFiltrados = useMemo(() => {
-    const lista = dados?.lancamentos ?? [];
-    if (!filtros.tipoAula) return lista;
-    return lista.filter(l => l.tipo_aula === filtros.tipoAula);
-  }, [dados?.lancamentos, filtros.tipoAula]);
+    if (!filtros.tipoAula) return lancamentosEfetivos;
+    return lancamentosEfetivos.filter(l => l.tipo_aula === filtros.tipoAula);
+  }, [lancamentosEfetivos, filtros.tipoAula]);
 
   // KPIs calculados sobre o subset filtrado
   const kpis = useMemo(() => {
@@ -17798,14 +17872,30 @@ function AbaDetalhe({
     return { total, qtd: lancamentosFiltrados.length, pagas, pendentes };
   }, [lancamentosFiltrados]);
 
+  // Total geral (sem filtro de tipo) — usado no fechamento
+  const totalGeral = useMemo(
+    () => lancamentosEfetivos.reduce((s, l) => s + Number(l.valor), 0),
+    [lancamentosEfetivos]
+  );
+
+  // Callbacks de edição/exclusão inline
+  function handleSaved(atualizado) {
+    setLancamentosLocais(prev =>
+      (prev ?? []).map(l => (l.id === atualizado.id ? { ...l, ...atualizado } : l))
+    );
+  }
+
+  function handleDeleted(id) {
+    setLancamentosLocais(prev => (prev ?? []).filter(l => l.id !== id));
+  }
+
   const handleFecharMes = async () => {
     setFechando(true);
     try {
-      // Fecha com o total COMPLETO (sem filtro de tipo) — fechamento é do mês inteiro
       await comissoesService.fecharMes(
         filtros.professorId,
         filtros.mesAno,
-        dados.resumo.total_comissao,
+        totalGeral,
       );
       showToast.success('Mês fechado e comissões aprovadas com sucesso!');
       modalFechamento.fechar();
@@ -17818,7 +17908,6 @@ function AbaDetalhe({
     }
   };
 
-  // UX-02: exporta somente os lançamentos do filtro ativo
   const exportarExcel = () => {
     if (!lancamentosFiltrados.length) return;
     const tipoLabel = filtros.tipoAula
@@ -17846,6 +17935,7 @@ function AbaDetalhe({
     professores.find(p => p.id === filtros.professorId)?.nome || '';
   const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
   const filtroAtivo = !!filtros.tipoAula;
+  const fechado = !!dados?.fechamento;
 
   return (
     <div className="space-y-6">
@@ -17879,7 +17969,6 @@ function AbaDetalhe({
             />
           </div>
 
-          {/* UX-02: filtro por tipo de aula */}
           <div className="w-full md:w-52">
             <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
               <Filter size={16} className="text-primary" /> Tipo de Aula
@@ -17901,7 +17990,10 @@ function AbaDetalhe({
           <Button
             variant="outline"
             disabled={!filtros.professorId || loading}
-            onClick={() => invalidarComissoes(filtros.professorId, filtros.mesAno)}
+            onClick={() => {
+              setLancamentosLocais(null);
+              invalidarComissoes(filtros.professorId, filtros.mesAno);
+            }}
             className="w-full md:w-auto h-[46px] px-6 font-black gap-2"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -17909,7 +18001,6 @@ function AbaDetalhe({
           </Button>
         </div>
 
-        {/* UX-02: indicador visual de filtro ativo */}
         {filtroAtivo && (
           <div className="mt-3 flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Filtrando por:</span>
@@ -17929,7 +18020,7 @@ function AbaDetalhe({
         <TableSkeleton />
       ) : dados ? (
         <div className="space-y-6">
-          {dados.fechamento && (
+          {fechado && (
             <Surface
               variant="subtle"
               className="border border-success/20 bg-success-soft p-4 rounded-2xl flex items-center gap-3 text-success"
@@ -17938,13 +18029,13 @@ function AbaDetalhe({
               <div>
                 <p className="font-bold">Mês Fechado e Pago</p>
                 <p className="text-sm opacity-80">
-                  As comissões deste mês já foram aprovadas e não podem ser alteradas.
+                  As comissões deste mês já foram aprovadas. Edições estão bloqueadas.
                 </p>
               </div>
             </Surface>
           )}
 
-          {/* KPIs — refletem o filtro ativo */}
+          {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Surface
               variant="card"
@@ -17960,9 +18051,9 @@ function AbaDetalhe({
                 <h2 className="text-4xl font-black text-foreground">
                   {formatarMoeda(kpis.total)}
                 </h2>
-                {filtroAtivo && dados.resumo.total_comissao !== kpis.total && (
+                {filtroAtivo && totalGeral !== kpis.total && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Total geral do mês: {formatarMoeda(dados.resumo.total_comissao)}
+                    Total geral do mês: {formatarMoeda(totalGeral)}
                   </p>
                 )}
               </div>
@@ -17976,7 +18067,7 @@ function AbaDetalhe({
                   <FileSpreadsheet size={18} />
                   {filtroAtivo ? 'Exportar Filtrado' : 'Exportar'}
                 </Button>
-                {!dados.fechamento && dados.resumo.total_comissao > 0 && (
+                {!fechado && totalGeral > 0 && (
                   <Button
                     onClick={modalFechamento.abrir}
                     className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
@@ -18005,10 +18096,13 @@ function AbaDetalhe({
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
               <h3 className="font-black text-foreground text-lg flex items-center gap-2">
                 <Wallet className="text-primary" size={20} /> Extrato de Repasses
-                {filtroAtivo && (
-                  <TipoAulaBadge tipo={filtros.tipoAula} />
-                )}
+                {filtroAtivo && <TipoAulaBadge tipo={filtros.tipoAula} />}
               </h3>
+              {!fechado && lancamentosEfetivos.length > 0 && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Pencil size={12} /> Passe o mouse sobre uma linha para editar
+                </p>
+              )}
             </div>
 
             {lancamentosFiltrados.length > 0 ? (
@@ -18021,25 +18115,18 @@ function AbaDetalhe({
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Tipo</th>
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Modalidade</th>
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">Repasse (R$)</th>
+                      <th className="p-4 w-20"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {lancamentosFiltrados.map(l => (
-                      <tr key={l.id} className="hover:bg-subtle transition-colors">
-                        <td className="p-4 text-muted-foreground font-medium">
-                          {formatarData(l.data_referencia)}
-                        </td>
-                        <td className="p-4 font-bold text-foreground">
-                          {l.alunos?.nome_completo || 'N/A'}
-                        </td>
-                        <td className="p-4">
-                          <TipoAulaBadge tipo={l.tipo_aula} />
-                        </td>
-                        <td className="p-4 text-muted-foreground">{l.modalidade || '-'}</td>
-                        <td className="p-4 font-black text-success text-right">
-                          {formatarMoeda(l.valor)}
-                        </td>
-                      </tr>
+                      <LinheLancamento
+                        key={l.id}
+                        lancamento={l}
+                        fechado={fechado}
+                        onSaved={handleSaved}
+                        onDeleted={handleDeleted}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -18065,16 +18152,14 @@ function AbaDetalhe({
         onClose={modalFechamento.fechar}
         onConfirm={handleFecharMes}
         titulo={`Aprovar Fechamento — ${mesFormatado}?`}
-        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${
-          dados ? formatarMoeda(dados.resumo.total_comissao) : ''
-        }.`}
+        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${formatarMoeda(totalGeral)}.`}
         loading={fechando}
       />
     </div>
   );
 }
 
-// ─── Aba: Visão Geral (UX-04) ────────────────────────────────────────────────
+// ─── Aba: Visão Geral ─────────────────────────────────────────────────────────
 
 function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
   const { data: resumo, isLoading, error } = useResumoMensal(mesAno);
@@ -18209,9 +18294,9 @@ export default function Comissoes() {
   const [filtros, setFiltros] = useState({
     professorId: '',
     mesAno: mesAnoAtual(),
-    tipoAula: '', // UX-02
+    tipoAula: '',
   });
-  const [aba, setAba] = useState('geral'); // UX-04: 'geral' | 'detalhe'
+  const [aba, setAba] = useState('geral');
   const [gerando, setGerando] = useState(false);
   const [resultadoGeracao, setResultadoGeracao] = useState(null);
   const [resumoExpandido, setResumoExpandido] = useState(false);
@@ -18255,7 +18340,6 @@ export default function Comissoes() {
     }
   };
 
-  // UX-04: ao clicar "Ver detalhe" na visão geral, pre-seleciona o professor e muda de aba
   const handleSelecionarProfessor = (professorId) => {
     setFiltros(f => ({ ...f, professorId }));
     setAba('detalhe');
@@ -18277,7 +18361,6 @@ export default function Comissoes() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Seletor de mês no header — afeta ambas as abas */}
           <div className="flex items-center gap-2">
             <Calendar size={16} className="text-muted-foreground" />
             <Input
@@ -18346,7 +18429,7 @@ export default function Comissoes() {
         </Surface>
       )}
 
-      {/* TABS — UX-04 */}
+      {/* TABS */}
       <div className="border-b border-border">
         <div className="flex gap-0">
           {[
@@ -19793,6 +19876,173 @@ export default function PerfilAluno() {
     </div>
   );
 }
+</file>
+
+<file path="gestao_web/src/services/financeiroService.js">
+import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
+
+export const financeiroService = {
+  async listarMensalidades(inicio, fim) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select(`
+        *,
+        alunos (nome_completo),
+        planos (nome, preco, is_plano_livre)
+      `)
+      .gte('data_vencimento', inicio)
+      .lte('data_vencimento', fim)
+      .order('data_vencimento', { ascending: true });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Gera mensalidades para um determinado mês/ano.
+   *
+   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
+   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
+   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
+   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
+   */
+  async gerarMensalidades(mesNumero, ano) {
+    if (mesNumero < 1 || mesNumero > 12) {
+      throw new Error(
+        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
+        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
+      );
+    }
+
+    // FIX: usar status = 'ativo' (campo correto na tabela alunos),
+    // consistente com a Edge Function gerar-mensalidades/index.ts.
+    // Antes estava .eq('ativo', true) que não filtrava alunos inativos corretamente.
+    const { data: alunos, error: errAlunos } = await supabase
+      .from('alunos')
+      .select('id, plano_id')
+      .eq('status', 'ativo')
+      .not('plano_id', 'is', null);
+
+    if (errAlunos) throw errAlunos;
+
+    const tresMesesAtras = new Date();
+    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+    const filtroData = tresMesesAtras.toISOString().split('T')[0];
+
+    const { data: ultimasMensalidades } = await supabase
+      .from('mensalidades')
+      .select('aluno_id, data_vencimento')
+      .gte('data_vencimento', filtroData)
+      .order('data_vencimento', { ascending: false });
+
+    const mapaUltimasDatas = new Map();
+    ultimasMensalidades?.forEach(m => {
+      if (!mapaUltimasDatas.has(m.aluno_id)) {
+        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
+      }
+    });
+
+    const novasCobrancas = [];
+
+    alunos.forEach(aluno => {
+      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
+
+      let proximaData;
+      if (ultimaDataStr) {
+        const d = new Date(ultimaDataStr + 'T12:00:00');
+        d.setDate(d.getDate() + 30);
+        proximaData = d.toISOString().split('T')[0];
+      } else {
+        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
+        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
+      }
+
+      const [pAno, pMes] = proximaData.split('-').map(Number);
+
+      if (pAno === ano && pMes === mesNumero) {
+        novasCobrancas.push({
+          aluno_id: aluno.id,
+          plano_id: aluno.plano_id,
+          data_vencimento: proximaData,
+          status: 'pendente'
+        });
+      }
+    });
+
+    if (novasCobrancas.length > 0) {
+      const { error: errInsert } = await supabase
+        .from('mensalidades')
+        .insert(novasCobrancas);
+      if (errInsert) throw errInsert;
+    }
+
+    return true;
+  },
+
+  async adicionarPagamentoManual(dados) {
+    const payload = {
+      aluno_id: dados.aluno_id ? dados.aluno_id : null,
+      nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
+      plano_id: dados.plano_id ? dados.plano_id : null,
+      professor_id: dados.professor_id ? dados.professor_id : null,
+      modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
+
+      tipo_aula: dados.tipo_aula,
+      valor_pago: Number(dados.valor_pago),
+      status: dados.status || 'pago',
+
+      forma_pagamento: dados.forma_pagamento,
+
+      data_vencimento: dados.data_vencimento,
+      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
+    };
+
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro detalhado do Supabase:", error);
+      throw error;
+    }
+
+    if (dados.status === 'pago') {
+      try {
+        await gerarRepassesDaMensalidade(data.id);
+      } catch (repasseError) {
+        // Pagamento salvo com sucesso; apenas o repasse falhou.
+        // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
+        console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
+        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+      }
+    }
+    return data;
+  },
+
+  async confirmarPagamento(id, dados) {
+    const payload = {
+      status: 'pago',
+      valor_pago: dados.valor_pago,
+      forma_pagamento: dados.forma_pagamento,
+      tipo_aula: dados.tipo_aula || 'regular',
+      professor_id: dados.professor_id || null,
+      modalidade_nome: dados.modalidade_nome || null,
+      data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
+    };
+
+    const { error } = await supabase
+      .from('mensalidades')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+
+    const resultado = await gerarRepassesDaMensalidade(id);
+    return { ok: true, resultado };
+  },
+};
 </file>
 
 <file path="gestao_web/src/hooks/usePWA.js">

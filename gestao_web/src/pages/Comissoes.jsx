@@ -25,6 +25,7 @@ import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
+import AbaReprocessar from '../components/AbaReprocessar';
 
 // ─── constantes ──────────────────────────────────────────────────────────────
 
@@ -880,10 +881,11 @@ export default function Comissoes() {
       {/* TABS */}
       <div className="border-b border-border">
         <div className="flex gap-0">
-          {[
-            { id: 'geral', label: 'Visão Geral', icon: LayoutGrid },
-            { id: 'detalhe', label: 'Detalhe por Professor', icon: UserCheck },
-          ].map(tab => {
+         {[
+      { id: 'geral',        label: 'Visão Geral',           icon: LayoutGrid  },
+      { id: 'detalhe',      label: 'Detalhe por Professor', icon: UserCheck   },
+      { id: 'reprocessar',  label: 'Reprocessar Repasses',  icon: RefreshCw   },
+    ].map(tab => {
             const Icon = tab.icon;
             const ativo = aba === tab.id;
             return (
@@ -907,17 +909,19 @@ export default function Comissoes() {
 
       {/* CONTEÚDO DA ABA */}
       {aba === 'geral' ? (
-        <AbaVisaoGeral
-          mesAno={filtros.mesAno}
-          onSelecionarProfessor={handleSelecionarProfessor}
-        />
-      ) : (
-        <AbaDetalhe
-          professores={professores}
-          filtros={filtros}
-          setFiltros={setFiltros}
-        />
-      )}
+      <AbaVisaoGeral
+        mesAno={filtros.mesAno}
+        onSelecionarProfessor={handleSelecionarProfessor}
+      />
+    ) : aba === 'detalhe' ? (
+      <AbaDetalhe
+        professores={professores}
+        filtros={filtros}
+        setFiltros={setFiltros}
+      />
+    ) : (
+      <AbaReprocessar mesAno={filtros.mesAno} />
+    )}
 
       {/* MODAL: Preview + confirmar geração */}
       <ModalPreviewRepasses

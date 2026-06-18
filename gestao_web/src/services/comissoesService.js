@@ -52,15 +52,12 @@ export const comissoesService = {
   },
 
   // UX-04: resumo consolidado de todos os professores para um mês.
-  // O Supabase SDK não expõe GROUP BY nativo, então buscamos todos os lançamentos
-  // do mês e agregamos no client — volume esperado é pequeno (centenas de linhas/mês).
   async resumoMensal(mesAno) {
     const inicio = `${mesAno}-01`;
     const [ano, mes] = mesAno.split('-').map(Number);
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
-    // Lançamentos do mês com nome do professor via join
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
       .select('professor_id, valor, tipo_aula, status, professores(id, nome)')
@@ -69,7 +66,6 @@ export const comissoesService = {
 
     if (error) throw error;
 
-    // Fechamentos do mês
     const { data: fechamentos } = await supabase
       .from('fechamento_comissoes')
       .select('professor_id, valor_total, fechado_em')
@@ -79,7 +75,6 @@ export const comissoesService = {
       (fechamentos || []).map(f => [f.professor_id, f])
     );
 
-    // Agrega por professor
     const porProf = new Map();
     for (const l of lancamentos || []) {
       if (!l.professor_id) continue;
@@ -110,7 +105,7 @@ export const comissoesService = {
     return [...porProf.values()].sort((a, b) => b.total - a.total);
   },
 
-  // REP-04: upsert com constraint (professor_id, mes_referencia) para garantir idempotência.
+  // REP-04: upsert com constraint (professor_id, mes_referencia).
   async fecharMes(professorId, mesAno, valorTotal) {
     const { error } = await supabase
       .from('fechamento_comissoes')
@@ -123,5 +118,37 @@ export const comissoesService = {
 
     if (error) throw error;
     return true;
-  }
+  },
+
+  // EDIT-01: atualiza valor e/ou tipo_aula de um lançamento individual.
+  // Só permite edição se o mês ainda não foi fechado (verificado na UI).
+  async updateLancamento(id, campos) {
+    const permitidos = ['valor', 'tipo_aula', 'modalidade', 'data_referencia', 'status'];
+    const payload = Object.fromEntries(
+      Object.entries(campos).filter(([k]) => permitidos.includes(k))
+    );
+    if (Object.keys(payload).length === 0) throw new Error('Nenhum campo válido para atualizar.');
+
+    const { data, error } = await supabase
+      .from('repasses_lancamentos')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // EDIT-02: exclui um lançamento individual.
+  // Só permite exclusão se o mês ainda não foi fechado (verificado na UI).
+  async deleteLancamento(id) {
+    const { error } = await supabase
+      .from('repasses_lancamentos')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  },
 };

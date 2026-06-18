@@ -3,7 +3,7 @@ import {
   CheckCircle, Users, DollarSign, FileSpreadsheet,
   PieChart, Calendar, Wallet, RefreshCw, AlertTriangle,
   ChevronDown, ChevronUp, Hash, LayoutGrid, UserCheck,
-  TrendingUp, Filter, ArrowRight,
+  TrendingUp, Filter, ArrowRight, Pencil, Trash2, X, Check,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -73,7 +73,205 @@ function TipoAulaBadge({ tipo }) {
   );
 }
 
-// ─── Aba: Detalhe por Professor (UX-02 incluído) ─────────────────────────────
+// ─── Linha editável da tabela de lançamentos ──────────────────────────────────
+
+function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
+  const [editando, setEditando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [confirmandoDelete, setConfirmandoDelete] = useState(false);
+
+  const [camposEdit, setCamposEdit] = useState({
+    valor: '',
+    tipo_aula: '',
+    modalidade: '',
+  });
+
+  function abrirEdicao() {
+    setCamposEdit({
+      valor: Number(lancamento.valor).toFixed(2),
+      tipo_aula: lancamento.tipo_aula ?? '',
+      modalidade: lancamento.modalidade ?? '',
+    });
+    setEditando(true);
+  }
+
+  function cancelarEdicao() {
+    setEditando(false);
+    setConfirmandoDelete(false);
+  }
+
+  async function salvar() {
+    const valor = parseFloat(camposEdit.valor.replace(',', '.'));
+    if (isNaN(valor) || valor < 0) {
+      showToast.error('Valor inválido.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const atualizado = await comissoesService.updateLancamento(lancamento.id, {
+        valor,
+        tipo_aula: camposEdit.tipo_aula,
+        modalidade: camposEdit.modalidade,
+      });
+      showToast.success('Lançamento atualizado.');
+      setEditando(false);
+      onSaved(atualizado);
+    } catch (err) {
+      console.error(err);
+      showToast.error('Erro ao salvar alteração.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function excluir() {
+    setSalvando(true);
+    try {
+      await comissoesService.deleteLancamento(lancamento.id);
+      showToast.success('Lançamento excluído.');
+      onDeleted(lancamento.id);
+    } catch (err) {
+      console.error(err);
+      showToast.error('Erro ao excluir lançamento.');
+    } finally {
+      setSalvando(false);
+      setConfirmandoDelete(false);
+    }
+  }
+
+  if (editando) {
+    return (
+      <tr className="bg-primary/5 border-b border-primary/20">
+        <td className="p-4 text-muted-foreground font-medium">
+          {formatarData(lancamento.data_referencia)}
+        </td>
+        <td className="p-4 font-bold text-foreground">
+          {lancamento.alunos?.nome_completo || 'N/A'}
+        </td>
+        <td className="p-4">
+          <select
+            value={camposEdit.tipo_aula}
+            onChange={e => setCamposEdit(c => ({ ...c, tipo_aula: e.target.value }))}
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {TIPOS_AULA.filter(t => t.value).map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </td>
+        <td className="p-4">
+          <input
+            type="text"
+            value={camposEdit.modalidade}
+            onChange={e => setCamposEdit(c => ({ ...c, modalidade: e.target.value }))}
+            placeholder="Modalidade"
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground w-32 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </td>
+        <td className="p-4 text-right">
+          <input
+            type="text"
+            value={camposEdit.valor}
+            onChange={e => setCamposEdit(c => ({ ...c, valor: e.target.value }))}
+            className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground w-28 text-right font-black focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </td>
+        <td className="p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={salvar}
+              disabled={salvando}
+              title="Salvar"
+              className="p-1.5 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors disabled:opacity-50"
+            >
+              <Check size={15} />
+            </button>
+            <button
+              onClick={cancelarEdicao}
+              disabled={salvando}
+              title="Cancelar"
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (confirmandoDelete) {
+    return (
+      <tr className="bg-destructive/5 border-b border-destructive/20">
+        <td colSpan={5} className="p-4">
+          <span className="text-sm font-bold text-destructive">
+            Confirma exclusão do lançamento de {lancamento.alunos?.nome_completo}?
+          </span>
+        </td>
+        <td className="p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={excluir}
+              disabled={salvando}
+              title="Confirmar exclusão"
+              className="p-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+            >
+              <Check size={15} />
+            </button>
+            <button
+              onClick={cancelarEdicao}
+              disabled={salvando}
+              title="Cancelar"
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-subtle transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-subtle transition-colors group">
+      <td className="p-4 text-muted-foreground font-medium">
+        {formatarData(lancamento.data_referencia)}
+      </td>
+      <td className="p-4 font-bold text-foreground">
+        {lancamento.alunos?.nome_completo || 'N/A'}
+      </td>
+      <td className="p-4">
+        <TipoAulaBadge tipo={lancamento.tipo_aula} />
+      </td>
+      <td className="p-4 text-muted-foreground">{lancamento.modalidade || '-'}</td>
+      <td className="p-4 font-black text-success text-right">
+        {formatarMoeda(lancamento.valor)}
+      </td>
+      <td className="p-4">
+        {!fechado && (
+          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={abrirEdicao}
+              title="Editar lançamento"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={() => setConfirmandoDelete(true)}
+              title="Excluir lançamento"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── Aba: Detalhe por Professor ───────────────────────────────────────────────
 
 function AbaDetalhe({
   professores,
@@ -85,22 +283,34 @@ function AbaDetalhe({
   const modalFechamento = useModal();
   const [fechando, setFechando] = useState(false);
 
+  // Estado local de lançamentos para permitir edição/exclusão sem refetch completo
+  const [lancamentosLocais, setLancamentosLocais] = useState(null);
+
   const {
     data: dados,
     isLoading: loading,
     error: erroDados,
   } = useComissoesProfessor(filtros.professorId, filtros.mesAno);
 
+  // Sincroniza estado local sempre que o query retornar novos dados
+  useEffect(() => {
+    if (dados?.lancamentos) {
+      setLancamentosLocais(dados.lancamentos);
+    }
+  }, [dados?.lancamentos]);
+
   useEffect(() => {
     if (erroDados) showToast.error('Erro ao buscar detalhes das comissões');
   }, [erroDados]);
 
-  // UX-02: filtra lançamentos por tipo_aula no client
+  // Lançamentos efetivos = locais (com edições) ou os do servidor
+  const lancamentosEfetivos = lancamentosLocais ?? dados?.lancamentos ?? [];
+
+  // Filtra por tipo_aula no client
   const lancamentosFiltrados = useMemo(() => {
-    const lista = dados?.lancamentos ?? [];
-    if (!filtros.tipoAula) return lista;
-    return lista.filter(l => l.tipo_aula === filtros.tipoAula);
-  }, [dados?.lancamentos, filtros.tipoAula]);
+    if (!filtros.tipoAula) return lancamentosEfetivos;
+    return lancamentosEfetivos.filter(l => l.tipo_aula === filtros.tipoAula);
+  }, [lancamentosEfetivos, filtros.tipoAula]);
 
   // KPIs calculados sobre o subset filtrado
   const kpis = useMemo(() => {
@@ -110,14 +320,30 @@ function AbaDetalhe({
     return { total, qtd: lancamentosFiltrados.length, pagas, pendentes };
   }, [lancamentosFiltrados]);
 
+  // Total geral (sem filtro de tipo) — usado no fechamento
+  const totalGeral = useMemo(
+    () => lancamentosEfetivos.reduce((s, l) => s + Number(l.valor), 0),
+    [lancamentosEfetivos]
+  );
+
+  // Callbacks de edição/exclusão inline
+  function handleSaved(atualizado) {
+    setLancamentosLocais(prev =>
+      (prev ?? []).map(l => (l.id === atualizado.id ? { ...l, ...atualizado } : l))
+    );
+  }
+
+  function handleDeleted(id) {
+    setLancamentosLocais(prev => (prev ?? []).filter(l => l.id !== id));
+  }
+
   const handleFecharMes = async () => {
     setFechando(true);
     try {
-      // Fecha com o total COMPLETO (sem filtro de tipo) — fechamento é do mês inteiro
       await comissoesService.fecharMes(
         filtros.professorId,
         filtros.mesAno,
-        dados.resumo.total_comissao,
+        totalGeral,
       );
       showToast.success('Mês fechado e comissões aprovadas com sucesso!');
       modalFechamento.fechar();
@@ -130,7 +356,6 @@ function AbaDetalhe({
     }
   };
 
-  // UX-02: exporta somente os lançamentos do filtro ativo
   const exportarExcel = () => {
     if (!lancamentosFiltrados.length) return;
     const tipoLabel = filtros.tipoAula
@@ -158,6 +383,7 @@ function AbaDetalhe({
     professores.find(p => p.id === filtros.professorId)?.nome || '';
   const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
   const filtroAtivo = !!filtros.tipoAula;
+  const fechado = !!dados?.fechamento;
 
   return (
     <div className="space-y-6">
@@ -191,7 +417,6 @@ function AbaDetalhe({
             />
           </div>
 
-          {/* UX-02: filtro por tipo de aula */}
           <div className="w-full md:w-52">
             <label className="block text-xs font-black text-muted-foreground uppercase mb-2 flex items-center gap-2">
               <Filter size={16} className="text-primary" /> Tipo de Aula
@@ -213,7 +438,10 @@ function AbaDetalhe({
           <Button
             variant="outline"
             disabled={!filtros.professorId || loading}
-            onClick={() => invalidarComissoes(filtros.professorId, filtros.mesAno)}
+            onClick={() => {
+              setLancamentosLocais(null);
+              invalidarComissoes(filtros.professorId, filtros.mesAno);
+            }}
             className="w-full md:w-auto h-[46px] px-6 font-black gap-2"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -221,7 +449,6 @@ function AbaDetalhe({
           </Button>
         </div>
 
-        {/* UX-02: indicador visual de filtro ativo */}
         {filtroAtivo && (
           <div className="mt-3 flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Filtrando por:</span>
@@ -241,7 +468,7 @@ function AbaDetalhe({
         <TableSkeleton />
       ) : dados ? (
         <div className="space-y-6">
-          {dados.fechamento && (
+          {fechado && (
             <Surface
               variant="subtle"
               className="border border-success/20 bg-success-soft p-4 rounded-2xl flex items-center gap-3 text-success"
@@ -250,13 +477,13 @@ function AbaDetalhe({
               <div>
                 <p className="font-bold">Mês Fechado e Pago</p>
                 <p className="text-sm opacity-80">
-                  As comissões deste mês já foram aprovadas e não podem ser alteradas.
+                  As comissões deste mês já foram aprovadas. Edições estão bloqueadas.
                 </p>
               </div>
             </Surface>
           )}
 
-          {/* KPIs — refletem o filtro ativo */}
+          {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Surface
               variant="card"
@@ -272,9 +499,9 @@ function AbaDetalhe({
                 <h2 className="text-4xl font-black text-foreground">
                   {formatarMoeda(kpis.total)}
                 </h2>
-                {filtroAtivo && dados.resumo.total_comissao !== kpis.total && (
+                {filtroAtivo && totalGeral !== kpis.total && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Total geral do mês: {formatarMoeda(dados.resumo.total_comissao)}
+                    Total geral do mês: {formatarMoeda(totalGeral)}
                   </p>
                 )}
               </div>
@@ -288,7 +515,7 @@ function AbaDetalhe({
                   <FileSpreadsheet size={18} />
                   {filtroAtivo ? 'Exportar Filtrado' : 'Exportar'}
                 </Button>
-                {!dados.fechamento && dados.resumo.total_comissao > 0 && (
+                {!fechado && totalGeral > 0 && (
                   <Button
                     onClick={modalFechamento.abrir}
                     className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
@@ -317,10 +544,13 @@ function AbaDetalhe({
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
               <h3 className="font-black text-foreground text-lg flex items-center gap-2">
                 <Wallet className="text-primary" size={20} /> Extrato de Repasses
-                {filtroAtivo && (
-                  <TipoAulaBadge tipo={filtros.tipoAula} />
-                )}
+                {filtroAtivo && <TipoAulaBadge tipo={filtros.tipoAula} />}
               </h3>
+              {!fechado && lancamentosEfetivos.length > 0 && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Pencil size={12} /> Passe o mouse sobre uma linha para editar
+                </p>
+              )}
             </div>
 
             {lancamentosFiltrados.length > 0 ? (
@@ -333,25 +563,18 @@ function AbaDetalhe({
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Tipo</th>
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">Modalidade</th>
                       <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">Repasse (R$)</th>
+                      <th className="p-4 w-20"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {lancamentosFiltrados.map(l => (
-                      <tr key={l.id} className="hover:bg-subtle transition-colors">
-                        <td className="p-4 text-muted-foreground font-medium">
-                          {formatarData(l.data_referencia)}
-                        </td>
-                        <td className="p-4 font-bold text-foreground">
-                          {l.alunos?.nome_completo || 'N/A'}
-                        </td>
-                        <td className="p-4">
-                          <TipoAulaBadge tipo={l.tipo_aula} />
-                        </td>
-                        <td className="p-4 text-muted-foreground">{l.modalidade || '-'}</td>
-                        <td className="p-4 font-black text-success text-right">
-                          {formatarMoeda(l.valor)}
-                        </td>
-                      </tr>
+                      <LinheLancamento
+                        key={l.id}
+                        lancamento={l}
+                        fechado={fechado}
+                        onSaved={handleSaved}
+                        onDeleted={handleDeleted}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -377,16 +600,14 @@ function AbaDetalhe({
         onClose={modalFechamento.fechar}
         onConfirm={handleFecharMes}
         titulo={`Aprovar Fechamento — ${mesFormatado}?`}
-        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${
-          dados ? formatarMoeda(dados.resumo.total_comissao) : ''
-        }.`}
+        mensagem={`Você está prestes a aprovar a comissão de ${profSelecionado} no valor total de ${formatarMoeda(totalGeral)}.`}
         loading={fechando}
       />
     </div>
   );
 }
 
-// ─── Aba: Visão Geral (UX-04) ────────────────────────────────────────────────
+// ─── Aba: Visão Geral ─────────────────────────────────────────────────────────
 
 function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
   const { data: resumo, isLoading, error } = useResumoMensal(mesAno);
@@ -521,9 +742,9 @@ export default function Comissoes() {
   const [filtros, setFiltros] = useState({
     professorId: '',
     mesAno: mesAnoAtual(),
-    tipoAula: '', // UX-02
+    tipoAula: '',
   });
-  const [aba, setAba] = useState('geral'); // UX-04: 'geral' | 'detalhe'
+  const [aba, setAba] = useState('geral');
   const [gerando, setGerando] = useState(false);
   const [resultadoGeracao, setResultadoGeracao] = useState(null);
   const [resumoExpandido, setResumoExpandido] = useState(false);
@@ -567,7 +788,6 @@ export default function Comissoes() {
     }
   };
 
-  // UX-04: ao clicar "Ver detalhe" na visão geral, pre-seleciona o professor e muda de aba
   const handleSelecionarProfessor = (professorId) => {
     setFiltros(f => ({ ...f, professorId }));
     setAba('detalhe');
@@ -589,7 +809,6 @@ export default function Comissoes() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Seletor de mês no header — afeta ambas as abas */}
           <div className="flex items-center gap-2">
             <Calendar size={16} className="text-muted-foreground" />
             <Input
@@ -658,7 +877,7 @@ export default function Comissoes() {
         </Surface>
       )}
 
-      {/* TABS — UX-04 */}
+      {/* TABS */}
       <div className="border-b border-border">
         <div className="flex gap-0">
           {[

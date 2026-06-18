@@ -34,10 +34,13 @@ export const financeiroService = {
       );
     }
 
+    // FIX: usar status = 'ativo' (campo correto na tabela alunos),
+    // consistente com a Edge Function gerar-mensalidades/index.ts.
+    // Antes estava .eq('ativo', true) que não filtrava alunos inativos corretamente.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, plano_id')
-      .eq('ativo', true)
+      .eq('status', 'ativo')
       .not('plano_id', 'is', null);
 
     if (errAlunos) throw errAlunos;

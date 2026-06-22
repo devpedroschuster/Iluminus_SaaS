@@ -128,6 +128,7 @@ export default function ProfessorAlunos() {
           .from('presencas')
           .select('aluno_id, data_checkin')
           .in('aluno_id', alunoIds)
+          .eq('status', 'presente') // só presença real, não agendamento/falta/cancelado
           .order('data_checkin', { ascending: false });
 
         // Mantém apenas a última presença por aluno (O(n) com Map)

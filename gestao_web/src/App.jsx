@@ -12,6 +12,7 @@ import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import { PWABanners } from './components/PWABanners';
+import { PushNotificationBanner } from './components/PushNotificationBanner';
 import PaginaNaoEncontrada from './components/PaginaNaoEncontrada'; // #19
 
 import Login from './pages/Login';
@@ -96,6 +97,7 @@ const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
 
       {/* Banners PWA: instalar app + notificação de update */}
       <PWABanners />
+      {resolverPerfilLayout(perfil) === 'professor' && <PushNotificationBanner />}
     </div>
   );
 };

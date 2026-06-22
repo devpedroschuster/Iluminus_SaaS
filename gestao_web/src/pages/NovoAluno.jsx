@@ -545,11 +545,11 @@ export default function NovoAluno() {
       // Lead conversion
       if (leadParaConversao?.id) {
         const payload = { status_conversao: 'convertido' };
-        if (novoAlunoId) payload.aluno_id = novoAlunoId;
-        await supabase.from('presencas').update(payload).eq('id', leadParaConversao.id);
+        if (novoAlunoId) payload.aluno_convertido_id = novoAlunoId;
+        await supabase.from('leads').update(payload).eq('id', leadParaConversao.id);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores', 'presencas'] });
+      await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores', 'presencas', 'leads'] });
 
       if (profExistente) {
         navigate('/alunos');

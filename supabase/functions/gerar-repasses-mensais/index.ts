@@ -227,6 +227,8 @@ serve(async (req: Request) => {
 
     // ── 7. Presenças do mês (apenas com aula_id — vinculadas a modalidade) ──
     //    Necessário para calcular repasse do plano livre.
+    //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado',
+    //    que não devem gerar comissão (só presença real confirmada).
     const { data: presencasRaw } = await supabase
       .from('presencas')
       .select(`
@@ -235,6 +237,7 @@ serve(async (req: Request) => {
           modalidade_id
         )
       `)
+      .eq('status', 'presente')
       .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
       .lte('data_checkin', `${fimPeriodo}T23:59:59`)
       .not('aula_id', 'is', null);

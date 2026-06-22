@@ -37,10 +37,12 @@ export default function ModalListaPresenca({
           </div>
         ) : (
           <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-            {listaPresenca.map(aluno => (
-              <li key={`${aluno.tipo}-${aluno.aluno_id || aluno.nome}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${aluno.status === 'ausencia' ? 'bg-destructive-soft border-destructive/30 opacity-70' : 'bg-card border-border shadow-sm'}`}>
+            {listaPresenca.map(aluno => {
+              const ausente = aluno.status === 'falta' || aluno.status === 'cancelado';
+              return (
+              <li key={`${aluno.tipo}-${aluno.aluno_id || aluno.nome}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${ausente ? 'bg-destructive-soft border-destructive/30 opacity-70' : 'bg-card border-border shadow-sm'}`}>
                 <div>
-                  <span className={`font-bold text-sm ${aluno.status === 'ausencia' ? 'text-destructive line-through' : 'text-foreground'}`}>
+                  <span className={`font-bold text-sm ${ausente ? 'text-destructive line-through' : 'text-foreground'}`}>
                     {aluno.nome}
                   </span>
                   <div className="flex flex-wrap gap-2 mt-1">
@@ -48,33 +50,48 @@ export default function ModalListaPresenca({
                     {aluno.tipo === 'avulso' && <span className="text-[9px] bg-info-soft text-info px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>}
                     {aluno.tipo === 'experimental' && ( <span className="ml-1.5 text-[10px] font-black bg-warning/20 text-warning px-1.5 py-0.5 rounded-full border border-warning/30">LEAD</span>
 )}
-                    {aluno.status === 'ausencia' && <span className="text-[9px] bg-destructive-soft text-destructive px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta Informada</span>}
+                    {aluno.status === 'falta' && <span className="text-[9px] bg-destructive-soft text-destructive px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta (sem aviso)</span>}
+                    {aluno.status === 'cancelado' && <span className="text-[9px] bg-destructive-soft text-destructive px-2 py-0.5 rounded font-black uppercase tracking-wider">Avisou que não vem</span>}
+                    {aluno.status === 'presente' && <span className="text-[9px] bg-success-soft text-success px-2 py-0.5 rounded font-black uppercase tracking-wider">Presente</span>}
                   </div>
                 </div>
-                <div className="ml-2">
-                  {aluno.tipo === 'fixo' ? (
-                    aluno.status === 'ausencia' ? (
-                      <Button variant="secondary" size="sm" onClick={() => handleDesfazerFalta(aluno)}>
-                        Desfazer Falta
+                <div className="ml-2 flex gap-2">
+                  {aluno.tipo === 'experimental' ? (
+                    isAdmin ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        leftIcon={<Trash2 size={14} />}
+                        onClick={() => solicitarRemocao(aluno.id_relacao, aluno.tipo)}
+                      >
+                        Remover
                       </Button>
-                    ) : (
+                    ) : null
+                  ) : ausente ? (
+                    <Button variant="secondary" size="sm" onClick={() => handleDesfazerFalta(aluno)}>
+                      Desfazer
+                    </Button>
+                  ) : (
+                    <>
                       <Button variant="destructive" size="sm" onClick={() => handleRegistrarFalta(aluno)}>
                         Informar Falta
                       </Button>
-                    )
-                  ) : isAdmin ? (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      leftIcon={<Trash2 size={14} />}
-                      onClick={() => solicitarRemocao(aluno.id_relacao)}
-                    >
-                      Remover
-                    </Button>
-                  ) : null}
+                      {aluno.tipo === 'avulso' && isAdmin && aluno.id_relacao && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Trash2 size={14} />}
+                          onClick={() => solicitarRemocao(aluno.id_relacao, aluno.tipo)}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

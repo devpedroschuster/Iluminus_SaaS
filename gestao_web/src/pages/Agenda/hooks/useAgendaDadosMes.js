@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { agendamentoService } from '../../../services/agendamentoService';
-import { supabase } from '../../../lib/supabase';
+import { leadsService } from '../../../services/leadsService';
 import { useAuth } from '../../../hooks/useAuth';
 
 export function useAgendaDadosMes(currentDate) {
@@ -13,22 +13,22 @@ export function useAgendaDadosMes(currentDate) {
     // A6: aguarda o perfil estar resolvido antes de disparar queries
     enabled: perfil !== null,
     queryFn: async () => {
-      const [dadosAvulsos, dadosExcecoes] = await Promise.all([
-         agendamentoService.listarPresencasPeriodo(inicio, fim),
-         supabase.from('agenda_excecoes').select('*').gte('data_especifica', inicio).lte('data_especifica', fim)
+      const [dadosPresencas, dadosLeads] = await Promise.all([
+        agendamentoService.listarPresencasPeriodo(inicio, fim),
+        leadsService.listarLeadsPeriodo(inicio, fim),
       ]);
-      
+
       return {
-        presencas: dadosAvulsos || [],
-        excecoes: dadosExcecoes?.data || []
+        presencas: dadosPresencas || [],
+        leads: dadosLeads || [],
       };
     },
     staleTime: 1000 * 60 * 5,
   });
 
-  return { 
-    presencasCalendario: data?.presencas || [], 
-    excecoesCalendario: data?.excecoes || [],
+  return {
+    presencasCalendario: data?.presencas || [],
+    leadsCalendario: data?.leads || [],
     isLoadingMes: isLoading
   };
 }

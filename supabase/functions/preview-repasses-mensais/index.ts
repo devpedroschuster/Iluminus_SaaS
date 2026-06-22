@@ -216,9 +216,11 @@ serve(async (req: Request) => {
     }
 
     // ── 8. Presenças do mês (para plano livre) ──────────────────────────────
+    //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado'.
     const { data: presencasRaw } = await supabase
       .from('presencas')
       .select('aluno_id, agenda(modalidade_id)')
+      .eq('status', 'presente')
       .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
       .lte('data_checkin', `${fimPeriodo}T23:59:59`)
       .not('aula_id', 'is', null);

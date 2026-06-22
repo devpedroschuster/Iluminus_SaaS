@@ -1,10 +1,10 @@
 export interface Lead {
   id: string;
-  nome_visitante: string;
-  telefone_visitante: string | null;
+  nome: string;
+  telefone: string | null;
   data_checkin: string;
   status_conversao: 'pendente' | 'convertido' | 'perdido';
-  observacao_lead: string | null;
+  observacao: string | null;
   agenda: {
     atividade: string
   } | null;

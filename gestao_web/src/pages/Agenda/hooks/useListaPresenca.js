@@ -8,7 +8,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
   const queryClient = useQueryClient();
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
-  const [alunoParaRemover, setAlunoParaRemover] = useState(null);
+  const [alunoParaRemover, setAlunoParaRemover] = useState(null); // { idRelacao, tipo }
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -26,15 +26,16 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     buscarLista();
   }, [isOpen, aulaParaLista, dataLista, refreshKey]);
 
-  const solicitarRemocao = (idRelacao) => setAlunoParaRemover(idRelacao);
+  const solicitarRemocao = (idRelacao, tipo) => setAlunoParaRemover({ idRelacao, tipo });
   const cancelarRemocao = () => setAlunoParaRemover(null);
 
   const confirmarRemocao = async () => {
     if (!alunoParaRemover) return;
-    setRemovendoId(alunoParaRemover);
+    setRemovendoId(alunoParaRemover.idRelacao);
     try {
-      await agendamentoService.cancelarAgendamento(alunoParaRemover);
-      showToast.success("Aluno removido da lista!");
+      const tipoService = alunoParaRemover.tipo === 'experimental' ? 'lead' : 'presenca';
+      await agendamentoService.cancelarAgendamento(alunoParaRemover.idRelacao, tipoService);
+      showToast.success("Removido da lista!");
       queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       setRefreshKey(old => old + 1);
       if (onAtualizar) onAtualizar();

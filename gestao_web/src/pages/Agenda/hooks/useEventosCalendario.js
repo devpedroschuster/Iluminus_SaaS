@@ -1,19 +1,19 @@
 import { useMemo } from 'react';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { 
-  buildPresencasIndex, buildFixosIndex, buildExcecoesIndex, 
-  expandirRecorrencia, expandirEventoUnico, gerarEventosFeriados 
+import {
+  buildPresencasIndex, buildFixosIndex, buildLeadsIndex,
+  expandirRecorrencia, expandirEventoUnico, gerarEventosFeriados
 } from '../../../utils/calendarioParser';
 
-export function useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, excecoesCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
-  
+export function useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, leadsCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
+
   const indexes = useMemo(() => {
     return {
       presencasMap: buildPresencasIndex(presencasCalendario || []),
       fixasMap: buildFixosIndex(matriculasFixas || []),
-      excecoesMap: buildExcecoesIndex(excecoesCalendario || [])
+      leadsMap: buildLeadsIndex(leadsCalendario || [])
     };
-  }, [presencasCalendario, matriculasFixas, excecoesCalendario]);
+  }, [presencasCalendario, matriculasFixas, leadsCalendario]);
 
   const eventosFeriados = useMemo(() => {
     return gerarEventosFeriados(feriados || []);
@@ -23,7 +23,7 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     if (!aulas) return [];
     return aulas.filter(aula => {
       const matchProf = filtroProf === 'todos' || String(aula.professor_id) === String(filtroProf);
-      const espacoAula = aula.espaco || 'funcional'; 
+      const espacoAula = aula.espaco || 'funcional';
       const matchEspaco = filtroEspaco === 'todos' || espacoAula === filtroEspaco;
       return matchProf && matchEspaco;
     });

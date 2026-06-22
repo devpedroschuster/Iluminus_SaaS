@@ -55,17 +55,16 @@ export default function Landing() {
     setLeadStatus(null);
     setLeadErro('');
     try {
-      // Insert into leads table — uses the check-in pattern of the existing system
-      // We create a "lead da landing" record in presencas_agenda with nome_visitante
-      // so it flows into the Leads page automatically.
-      // Fallback: insert directly into a leads / contatos table if it exists.
+      // Insere o lead da landing diretamente na tabela `leads`
+      // (correção: antes apontava para 'presencas_agenda', tabela que não
+      // existe — esse formulário estava falhando silenciosamente).
       const { error } = await supabase
-        .from('presencas_agenda')
+        .from('leads')
         .insert([{
-          nome_visitante: leadNome.trim(),
-          telefone_visitante: leadTel.replace(/\D/g, ''),
+          nome: leadNome.trim(),
+          telefone: leadTel.replace(/\D/g, ''),
           status_conversao: 'pendente',
-          // data_checkin defaults to now() server-side
+          // data_checkin e created_at default para now() server-side
         }]);
 
       if (error) throw error;

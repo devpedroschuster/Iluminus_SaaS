@@ -34,6 +34,48 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// ─── Web Push: notificações de alteração de agenda/falta/agendamento ──────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'Iluminus', body: event.data?.text() || 'Você tem uma atualização.' };
+  }
+
+  const title = data.title || 'Iluminus';
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
+    data: { url: data.url || '/agenda' },
+    tag: data.tag || undefined, // se vier 'tag', notificações do mesmo tipo se substituem em vez de empilhar
+    renotify: !!data.tag,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/agenda';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Se já existe uma aba aberta do app, foca nela e navega
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) client.navigate(url);
+          return;
+        }
+      }
+      // Senão, abre uma nova aba
+      if (clients.openWindow) return clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);

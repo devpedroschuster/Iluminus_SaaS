@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { agendamentoService } from '../services/agendamentoService';
 import {
   QrCode, Search, UserCheck, Calendar, TrendingUp,
   Clock, Award, AlertCircle, Users, CheckCircle2,
@@ -121,11 +122,14 @@ const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
 ]);
 
       const { inicio, fim } = obterPeriodo(filtros.periodo);
+      const inicioData = inicio.split('T')[0];
+      const fimData = fim.split('T')[0];
       const { data: presencasData } = await supabase
         .from('presencas')
         .select(`*, alunos(nome_completo, email), agenda(atividade, horario)`)
-        .gte('data_checkin', inicio)
-        .lte('data_checkin', fim)
+        .eq('status', 'presente') // só presença real confirmada entra no relatório
+        .gte('data_aula', inicioData)
+        .lte('data_aula', fimData)
         .order('data_checkin', { ascending: false });
 
       setAlunos(alunosData || []);
@@ -141,19 +145,18 @@ const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
         const [{ data: todasPresencasHoje }, { data: fixosDaAula }] = await Promise.all([
   supabase
     .from('presencas')
-    .select('id, aluno_id, tipo')
+    .select('id, aluno_id, status')
     .eq('aula_id', aulaEmCurso.id)
-    .gte('data_checkin', hojeDateStr + 'T00:00:00')
-    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
+    .eq('data_aula', hojeDateStr),
   supabase
     .from('agenda_fixa')
     .select('aluno_id')
     .eq('aula_id', aulaEmCurso.id),
 ]);
 
-const confirmados = (todasPresencasHoje || []).filter(p => p.tipo !== 'agendado');
+const confirmados = (todasPresencasHoje || []).filter(p => p.status === 'presente');
 const pendentes = (todasPresencasHoje || []).filter(
-  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
 );
 
 setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
@@ -194,18 +197,17 @@ setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
       const [{ data: todasHoje }, { data: fixosDaAula }] = await Promise.all([
   supabase
     .from('presencas')
-    .select('id, aluno_id, tipo')
+    .select('id, aluno_id, status')
     .eq('aula_id', aulaSelecionada)
-    .gte('data_checkin', hojeDateStr + 'T00:00:00')
-    .lte('data_checkin', hojeDateStr + 'T23:59:59'),
+    .eq('data_aula', hojeDateStr),
         supabase
           .from('agenda_fixa')
           .select('aluno_id')
           .eq('aula_id', aulaSelecionada),
       ]);
-const confirmados = (todasHoje || []).filter(p => p.tipo !== 'agendado');
+const confirmados = (todasHoje || []).filter(p => p.status === 'presente');
 const pendentes = (todasHoje || []).filter(
-  p => p.tipo === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
 );
 setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
 setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
@@ -259,12 +261,14 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
   }
 
   // ─── check-in ─────────────────────────────────────────────────────────────
-  // DEPOIS
-async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
+async function realizarCheckin(aluno, aulaId, dataRef = null) {
+  if (!aulaId) {
+    showToast.error('Selecione uma aula para fazer o check-in.');
+    return;
+  }
   setLoadingCheckin(aluno.id);
-  // dataRef: string 'YYYY-MM-DD' — hoje por padrão, ou data retroativa
+  // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
   const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
-  // data_checkin: meio-dia da data escolhida para evitar off-by-one de fuso
   const dataCheckin = dataRef
     ? `${dataRef}T12:00:00.000Z`
     : new Date().toISOString();
@@ -274,27 +278,27 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
     if (agendadoId) {
       const { error } = await supabase
         .from('presencas')
-        .update({ tipo: 'aula', data_checkin: dataCheckin })
+        .update({ status: 'presente', data_checkin: dataCheckin })
         .eq('id', agendadoId);
       if (error) throw error;
     } else {
       const payload = {
-        aluno_id:     aluno.id,
-        aula_id:      aulaId,
-        tipo:         aulaId ? 'aula' : 'livre',
+        aluno_id: aluno.id,
+        aula_id: aulaId,
+        data_aula: dataAula,
+        status: 'presente',
+        origem: alunosFixosDaAula.has(aluno.id) ? 'fixo' : 'avulso',
         data_checkin: dataCheckin,
-        ...(aulaId ? { data_aula: dataAula } : {}),
       };
 
       const { error } = await supabase
         .from('presencas')
         .upsert([payload], {
-          onConflict:       'aluno_id,aula_id,data_aula',
+          onConflict: 'aluno_id,aula_id,data_aula',
           ignoreDuplicates: true,
         });
 
       if (error) {
-        // Duplicata em checkin livre (sem aula_id / data_aula) cai aqui
         if (error.code === '23505') {
           showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
           return;
@@ -305,14 +309,12 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
 
     showToast.success(`✅ ${aluno.nome_completo}`);
 
-    if (aulaId) {
-      setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
-      setAgendadosDaAula(prev => {
-        const next = new Map(prev);
-        next.delete(aluno.id);
-        return next;
-      });
-    }
+    setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
+    setAgendadosDaAula(prev => {
+      const next = new Map(prev);
+      next.delete(aluno.id);
+      return next;
+    });
     setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
 
     queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
@@ -333,8 +335,7 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
         .select('id')
         .eq('aluno_id', aluno.id)
         .eq('aula_id', aulaIdAtual)
-        .gte('data_checkin', hoje + 'T00:00:00')
-        .lte('data_checkin', hoje + 'T23:59:59')
+        .eq('data_aula', hoje)
         .maybeSingle();
       if (!reg) { showToast.error('Registro não encontrado.'); return; }
       const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
@@ -356,11 +357,13 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
     try {
       const trintaDiasAtras = new Date();
       trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+      const trintaDiasAtrasStr = trintaDiasAtras.toISOString().split('T')[0];
       const { data } = await supabase
         .from('presencas')
         .select(`*, agenda(atividade, horario)`)
         .eq('aluno_id', aluno.id)
-        .gte('data_checkin', trintaDiasAtras.toISOString())
+        .eq('status', 'presente')
+        .gte('data_aula', trintaDiasAtrasStr)
         .order('data_checkin', { ascending: false });
       setAlunoSelecionado({ ...aluno, historico: data || [] });
       modalDetalhes.abrir();
@@ -376,7 +379,7 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
       'Data/Hora': new Date(p.data_checkin).toLocaleString('pt-BR'),
       Aula: p.agenda?.atividade || 'Treino Livre',
       Horário: p.agenda?.horario || '-',
-      Tipo: p.tipo
+      Status: p.status
     }));
     if (!dadosExport.length) { showToast.error('Nenhum dado para exportar.'); return; }
     const headers = Object.keys(dadosExport[0]);
@@ -543,7 +546,6 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
           )}
 
           {/* Seletor de aula manual — exibido somente quando não há aula em andamento automática */}
-          // DEPOIS
           {!loading && !aulaAtiva && todasAulas.length > 0 && (
             <Surface variant="card" padding="md" className="rounded-[20px] space-y-3">
               <div>
@@ -556,13 +558,18 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
                   onChange={e => setAulaSelecionada(e.target.value || null)}
                   className="bg-card"
                 >
-                  <option value="">— Treino Livre (sem vínculo de aula) —</option>
+                  <option value="">— Selecione uma aula —</option>
                   {todasAulas.map(a => (
                     <option key={a.id} value={a.id}>
                       {a.dia_semana} · {a.atividade} · {a.horario}
                     </option>
                   ))}
                 </Input>
+                {!aulaSelecionada && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Selecione uma aula para liberar o check-in dos alunos.
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="block text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
@@ -579,18 +586,26 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
             </Surface>
           )}
 
-          {/* Busca */}
-          <Input
-            leftIcon={<Search size={18} />}
-            placeholder="Buscar aluno por nome ou e-mail..."
-            value={buscaChamada}
-            onChange={e => setBuscaChamada(e.target.value)}
-          />
+          {/* Busca — só disponível quando há uma aula em uso (automática ou selecionada) */}
+          {aulaEmUso && (
+            <Input
+              leftIcon={<Search size={18} />}
+              placeholder="Buscar aluno por nome ou e-mail..."
+              value={buscaChamada}
+              onChange={e => setBuscaChamada(e.target.value)}
+            />
+          )}
 
           {loading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <Skeleton.Row key={i} />)}
             </div>
+          ) : !aulaEmUso ? (
+            <EmptyState
+              icon={<Calendar size={28} />}
+              title="Selecione uma aula"
+              description="Escolha uma aula acima para liberar o check-in dos alunos."
+            />
           ) : alunosChamadaFiltrados.length === 0 ? (
             <EmptyState
               icon={<Users size={28} />}
@@ -650,15 +665,18 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
               onClick={async () => {
                 const presencaId = agendadosDaAula.get(aluno.id);
                 if (!presencaId) return;
-                const { error } = await supabase.from('presencas').delete().eq('id', presencaId);
-                if (!error) {
+                try {
+                  const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
+                  await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
                   setAgendadosDaAula(prev => {
                     const next = new Map(prev);
                     next.delete(aluno.id);
                     return next;
                   });
                   queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-                  showToast.success(`${aluno.nome_completo} marcado como ausente.`);
+                  showToast.success(`${aluno.nome_completo} marcado como ausente. Professor será notificado.`);
+                } catch (err) {
+                  showToast.error('Erro ao marcar ausência.');
                 }
               }}
             >
@@ -841,8 +859,8 @@ async function realizarCheckin(aluno, aulaId = null, dataRef = null) {
                         {new Date(p.data_checkin).toLocaleString('pt-BR')}
                       </td>
                       <td className="px-8 py-5">
-                        <Badge tone={p.tipo === 'aula' ? 'info' : 'neutral'} variant="soft">
-                          {p.tipo}
+                        <Badge tone={p.status === 'presente' ? 'success' : 'neutral'} variant="soft">
+                          {p.status}
                         </Badge>
                       </td>
                       <td className="px-8 py-5 text-right">

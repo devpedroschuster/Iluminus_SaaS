@@ -1,13 +1,26 @@
 import { supabase } from '../lib/supabase';
 
-const SELECT_BASE = 'id, nome_visitante, telefone_visitante, data_checkin, status_conversao, observacao_lead, agenda(atividade)';
+const SELECT_BASE = 'id, nome, telefone, data_checkin, status_conversao, observacao, agenda(atividade)';
 
 export const leadsService = {
+  // Usado pelo calendário (useAgendaDadosMes) para indexar leads por
+  // aula_id + data_aula no período visível. Diferente das demais funções
+  // deste service, que filtram por data_checkin (mês de criação do lead).
+  async listarLeadsPeriodo(inicio, fim) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, nome, aula_id, data_aula')
+      .gte('data_aula', inicio)
+      .lte('data_aula', fim);
+
+    if (error) throw error;
+    return data;
+  },
+
   async listarLeadsPendentes() {
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select(SELECT_BASE)
-      .not('nome_visitante', 'is', null)
       .eq('status_conversao', 'pendente')
       .order('data_checkin', { ascending: false });
 
@@ -24,9 +37,8 @@ export const leadsService = {
     const fim = new Date(ano, mes + 1, 1);
 
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select(SELECT_BASE)
-      .not('nome_visitante', 'is', null)
       .eq('status_conversao', 'pendente')
       .gte('data_checkin', inicio.toISOString())
       .lt('data_checkin', fim.toISOString())
@@ -44,9 +56,8 @@ export const leadsService = {
     const to = from + limit - 1;
 
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select(SELECT_BASE)
-      .not('nome_visitante', 'is', null)
       .order('data_checkin', { ascending: false })
       .range(from, to);
 
@@ -63,9 +74,8 @@ export const leadsService = {
     const fim = new Date(ano, mes + 1, 1);
 
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select(SELECT_BASE)
-      .not('nome_visitante', 'is', null)
       .gte('data_checkin', inicio.toISOString())
       .lt('data_checkin', fim.toISOString())
       .order('data_checkin', { ascending: false });
@@ -81,9 +91,8 @@ export const leadsService = {
    */
   async listarResumoLeads() {
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select('id, data_checkin, status_conversao')
-      .not('nome_visitante', 'is', null)
       .order('data_checkin', { ascending: false });
 
     if (error) throw error;
@@ -96,9 +105,8 @@ export const leadsService = {
    */
   async listarResumoLeadsPendentes() {
     const { data, error } = await supabase
-      .from('presencas')
+      .from('leads')
       .select('id, data_checkin, status_conversao')
-      .not('nome_visitante', 'is', null)
       .eq('status_conversao', 'pendente')
       .order('data_checkin', { ascending: false });
 
@@ -106,11 +114,11 @@ export const leadsService = {
     return data;
   },
 
-  async atualizarStatusLead(presencaId, novoStatus) {
+  async atualizarStatusLead(leadId, novoStatus) {
     const { error } = await supabase
-      .from('presencas')
+      .from('leads')
       .update({ status_conversao: novoStatus })
-      .eq('id', presencaId);
+      .eq('id', leadId);
 
     if (error) throw error;
     return true;
@@ -120,11 +128,11 @@ export const leadsService = {
    * Salva/atualiza a observação livre da administração sobre o lead
    * (ex: "não fechou por preço", "aguardando dinheiro").
    */
-  async atualizarObservacaoLead(presencaId, observacao) {
+  async atualizarObservacaoLead(leadId, observacao) {
     const { error } = await supabase
-      .from('presencas')
-      .update({ observacao_lead: observacao || null })
-      .eq('id', presencaId);
+      .from('leads')
+      .update({ observacao: observacao || null })
+      .eq('id', leadId);
 
     if (error) throw error;
     return true;

@@ -156,6 +156,9 @@ serve(async (req: Request) => {
     if (mensalidade.tipo_aula === 'plano_livre') {
 
       // Busca presenças do aluno no mês via join agenda → modalidades
+      // IMPORTANTE: filtra status='presente' — o schema novo de `presencas`
+      // também guarda linhas 'agendado'/'falta'/'cancelado', que NÃO devem
+      // contar para repasse (só presença real confirmada gera comissão).
       const { data: presencas, error: errPresencas } = await supabase
         .from('presencas')
         .select(`
@@ -169,6 +172,7 @@ serve(async (req: Request) => {
           )
         `)
         .eq('aluno_id', mensalidade.aluno_id)
+        .eq('status', 'presente')
         .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
         .lte('data_checkin', `${fimPeriodo}T23:59:59`)
         .not('aula_id', 'is', null);

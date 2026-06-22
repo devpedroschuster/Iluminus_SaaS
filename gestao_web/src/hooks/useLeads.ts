@@ -213,7 +213,7 @@ export function useAtualizarObservacaoLead() {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
 
       const atualizarLista = (old?: Lead[]) =>
-        old?.map(l => l.id === id ? { ...l, observacao_lead: observacao } : l);
+        old?.map(l => l.id === id ? { ...l, observacao: observacao } : l);
 
       // Listas simples (pendentes, pendentes por mês, histórico por mês)
       queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'pendentes'] }, (old) => atualizarLista(old) ?? old);
@@ -225,7 +225,7 @@ export function useAtualizarObservacaoLead() {
         return {
           ...oldData,
           pages: oldData.pages.map((page) =>
-            page.map((l) => l.id === id ? { ...l, observacao_lead: observacao } : l)
+            page.map((l) => l.id === id ? { ...l, observacao: observacao } : l)
           ),
         };
       });

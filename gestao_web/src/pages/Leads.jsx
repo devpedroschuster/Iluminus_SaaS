@@ -121,16 +121,16 @@ function SeletorPeriodo({ resumoMensal, periodoSelecionado, onSelecionarPeriodo,
 
 // ── Campo de Observação (textarea com auto-save no blur) ────────────────────
 function ObservacaoLead({ lead, onSalvar, isSalvando }) {
-  const [valor, setValor] = useState(lead.observacao_lead || '');
-  const [expandido, setExpandido] = useState(!!lead.observacao_lead);
+  const [valor, setValor] = useState(lead.observacao || '');
+  const [expandido, setExpandido] = useState(!!lead.observacao);
 
   useEffect(() => {
-    setValor(lead.observacao_lead || '');
-  }, [lead.observacao_lead]);
+    setValor(lead.observacao || '');
+  }, [lead.observacao]);
 
   function handleBlur() {
     const valorTratado = valor.trim();
-    if (valorTratado !== (lead.observacao_lead || '')) {
+    if (valorTratado !== (lead.observacao || '')) {
       onSalvar(lead.id, valorTratado);
     }
   }
@@ -286,13 +286,13 @@ export default function Leads() {
   }
 
   function contatarWhatsApp(lead) {
-    if (!lead.telefone_visitante) {
+    if (!lead.telefone) {
       showToast.error("Este visitante não deixou o número de WhatsApp.");
       return;
     }
-    const numeroLimpo = lead.telefone_visitante.replace(/\D/g, '');
+    const numeroLimpo = lead.telefone.replace(/\D/g, '');
     const mensagem = encodeURIComponent(
-      `Olá ${lead.nome_visitante}, tudo bem? Aqui é do Espaço Iluminus! O que achou da sua aula experimental de ${lead.agenda?.atividade}?`
+      `Olá ${lead.nome}, tudo bem? Aqui é do Espaço Iluminus! O que achou da sua aula experimental de ${lead.agenda?.atividade}?`
     );
     window.open(`https://wa.me/55${numeroLimpo}?text=${mensagem}`, '_blank');
   }
@@ -493,13 +493,13 @@ export default function Leads() {
                     <Badge tone="brand" variant="soft" className="mb-3 rounded-lg">
                       {lead.agenda?.atividade}
                     </Badge>
-                    <h3 className="font-black text-foreground text-xl leading-tight">{lead.nome_visitante}</h3>
+                    <h3 className="font-black text-foreground text-xl leading-tight">{lead.nome}</h3>
                     <p className="text-xs font-bold text-muted-foreground mt-1">Realizou em: {formatarData(lead.data_checkin)}</p>
                   </div>
                   <Surface variant="muted" padding="sm" className="mb-6 flex items-center gap-3 rounded-xl border border-border">
-                    <MessageCircle size={18} className={lead.telefone_visitante ? "text-success" : "text-muted-foreground"} />
-                    <span className={`text-sm font-bold ${lead.telefone_visitante ? "text-foreground" : "text-muted-foreground italic"}`}>
-                      {lead.telefone_visitante || "Sem telefone cadastrado"}
+                    <MessageCircle size={18} className={lead.telefone ? "text-success" : "text-muted-foreground"} />
+                    <span className={`text-sm font-bold ${lead.telefone ? "text-foreground" : "text-muted-foreground italic"}`}>
+                      {lead.telefone || "Sem telefone cadastrado"}
                     </span>
                   </Surface>
                   {/* Ações do Card */}
@@ -510,7 +510,7 @@ export default function Leads() {
                       fullWidth
                       leftIcon={<Phone size={18} />}
                       onClick={() => contatarWhatsApp(lead)}
-                      disabled={!lead.telefone_visitante}
+                      disabled={!lead.telefone}
                     >
                       Contatar
                     </Button>
@@ -603,8 +603,8 @@ export default function Leads() {
                   {leadsHistorico.map(lead => (
                     <tr key={lead.id} className="hover:bg-muted/50 transition-colors">
                       <td className="p-4 text-sm font-bold text-muted-foreground whitespace-nowrap">{formatarDataHora(lead.data_checkin)}</td>
-                      <td className="p-4 text-sm font-black text-foreground">{lead.nome_visitante}</td>
-                      <td className="p-4 text-sm font-medium text-muted-foreground whitespace-nowrap">{lead.telefone_visitante || '-'}</td>
+                      <td className="p-4 text-sm font-black text-foreground">{lead.nome}</td>
+                      <td className="p-4 text-sm font-medium text-muted-foreground whitespace-nowrap">{lead.telefone || '-'}</td>
                       <td className="p-4">
                         <Badge tone="neutral" variant="soft" className="rounded-md">
                           {lead.agenda?.atividade}

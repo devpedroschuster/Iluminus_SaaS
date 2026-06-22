@@ -22,7 +22,8 @@ serve(async (req) => {
         agenda ( horario, atividade ),
         alunos ( push_token, nome_completo )
       `)
-      .eq('data_aula', dataIso);
+      .eq('data_aula', dataIso)
+      .in('status', ['agendado', 'presente']); // exclui falta/cancelado — não faz sentido lembrar quem já não vai
 
     if (error) throw error;
 

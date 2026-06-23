@@ -108,7 +108,7 @@ export const agendamentoService = {
   async listarPresencasPeriodo(inicio, fim) {
     const { data, error } = await supabase
       .from('presencas')
-      .select('id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
+      .select('id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
       .gte('data_aula', inicio)
       .lte('data_aula', fim);
     if (error) throw error;

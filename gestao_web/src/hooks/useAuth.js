@@ -6,6 +6,7 @@ export function useAuth() {
   const [perfil, setPerfil] = useState(null);
   const [professorId, setProfessorId] = useState(null);
   const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
+  const [professorInativo, setProfessorInativo] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const perfilJaCarregado = useRef(false);
@@ -25,6 +26,7 @@ export function useAuth() {
           setPerfil(null);
           setProfessorId(null);
           setNomeUsuario(null); // #18
+          setProfessorInativo(false);
           setLoading(false);
         }
         return;
@@ -66,12 +68,12 @@ export function useAuth() {
 
         // #18 — busca 'nome' além de 'id'
         const { data: professor, error: errProf } = await supabase
-          .from('professores').select('id, nome').eq('auth_id', authId).maybeSingle();
+          .from('professores').select('id, nome, ativo').eq('auth_id', authId).maybeSingle();
         if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
 
         if (cancelled) return;
 
-        if (professor) {
+         if (professor && professor.ativo !== false) {
           perfilJaCarregado.current = true;
           perfilCarregadoParaId.current = authId;
           setPerfil('professor');
@@ -79,9 +81,22 @@ export function useAuth() {
           // independente do Supabase retornar bigint como string.
           setProfessorId(professor.id);
           setNomeUsuario(professor.nome ?? null); // #18
+          setProfessorInativo(false);
           setLoading(false);
           return;
         }
+
+        if (professor && professor.ativo === false) {
+        perfilJaCarregado.current = true;
+        perfilCarregadoParaId.current = authId;
+        setProfessorInativo(true);
+        setPerfil(null);
+        setProfessorId(null);
+        setNomeUsuario(null);
+        setLoading(false);
+        await supabase.auth.signOut();
+        return;
+      }
 
         perfilJaCarregado.current = true;
         perfilCarregadoParaId.current = authId;
@@ -118,6 +133,7 @@ export function useAuth() {
         setPerfil(null);
         setProfessorId(null);
         setNomeUsuario(null); // #18
+        setProfessorInativo(false);
         setLoading(false);
 
       } else if (event === 'SIGNED_IN') {
@@ -145,5 +161,5 @@ export function useAuth() {
     };
   }, []);
 
-  return { sessao, perfil, professorId, nomeUsuario, loading }; // #18 — expõe nomeUsuario
+  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo };
 }

@@ -1030,6 +1030,142 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     </>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Modal Editar Registro do Histórico de Planos
+// ─────────────────────────────────────────────────────────────
+function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient, onClose }) {
+  const [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState({
+    plano_id:    registro?.plano_id    ?? '',
+    data_inicio: registro?.data_inicio ?? '',
+    data_fim:    registro?.data_fim    ?? '',
+    valor_pago:  registro?.valor_pago  ?? '',
+    status:      registro?.status      ?? 'finalizado',
+  });
+
+  const handleSalvar = async () => {
+    if (!form.plano_id || !form.data_inicio || !form.data_fim) {
+      showToast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const { error } = await supabase
+        .from('historico_planos')
+        .update({
+          plano_id:    Number(form.plano_id),
+          data_inicio: form.data_inicio,
+          data_fim:    form.data_fim,
+          valor_pago:  Number(form.valor_pago) || 0,
+          status:      form.status,
+        })
+        .eq('id', registro.id);
+      if (error) throw error;
+      // Se status virou 'ativo', sincroniza o campo alunos.plano_id / data_fim_plano
+      if (form.status === 'ativo') {
+        await supabase.from('alunos').update({
+          plano_id:        Number(form.plano_id),
+          data_inicio_plano: form.data_inicio,
+          data_fim_plano:  form.data_fim,
+        }).eq('id', alunoId);
+      }
+      queryClient.invalidateQueries(['aluno-planos', alunoId]);
+      queryClient.invalidateQueries(['aluno', alunoId]);
+      showToast.success('Histórico atualizado com sucesso!');
+      onClose();
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao editar histórico:', err);
+      showToast.error('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const labelClass = 'text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-1.5';
+  const inputClass = 'w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-background rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-border">
+          <div>
+            <h2 className="text-xl font-black text-foreground">Editar Registro de Plano</h2>
+            <p className="text-muted-foreground text-sm font-medium mt-0.5">ID #{registro?.id}</p>
+          </div>
+          <button onClick={onClose}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="px-8 py-6 space-y-5">
+          <div>
+            <label className={labelClass}>Plano *</label>
+            <select
+              className={inputClass}
+              value={form.plano_id}
+              onChange={e => setForm(f => ({ ...f, plano_id: e.target.value }))}
+            >
+              <option value="">Selecione...</option>
+              {(planosList || []).map(p => (
+                <option key={p.id} value={p.id}>{p.nome}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Data Início *</label>
+              <input type="date" className={inputClass}
+                value={form.data_inicio}
+                onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelClass}>Data Fim *</label>
+              <input type="date" className={inputClass}
+                value={form.data_fim}
+                onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Valor Pago (R$)</label>
+              <input type="number" step="0.01" className={inputClass}
+                value={form.valor_pago}
+                onChange={e => setForm(f => ({ ...f, valor_pago: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelClass}>Status</label>
+              <select className={inputClass}
+                value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="ativo">ativo</option>
+                <option value="finalizado">finalizado</option>
+                <option value="cancelado">cancelado</option>
+              </select>
+            </div>
+          </div>
+          {form.status === 'ativo' && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-warning-foreground">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
+              Marcar como ativo também atualizará o plano e datas do aluno.
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-border">
+          <Button variant="ghost" size="md" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button variant="brand" size="md" leftIcon={<Save size={16} />}
+            onClick={handleSalvar} disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id } = useParams();
@@ -1040,6 +1176,9 @@ export default function PerfilAluno() {
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
+  const [registroEditando, setRegistroEditando] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId]   = useState(null);
+  const [deletando, setDeletando]               = useState(false);
 
   const hoje = new Date();
   const noventa = new Date(hoje);
@@ -1074,6 +1213,38 @@ export default function PerfilAluno() {
     queryClient.invalidateQueries(['aluno-planos', id]);
   };
 
+  // Lista de planos para o modal de edição
+  // ⚠️ DEVE ficar antes de qualquer return condicional (regra dos Hooks)
+  const { data: planosList = [] } = useQuery({
+    queryKey: ['planos-lista'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('planos').select('id, nome').order('nome');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const handleDeletarHistorico = async (registroId) => {
+    setDeletando(true);
+    try {
+      const { error } = await supabase
+        .from('historico_planos')
+        .delete()
+        .eq('id', registroId);
+      if (error) throw error;
+      queryClient.invalidateQueries(['aluno-planos', id]);
+      showToast.success('Registro removido.');
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao deletar histórico:', err);
+      showToast.error('Erro ao remover. Tente novamente.');
+    } finally {
+      setDeletando(false);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  // Early return APÓS todos os hooks
   if (loadingAluno) return <TableSkeleton />;
 
   const planoAtivo   = planos?.find(p => p.status === 'ativo') ?? null;
@@ -1305,7 +1476,7 @@ export default function PerfilAluno() {
               <div>
                 <h3 className="font-black text-foreground text-xl">Contratos e Histórico</h3>
                 <p className="text-muted-foreground text-sm">
-                  Visualize ou atualize a vigência do plano deste aluno.
+                  Visualize, edite ou remova ciclos de plano deste aluno.
                 </p>
               </div>
               <Button variant="brand" size="lg" onClick={() => setModalRenovarAberto(true)}>
@@ -1319,11 +1490,12 @@ export default function PerfilAluno() {
                     <Th>Plano</Th>
                     <Th>Período</Th>
                     <Th>Status</Th>
+                    <Th className="text-right">Ações</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {planos?.map(p => (
-                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={p.id} className={`hover:bg-muted/30 transition-colors ${confirmDeleteId === p.id ? 'bg-destructive-soft/30' : ''}`}>
                       <td className="p-5">
                         <p className="font-bold text-foreground">{p.planos?.nome}</p>
                         <p className="text-xs font-medium text-muted-foreground">R$ {p.valor_pago}</p>
@@ -1339,11 +1511,45 @@ export default function PerfilAluno() {
                           {p.status}
                         </Badge>
                       </td>
+                      <td className="p-5">
+                        <div className="flex items-center justify-end gap-2">
+                          {confirmDeleteId === p.id ? (
+                            <>
+                              <span className="text-xs font-bold text-destructive mr-1">Confirmar?</span>
+                              <Button variant="destructive" size="sm" disabled={deletando}
+                                onClick={() => handleDeletarHistorico(p.id)}>
+                                {deletando ? '...' : 'Sim'}
+                              </Button>
+                              <Button variant="ghost" size="sm"
+                                onClick={() => setConfirmDeleteId(null)}>
+                                Não
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setRegistroEditando(p)}
+                                className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                title="Editar registro"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(p.id)}
+                                className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive-soft hover:text-destructive transition-colors"
+                                title="Remover registro"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {(!planos || planos.length === 0) && (
                     <tr>
-                      <td colSpan="3" className="p-8 text-center text-muted-foreground font-medium">
+                      <td colSpan="4" className="p-8 text-center text-muted-foreground font-medium">
                         Nenhum histórico formal de plano encontrado.
                         <br />
                         <span className="text-sm">Clique no botão acima para registrar o ciclo atual.</span>
@@ -1387,6 +1593,18 @@ export default function PerfilAluno() {
           onClose={() => setModalEditarAberto(false)}
         />
       )}
+
+      {/* MODAL: Editar Histórico de Plano */}
+      {registroEditando && (
+        <ModalEditarHistoricoPlano
+          registro={registroEditando}
+          planosList={planosList}
+          alunoId={id}
+          queryClient={queryClient}
+          onClose={() => setRegistroEditando(null)}
+        />
+      )}
+
     </div>
   );
 }

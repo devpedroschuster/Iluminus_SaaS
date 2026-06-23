@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
+  const { professorInativo } = useAuth();
 
   const navigate = useNavigate();
   const modalRecuperar = useModal();
@@ -139,6 +141,12 @@ export default function Login() {
           <h1 className="text-4xl font-black text-gray-800 tracking-tight mb-2">Iluminus</h1>
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
         </div>
+
+        {professorInativo && (
+    <div className="p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-destructive text-sm font-medium">
+      Sua conta está desativada. Entre em contato com a gestão do espaço.
+    </div>
+  )}
 
         {/* Formulário */}
         <form onSubmit={handleLogin} className="space-y-6">

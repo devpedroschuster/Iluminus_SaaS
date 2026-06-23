@@ -122,6 +122,7 @@ export default function Dashboard() {
       listaInadimplentes = [],
       alunosPlanosVencendo = [],
       todosAlunos        = [],
+      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0 },
     } = {},
     isLoading,
   } = useQuery({
@@ -206,6 +207,7 @@ export default function Dashboard() {
           </div>
         </Surface>
 
+        {/* Alunos Ativos */}
         <Surface variant="card" padding="lg" className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-2xl bg-brand-soft bg-primary-soft flex items-center justify-center shrink-0">
             <Users size={20} className="text-primary" />
@@ -218,6 +220,11 @@ export default function Dashboard() {
               ? <Skeleton className="h-6 w-16 mt-1" />
               : <p className="text-lg font-black text-foreground">{totalAlunos}</p>
             }
+            {!loadingAlunos && (
+              <p className="text-[10px] font-medium text-muted-foreground mt-0.5">
+                {distribuicaoAreas.funcional}F · {distribuicaoAreas.danca}D · {distribuicaoAreas.ambos} ambos
+              </p>
+            )}
           </div>
         </Surface>
 

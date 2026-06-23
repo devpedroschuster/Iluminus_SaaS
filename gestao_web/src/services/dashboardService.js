@@ -11,6 +11,46 @@ export const dashboardService = {
     return count || 0;
   },
 
+  /**
+   * Retorna a distribuição de alunos ativos por área (Dança, Funcional, Ambos).
+   * Usa modalidades_selecionadas (array de IDs) cruzado com a tabela modalidades.
+   */
+  async obterDistribuicaoPorArea() {
+    const { supabase: sb } = await import('../lib/supabase');
+
+    // Busca todas as modalidades para montar o mapa id → area
+    const { data: mods, error: errMods } = await supabase
+      .from('modalidades')
+      .select('id, area');
+    if (errMods) throw errMods;
+
+    const areaById = Object.fromEntries((mods || []).map(m => [m.id, m.area]));
+
+    // Busca alunos ativos com suas modalidades selecionadas
+    const { data: alunos, error: errAlunos } = await supabase
+      .from('alunos')
+      .select('id, modalidades_selecionadas')
+      .eq('ativo', true)
+      .eq('role', 'aluno');
+    if (errAlunos) throw errAlunos;
+
+    let danca = 0, funcional = 0, ambos = 0, semModalidade = 0;
+
+    for (const aluno of alunos || []) {
+      const ids = aluno.modalidades_selecionadas || [];
+      const areas = new Set(ids.map(id => areaById[id]).filter(Boolean));
+      const temDanca     = areas.has('Dança');
+      const temFuncional = areas.has('Funcional');
+
+      if (temDanca && temFuncional) ambos++;
+      else if (temDanca)            danca++;
+      else if (temFuncional)        funcional++;
+      else                          semModalidade++;
+    }
+
+    return { danca, funcional, ambos, semModalidade };
+  },
+
   async obterPagamentosMes(inicioMes) {
     const { data, error } = await supabase
       .from('mensalidades')
@@ -83,6 +123,7 @@ async obterComissoes(inicioMes) {
       listaInadimplentes,
       alunosPlanosVencendo,
       todosAlunos,
+      distribuicaoAreas,
     ] = await Promise.all([
       this.obterTotalAlunos(),
       this.obterPagamentosMes(inicioMes),
@@ -95,9 +136,10 @@ async obterComissoes(inicioMes) {
         .eq('role', 'aluno')
         .not('data_nascimento', 'is', null)
         .then(({ data }) => data || []),
+        this.obterDistribuicaoPorArea(),
     ]);
 
-    return { totalAlunos, pagamentosMes, listaInadimplentes, alunosPlanosVencendo, todosAlunos };
+    return { totalAlunos, pagamentosMes, listaInadimplentes, alunosPlanosVencendo, todosAlunos, distribuicaoAreas };
   },
 
   /**

@@ -29,26 +29,37 @@ function extrairDataLocal(dataUTCStr) {
 // só agendado/presente contam como alguém de fato esperado/confirmado.
 export function buildPresencasIndex(presencasCalendario) {
   const map = {};
-  presencasCalendario.forEach(p => {
-    if (p.status !== 'agendado' && p.status !== 'presente') return;
+  const canceladosMap = {};
 
+  presencasCalendario.forEach(p => {
     const dataStr = p.data_aula || extrairDataLocal(p.data_checkin);
     if (!dataStr) return;
 
     const key = `${p.aula_id}-${dataStr}`;
-    if (!map[key]) map[key] = [];
+    
+// Aluno faltou ou cancelou: rastreia o ID para excluir da lista de fixos,
+    // mas NÃO adiciona ao mapa visível do calendário
+    if (p.status === 'cancelado' || p.status === 'falta') {
+      if (!canceladosMap[key]) canceladosMap[key] = new Set();
+      if (p.aluno_id) canceladosMap[key].add(p.aluno_id);
+      return; // não exibe no calendário
+     }
 
-    const nomeExibicao = p.alunos?.nome_completo;
-    if (nomeExibicao) {
-      map[key].push({
-        nome: nomeExibicao,
-        isLead: false,
-        alunoId: p.aluno_id,
-      });
+    // Presente ou agendado: aparece normalmente no calendário
+    if (p.status === 'agendado' || p.status === 'presente') {
+      if (!map[key]) map[key] = [];
+      const nomeExibicao = p.alunos?.nome_completo;
+      if (nomeExibicao) {
+        map[key].push({
+          nome: nomeExibicao,
+          isLead: false,
+         alunoId: p.aluno_id,
+        });
+      }
     }
-  });
-  return map;
-}
+   });
+  return { map, canceladosMap };
+ }
 
 // Indexa `leads` separadamente — eles aparecem no calendário como
 // "experimentais", visualmente marcados (isLead: true).
@@ -94,11 +105,16 @@ export function isFeriado(dataStr, feriados) {
 // não existe linha (job não rodou pra essa data), assume presença esperada
 // (comportamento padrão, igual antes).
 function compilarAlunosAgendados(aulaId, dataStr, todosFixosDaTurma, indexes) {
-  const { presencasMap, leadsMap } = indexes;
+  const { presencasMap, canceladosMap, leadsMap } = indexes;
 
   const chave = `${aulaId}-${dataStr}`;
   const presencasDoDia = presencasMap[chave] || [];
-  const alunoIdsComLinha = new Set(presencasDoDia.map(p => p.alunoId));
+  // União de: alunos com linha visível (agendado/presente) +
+  // alunos que faltaram/cancelaram (têm linha mas não devem aparecer)
+  const alunoIdsComLinha = new Set([
+    ...presencasDoDia.map(p => p.alunoId),
+    ...(canceladosMap[chave] ? [...canceladosMap[chave]] : []),
+  ]);
 
   const fixosSemLinhaAinda = todosFixosDaTurma.filter(aluno => {
     if (alunoIdsComLinha.has(aluno.id)) return false; // já coberto pela linha real em presencas

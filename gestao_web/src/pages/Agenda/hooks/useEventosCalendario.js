@@ -8,8 +8,10 @@ import {
 export function useEventosCalendario({ aulas, feriados, presencasCalendario, matriculasFixas, leadsCalendario, filtroProf, filtroEspaco, currentDate, currentView }) {
 
   const indexes = useMemo(() => {
+    const { map: presencasMap, canceladosMap } = buildPresencasIndex(presencasCalendario || []);
     return {
-      presencasMap: buildPresencasIndex(presencasCalendario || []),
+      presencasMap,
+      canceladosMap,
       fixasMap: buildFixosIndex(matriculasFixas || []),
       leadsMap: buildLeadsIndex(leadsCalendario || [])
     };

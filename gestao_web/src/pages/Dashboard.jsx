@@ -221,7 +221,7 @@ export default function Dashboard() {
               : <p className="text-lg font-black text-foreground">{totalAlunos}</p>
             }
             {!loadingAlunos && (
-              <p className="text-[10px] font-medium text-muted-foreground mt-0.5">
+              <p className="text-[14px] font-medium text-muted-foreground mt-0.5">
                 {distribuicaoAreas.funcional}F · {distribuicaoAreas.danca}D · {distribuicaoAreas.ambos} ambos
               </p>
             )}

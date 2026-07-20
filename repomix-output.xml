@@ -8431,167 +8431,6 @@ export interface Lead {
 </html>
 </file>
 
-<file path="supabase/functions/gerenciar-acesso-professor/index.ts">
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const SENHA_PADRAO = 'Iluminus576';
-
-function resp(body: object, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const admin       = createClient(supabaseUrl, serviceKey);
-
-  try {
-    const { acao, professor_id, auth_id, email, nome } = await req.json();
-
-    // ── CRIAR ────────────────────────────────────────────────────────────────
-    if (acao === 'criar') {
-      if (!email || !professor_id) return resp({ error: 'email e professor_id são obrigatórios' }, 400);
-
-      const emailNormalizado = email.trim().toLowerCase();
-
-      // Verifica se já existe um auth user com esse email
-      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      if (listErr) throw listErr;
-
-      const existente = users.find((u) => u.email === emailNormalizado);
-
-      let novoAuthId: string;
-      let reutilizado = false;
-
-      if (existente) {
-        // Usuário já existe: apenas vincula, não cria nem reseta senha
-        novoAuthId = existente.id;
-        reutilizado = true;
-      } else {
-        // Cria usuário com senha padrão + primeiro_acesso via user_metadata
-        const { data, error } = await admin.auth.admin.createUser({
-          email: emailNormalizado,
-          password: SENHA_PADRAO,
-          email_confirm: true,           // pula confirmação por email
-          user_metadata: { nome, role: 'professor' },
-        });
-        if (error) throw error;
-        novoAuthId = data.user.id;
-      }
-
-      // Atualiza professores: auth_id, email e primeiro_acesso = true
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({
-          auth_id: novoAuthId,
-          email: emailNormalizado,
-          primeiro_acesso: !reutilizado, // só marca primeiro_acesso para usuários novos
-        })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ auth_id: novoAuthId, reutilizado });
-    }
-
-    // ── REMOVER ───────────────────────────────────────────────────────────────
-    if (acao === 'remover') {
-      if (!auth_id || !professor_id) return resp({ error: 'auth_id e professor_id são obrigatórios' }, 400);
-
-      const { data: aluno } = await admin
-        .from('alunos')
-        .select('id')
-        .eq('auth_id', auth_id)
-        .maybeSingle();
-
-      let userDeletado = false;
-      if (!aluno) {
-        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr && !delErr.message.includes('User not found')) throw delErr;
-        userDeletado = true;
-      }
-
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({ auth_id: null, email: null, primeiro_acesso: false })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ removido: true, user_deletado: userDeletado });
-    }
-
-    // ── TROCAR EMAIL ──────────────────────────────────────────────────────────
-    if (acao === 'trocar_email') {
-      if (!auth_id || !email || !professor_id) {
-        return resp({ error: 'auth_id, email e professor_id são obrigatórios' }, 400);
-      }
-
-      const { data: aluno } = await admin
-        .from('alunos')
-        .select('id')
-        .eq('auth_id', auth_id)
-        .maybeSingle();
-
-      if (!aluno) {
-        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
-        if (delErr && !delErr.message.includes('User not found')) throw delErr;
-      }
-
-      const emailNormalizado = email.trim().toLowerCase();
-      const { data: { users }, error: listErr2 } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      if (listErr2) throw listErr2;
-      const existente = users.find((u) => u.email === emailNormalizado);
-
-      let novoAuthId: string;
-      let reutilizado = false;
-
-      if (existente) {
-        novoAuthId = existente.id;
-        reutilizado = true;
-      } else {
-        const { data, error } = await admin.auth.admin.createUser({
-          email: emailNormalizado,
-          password: SENHA_PADRAO,
-          email_confirm: true,
-          user_metadata: { nome, role: 'professor' },
-        });
-        if (error) throw error;
-        novoAuthId = data.user.id;
-      }
-
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({
-          auth_id: novoAuthId,
-          email: emailNormalizado,
-          primeiro_acesso: !reutilizado,
-        })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
-
-      return resp({ auth_id: novoAuthId, reutilizado });
-    }
-
-    return resp({ error: `Ação desconhecida: ${acao}` }, 400);
-
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro interno';
-    console.error('[gerenciar-acesso-professor]', msg);
-    return resp({ error: msg }, 500);
-  }
-});
-</file>
-
 <file path="gestao_web/src/components/RepasseAlunoCard.jsx">
 import { CheckCircle2, Printer, UserX } from 'lucide-react';
 import { formatarMoeda } from '../lib/utils';
@@ -10608,6 +10447,169 @@ export default {
 }
 </file>
 
+<file path="supabase/functions/gerenciar-acesso-professor/index.ts">
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const SENHA_PADRAO = 'Iluminus576';
+
+function resp(body: object, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const admin       = createClient(supabaseUrl, serviceKey);
+
+  try {
+    const { acao, professor_id, auth_id, email, nome } = await req.json();
+
+    // ── CRIAR ────────────────────────────────────────────────────────────────
+    if (acao === 'criar') {
+      if (!email) return resp({ error: 'email é obrigatório' }, 400);
+
+      const emailNormalizado = email.trim().toLowerCase();
+
+      // Verifica se já existe um auth user com esse email
+      const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr) throw listErr;
+
+      const existente = users.find((u) => u.email === emailNormalizado);
+
+      let novoAuthId: string;
+      let reutilizado = false;
+
+      if (existente) {
+        novoAuthId = existente.id;
+        reutilizado = true;
+      } else {
+        const { data, error } = await admin.auth.admin.createUser({
+          email: emailNormalizado,
+          password: SENHA_PADRAO,
+          email_confirm: true,
+          user_metadata: { nome, role: 'professor' },
+        });
+        if (error) throw error;
+        novoAuthId = data.user.id;
+      }
+
+      // Só atualiza a tabela professores se já existir um registro (edição).
+      // Em cadastro novo, professor_id ainda não existe; o frontend salva
+      // o auth_id junto com o insert do professor logo em seguida.
+      if (professor_id) {
+        const { error: upErr } = await admin
+          .from('professores')
+          .update({
+            auth_id: novoAuthId,
+            email: emailNormalizado,
+            primeiro_acesso: !reutilizado,
+          })
+          .eq('id', professor_id);
+        if (upErr) throw upErr;
+      }
+
+      return resp({ auth_id: novoAuthId, reutilizado });
+    }
+
+    // ── REMOVER ───────────────────────────────────────────────────────────────
+    if (acao === 'remover') {
+      if (!auth_id || !professor_id) return resp({ error: 'auth_id e professor_id são obrigatórios' }, 400);
+
+      const { data: aluno } = await admin
+        .from('alunos')
+        .select('id')
+        .eq('auth_id', auth_id)
+        .maybeSingle();
+
+      let userDeletado = false;
+      if (!aluno) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
+        if (delErr && !delErr.message.includes('User not found')) throw delErr;
+        userDeletado = true;
+      }
+
+      const { error: upErr } = await admin
+        .from('professores')
+        .update({ auth_id: null, email: null, primeiro_acesso: false })
+        .eq('id', professor_id);
+      if (upErr) throw upErr;
+
+      return resp({ removido: true, user_deletado: userDeletado });
+    }
+
+    // ── TROCAR EMAIL ──────────────────────────────────────────────────────────
+    if (acao === 'trocar_email') {
+      if (!auth_id || !email || !professor_id) {
+        return resp({ error: 'auth_id, email e professor_id são obrigatórios' }, 400);
+      }
+
+      const { data: aluno } = await admin
+        .from('alunos')
+        .select('id')
+        .eq('auth_id', auth_id)
+        .maybeSingle();
+
+      if (!aluno) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(auth_id);
+        if (delErr && !delErr.message.includes('User not found')) throw delErr;
+      }
+
+      const emailNormalizado = email.trim().toLowerCase();
+      const { data: { users }, error: listErr2 } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (listErr2) throw listErr2;
+      const existente = users.find((u) => u.email === emailNormalizado);
+
+      let novoAuthId: string;
+      let reutilizado = false;
+
+      if (existente) {
+        novoAuthId = existente.id;
+        reutilizado = true;
+      } else {
+        const { data, error } = await admin.auth.admin.createUser({
+          email: emailNormalizado,
+          password: SENHA_PADRAO,
+          email_confirm: true,
+          user_metadata: { nome, role: 'professor' },
+        });
+        if (error) throw error;
+        novoAuthId = data.user.id;
+      }
+
+      const { error: upErr } = await admin
+        .from('professores')
+        .update({
+          auth_id: novoAuthId,
+          email: emailNormalizado,
+          primeiro_acesso: !reutilizado,
+        })
+        .eq('id', professor_id);
+      if (upErr) throw upErr;
+
+      return resp({ auth_id: novoAuthId, reutilizado });
+    }
+
+    return resp({ error: `Ação desconhecida: ${acao}` }, 400);
+
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro interno';
+    console.error('[gerenciar-acesso-professor]', msg);
+    return resp({ error: msg }, 500);
+  }
+});
+</file>
+
 <file path="gestao_web/src/components/ModalRenovarPlano.jsx">
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -11919,6 +11921,406 @@ export default function ConfiguracoesRepasse() {
 }
 </file>
 
+<file path="gestao_web/src/pages/Professores.jsx">
+import React, { useState, useEffect } from 'react';
+import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+import { professoresService } from '../services/professoresService';
+import { useDebounce } from '../hooks/useDebounce';
+
+import { showToast } from '../components/shared/Toast';
+
+import Modal, { useModal } from '../components/ui/Modal';
+import Button from '../components/ui/Button';
+import Input, { Label } from '../components/ui/Input';
+import Badge from '../components/ui/Badge';
+import Surface from '../components/ui/Surface';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
+
+export default function Professores() {
+  const [professores, setProfessores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState('');
+
+  const [formProfessor, setFormProfessor] = useState({
+    id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null,
+  });
+  // Guarda o estado original ao abrir edição para detectar mudanças de acesso
+  const [acessoOriginal, setAcessoOriginal] = useState({ email: '', auth_id: null });
+  const [profSelecionado, setProfSelecionado] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const buscaDebounced = useDebounce(busca, 400);
+  const modalForm   = useModal();
+  const modalStatus = useModal();
+
+  useEffect(() => {
+    carregarProfessores();
+  }, [buscaDebounced]);
+
+  async function carregarProfessores() {
+    setLoading(true);
+    try {
+      const data = await professoresService.listar(buscaDebounced);
+      setProfessores(data);
+    } catch {
+      showToast.error('Erro ao carregar lista.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function abrirModalCriar() {
+    setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
+    setAcessoOriginal({ email: '', auth_id: null });
+    modalForm.abrir();
+  }
+
+  function abrirModalEditar(prof) {
+    setFormProfessor({
+      id: prof.id,
+      nome: prof.nome,
+      email: prof.email || '',
+      telefone: prof.telefone || '',
+      pix_comissao: prof.pix_comissao || '',
+      auth_id: prof.auth_id || null,
+    });
+    setAcessoOriginal({ email: prof.email || '', auth_id: prof.auth_id || null });
+    modalForm.abrir();
+  }
+
+  async function handleSalvar(e) {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      const emailNovo   = formProfessor.email.trim().toLowerCase();
+      const emailAntigo = acessoOriginal.email.trim().toLowerCase();
+      const authIdAtual = acessoOriginal.auth_id;
+
+      // ── Detecta qual operação de acesso é necessária ──────────────────────
+      //
+      //  1. Novo cadastro com email         → criar acesso
+      //  2. Edição: tinha email, limpou      → remover acesso
+      //  3. Edição: tinha email, trocou      → trocar_email
+      //  4. Edição: não tinha, adicionou     → criar acesso
+      //  5. Sem email em nenhum dos dois     → só salva dados do professor
+      //  6. Email não mudou                  → só salva dados do professor
+
+      const isNovoCadastro = !formProfessor.id;
+      const tinhaAcesso    = !!authIdAtual;
+      const temEmailNovo   = !!emailNovo;
+      const emailMudou     = emailNovo !== emailAntigo;
+
+      let toastMsg = 'Professor salvo com sucesso!';
+
+      if (isNovoCadastro && temEmailNovo) {
+        // Caso 1 — novo cadastro com email: chama Edge Function e ela já salva auth_id
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'criar', professor_id: null, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        // Para novo cadastro a função não tem professor_id ainda — salvamos sem auth_id
+        // e atualizamos logo após ter o id retornado pelo insert
+        const professorSalvo = await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        // A função foi chamada sem professor_id; corrige agora
+        await supabase.from('professores').update({ auth_id: funcData.auth_id }).eq('id', professorSalvo.id);
+        toastMsg = funcData.reutilizado
+          ? 'Professor vinculado ao acesso existente!'
+          : 'Professor cadastrado e acesso criado!';
+
+      } else if (!isNovoCadastro && tinhaAcesso && !temEmailNovo) {
+        // Caso 2 — removeu o email: exclui acesso
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'remover', professor_id: formProfessor.id, auth_id: authIdAtual } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        // Salva o restante dos campos (email e auth_id já foram limpos pela função)
+        await professoresService.salvar({ ...formProfessor, email: null, auth_id: null });
+        toastMsg = funcData.user_deletado
+          ? 'E-mail removido e acesso excluído.'
+          : 'E-mail removido. Acesso mantido pois pertence a um aluno.';
+
+      } else if (!isNovoCadastro && emailMudou && tinhaAcesso && temEmailNovo) {
+        // Caso 3 — trocou o email: deleta antigo, cria novo
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'trocar_email', professor_id: formProfessor.id, auth_id: authIdAtual, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        toastMsg = 'E-mail atualizado e novo acesso criado!';
+
+      } else if (!isNovoCadastro && !tinhaAcesso && temEmailNovo) {
+        // Caso 4 — não tinha acesso, adicionou email: cria acesso
+        const { data: funcData, error: funcError } = await supabase.functions.invoke(
+          'gerenciar-acesso-professor',
+          { body: { acao: 'criar', professor_id: formProfessor.id, email: emailNovo, nome: formProfessor.nome } },
+        );
+        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
+        if (funcData?.error) throw new Error(funcData.error);
+
+        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
+        toastMsg = funcData.reutilizado
+          ? 'Professor vinculado ao acesso existente!'
+          : 'Acesso criado e professor atualizado!';
+
+      } else {
+        // Casos 5 e 6 — sem mudança de acesso, salva só os dados
+        await professoresService.salvar({ ...formProfessor, email: emailNovo || null });
+      }
+
+      showToast.success(toastMsg);
+      modalForm.fechar();
+      carregarProfessores();
+    } catch (error) {
+      showToast.error(error.message || 'Erro ao salvar dados.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function alternarStatus() {
+    try {
+      await professoresService.alternarStatus(profSelecionado.id, !profSelecionado.ativo);
+      showToast.success(profSelecionado.ativo ? 'Professor desativado.' : 'Professor reativado!');
+      modalStatus.fechar();
+      carregarProfessores();
+    } catch {
+      showToast.error('Erro ao alterar status.');
+    }
+  }
+
+  function TabelaSkeleton() {
+    return (
+      <div className="divide-y divide-border">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton.Row key={i} className="px-8 py-5" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-foreground">Equipe de Professores</h1>
+          <p className="text-muted-foreground">Gerencie os profissionais e seus acessos ao sistema.</p>
+        </div>
+        <Button variant="brand" size="lg" leftIcon={<UserPlus size={20} />} onClick={abrirModalCriar}>
+          Novo Professor
+        </Button>
+      </div>
+
+      {/* Barra de busca */}
+      <Surface variant="card" padding="md">
+        <Input
+          leftIcon={<Search size={18} />}
+          placeholder="Pesquisar por nome do professor..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      </Surface>
+
+      {/* Tabela */}
+      <Surface variant="card" padding="none" className="overflow-hidden">
+        {loading ? (
+          <TabelaSkeleton />
+        ) : professores.length > 0 ? (
+          <table className="w-full text-left">
+            <thead className="border-b border-border">
+              <tr className="bg-muted">
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Professor</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contato</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Chave PIX</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {professores.map((prof) => (
+                <tr key={prof.id} className="group hover:bg-muted/40 transition-colors">
+
+                  {/* Professor */}
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
+                        {prof.nome.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground">{prof.nome}</p>
+                        {prof.auth_id && (
+                          <Badge tone="info" variant="soft" className="mt-1">
+                            Com Acesso
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Contato */}
+                  <td className="px-8 py-5">
+                    <span className="text-xs font-bold text-foreground block">
+                      {prof.telefone || 'Sem telefone'}
+                    </span>
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {prof.email || 'Sem e-mail'}
+                    </span>
+                  </td>
+
+                  {/* PIX */}
+                  <td className="px-8 py-5">
+                    <span className="text-xs font-black text-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+                      {prof.pix_comissao || 'Não cadastrada'}
+                    </span>
+                  </td>
+
+                  {/* Status */}
+                  <td className="px-8 py-5">
+                    <Badge tone={prof.ativo ? 'success' : 'destructive'} variant="soft">
+                      <span className={`w-1.5 h-1.5 rounded-full ${prof.ativo ? 'bg-success' : 'bg-destructive'}`} />
+                      {prof.ativo ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </td>
+
+                  {/* Ações */}
+                  <td className="px-8 py-5">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Editar"
+                        onClick={() => abrirModalEditar(prof)}
+                      >
+                        <Edit2 size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Alterar status"
+                        className="hover:text-primary hover:bg-primary-soft"
+                        onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }}
+                      >
+                        <ShieldAlert size={16} />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="p-20">
+            <EmptyState
+              icon={<Users size={28} />}
+              title="Nenhum professor encontrado"
+              description="Comece cadastrando seu primeiro professor."
+            />
+          </div>
+        )}
+      </Surface>
+
+      {/* Modal Formulário */}
+      <Modal
+        aberto={modalForm.aberto}
+        fechar={modalForm.fechar}
+        title={formProfessor.id ? 'Editar Professor' : 'Cadastrar Professor'}
+        size="md"
+      >
+        <form onSubmit={handleSalvar} className="space-y-5">
+
+          <div>
+            <Label required>Nome Completo</Label>
+            <Input
+              required
+              placeholder="Nome do Professor"
+              value={formProfessor.nome}
+              onChange={(e) => setFormProfessor({ ...formProfessor, nome: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <Label>E-mail (Gera acesso automático)</Label>
+            <Input
+              type="email"
+              placeholder="email@exemplo.com"
+              value={formProfessor.email}
+              onChange={(e) => setFormProfessor({ ...formProfessor, email: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Telefone</Label>
+              <Input
+                placeholder="(00) 00000-0000"
+                value={formProfessor.telefone}
+                onChange={(e) => setFormProfessor({ ...formProfessor, telefone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Chave PIX</Label>
+              <Input
+                placeholder="Para repasses"
+                value={formProfessor.pix_comissao}
+                onChange={(e) => setFormProfessor({ ...formProfessor, pix_comissao: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <Modal.Footer>
+            <Button variant="outline" onClick={modalForm.fechar} type="button">
+              Cancelar
+            </Button>
+            <Button variant="brand" size="lg" loading={saving} fullWidth type="submit">
+              {formProfessor.id ? 'Atualizar Cadastro' : 'Concluir e Criar Acesso'}
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal>
+
+      {/* Modal Confirmação de Status */}
+      <Modal
+        aberto={modalStatus.aberto}
+        fechar={modalStatus.fechar}
+        title={profSelecionado?.ativo ? 'Desativar Professor?' : 'Reativar Professor?'}
+        size="sm"
+      >
+        <p className="text-sm text-muted-foreground">
+          Tem certeza que deseja{' '}
+          <strong>{profSelecionado?.ativo ? 'desativar' : 'reativar'}</strong> o acesso de{' '}
+          <strong>{profSelecionado?.nome}</strong>?
+        </p>
+        <Modal.Footer>
+          <Button variant="outline" onClick={modalStatus.fechar}>
+            Cancelar
+          </Button>
+          <Button
+            variant={profSelecionado?.ativo ? 'destructive' : 'success'}
+            onClick={alternarStatus}
+          >
+            {profSelecionado?.ativo ? 'Desativar' : 'Reativar'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </div>
+  );
+}
+</file>
+
 <file path="gestao_web/src/services/agendamentoService.js">
 import { supabase } from '../lib/supabase';
 
@@ -12985,406 +13387,6 @@ export function useGradeMutations({ onSuccess }) {
     prepararEncerramento,
     savingAula,
   };
-}
-</file>
-
-<file path="gestao_web/src/pages/Professores.jsx">
-import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-
-import { professoresService } from '../services/professoresService';
-import { useDebounce } from '../hooks/useDebounce';
-
-import { showToast } from '../components/shared/Toast';
-
-import Modal, { useModal } from '../components/ui/Modal';
-import Button from '../components/ui/Button';
-import Input, { Label } from '../components/ui/Input';
-import Badge from '../components/ui/Badge';
-import Surface from '../components/ui/Surface';
-import Skeleton from '../components/ui/Skeleton';
-import EmptyState from '../components/ui/EmptyState';
-
-export default function Professores() {
-  const [professores, setProfessores] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [busca, setBusca] = useState('');
-
-  const [formProfessor, setFormProfessor] = useState({
-    id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null,
-  });
-  // Guarda o estado original ao abrir edição para detectar mudanças de acesso
-  const [acessoOriginal, setAcessoOriginal] = useState({ email: '', auth_id: null });
-  const [profSelecionado, setProfSelecionado] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  const buscaDebounced = useDebounce(busca, 400);
-  const modalForm   = useModal();
-  const modalStatus = useModal();
-
-  useEffect(() => {
-    carregarProfessores();
-  }, [buscaDebounced]);
-
-  async function carregarProfessores() {
-    setLoading(true);
-    try {
-      const data = await professoresService.listar(buscaDebounced);
-      setProfessores(data);
-    } catch {
-      showToast.error('Erro ao carregar lista.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function abrirModalCriar() {
-    setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });
-    setAcessoOriginal({ email: '', auth_id: null });
-    modalForm.abrir();
-  }
-
-  function abrirModalEditar(prof) {
-    setFormProfessor({
-      id: prof.id,
-      nome: prof.nome,
-      email: prof.email || '',
-      telefone: prof.telefone || '',
-      pix_comissao: prof.pix_comissao || '',
-      auth_id: prof.auth_id || null,
-    });
-    setAcessoOriginal({ email: prof.email || '', auth_id: prof.auth_id || null });
-    modalForm.abrir();
-  }
-
-  async function handleSalvar(e) {
-    e.preventDefault();
-    if (saving) return;
-    setSaving(true);
-
-    try {
-      const emailNovo   = formProfessor.email.trim().toLowerCase();
-      const emailAntigo = acessoOriginal.email.trim().toLowerCase();
-      const authIdAtual = acessoOriginal.auth_id;
-
-      // ── Detecta qual operação de acesso é necessária ──────────────────────
-      //
-      //  1. Novo cadastro com email         → criar acesso
-      //  2. Edição: tinha email, limpou      → remover acesso
-      //  3. Edição: tinha email, trocou      → trocar_email
-      //  4. Edição: não tinha, adicionou     → criar acesso
-      //  5. Sem email em nenhum dos dois     → só salva dados do professor
-      //  6. Email não mudou                  → só salva dados do professor
-
-      const isNovoCadastro = !formProfessor.id;
-      const tinhaAcesso    = !!authIdAtual;
-      const temEmailNovo   = !!emailNovo;
-      const emailMudou     = emailNovo !== emailAntigo;
-
-      let toastMsg = 'Professor salvo com sucesso!';
-
-      if (isNovoCadastro && temEmailNovo) {
-        // Caso 1 — novo cadastro com email: chama Edge Function e ela já salva auth_id
-        const { data: funcData, error: funcError } = await supabase.functions.invoke(
-          'gerenciar-acesso-professor',
-          { body: { acao: 'criar', professor_id: null, email: emailNovo, nome: formProfessor.nome } },
-        );
-        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-        if (funcData?.error) throw new Error(funcData.error);
-
-        // Para novo cadastro a função não tem professor_id ainda — salvamos sem auth_id
-        // e atualizamos logo após ter o id retornado pelo insert
-        const professorSalvo = await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
-        // A função foi chamada sem professor_id; corrige agora
-        await supabase.from('professores').update({ auth_id: funcData.auth_id }).eq('id', professorSalvo.id);
-        toastMsg = funcData.reutilizado
-          ? 'Professor vinculado ao acesso existente!'
-          : 'Professor cadastrado e acesso criado!';
-
-      } else if (!isNovoCadastro && tinhaAcesso && !temEmailNovo) {
-        // Caso 2 — removeu o email: exclui acesso
-        const { data: funcData, error: funcError } = await supabase.functions.invoke(
-          'gerenciar-acesso-professor',
-          { body: { acao: 'remover', professor_id: formProfessor.id, auth_id: authIdAtual } },
-        );
-        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-        if (funcData?.error) throw new Error(funcData.error);
-
-        // Salva o restante dos campos (email e auth_id já foram limpos pela função)
-        await professoresService.salvar({ ...formProfessor, email: null, auth_id: null });
-        toastMsg = funcData.user_deletado
-          ? 'E-mail removido e acesso excluído.'
-          : 'E-mail removido. Acesso mantido pois pertence a um aluno.';
-
-      } else if (!isNovoCadastro && emailMudou && tinhaAcesso && temEmailNovo) {
-        // Caso 3 — trocou o email: deleta antigo, cria novo
-        const { data: funcData, error: funcError } = await supabase.functions.invoke(
-          'gerenciar-acesso-professor',
-          { body: { acao: 'trocar_email', professor_id: formProfessor.id, auth_id: authIdAtual, email: emailNovo, nome: formProfessor.nome } },
-        );
-        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-        if (funcData?.error) throw new Error(funcData.error);
-
-        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
-        toastMsg = 'E-mail atualizado e novo acesso criado!';
-
-      } else if (!isNovoCadastro && !tinhaAcesso && temEmailNovo) {
-        // Caso 4 — não tinha acesso, adicionou email: cria acesso
-        const { data: funcData, error: funcError } = await supabase.functions.invoke(
-          'gerenciar-acesso-professor',
-          { body: { acao: 'criar', professor_id: formProfessor.id, email: emailNovo, nome: formProfessor.nome } },
-        );
-        if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-        if (funcData?.error) throw new Error(funcData.error);
-
-        await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
-        toastMsg = funcData.reutilizado
-          ? 'Professor vinculado ao acesso existente!'
-          : 'Acesso criado e professor atualizado!';
-
-      } else {
-        // Casos 5 e 6 — sem mudança de acesso, salva só os dados
-        await professoresService.salvar({ ...formProfessor, email: emailNovo || null });
-      }
-
-      showToast.success(toastMsg);
-      modalForm.fechar();
-      carregarProfessores();
-    } catch (error) {
-      showToast.error(error.message || 'Erro ao salvar dados.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function alternarStatus() {
-    try {
-      await professoresService.alternarStatus(profSelecionado.id, !profSelecionado.ativo);
-      showToast.success(profSelecionado.ativo ? 'Professor desativado.' : 'Professor reativado!');
-      modalStatus.fechar();
-      carregarProfessores();
-    } catch {
-      showToast.error('Erro ao alterar status.');
-    }
-  }
-
-  function TabelaSkeleton() {
-    return (
-      <div className="divide-y divide-border">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton.Row key={i} className="px-8 py-5" />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Cabeçalho */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-foreground">Equipe de Professores</h1>
-          <p className="text-muted-foreground">Gerencie os profissionais e seus acessos ao sistema.</p>
-        </div>
-        <Button variant="brand" size="lg" leftIcon={<UserPlus size={20} />} onClick={abrirModalCriar}>
-          Novo Professor
-        </Button>
-      </div>
-
-      {/* Barra de busca */}
-      <Surface variant="card" padding="md">
-        <Input
-          leftIcon={<Search size={18} />}
-          placeholder="Pesquisar por nome do professor..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-      </Surface>
-
-      {/* Tabela */}
-      <Surface variant="card" padding="none" className="overflow-hidden">
-        {loading ? (
-          <TabelaSkeleton />
-        ) : professores.length > 0 ? (
-          <table className="w-full text-left">
-            <thead className="border-b border-border">
-              <tr className="bg-muted">
-                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Professor</th>
-                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contato</th>
-                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Chave PIX</th>
-                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
-                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {professores.map((prof) => (
-                <tr key={prof.id} className="group hover:bg-muted/40 transition-colors">
-
-                  {/* Professor */}
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center font-black text-primary">
-                        {prof.nome.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-bold text-foreground">{prof.nome}</p>
-                        {prof.auth_id && (
-                          <Badge tone="info" variant="soft" className="mt-1">
-                            Com Acesso
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Contato */}
-                  <td className="px-8 py-5">
-                    <span className="text-xs font-bold text-foreground block">
-                      {prof.telefone || 'Sem telefone'}
-                    </span>
-                    <span className="text-[10px] font-medium text-muted-foreground">
-                      {prof.email || 'Sem e-mail'}
-                    </span>
-                  </td>
-
-                  {/* PIX */}
-                  <td className="px-8 py-5">
-                    <span className="text-xs font-black text-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
-                      {prof.pix_comissao || 'Não cadastrada'}
-                    </span>
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-8 py-5">
-                    <Badge tone={prof.ativo ? 'success' : 'destructive'} variant="soft">
-                      <span className={`w-1.5 h-1.5 rounded-full ${prof.ativo ? 'bg-success' : 'bg-destructive'}`} />
-                      {prof.ativo ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </td>
-
-                  {/* Ações */}
-                  <td className="px-8 py-5">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Editar"
-                        onClick={() => abrirModalEditar(prof)}
-                      >
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Alterar status"
-                        className="hover:text-primary hover:bg-primary-soft"
-                        onClick={() => { setProfSelecionado(prof); modalStatus.abrir(); }}
-                      >
-                        <ShieldAlert size={16} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="p-20">
-            <EmptyState
-              icon={<Users size={28} />}
-              title="Nenhum professor encontrado"
-              description="Comece cadastrando seu primeiro professor."
-            />
-          </div>
-        )}
-      </Surface>
-
-      {/* Modal Formulário */}
-      <Modal
-        aberto={modalForm.aberto}
-        fechar={modalForm.fechar}
-        title={formProfessor.id ? 'Editar Professor' : 'Cadastrar Professor'}
-        size="md"
-      >
-        <form onSubmit={handleSalvar} className="space-y-5">
-
-          <div>
-            <Label required>Nome Completo</Label>
-            <Input
-              required
-              placeholder="Nome do Professor"
-              value={formProfessor.nome}
-              onChange={(e) => setFormProfessor({ ...formProfessor, nome: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label>E-mail (Gera acesso automático)</Label>
-            <Input
-              type="email"
-              placeholder="email@exemplo.com"
-              value={formProfessor.email}
-              onChange={(e) => setFormProfessor({ ...formProfessor, email: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Telefone</Label>
-              <Input
-                placeholder="(00) 00000-0000"
-                value={formProfessor.telefone}
-                onChange={(e) => setFormProfessor({ ...formProfessor, telefone: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Chave PIX</Label>
-              <Input
-                placeholder="Para repasses"
-                value={formProfessor.pix_comissao}
-                onChange={(e) => setFormProfessor({ ...formProfessor, pix_comissao: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <Modal.Footer>
-            <Button variant="outline" onClick={modalForm.fechar} type="button">
-              Cancelar
-            </Button>
-            <Button variant="brand" size="lg" loading={saving} fullWidth type="submit">
-              {formProfessor.id ? 'Atualizar Cadastro' : 'Concluir e Criar Acesso'}
-            </Button>
-          </Modal.Footer>
-        </form>
-      </Modal>
-
-      {/* Modal Confirmação de Status */}
-      <Modal
-        aberto={modalStatus.aberto}
-        fechar={modalStatus.fechar}
-        title={profSelecionado?.ativo ? 'Desativar Professor?' : 'Reativar Professor?'}
-        size="sm"
-      >
-        <p className="text-sm text-muted-foreground">
-          Tem certeza que deseja{' '}
-          <strong>{profSelecionado?.ativo ? 'desativar' : 'reativar'}</strong> o acesso de{' '}
-          <strong>{profSelecionado?.nome}</strong>?
-        </p>
-        <Modal.Footer>
-          <Button variant="outline" onClick={modalStatus.fechar}>
-            Cancelar
-          </Button>
-          <Button
-            variant={profSelecionado?.ativo ? 'destructive' : 'success'}
-            onClick={alternarStatus}
-          >
-            {profSelecionado?.ativo ? 'Desativar' : 'Reativar'}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </div>
-  );
 }
 </file>
 

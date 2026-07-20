@@ -136,5 +136,22 @@ export const leadsService = {
 
     if (error) throw error;
     return true;
+  },
+
+  /**
+   * Leads (experimentais) vinculados às aulas do professor logado.
+   * Join com `agenda` (inner) para poder filtrar por professor_id — leads
+   * sem aula vinculada não aparecem aqui (não pertencem a nenhum professor).
+   * Somente leitura: professor não edita status nem observação.
+   */
+  async listarLeadsProfessor(professorId) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, nome, data_checkin, status_conversao, observacao, agenda!inner(atividade, professor_id)')
+      .eq('agenda.professor_id', professorId)
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
   }
 };

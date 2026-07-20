@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, Download, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
-  CreditCard
+  CreditCard, UserPlus
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
@@ -68,8 +68,8 @@ function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
     { label: 'Menu Professor' },
     { name: 'Minha Agenda',           path: '/agenda',              icon: Calendar },
     { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
-    // S1 FIX — renomeado de "Minhas Comissões" para refletir que inclui repasses
-    //{ name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
+    { name: 'Meus Leads',             path: '/professor/leads',     icon: UserPlus },
+    { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
   ];
 
   const isProfessor = resolverPerfil(perfil) === 'professor';

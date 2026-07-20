@@ -38,6 +38,7 @@ import Notificacoes from './pages/Notificacoes';
 import ConfiguracoesRepasse from './pages/ConfiguracoesRepasse';
 import ProfessorAlunos   from './pages/Professor/ProfessorAlunos';
 import ProfessorComissoes from './pages/Professor/ProfessorComissoes';
+import ProfessorLeads from './pages/Professor/ProfessorLeads';
 import ResultadoFinanceiro from './pages/ResultadoFinanceiro';
 
 const queryClient = new QueryClient({
@@ -59,7 +60,6 @@ function Spinner() {
   );
 }
 
-// #17 — recebe nomeUsuario e repassa para Sidebar
 const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
@@ -112,7 +112,6 @@ const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
 };
 
 export default function App() {
-  // #18 — desestrutura nomeUsuario do hook
   const { sessao, perfil, loading, nomeUsuario } = useAuth();
 
   if (loading) return <Spinner />;
@@ -143,17 +142,16 @@ export default function App() {
 
               {/* Rotas Compartilhadas (Admin e Professor) */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin', 'professor']} />}>
-                {/* #17/#18 — passa nomeUsuario para o layout */}
                 <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/agenda"               element={<Agenda />} />
                   <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
                   <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
+                  <Route path="/professor/leads"      element={<ProfessorLeads />} />
                 </Route>
               </Route>
 
               {/* Rotas Exclusivas do Admin */}
               <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin']} />}>
-                {/* #17/#18 — passa nomeUsuario para o layout */}
                 <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
                   <Route path="/dashboard"                  element={<Dashboard />} />
                   <Route path="/leads"                      element={<Leads />} />
@@ -175,7 +173,6 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* #19 — 404 personalizado com redirect automático */}
               <Route
                 path="*"
                 element={

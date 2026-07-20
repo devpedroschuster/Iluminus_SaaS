@@ -239,3 +239,15 @@ export function useAtualizarObservacaoLead() {
     },
   });
 }
+
+export function useLeadsProfessor(professorId: number | null) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'professor', professorId],
+    queryFn: async () => {
+      const data = await leadsService.listarLeadsProfessor(professorId);
+      return data as unknown as Lead[];
+    },
+    enabled: !!professorId,
+    staleTime: 1000 * 30,
+  });
+}

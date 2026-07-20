@@ -33,45 +33,52 @@ export const agendamentoService = {
   },
 
   // dados.tipo: 'aluno' (matriculado) ou 'visitante' (lead/experimental)
-  async agendarAulaAdmin(dados) {
-    if (!dados.ignorarAvisos) {
-      // Para visitante, não passamos aluno_id — a RPC então só avalia
-      // lotação (capacidade física da turma), pulando as regras de plano
-      // (que dependem de aluno_id e ficam null nesse caso).
-      const checagem = await agendamentoService.verificarDisponibilidade(
-        dados.aula_id,
-        dados.data_aula,
-        dados.tipo === 'visitante' ? null : dados.aluno_id
-      );
-      if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
-    }
+async agendarAulaAdmin(dados) {
+  if (!dados.ignorarAvisos) {
+    const checagem = await agendamentoService.verificarDisponibilidade(
+      dados.aula_id,
+      dados.data_aula,
+      dados.tipo === 'visitante' ? null : dados.aluno_id
+    );
+    if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
+  }
 
-    if (dados.tipo === 'visitante') {
-      // Visitante/lead vai para a tabela `leads`, não mais `presencas`.
-      const payload = {
-        nome: dados.nome_visitante,
-        telefone: dados.telefone_visitante || null,
-        aula_id: dados.aula_id,
-        data_aula: dados.data_aula,
-        data_checkin: `${dados.data_aula}T12:00:00`,
-        status_conversao: 'pendente',
-      };
-      const { error } = await supabase.from('leads').insert([payload]);
-      if (error) throw error;
-      return;
-    }
+  if (dados.tipo === 'visitante') {
+    // Snapshot do professor responsável pela turma NO MOMENTO do agendamento.
+    // Congela o vínculo aqui — se a turma for reatribuída depois, este lead
+    // continua marcado com o professor que efetivamente deu a experimental.
+    const { data: aulaAtual, error: erroAula } = await supabase
+      .from('agenda')
+      .select('professor_id')
+      .eq('id', dados.aula_id)
+      .single();
+    if (erroAula) throw erroAula;
 
     const payload = {
-      aluno_id: dados.aluno_id,
+      nome: dados.nome_visitante,
+      telefone: dados.telefone_visitante || null,
       aula_id: dados.aula_id,
       data_aula: dados.data_aula,
-      status: 'agendado',
-      origem: 'avulso',
+      data_checkin: `${dados.data_aula}T12:00:00`,
+      status_conversao: 'pendente',
+      professor_id: aulaAtual?.professor_id ?? null,
     };
-    const { error } = await supabase.from('presencas').insert([payload]);
-    if (error && error.code === '23505') throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
-    else if (error) throw error;
-  },
+    const { error } = await supabase.from('leads').insert([payload]);
+    if (error) throw error;
+    return;
+  }
+
+  const payload = {
+    aluno_id: dados.aluno_id,
+    aula_id: dados.aula_id,
+    data_aula: dados.data_aula,
+    status: 'agendado',
+    origem: 'avulso',
+  };
+  const { error } = await supabase.from('presencas').insert([payload]);
+  if (error && error.code === '23505') throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
+  else if (error) throw error;
+},
 
   // Cancela um agendamento. `tipo` indica a origem do id_relacao:
   // 'lead' -> remove de `leads`. Qualquer outro valor -> trata como

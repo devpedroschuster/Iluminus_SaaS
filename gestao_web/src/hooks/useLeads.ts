@@ -240,7 +240,7 @@ export function useAtualizarObservacaoLead() {
   });
 }
 
-export function useLeadsProfessor(professorId: number | null) {
+export function useLeadsProfessor(professorId: string | null) {
   return useQuery<Lead[]>({
     queryKey: ['leads', 'professor', professorId],
     queryFn: async () => {

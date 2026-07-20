@@ -27,7 +27,7 @@ serve(async (req: Request) => {
 
     // ── CRIAR ────────────────────────────────────────────────────────────────
     if (acao === 'criar') {
-      if (!email || !professor_id) return resp({ error: 'email e professor_id são obrigatórios' }, 400);
+      if (!email) return resp({ error: 'email é obrigatório' }, 400);
 
       const emailNormalizado = email.trim().toLowerCase();
 
@@ -41,31 +41,33 @@ serve(async (req: Request) => {
       let reutilizado = false;
 
       if (existente) {
-        // Usuário já existe: apenas vincula, não cria nem reseta senha
         novoAuthId = existente.id;
         reutilizado = true;
       } else {
-        // Cria usuário com senha padrão + primeiro_acesso via user_metadata
         const { data, error } = await admin.auth.admin.createUser({
           email: emailNormalizado,
           password: SENHA_PADRAO,
-          email_confirm: true,           // pula confirmação por email
+          email_confirm: true,
           user_metadata: { nome, role: 'professor' },
         });
         if (error) throw error;
         novoAuthId = data.user.id;
       }
 
-      // Atualiza professores: auth_id, email e primeiro_acesso = true
-      const { error: upErr } = await admin
-        .from('professores')
-        .update({
-          auth_id: novoAuthId,
-          email: emailNormalizado,
-          primeiro_acesso: !reutilizado, // só marca primeiro_acesso para usuários novos
-        })
-        .eq('id', professor_id);
-      if (upErr) throw upErr;
+      // Só atualiza a tabela professores se já existir um registro (edição).
+      // Em cadastro novo, professor_id ainda não existe; o frontend salva
+      // o auth_id junto com o insert do professor logo em seguida.
+      if (professor_id) {
+        const { error: upErr } = await admin
+          .from('professores')
+          .update({
+            auth_id: novoAuthId,
+            email: emailNormalizado,
+            primeiro_acesso: !reutilizado,
+          })
+          .eq('id', professor_id);
+        if (upErr) throw upErr;
+      }
 
       return resp({ auth_id: novoAuthId, reutilizado });
     }

@@ -10,6 +10,23 @@
 //   - experimental → valor_pago × aula_experimental_pct_prof se pct_prof > 0, caso contrário sem repasse
 //
 // Chamada via: supabase.functions.invoke('gerar-repasses', { body: { mensalidadeId } })
+// Também é chamada pela etapa de reconciliação do lote mensal (gerar-repasses-mensais,
+// passo 11) para cobrir avulsas/experimentais cujo repasse não foi gerado no momento
+// original do pagamento.
+//
+// AUDITORIA 2026-07 — Correções aplicadas:
+//   FIX-01: todo `error` de query Supabase agora é checado e propagado (throw).
+//           Antes, as buscas de `alunos.modalidades_selecionadas` e de
+//           `modalidades` (branch REGULAR) descartavam o `error` — uma falha
+//           técnica nessas queries (RLS, timeout, coluna renomeada) era tratada
+//           exatamente como "aluno sem modalidade" ou "modalidade sem professor
+//           vinculado", mascarando o problema real e fazendo alunos com
+//           professor de fato vinculado somem do repasse sem nenhum aviso
+//           correto do que aconteceu.
+//   FIX-02: delete de repasses anteriores (idempotência por mensalidade e por
+//           modalidade já lançada pelo lote) agora verifica erro antes de
+//           prosseguir, evitando inserir novos itens quando a limpeza anterior
+//           falhou (o que poderia gerar duplicidade).
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -34,6 +51,7 @@ function response(body: object, status = 200): Response {
 // Exemplo: distribuirCentavos(50.00, 3) → [16.66, 16.67, 16.67]  (soma 50.00)
 //          distribuirCentavos(100.00, 3) → [33.33, 33.33, 33.34]  (soma 100.00)
 function distribuirCentavos(total: number, n: number): number[] {
+  if (n <= 0) return [];
   const base = Math.floor((total / n) * 100) / 100;
   const parcelas = Array(n).fill(base);
   const restoCentavos = Math.round((total - base * n) * 100);
@@ -114,10 +132,14 @@ serve(async (req: Request) => {
     const cfg = config as ConfigRepasse;
 
     // ── 3. Idempotência: remove repasses anteriores desta mensalidade ───────
-    await supabase
+    // FIX-02: erro agora é checado — se a limpeza falhar, abortamos em vez de
+    // seguir e potencialmente inserir itens duplicados ao lado dos antigos.
+    const { error: errDeleteAnterior } = await supabase
       .from('repasses_lancamentos')
       .delete()
       .eq('mensalidade_id', mensalidadeId);
+
+    if (errDeleteAnterior) throw errDeleteAnterior;
 
     // Data de referência = primeiro dia do mês do pagamento
     const dataBase = mensalidade.data_pagamento || mensalidade.data_vencimento;
@@ -140,12 +162,14 @@ serve(async (req: Request) => {
 
     // ── 3b. Repasses já gerados pelo lote mensal (mensalidade_id IS NULL) ────
     // Usados para não duplicar 'regular'/'plano_livre' já lançados via matrícula.
-    const { data: repassesLote } = await supabase
+    const { data: repassesLote, error: errRepassesLote } = await supabase
       .from('repasses_lancamentos')
       .select('id, modalidade, tipo_aula')
       .eq('aluno_id', mensalidade.aluno_id)
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null);
+
+    if (errRepassesLote) throw errRepassesLote;
 
     const loteJaGerado = new Map<string, string>(); // chave -> id
     for (const r of repassesLote ?? []) {
@@ -209,8 +233,6 @@ serve(async (req: Request) => {
       const parteProfs = valorTotal * pctProf;
 
       // REP-07: distribui parteProfs sem perda de centavo.
-      // Antes: Math.round(parteProfs / n * 100) / 100 igual para todas as
-      // modalidades podia gerar soma ≠ parteProfs em ±R$0,01.
       const modsArray = [...modMap.values()];
       const valoresPorMod = distribuirCentavos(parteProfs, modsArray.length);
 
@@ -219,7 +241,8 @@ serve(async (req: Request) => {
         const chave = `${mod.nome}|plano_livre`;
         const idLote = loteJaGerado.get(chave);
         if (idLote) {
-          await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+          const { error: errDelLote } = await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+          if (errDelLote) throw errDelLote;
         }
         itens.push({
           professor_id: mod.professor_id,
@@ -234,11 +257,15 @@ serve(async (req: Request) => {
 
     // ── 4b. REGULAR ─────────────────────────────────────────────────────────
     } else if (mensalidade.tipo_aula === 'regular') {
-      const { data: aluno } = await supabase
+      // FIX-01: error agora é checado — antes uma falha aqui virava "aluno
+      // sem modalidades vinculadas", escondendo o problema técnico real.
+      const { data: aluno, error: errAluno } = await supabase
         .from('alunos')
         .select('modalidades_selecionadas')
         .eq('id', mensalidade.aluno_id)
         .single();
+
+      if (errAluno) throw errAluno;
 
       const modIds: string[] = aluno?.modalidades_selecionadas ?? [];
 
@@ -246,11 +273,15 @@ serve(async (req: Request) => {
         return response({ aviso: 'Aluno sem modalidades vinculadas. Repasse não gerado.', gerados: 0 });
       }
 
-      const { data: mods } = await supabase
+      // FIX-01: error agora é checado — antes uma falha aqui virava
+      // "modalidades sem professor vinculado", escondendo o problema técnico real.
+      const { data: mods, error: errMods } = await supabase
         .from('modalidades')
         .select('id, nome, professor_id')
         .in('id', modIds)
         .not('professor_id', 'is', null);
+
+      if (errMods) throw errMods;
 
       const modsValidas = (mods ?? []) as { id: string; nome: string; professor_id: string }[];
 
@@ -266,7 +297,8 @@ serve(async (req: Request) => {
         const chave = `${mod.nome}|regular`;
         const idLote = loteJaGerado.get(chave);
         if (idLote) {
-          await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+          const { error: errDelLote } = await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
+          if (errDelLote) throw errDelLote;
         }
         itens.push({
           professor_id: mod.professor_id,

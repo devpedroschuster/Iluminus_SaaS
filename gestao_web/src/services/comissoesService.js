@@ -105,19 +105,34 @@ export const comissoesService = {
     return [...porProf.values()].sort((a, b) => b.total - a.total);
   },
 
-  // REP-04: upsert com constraint (professor_id, mes_referencia).
-  async fecharMes(professorId, mesAno, valorTotal) {
-    const { error } = await supabase
-      .from('fechamento_comissoes')
-      .upsert([{
-        professor_id: professorId,
-        mes_referencia: `${mesAno}-01`,
-        valor_total: valorTotal,
-        fechado_em: new Date().toISOString(),
-      }], { onConflict: 'professor_id,mes_referencia' });
+  /**
+   * REP-04 / SEC-02 FIX (auditoria 2026-07): antes, `valorTotal` era calculado
+   * no client (`useMemo` em Comissoes.jsx) e enviado como está para o banco via
+   * upsert. Isso permitia fechar um mês com um valor diferente da soma real dos
+   * lançamentos (bug de UI, filtro aplicado sem querer, ou manipulação direta),
+   * sem nenhuma verificação. Além disso o `upsert` permitia sobrescrever
+   * silenciosamente um mês já fechado, sem trilha de auditoria da mudança.
+   *
+   * Agora a assinatura não recebe mais `valorTotal`: o valor é recalculado a
+   * partir de `repasses_lancamentos` dentro da função/RPC `fechar_comissao_mes`
+   * no banco, que também deve:
+   *   1) verificar se já existe fechamento para (professor_id, mes_referencia)
+   *      e recusar um re-fechamento silencioso (ou registrar a alteração);
+   *   2) rodar em transação para evitar condição de corrida com inserts
+   *      concorrentes de novos lançamentos no mesmo período.
+   *
+   * @param {string} professorId
+   * @param {string} mesAno - formato 'YYYY-MM'
+   * @returns {{ valor_total: number, fechado_em: string }}
+   */
+  async fecharMes(professorId, mesAno) {
+    const { data, error } = await supabase.rpc('fechar_comissao_mes', {
+      p_professor_id: professorId,
+      p_mes_referencia: `${mesAno}-01`,
+    });
 
     if (error) throw error;
-    return true;
+    return data;
   },
 
   /**

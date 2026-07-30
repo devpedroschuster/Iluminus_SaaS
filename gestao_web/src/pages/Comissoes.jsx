@@ -88,8 +88,13 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
   });
 
   function abrirEdicao() {
+    // AUDITORIA 2026-07: Number(null) = 0 e Number(undefined) = NaN — antes,
+    // um `valor` ausente ou inválido no banco virava o texto "NaN" no campo
+    // de edição, sem nenhum aviso ao usuário. Agora cai em '0.00' de forma
+    // previsível e o usuário corrige explicitamente.
+    const valorNum = Number(lancamento.valor);
     setCamposEdit({
-      valor: Number(lancamento.valor).toFixed(2),
+      valor: Number.isFinite(valorNum) ? valorNum.toFixed(2) : '0.00',
       tipo_aula: lancamento.tipo_aula ?? '',
       modalidade: lancamento.modalidade ?? '',
     });
@@ -348,17 +353,16 @@ function AbaDetalhe({
   const handleFecharMes = async () => {
     setFechando(true);
     try {
-      await comissoesService.fecharMes(
-        filtros.professorId,
-        filtros.mesAno,
-        totalGeral,
-      );
+      // AUDITORIA 2026-07: fecharMes não recebe mais o total calculado no
+      // client — o backend recalcula o valor a partir dos lançamentos reais
+      // antes de gravar o fechamento (ver comissoesService.fecharMes).
+      await comissoesService.fecharMes(filtros.professorId, filtros.mesAno);
       showToast.success('Mês fechado e comissões aprovadas com sucesso!');
       modalFechamento.fechar();
       invalidarComissoes(filtros.professorId, filtros.mesAno);
     } catch (error) {
-      console.error(error);
-      showToast.error('Erro ao fechar o mês');
+      console.error('[Comissoes] fecharMes:', error);
+      showToast.error(error?.message || 'Erro ao fechar o mês');
     } finally {
       setFechando(false);
     }
@@ -765,7 +769,10 @@ export default function Comissoes() {
       try {
         const profs = await comissoesService.listarProfessores();
         setProfessores(profs || []);
-      } catch {
+      } catch (err) {
+        // AUDITORIA 2026-07: antes o catch descartava `err` — impossível
+        // diagnosticar falhas reais (RLS, rede, timeout) em produção.
+        console.error('[Comissoes] listarProfessores:', err);
         showToast.error('Erro ao carregar lista de professores');
       }
     }

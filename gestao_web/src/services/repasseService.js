@@ -27,8 +27,12 @@ export async function previewRepassesMensais(mes, ano) {
   const { data, error } = await supabase.functions.invoke('preview-repasses-mensais', {
     body: { mes, ano },
   });
- 
+
   if (error) throw error;
+  // AUDITORIA 2026-07: Edge Functions do Supabase podem retornar 200 OK com
+  // `{ error: '...' }' no corpo em vez de lançar erro de transporte. Sem esta
+  // checagem, uma falha de cálculo era silenciosamente tratada como sucesso.
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 
@@ -45,6 +49,11 @@ export async function gerarRepassesMensais(mes, ano) {
   });
 
   if (error) throw error;
+  // AUDITORIA 2026-07: mesma correção de previewRepassesMensais — mas aqui
+  // preservamos o caso `jaGerados` (409 tratado como aviso na UI, não como
+  // exceção), já que Comissoes.jsx depende de `resultado?.jaGerados` para
+  // mostrar a mensagem correta sem quebrar o fluxo.
+  if (data?.error && !data?.jaGerados) throw new Error(data.error);
   return data;
 }
 

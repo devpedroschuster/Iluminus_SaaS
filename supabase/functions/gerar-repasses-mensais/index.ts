@@ -6,14 +6,44 @@
 //   - Regular    → valor fixo por modalidade matriculada (cfg.valor_1_modalidade / valor_multi_modalidade)
 //   - Plano Livre → pct_prof × preço do plano, dividido entre as modalidades FREQUENTADAS no mês (via presencas)
 //
-// NOTA ARQUITETURAL — Avulsa e Experimental NÃO são processadas aqui:
+// NOTA ARQUITETURAL — Avulsa e Experimental:
 //   Aulas avulsas e experimentais são cobranças pontuais sem vínculo de matrícula.
-//   Os respectivos repasses já são gerados no momento do pagamento via `gerar-repasses`
-//   (com mensalidade_id preenchido). O lote mensal só trata tipos com matrícula
-//   (regular / plano_livre). O Set `repassesJaPagos` garante que pagamentos individuais
-//   já confirmados não sejam duplicados pelo lote.
+//   Os respectivos repasses são gerados no momento do pagamento via `gerar-repasses`
+//   (com mensalidade_id preenchido). O lote mensal trata diretamente apenas os tipos
+//   com matrícula (regular / plano_livre) e, na etapa 11, executa uma RECONCILIAÇÃO:
+//   varre mensalidades pagas do tipo avulsa/experimental no mês que NÃO possuem
+//   repasse correspondente (por falha de rede, timeout, etc. no momento do pagamento)
+//   e chama `gerar-repasses` para cada uma, fechando o "buraco" que antes fazia
+//   comissões de aula avulsa desaparecerem silenciosamente do cálculo.
+//
+// AUDITORIA 2026-07 — Correções aplicadas:
+//   FIX-01: todo `error` de query Supabase agora é checado e propagado (throw).
+//           Antes, erros de rede/RLS em queries pontuais (ex.: busca de preço do
+//           plano, busca de modalidades) eram descartados silenciosamente e o
+//           código tratava o resultado vazio como "aluno sem professor vinculado"
+//           ou "plano sem preço", mascarando uma falha técnica como regra de
+//           negócio. Isso fazia alunos com professor de fato vinculado sumirem
+//           do repasse sem nenhum aviso real do problema.
+//   FIX-02: eliminado N+1 na busca de preço do plano livre — `preco` agora vem
+//           junto com `is_plano_livre` na mesma query de planos (passo 5),
+//           evitando 1 round-trip extra ao banco por aluno de plano livre.
+//   FIX-03: inserção do lote passou de `insert` para `upsert` com
+//           `ignoreDuplicates: true` sobre uma constraint única (ver comentário
+//           no passo 9). Antes, a checagem "já existem repasses?" (passo 1) e o
+//           insert final (passo 9) formavam uma janela de corrida (TOCTOU): duas
+//           chamadas concorrentes (duplo clique, retry de rede) passavam ambas
+//           pela checagem e ambas inseriam o mesmo lote, duplicando lançamentos
+//           para o mesmo aluno/modalidade/mês. Com upsert + constraint única, a
+//           segunda execução concorrente simplesmente não insere linhas repetidas.
+//   FIX-04: nova etapa 11 de reconciliação de avulsas/experimentais (ver nota
+//           arquitetural acima).
 //
 // Chamada manual via: supabase.functions.invoke('gerar-repasses-mensais', { body: { mes, ano } })
+//
+// PRÉ-REQUISITO DE BANCO (rodar uma vez, via migration):
+//   CREATE UNIQUE INDEX IF NOT EXISTS uq_repasse_lote_mensal
+//     ON repasses_lancamentos (aluno_id, modalidade, tipo_aula, data_referencia)
+//     WHERE mensalidade_id IS NULL;
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -48,9 +78,9 @@ interface Aluno {
   modalidades_selecionadas: string[];
 }
 
-interface Plano {
-  id: string;
+interface PlanoInfo {
   is_plano_livre: boolean;
+  preco: number | null;
 }
 
 interface ResumoProf {
@@ -60,9 +90,9 @@ interface ResumoProf {
 }
 
 // REP-03: interface expandida com todos os campos da tabela configuracoes_repasse.
-// Os campos de avulsa/experimental não são usados no lote mensal (ver nota arquitetural
-// acima), mas são declarados aqui para manter a interface em sincronia com a tabela
-// e facilitar futuras extensões sem necessidade de descoberta.
+// Os campos de avulsa/experimental não são usados no cálculo direto do lote mensal
+// (ver nota arquitetural acima), mas são declarados aqui para manter a interface em
+// sincronia com a tabela e facilitar futuras extensões sem necessidade de descoberta.
 interface ConfigRepasse {
   valor_1_modalidade: number;
   valor_multi_modalidade: number;
@@ -83,11 +113,12 @@ interface ConfigRepasse {
 // Exemplo: distribuirCentavos(50.00, 3) → [16.66, 16.67, 16.67]  (soma 50.00)
 //          distribuirCentavos(100.00, 3) → [33.33, 33.33, 33.34]  (soma 100.00)
 function distribuirCentavos(total: number, n: number): number[] {
-  const base = Math.floor((total / n) * 100) / 100;         // trunca, não arredonda
+  if (n <= 0) return [];
+  const base = Math.floor((total / n) * 100) / 100; // trunca, não arredonda
   const parcelas = Array(n).fill(base);
   const restoCentavos = Math.round((total - base * n) * 100); // centavos que sobram
   for (let i = 0; i < restoCentavos; i++) {
-    parcelas[n - 1 - i] += 0.01;                             // distribui do fim para o início
+    parcelas[n - 1 - i] += 0.01; // distribui do fim para o início
     parcelas[n - 1 - i] = Math.round(parcelas[n - 1 - i] * 100) / 100; // limpa float noise
   }
   return parcelas;
@@ -122,12 +153,17 @@ serve(async (req: Request) => {
     // para este mês. Repasses originados de pagamentos individuais (gerar-repasses,
     // mensalidade_id preenchido) não bloqueiam o lote — eles serão deduplicados
     // no passo 8 abaixo.
-    const { data: jaExistem } = await supabase
+    // FIX-01: error agora é checado — antes uma falha nesta query fazia `jaExistem`
+    // ficar `undefined`, o que era tratado como "nunca gerado" e permitia
+    // gerar o lote de novo mesmo quando não deveríamos ter certeza disso.
+    const { data: jaExistem, error: errJaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null)
       .limit(1);
+
+    if (errJaExistem) throw errJaExistem;
 
     if (jaExistem && jaExistem.length > 0) {
       return response({
@@ -138,11 +174,13 @@ serve(async (req: Request) => {
 
     // ── 1b. Repasses já gerados via pagamento individual neste mês ──────────
     // (mensalidade_id IS NOT NULL) — usados para não duplicar no lote.
-    const { data: repassesPagamento } = await supabase
+    const { data: repassesPagamento, error: errRepassesPagamento } = await supabase
       .from('repasses_lancamentos')
       .select('aluno_id, modalidade, tipo_aula')
       .eq('data_referencia', dataReferencia)
       .not('mensalidade_id', 'is', null);
+
+    if (errRepassesPagamento) throw errRepassesPagamento;
 
     // Chave: aluno_id|modalidade|tipo_aula
     const repassesJaPagos = new Set<string>();
@@ -198,14 +236,18 @@ serve(async (req: Request) => {
       mapaProfs.set(p.id, p.nome);
     }
 
-    // ── 5. Planos — identifica quais são "plano livre" ──────────────────────
-    const { data: planosRaw } = await supabase
+    // ── 5. Planos — identifica quais são "plano livre" e já traz o preço ────
+    // FIX-02: `preco` incluído aqui elimina o N+1 que antes existia no passo 8
+    // (uma query de preço por aluno de plano livre, dentro do loop).
+    const { data: planosRaw, error: errPlanos } = await supabase
       .from('planos')
-      .select('id, is_plano_livre');
+      .select('id, is_plano_livre, preco');
 
-    const mapaPlanos = new Map<string, boolean>();
-    for (const p of (planosRaw ?? []) as Plano[]) {
-      mapaPlanos.set(p.id, p.is_plano_livre === true);
+    if (errPlanos) throw errPlanos;
+
+    const mapaPlanos = new Map<string, PlanoInfo>();
+    for (const p of (planosRaw ?? []) as { id: string; is_plano_livre: boolean; preco: number | null }[]) {
+      mapaPlanos.set(p.id, { is_plano_livre: p.is_plano_livre === true, preco: p.preco ?? null });
     }
 
     // ── 6. Alunos ativos com modalidades definidas ──────────────────────────
@@ -229,7 +271,7 @@ serve(async (req: Request) => {
     //    Necessário para calcular repasse do plano livre.
     //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado',
     //    que não devem gerar comissão (só presença real confirmada).
-    const { data: presencasRaw } = await supabase
+    const { data: presencasRaw, error: errPresencas } = await supabase
       .from('presencas')
       .select(`
         aluno_id,
@@ -242,10 +284,12 @@ serve(async (req: Request) => {
       .lte('data_checkin', `${fimPeriodo}T23:59:59`)
       .not('aula_id', 'is', null);
 
+    if (errPresencas) throw errPresencas;
+
     // Mapa: aluno_id → Set de modalidade_ids frequentadas no mês
     const presencasPorAluno = new Map<string, Set<string>>();
     for (const p of presencasRaw ?? []) {
-      const modId = p.agenda?.modalidade_id;
+      const modId = (p.agenda as any)?.modalidade_id;
       if (!p.aluno_id || !modId) continue;
 
       if (!presencasPorAluno.has(p.aluno_id)) {
@@ -267,7 +311,8 @@ serve(async (req: Request) => {
     const avisos: string[] = [];
 
     for (const aluno of alunosComMods) {
-      const isLivre = aluno.plano_id ? (mapaPlanos.get(aluno.plano_id) ?? false) : false;
+      const planoInfo = aluno.plano_id ? mapaPlanos.get(aluno.plano_id) : undefined;
+      const isLivre = planoInfo?.is_plano_livre ?? false;
 
       if (isLivre) {
         // ── PLANO LIVRE: usa modalidades FREQUENTADAS no mês ────────────────
@@ -290,25 +335,17 @@ serve(async (req: Request) => {
           continue;
         }
 
-        // Busca o preço do plano diretamente
-        const { data: plano } = await supabase
-          .from('planos')
-          .select('preco')
-          .eq('id', aluno.plano_id)
-          .single();
-
-        if (!plano?.preco) {
+        // FIX-02: preço já vem do mapaPlanos — sem query extra por aluno.
+        if (!planoInfo?.preco) {
           avisos.push(`"${aluno.nome_completo}" (plano livre): plano sem preço definido — sem repasse.`);
           continue;
         }
 
-        const valorTotal = Number(plano.preco);
+        const valorTotal = Number(planoInfo.preco);
         const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
         const parteProfs = valorTotal * pctProf;
 
         // REP-07: distribui parteProfs entre as modalidades sem perda de centavo.
-        // Antes: Math.round(parteProfs / n * 100) / 100 repetido n vezes podia
-        // gerar soma ≠ parteProfs em ±R$0,01 por aluno.
         const n = modsLivreValidas.length;
         const valoresPorMod = distribuirCentavos(parteProfs, n);
 
@@ -364,22 +401,23 @@ serve(async (req: Request) => {
       }
     }
 
-    if (itens.length === 0) {
-      return response({
-        aviso: 'Nenhum repasse calculado. Verifique se as modalidades têm professores vinculados.',
-        gerados: 0,
-        avisos,
-      });
+    // ── 9. Insere em lote ───────────────────────────────────────────────────
+    // FIX-03: upsert + ignoreDuplicates sobre constraint única, garantindo que
+    // execuções concorrentes (duplo clique, retry de rede) não dupliquem
+    // lançamentos, mesmo que ambas passem pela checagem do passo 1.
+    // Requer a unique index descrita no cabeçalho do arquivo.
+    if (itens.length > 0) {
+      const { error: errInsert } = await supabase
+        .from('repasses_lancamentos')
+        .upsert(itens, {
+          onConflict: 'aluno_id,modalidade,tipo_aula,data_referencia',
+          ignoreDuplicates: true,
+        });
+
+      if (errInsert) throw errInsert;
     }
 
-    // ── 9. Insere em lote ───────────────────────────────────────────────────
-    const { error: errInsert } = await supabase
-      .from('repasses_lancamentos')
-      .insert(itens);
-
-    if (errInsert) throw errInsert;
-
-    // ── 10. Resumo por professor ────────────────────────────────────────────
+    // ── 10. Resumo por professor (apenas dos itens deste lote) ──────────────
     const resumoMap = new Map<string, ResumoProf>();
     for (const item of itens) {
       const nome = mapaProfs.get(item.professor_id) ?? 'Professor';
@@ -389,10 +427,64 @@ serve(async (req: Request) => {
       resumoMap.set(item.professor_id, atual);
     }
 
+    // ── 11. Reconciliação: avulsas/experimentais pagas no mês sem repasse ───
+    // FIX-04: cobre o caso em que `gerar-repasses` não rodou (ou falhou) no
+    // momento da confirmação do pagamento de uma aula avulsa/experimental.
+    // Sem esta etapa, essas comissões nunca seriam recalculadas, porque o
+    // restante deste arquivo ignora avulsa/experimental por design.
+    let avulsasReconciliadas = 0;
+    const { data: mensalidadesAvulsas, error: errMensAvulsas } = await supabase
+      .from('mensalidades')
+      .select('id')
+      .in('tipo_aula', ['avulsa', 'experimental'])
+      .gte('data_pagamento', inicioPeriodo)
+      .lte('data_pagamento', fimPeriodo)
+      .not('data_pagamento', 'is', null);
+
+    if (errMensAvulsas) {
+      avisos.push('Não foi possível checar reconciliação de aulas avulsas/experimentais neste mês.');
+    } else {
+      const idsAvulsas = (mensalidadesAvulsas ?? []).map((m) => m.id as string);
+
+      if (idsAvulsas.length > 0) {
+        const { data: jaTemRepasse, error: errJaTem } = await supabase
+          .from('repasses_lancamentos')
+          .select('mensalidade_id')
+          .in('mensalidade_id', idsAvulsas);
+
+        if (errJaTem) {
+          avisos.push('Não foi possível checar reconciliação de aulas avulsas/experimentais neste mês.');
+        } else {
+          const idsComRepasse = new Set((jaTemRepasse ?? []).map((r) => r.mensalidade_id as string));
+          const idsFaltantes = idsAvulsas.filter((id) => !idsComRepasse.has(id));
+
+          for (const mensalidadeId of idsFaltantes) {
+            const { error: errGerar } = await supabase.functions.invoke('gerar-repasses', {
+              body: { mensalidadeId },
+            });
+            if (!errGerar) {
+              avulsasReconciliadas++;
+            } else {
+              avisos.push(`Falha ao reconciliar repasse da mensalidade ${mensalidadeId} (avulsa/experimental).`);
+            }
+          }
+        }
+      }
+    }
+
+    if (itens.length === 0 && avulsasReconciliadas === 0) {
+      return response({
+        aviso: 'Nenhum repasse calculado. Verifique se as modalidades têm professores vinculados.',
+        gerados: 0,
+        avisos,
+      });
+    }
+
     return response({
       sucesso: true,
       mes: `${mesStr}/${ano}`,
       gerados: itens.length,
+      avulsasReconciliadas,
       resumo: [...resumoMap.values()],
       avisos,
     });

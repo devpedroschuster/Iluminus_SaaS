@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
 
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
@@ -169,11 +170,90 @@ export const alunosService = {
   // Todas as escritas ocorrem dentro de uma única transação
   // Postgres — se qualquer etapa falhar, o banco faz rollback
   // automático e nenhuma escrita parcial é persistida.
+  //
+  // REP-08 FIX (auditoria 2026-07): as RPCs `matricular_aluno` e
+  // `renovar_plano_aluno` inserem a mensalidade diretamente via SQL
+  // (frequentemente já como `status = 'pago'`, quando há valor pago
+  // na hora da matrícula/renovação). Como esse INSERT não passa pelo
+  // fluxo de `financeiroService` (adicionarPagamentoManual /
+  // confirmarPagamento), a Edge Function `gerar-repasses` nunca era
+  // chamada — resultado: aluno matriculado e pago, mas nenhum
+  // lançamento em `repasses_lancamentos` para o professor.
+  //
+  // Correção: após a RPC concluir com sucesso, buscamos a mensalidade
+  // recém-criada (aluno + data de início/pagamento) e, se ela já
+  // nasceu paga, disparamos `gerarRepassesDaMensalidade` explicitamente,
+  // com o mesmo tratamento de erro "não bloqueante" usado em
+  // `adicionarPagamentoManual` (o pagamento/matrícula não é revertido
+  // se o repasse falhar — apenas sinalizamos um aviso ao chamador).
   // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Busca a mensalidade mais recente gerada para o aluno na data informada.
+   * Usado logo após as RPCs de matrícula/renovação para localizar o registro
+   * que precisa (ou não) disparar a geração de repasse.
+   *
+   * @param {string} alunoId
+   * @param {string} dataReferencia - data no formato 'AAAA-MM-DD' (data_pagamento
+   *                                   esperada da mensalidade recém-criada)
+   */
+  async _buscarMensalidadeRecente(alunoId, dataReferencia) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('id, status')
+      .eq('aluno_id', alunoId)
+      .eq('data_pagamento', dataReferencia)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[alunosService._buscarMensalidadeRecente] Falha ao localizar mensalidade.', error);
+      return null;
+    }
+    return data;
+  },
+
+  /**
+   * Dispara a geração de repasse para uma mensalidade recém-criada por RPC,
+   * sem nunca lançar exceção para o chamador (a matrícula/renovação já foi
+   * confirmada no banco — uma falha aqui só deve virar um aviso na UI).
+   *
+   * @param {string} alunoId
+   * @param {string} dataReferencia
+   * @param {number} valorPago
+   * @returns {string|null} mensagem de aviso, ou null se tudo correu bem
+   */
+  async _dispararRepasseSeNecessario(alunoId, dataReferencia, valorPago) {
+    if (!(Number(valorPago) > 0)) return null;
+
+    const mensalidade = await this._buscarMensalidadeRecente(alunoId, dataReferencia);
+
+    if (!mensalidade?.id) {
+      console.warn('[alunosService] Mensalidade recém-criada não localizada; repasse não pôde ser verificado.');
+      return 'Não foi possível localizar a mensalidade gerada para conferir o repasse. Verifique manualmente na aba "Reprocessar".';
+    }
+
+    if (mensalidade.status !== 'pago') {
+      // Mensalidade ainda pendente: o repasse será disparado normalmente
+      // quando o pagamento for confirmado via financeiroService.confirmarPagamento.
+      return null;
+    }
+
+    try {
+      await gerarRepassesDaMensalidade(mensalidade.id);
+      return null;
+    } catch (repasseError) {
+      console.warn('[alunosService] Repasse não gerado automaticamente.', repasseError);
+      return 'Concluído com sucesso, mas o repasse ao professor não pôde ser gerado automaticamente. Verifique manualmente na aba "Reprocessar".';
+    }
+  },
 
   /**
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
+   *
+   * @returns {{ avisoRepasse: string|null }}
    */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
@@ -186,7 +266,16 @@ export const alunosService = {
       });
 
       if (error) throw error;
-      return true;
+
+      // REP-08 FIX: garante que o repasse seja gerado quando a renovação
+      // já nasce como mensalidade paga.
+      const avisoRepasse = await this._dispararRepasseSeNecessario(
+        alunoId,
+        dadosRenovacao.data_inicio,
+        dadosRenovacao.valor_pago ?? 0,
+      );
+
+      return { sucesso: true, avisoRepasse };
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
       throw error;
@@ -202,6 +291,7 @@ export const alunosService = {
    * @param {object} opcoes
    * @param {string}   opcoes.dataVencimento
    * @param {Array}    opcoes.modalidades
+   * @returns {{ plano, dataInicio, dataFim, avisoRepasse: string|null }}
    */
   async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
     try {
@@ -237,7 +327,16 @@ export const alunosService = {
       });
 
       if (error) throw error;
-      return { plano, dataInicio, dataFim };
+
+      // REP-08 FIX: garante que o repasse seja gerado quando a matrícula
+      // já nasce como mensalidade paga (fluxo mais comum na recepção).
+      const avisoRepasse = await this._dispararRepasseSeNecessario(
+        alunoId,
+        dataInicio,
+        plano.preco ?? 0,
+      );
+
+      return { plano, dataInicio, dataFim, avisoRepasse };
     } catch (error) {
       console.error('[alunosService.matricular]', error);
       throw error;

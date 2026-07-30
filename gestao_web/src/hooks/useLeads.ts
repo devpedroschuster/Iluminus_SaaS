@@ -240,6 +240,54 @@ export function useAtualizarObservacaoLead() {
   });
 }
 
+/**
+ * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
+ * lead, com atualização otimista das listas de pendentes e histórico
+ * (incluindo páginas paginadas) e rollback em caso de erro — seguindo
+ * o mesmo padrão de `useAtualizarStatusLead`.
+ */
+export function useExcluirLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await leadsService.excluirLead(id);
+    },
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const previousPendentes = queryClient.getQueryData<Lead[]>(['leads', 'pendentes']);
+      if (previousPendentes) {
+        queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], old => old?.filter(l => l.id !== id) ?? []);
+      }
+
+      const previousHistorico = queryClient.getQueryData<InfiniteData<Lead[]>>(['leads', 'historico']);
+      if (previousHistorico) {
+        queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], oldData => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => page.filter((l) => l.id !== id)),
+          };
+        });
+      }
+
+      return { previousPendentes, previousHistorico };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousPendentes) queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], context.previousPendentes);
+      if (context?.previousHistorico) queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], context.previousHistorico);
+      showToast.error("Erro ao excluir lead. Ação desfeita.");
+    },
+    onSuccess: () => {
+      showToast.success("Lead excluído.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
 export function useLeadsProfessor(professorId: string | null) {
   return useQuery<Lead[]>({
     queryKey: ['leads', 'professor', professorId],

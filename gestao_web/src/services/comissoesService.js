@@ -120,9 +120,56 @@ export const comissoesService = {
     return true;
   },
 
+  /**
+   * SEC-01 FIX (auditoria 2026-07): verifica no banco — e não apenas
+   * confiando na UI — se o mês de referência de um lançamento já foi
+   * fechado para o professor. Antes, `updateLancamento`/`deleteLancamento`
+   * só eram bloqueados pela ocultação dos botões de edição/exclusão na
+   * tela (`{!fechado && (...)}`); qualquer chamada direta ao Supabase
+   * (console do navegador, script, etc.) conseguia alterar ou apagar
+   * lançamentos de um mês já fechado e auditado, corrompendo o
+   * histórico financeiro.
+   *
+   * @param {string} professorId
+   * @param {string} dataReferencia - 'AAAA-MM-DD' do lançamento
+   * @returns {boolean}
+   */
+  async _mesEstaFechado(professorId, dataReferencia) {
+    const mesReferencia = `${String(dataReferencia).substring(0, 7)}-01`;
+
+    const { data, error } = await supabase
+      .from('fechamento_comissoes')
+      .select('id')
+      .eq('professor_id', professorId)
+      .eq('mes_referencia', mesReferencia)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[comissoesService._mesEstaFechado]', error);
+      // Em caso de falha na checagem, é mais seguro bloquear a operação
+      // do que permitir uma edição/exclusão indevida.
+      throw new Error('Não foi possível verificar o status do mês. Tente novamente.');
+    }
+
+    return !!data;
+  },
+
   // EDIT-01: atualiza valor e/ou tipo_aula de um lançamento individual.
-  // Só permite edição se o mês ainda não foi fechado (verificado na UI).
+  // SEC-01 FIX: agora bloqueia a edição no próprio service se o mês já
+  // tiver sido fechado, em vez de depender apenas da UI.
   async updateLancamento(id, campos) {
+    const { data: atual, error: errBusca } = await supabase
+      .from('repasses_lancamentos')
+      .select('professor_id, data_referencia')
+      .eq('id', id)
+      .single();
+
+    if (errBusca) throw errBusca;
+
+    if (await this._mesEstaFechado(atual.professor_id, atual.data_referencia)) {
+      throw new Error('Não é possível editar: o mês deste lançamento já foi fechado.');
+    }
+
     const permitidos = ['valor', 'tipo_aula', 'modalidade', 'data_referencia', 'status'];
     const payload = Object.fromEntries(
       Object.entries(campos).filter(([k]) => permitidos.includes(k))
@@ -141,8 +188,21 @@ export const comissoesService = {
   },
 
   // EDIT-02: exclui um lançamento individual.
-  // Só permite exclusão se o mês ainda não foi fechado (verificado na UI).
+  // SEC-01 FIX: agora bloqueia a exclusão no próprio service se o mês
+  // já tiver sido fechado, em vez de depender apenas da UI.
   async deleteLancamento(id) {
+    const { data: atual, error: errBusca } = await supabase
+      .from('repasses_lancamentos')
+      .select('professor_id, data_referencia')
+      .eq('id', id)
+      .single();
+
+    if (errBusca) throw errBusca;
+
+    if (await this._mesEstaFechado(atual.professor_id, atual.data_referencia)) {
+      throw new Error('Não é possível excluir: o mês deste lançamento já foi fechado.');
+    }
+
     const { error } = await supabase
       .from('repasses_lancamentos')
       .delete()

@@ -119,7 +119,12 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       onSaved(atualizado);
     } catch (err) {
       console.error(err);
-      showToast.error('Erro ao salvar alteração.');
+      // SEC-01 FIX (auditoria 2026-07): comissoesService.updateLancamento agora
+      // valida no backend se o mês já foi fechado e lança um erro descritivo
+      // ("Não é possível editar: o mês deste lançamento já foi fechado.").
+      // Antes essa mensagem era descartada e o usuário só via um erro genérico,
+      // mesmo quando a causa real era clara e evitável.
+      showToast.error(err?.message || 'Erro ao salvar alteração.');
     } finally {
       setSalvando(false);
     }
@@ -133,7 +138,9 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       onDeleted(lancamento.id);
     } catch (err) {
       console.error(err);
-      showToast.error('Erro ao excluir lançamento.');
+      // SEC-01 FIX: mesma lógica de deleteLancamento — exibe o motivo real
+      // (ex.: mês fechado) em vez de uma mensagem genérica.
+      showToast.error(err?.message || 'Erro ao excluir lançamento.');
     } finally {
       setSalvando(false);
       setConfirmandoDelete(false);

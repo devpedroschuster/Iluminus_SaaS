@@ -141,6 +141,20 @@ export const financeiroService = {
     return data;
   },
 
+  /**
+   * REP-09 FIX (auditoria 2026-07): antes, a chamada a
+   * `gerarRepassesDaMensalidade(id)` não tinha try/catch. Se a Edge
+   * Function falhasse (timeout, erro 500, config ausente, etc.), a
+   * exceção subia depois que a mensalidade JÁ havia sido marcada como
+   * 'pago' no banco — o operador via um erro genérico na tela
+   * ("Erro ao processar pagamento"), mas o pagamento tinha sido
+   * confirmado mesmo assim, deixando o repasse pendente sem qualquer
+   * sinalização visível. Agora seguimos o mesmo padrão não-bloqueante
+   * já usado em `adicionarPagamentoManual`: o pagamento nunca é
+   * revertido por causa de uma falha no repasse, e o aviso é sempre
+   * retornado ao chamador (em vez de lançado como exceção) para que a
+   * UI possa exibi-lo claramente.
+   */
   async confirmarPagamento(id, dados) {
     const payload = {
       status: 'pago',
@@ -158,7 +172,18 @@ export const financeiroService = {
       .eq('id', id);
     if (error) throw error;
 
-    const resultado = await gerarRepassesDaMensalidade(id);
-    return { ok: true, resultado };
+    try {
+      const resultado = await gerarRepassesDaMensalidade(id);
+      return { ok: true, resultado };
+    } catch (repasseError) {
+      console.warn('[financeiroService.confirmarPagamento] Repasse não gerado automaticamente.', repasseError);
+      return {
+        ok: true,
+        resultado: {
+          aviso: 'Pagamento confirmado, mas o repasse não pôde ser gerado automaticamente. Verifique manualmente na aba "Reprocessar".',
+          gerados: 0,
+        },
+      };
+    }
   },
 };

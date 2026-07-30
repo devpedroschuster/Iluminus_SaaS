@@ -139,6 +139,23 @@ export const leadsService = {
   },
 
   /**
+   * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
+   * lead — usado para remover cadastros duplicados, testes ou registros
+   * incorretos. Diferente de "marcar como perdido" (que preserva o
+   * registro no histórico e na taxa de conversão), esta operação remove
+   * a linha permanentemente da tabela `leads`.
+   */
+  async excluirLead(leadId) {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', leadId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  /**
  * Leads (experimentais) vinculados ao professor que efetivamente dava a
  * turma no momento em que o lead foi criado (snapshot em leads.professor_id).
  * Não é afetado por reatribuições futuras da turma — o histórico fica fixo.

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus, Calendar, MessageSquare } from 'lucide-react';
+import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus, Calendar, MessageSquare, Trash2 } from 'lucide-react';
 import { showToast } from '../components/shared/Toast';
 import {
   useLeadsPendentes,
@@ -11,6 +11,7 @@ import {
   useResumoMensalLeadsPendentes,
   useAtualizarStatusLead,
   useAtualizarObservacaoLead,
+  useExcluirLead,
 } from '../hooks/useLeads';
 import Badge   from '../components/ui/Badge';
 import Button  from '../components/ui/Button';
@@ -210,6 +211,7 @@ export default function Leads() {
 
   const mutationStatus = useAtualizarStatusLead();
   const mutationObservacao = useAtualizarObservacaoLead();
+  const mutationExcluir = useExcluirLead();
 
   const leadsHistoricoCompleto = historicoData?.pages.flatMap(page => page) || [];
   const leadsHistorico = usandoFiltroHistorico ? historicoMes : leadsHistoricoCompleto;
@@ -272,6 +274,13 @@ export default function Leads() {
     alterarStatus(leadId, 'perdido');
   }
 
+  // LEAD-01: exclusão manual e definitiva do lead (diferente de "perdido",
+  // que preserva o registro no histórico/taxa de conversão).
+  function excluirLead(leadId) {
+    setConfirmandoId(null);
+    mutationExcluir.mutate(leadId);
+  }
+
   function formatarData(dataIso) {
     if (!dataIso) return '';
     const dataSegura = typeof dataIso === 'string' && dataIso.length === 10
@@ -303,6 +312,7 @@ export default function Leads() {
 
   const isProcessando = (id) => mutationStatus.isPending && mutationStatus.variables?.id === id;
   const isSalvandoObservacao = (id) => mutationObservacao.isPending && mutationObservacao.variables?.id === id;
+  const isExcluindo = (id) => mutationExcluir.isPending && mutationExcluir.variables === id;
   const loading = visaoAtiva === 'cards' ? loadingPendentes : loadingHistorico;
 
   return (
@@ -461,8 +471,22 @@ export default function Leads() {
                         variant="destructive"
                         size="sm"
                         onClick={() => marcarComoPerdido(lead.id)}
+                        disabled={isExcluindo(lead.id)}
                       >
                         Marcar como perdido
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => excluirLead(lead.id)}
+                        disabled={isExcluindo(lead.id)}
+                        title="Excluir lead permanentemente"
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        {isExcluindo(lead.id)
+                          ? <RefreshCw size={16} className="animate-spin" />
+                          : <Trash2 size={16} />
+                        }
                       </Button>
                       <Button
                         variant="ghost"
@@ -478,11 +502,11 @@ export default function Leads() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setConfirmandoId(lead.id)}
-                      disabled={isProcessando(lead.id)}
+                      disabled={isProcessando(lead.id) || isExcluindo(lead.id)}
                       title="Descartar visitante"
                       className="absolute top-4 right-4 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     >
-                      {isProcessando(lead.id)
+                      {isProcessando(lead.id) || isExcluindo(lead.id)
                         ? <RefreshCw size={18} className="animate-spin text-destructive" />
                         : <XCircle size={18} />
                       }
@@ -597,6 +621,7 @@ export default function Leads() {
                     <th className="p-4 font-black">Modalidade</th>
                     <th className="p-4 font-black">Status</th>
                     <th className="p-4 font-black">Observação</th>
+                    <th className="p-4 font-black text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -624,11 +649,47 @@ export default function Leads() {
                           isSalvando={isSalvandoObservacao(lead.id)}
                         />
                       </td>
+                      <td className="p-4 text-right">
+                        {confirmandoId === lead.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => excluirLead(lead.id)}
+                              disabled={isExcluindo(lead.id)}
+                              title="Confirmar exclusão"
+                            >
+                              {isExcluindo(lead.id)
+                                ? <RefreshCw size={14} className="animate-spin" />
+                                : <Trash2 size={14} />
+                              }
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setConfirmandoId(null)}
+                              title="Cancelar"
+                            >
+                              <X size={14} />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setConfirmandoId(lead.id)}
+                            title="Excluir lead"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {leadsHistorico.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="p-8 text-center text-muted-foreground font-medium">
+                      <td colSpan="7" className="p-8 text-center text-muted-foreground font-medium">
                         Nenhum histórico registrado{usandoFiltroHistorico ? ' neste período.' : '.'}
                       </td>
                     </tr>
@@ -637,7 +698,7 @@ export default function Leads() {
                 {!usandoFiltroHistorico && hasNextPage && (
                   <tfoot>
                     <tr>
-                      <td colSpan="6" className="p-4 bg-muted/40 text-center border-t border-border">
+                      <td colSpan="7" className="p-4 bg-muted/40 text-center border-t border-border">
                         <Button
                           variant="outline"
                           size="sm"

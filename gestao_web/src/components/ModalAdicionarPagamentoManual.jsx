@@ -40,12 +40,14 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   const [professores, setProfessores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isVisitante, setIsVisitante] = useState(false);
+  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
 
   const initialForm = {
     aluno_id: '',
     nome_visitante: '',
     tipo_aula: 'regular',
     plano_id: '',
+    modalidade_id: '',
     valor_pago: '',
     forma_pagamento: 'pix',
     data_pagamento: new Date().toISOString().split('T')[0],
@@ -91,6 +93,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
       if (form.tipo_aula === 'regular' && form.plano_id) {
         payload.plano_id = form.plano_id;
+        payload.modalidade_id = form.modalidade_id || null;
       }
       if (form.tipo_aula === 'avulsa') {
         payload.professor_id = form.professor_id;
@@ -149,7 +152,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               as="select"
               leftIcon={<User size={18} />}
               value={form.aluno_id}
-              onChange={e => {
+              onChange={async e => {
                 const selectedAluno = alunos.find(a => a.id === e.target.value);
                 const defaultPlano = selectedAluno?.plano_id || '';
                 const planoObj = planos.find(p => p.id === defaultPlano);
@@ -158,7 +161,13 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
                   aluno_id: e.target.value,
                   plano_id: defaultPlano,
                   valor_pago: planoObj ? planoObj.preco : form.valor_pago,
+                  modalidade_id: '', // reseta referência ao trocar de aluno
                 });
+                if (e.target.value) {
+                  setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(e.target.value));
+                } else {
+                  setModalidadesDoAluno([]);
+                }
               }}
               required
             >
@@ -203,6 +212,23 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               <option value="">Selecione o plano...</option>
               {planos.map(p => (
                 <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco}</option>
+              ))}
+            </Input>
+          </div>
+        )}
+
+        {form.tipo_aula === 'regular' && modalidadesDoAluno.length > 1 && (
+          <div>
+            <Label className="block mb-1.5">Referência (modalidade)</Label>
+            <Input
+              as="select"
+              leftIcon={<BookOpen size={18} />}
+              value={form.modalidade_id}
+              onChange={e => setForm({ ...form, modalidade_id: e.target.value })}
+            >
+              <option value="">Todas as modalidades matriculadas (rateio padrão)</option>
+              {modalidadesDoAluno.map(m => (
+                <option key={m.id} value={m.id}>{m.nome}</option>
               ))}
             </Input>
           </div>

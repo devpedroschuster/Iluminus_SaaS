@@ -85,6 +85,7 @@ interface Mensalidade {
   modalidade_nome: string | null;
   data_pagamento: string | null;
   data_vencimento: string;
+  modalidade_id: string | null;
 }
 
 serve(async (req: Request) => {
@@ -106,7 +107,7 @@ serve(async (req: Request) => {
     // ── 1. Busca a mensalidade ──────────────────────────────────────────────
     const { data: mens, error: errMens } = await supabase
       .from('mensalidades')
-      .select('id, aluno_id, plano_id, tipo_aula, valor_pago, professor_id, modalidade_nome, data_pagamento, data_vencimento')
+      .select('id, aluno_id, plano_id, tipo_aula, valor_pago, professor_id, modalidade_nome, modalidade_id, data_pagamento, data_vencimento')
       .eq('id', mensalidadeId)
       .single();
 
@@ -257,43 +258,56 @@ serve(async (req: Request) => {
 
     // ── 4b. REGULAR ─────────────────────────────────────────────────────────
     } else if (mensalidade.tipo_aula === 'regular') {
-      // FIX-01: error agora é checado — antes uma falha aqui virava "aluno
-      // sem modalidades vinculadas", escondendo o problema técnico real.
-      const { data: aluno, error: errAluno } = await supabase
-        .from('alunos')
-        .select('modalidades_selecionadas')
-        .eq('id', mensalidade.aluno_id)
-        .single();
+  const { data: aluno, error: errAluno } = await supabase
+    .from('alunos')
+    .select('modalidades_selecionadas')
+    .eq('id', mensalidade.aluno_id)
+    .single();
 
-      if (errAluno) throw errAluno;
+  if (errAluno) throw errAluno;
 
-      const modIds: string[] = aluno?.modalidades_selecionadas ?? [];
+  const modIds: string[] = aluno?.modalidades_selecionadas ?? [];
 
-      if (modIds.length === 0) {
-        return response({ aviso: 'Aluno sem modalidades vinculadas. Repasse não gerado.', gerados: 0 });
-      }
+  if (modIds.length === 0) {
+    return response({ aviso: 'Aluno sem modalidades vinculadas. Repasse não gerado.', gerados: 0 });
+  }
 
-      // FIX-01: error agora é checado — antes uma falha aqui virava
-      // "modalidades sem professor vinculado", escondendo o problema técnico real.
-      const { data: mods, error: errMods } = await supabase
-        .from('modalidades')
-        .select('id, nome, professor_id')
-        .in('id', modIds)
-        .not('professor_id', 'is', null);
+  const { data: mods, error: errMods } = await supabase
+    .from('modalidades')
+    .select('id, nome, professor_id')
+    .in('id', modIds)
+    .not('professor_id', 'is', null);
 
-      if (errMods) throw errMods;
+  if (errMods) throw errMods;
 
-      const modsValidas = (mods ?? []) as { id: string; nome: string; professor_id: string }[];
+  let modsValidas = (mods ?? []) as { id: string; nome: string; professor_id: string }[];
 
-      if (modsValidas.length === 0) {
-        return response({ aviso: 'Modalidades sem professor vinculado. Repasse não gerado.', gerados: 0 });
-      }
+  // NOVO: mensalidade referencia uma única modalidade → repasse SÓ para ela,
+  // com o valor cheio (o pagamento não cobre as demais matriculadas).
+  // Sem referência (modalidade_id null) → mantém o rateio de sempre.
+  if (mensalidade.modalidade_id) {
+    modsValidas = modsValidas.filter(m => m.id === mensalidade.modalidade_id);
+    if (modsValidas.length === 0) {
+      return response({
+        aviso: 'Modalidade referenciada não está entre as matriculadas do aluno ou não tem professor vinculado. Repasse não gerado.',
+        gerados: 0,
+      });
+    }
+  }
 
-      const valorPorMod = modsValidas.length === 1
-        ? Number(cfg.valor_1_modalidade)
-        : Number(cfg.valor_multi_modalidade);
+  if (modsValidas.length === 0) {
+    return response({ aviso: 'Modalidades sem professor vinculado. Repasse não gerado.', gerados: 0 });
+  }
 
-      for (const mod of modsValidas) {
+  // valorPorMod: se há referência única, valor cheio do pagamento.
+  // Caso contrário, segue a regra de sempre (1 modalidade x múltiplas).
+  const valorPorMod = mensalidade.modalidade_id
+    ? Number(mensalidade.valor_pago)
+    : modsValidas.length === 1
+      ? Number(cfg.valor_1_modalidade)
+      : Number(cfg.valor_multi_modalidade);
+
+  for (const mod of modsValidas) {
         const chave = `${mod.nome}|regular`;
         const idLote = loteJaGerado.get(chave);
         if (idLote) {

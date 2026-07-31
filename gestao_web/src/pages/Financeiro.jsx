@@ -83,6 +83,7 @@ export default function Financeiro() {
   const [dadosPagamento, setDadosPagamento] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [totalAtivos, setTotalAtivos] = useState(null);
+  const [modalidadeId, setModalidadeId] = useState('');
 
   useEffect(() => {
     async function carregarProfessores() {
@@ -114,18 +115,24 @@ export default function Financeiro() {
     }, { recebido: 0, pendente: 0, atrasado: 0, total: 0 });
   }, [mensalidades]);
 
-  const handleAbrirPagamento = (mensalidade) => {
-    setPagamentoSelecionado(mensalidade);
-    setValorPago(mensalidade.planos?.preco?.toString() || '');
-    setFormaPagamento('');
-    setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
-    setProfessorId('');
-    setModalidadeNome('');
-    const d = new Date();
-    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    setDataPagamentoConfirmar(hoje);
-    modalPagamento.abrir();
-  };
+  const handleAbrirPagamento = async (mensalidade) => {
+  setPagamentoSelecionado(mensalidade);
+  setValorPago(mensalidade.planos?.preco?.toString() || '');
+  setFormaPagamento('');
+  setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
+  setProfessorId('');
+  setModalidadeNome('');
+  setModalidadeId(''); // NOVO — reseta a cada abertura
+  if (mensalidade.aluno_id) {
+    setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(mensalidade.aluno_id));
+  } else {
+    setModalidadesDoAluno([]);
+  }
+  const d = new Date();
+  const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  setDataPagamentoConfirmar(hoje);
+  modalPagamento.abrir();
+};
 
   const handleConfirmarPagamento = async (e) => {
   e.preventDefault();
@@ -137,6 +144,7 @@ export default function Financeiro() {
       tipo_aula: tipoAula,
       professor_id: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? professorId : null,
       modalidade_nome: (tipoAula === 'experimental' || tipoAula === 'avulsa') ? modalidadeNome : null,
+       modalidade_id: tipoAula === 'regular' ? (modalidadeId || null) : null,
       data_pagamento: dataPagamentoConfirmar,
     };
     const res = await financeiroService.confirmarPagamento(pagamentoSelecionado.id, payload);
@@ -179,17 +187,25 @@ export default function Financeiro() {
     setTotalAtivos(count ?? 0);
   };
 
-  const handleAbrirEdicao = (item) => {
-    setLancamentoEditando(item);
-    setFormEdicao({
-      valor_pago: item.valor_pago !== null ? item.valor_pago : (item.planos?.preco || ''),
-      forma_pagamento: item.forma_pagamento || '',
-      data_vencimento: item.data_vencimento || '',
-      status: item.status || 'pendente',
-      data_pagamento: item.data_pagamento || '',
-    });
-    modalEditar.abrir();
-  };
+  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
+
+const handleAbrirEdicao = async (item) => {
+  setLancamentoEditando(item);
+  setFormEdicao({
+    valor_pago: item.valor_pago !== null ? item.valor_pago : (item.planos?.preco || ''),
+    forma_pagamento: item.forma_pagamento || '',
+    data_vencimento: item.data_vencimento || '',
+    status: item.status || 'pendente',
+    data_pagamento: item.data_pagamento || '',
+    modalidade_id: item.modalidade_id || '', // NOVO
+  });
+  if (item.tipo_aula === 'regular' && item.aluno_id) {
+    setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(item.aluno_id));
+  } else {
+    setModalidadesDoAluno([]);
+  }
+  modalEditar.abrir();
+};
 
   const handleSalvarEdicao = async (e) => {
     e.preventDefault();
@@ -201,6 +217,7 @@ export default function Financeiro() {
         forma_pagamento: formEdicao.forma_pagamento || null,
         valor_pago: formEdicao.valor_pago !== '' ? parseFloat(String(formEdicao.valor_pago).replace(/\./g, '').replace(',', '.')) : null,
         data_pagamento: formEdicao.data_pagamento || null,
+        modalidade_id: lancamentoEditando.tipo_aula === 'regular' ? (formEdicao.modalidade_id || null) : null,
       };
       // Se voltando para pendente, limpa dados de pagamento
       if (formEdicao.status === 'pendente') {
@@ -400,6 +417,7 @@ export default function Financeiro() {
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Valor</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Forma Pag.</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Dt. Pagamento</th>
+                <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Referência</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs">Status</th>
                 <th className="p-4 font-bold text-muted-foreground uppercase text-xs text-right">Ações</th>
               </tr>
@@ -444,6 +462,15 @@ export default function Financeiro() {
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
+                    <td className="p-4">
+  {item.tipo_aula === 'regular' ? (
+    item.modalidades?.nome
+      ? <Badge tone="info" variant="soft">{item.modalidades.nome}</Badge>
+      : <span className="text-muted-foreground text-xs">Todas</span>
+  ) : (
+    <span className="text-muted-foreground text-xs">—</span>
+  )}
+</td>
                     <td className="p-4 text-muted-foreground font-medium text-sm">
                       {item.data_pagamento
                         ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
@@ -578,6 +605,23 @@ export default function Financeiro() {
                 ))}
               </Input>
             </div>
+            {tipoAula === 'regular' && (
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+      Referência (modalidade)
+    </label>
+    <Input
+      as="select"
+      value={modalidadeId}
+      onChange={(e) => setModalidadeId(e.target.value)}
+    >
+      <option value="">Todas as modalidades matriculadas (rateio padrão)</option>
+      {modalidadesDoAluno.map(m => (
+        <option key={m.id} value={m.id}>{m.nome}</option>
+      ))}
+    </Input>
+  </div>
+)}
             {(tipoAula === 'experimental' || tipoAula === 'avulsa') && (
               <Surface variant="muted" padding="md" className="grid grid-cols-2 gap-4">
                 <Input
@@ -678,6 +722,23 @@ export default function Financeiro() {
                 />
               </div>
             </div>
+            {lancamentoEditando.tipo_aula === 'regular' && (
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+      Referência (modalidade)
+    </label>
+    <Input
+      as="select"
+      value={formEdicao.modalidade_id}
+      onChange={(e) => setFormEdicao({ ...formEdicao, modalidade_id: e.target.value })}
+    >
+      <option value="">Todas as modalidades matriculadas (rateio padrão)</option>
+      {modalidadesDoAluno.map(m => (
+        <option key={m.id} value={m.id}>{m.nome}</option>
+      ))}
+    </Input>
+  </div>
+)}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">

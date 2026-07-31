@@ -3,20 +3,47 @@ import { gerarRepassesDaMensalidade } from './repasseService';
 
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .select(`
-        *,
-        alunos (nome_completo),
-        planos (nome, preco, is_plano_livre)
-      `)
-      .gte('data_vencimento', inicio)
-      .lte('data_vencimento', fim)
-      .order('data_vencimento', { ascending: true });
+  const { data, error } = await supabase
+    .from('mensalidades')
+    .select(`
+      *,
+      alunos (nome_completo),
+      planos (nome, preco, is_plano_livre),
+      modalidades:modalidade_id (id, nome)
+    `)
+    .gte('data_vencimento', inicio)
+    .lte('data_vencimento', fim)
+    .order('data_vencimento', { ascending: true });
 
-    if (error) throw error;
-    return data;
-  },
+  if (error) throw error;
+  return data;
+},
+
+/**
+ * Retorna as modalidades vinculadas a um aluno (para popular o select de
+ * referência). Usa `modalidades_selecionadas` (array de IDs), não a lista
+ * completa da escola — só o que o aluno realmente está matriculado.
+ */
+async listarModalidadesDoAluno(alunoId) {
+  if (!alunoId) return [];
+  const { data: aluno, error: errAluno } = await supabase
+    .from('alunos')
+    .select('modalidades_selecionadas')
+    .eq('id', alunoId)
+    .single();
+  if (errAluno) throw errAluno;
+
+  const ids = aluno?.modalidades_selecionadas ?? [];
+  if (ids.length === 0) return [];
+
+  const { data: mods, error: errMods } = await supabase
+    .from('modalidades')
+    .select('id, nome')
+    .in('id', ids)
+    .order('nome');
+  if (errMods) throw errMods;
+  return mods ?? [];
+},
 
   /**
    * Gera mensalidades para um determinado mês/ano.
@@ -106,6 +133,7 @@ export const financeiroService = {
       plano_id: dados.plano_id ? dados.plano_id : null,
       professor_id: dados.professor_id ? dados.professor_id : null,
       modalidade_nome: dados.modalidade_nome ? dados.modalidade_nome : null,
+      modalidade_id: dados.tipo_aula === 'regular' ? (dados.modalidade_id || null) : null,
 
       tipo_aula: dados.tipo_aula,
       valor_pago: Number(dados.valor_pago),
@@ -156,15 +184,18 @@ export const financeiroService = {
    * UI possa exibi-lo claramente.
    */
   async confirmarPagamento(id, dados) {
-    const payload = {
-      status: 'pago',
-      valor_pago: dados.valor_pago,
-      forma_pagamento: dados.forma_pagamento,
-      tipo_aula: dados.tipo_aula || 'regular',
-      professor_id: dados.professor_id || null,
-      modalidade_nome: dados.modalidade_nome || null,
-      data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
-    };
+  const payload = {
+    status: 'pago',
+    valor_pago: dados.valor_pago,
+    forma_pagamento: dados.forma_pagamento,
+    tipo_aula: dados.tipo_aula || 'regular',
+    professor_id: dados.professor_id || null,
+    modalidade_nome: dados.modalidade_nome || null,
+    // NOVO: referência explícita da modalidade quando tipo_aula === 'regular'
+    // e o pagamento cobre só uma delas. Nulo preserva o rateio de sempre.
+    modalidade_id: dados.tipo_aula === 'regular' ? (dados.modalidade_id || null) : null,
+    data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
+  };
 
     const { error } = await supabase
       .from('mensalidades')

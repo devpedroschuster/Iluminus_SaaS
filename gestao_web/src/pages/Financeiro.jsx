@@ -462,7 +462,12 @@ const handleAbrirEdicao = async (item) => {
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 text-muted-foreground font-medium text-sm">
+  {item.data_pagamento
+    ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+    : <span className="text-xs">—</span>}
+</td>
+<td className="p-4">
   {item.tipo_aula === 'regular' ? (
     item.modalidades?.nome
       ? <Badge tone="info" variant="soft">{item.modalidades.nome}</Badge>
@@ -471,11 +476,6 @@ const handleAbrirEdicao = async (item) => {
     <span className="text-muted-foreground text-xs">—</span>
   )}
 </td>
-                    <td className="p-4 text-muted-foreground font-medium text-sm">
-                      {item.data_pagamento
-                        ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
-                        : <span className="text-xs">—</span>}
-                    </td>
                     <td className="p-4">
                       <Badge
                         tone={

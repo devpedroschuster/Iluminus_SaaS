@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import Skeleton from '../components/ui/Skeleton';
 import Surface from '../components/ui/Surface';
+import { showToast } from '../components/shared/Toast';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -26,6 +27,7 @@ export default function Aniversariantes() {
         setAlunos(data || []);
       } catch (error) {
         console.error('Erro ao buscar aniversariantes', error);
+        showToast.error('Erro ao carregar aniversariantes. Tente recarregar a página.');
       } finally {
         setLoading(false);
       }

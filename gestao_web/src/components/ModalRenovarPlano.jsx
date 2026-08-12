@@ -20,11 +20,24 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
 
   useEffect(() => {
     if (isOpen && alunoId) {
-      supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data }) => {
+      supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data, error }) => {
+        if (error) {
+          console.error('[ModalRenovarPlano] Erro ao carregar planos:', error);
+          showToast.error('Erro ao carregar planos disponíveis. Tente reabrir o modal.');
+          return;
+        }
         if (data) setPlanos(data);
       });
 
-      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data }) => {
+      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data, error }) => {
+        if (error) {
+          // Não bloqueia o fluxo: o campo data_inicio já tem um valor padrão (hoje).
+          // Mas o usuário precisa saber que a data pré-preenchida pode não refletir
+          // o vencimento real do plano atual.
+          console.error('[ModalRenovarPlano] Erro ao carregar data_fim_plano do aluno:', error);
+          showToast.error('Não foi possível carregar a data de término do plano atual. Confira a data de início manualmente.');
+          return;
+        }
         if (data && data.data_fim_plano) {
           setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
         }

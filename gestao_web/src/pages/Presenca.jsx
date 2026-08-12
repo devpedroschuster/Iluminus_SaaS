@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { agendamentoService } from '../services/agendamentoService';
@@ -17,16 +17,23 @@ import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
 
+// ─── helpers puros (fora do componente — sem re-criação a cada render) ───────
+
 function aulaEmAndamento(aula) {
+  // FIX 1.1: guarda contra horario/dia_semana nulos ou malformados,
+  // que antes lançavam TypeError e derrubavam o fetchDados inteiro.
+  if (!aula?.dia_semana || !aula?.horario) return false;
+
   const agora = new Date();
-  const diasSemana = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
   const diaHoje = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
   const diaHojeFormatado = diaHoje.charAt(0).toUpperCase() + diaHoje.slice(1);
 
   if (aula.dia_semana !== diaHojeFormatado) return false;
 
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const [h, m] = aula.horario.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return false;
+
+  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const inicioAula = h * 60 + m;
   const duracaoMin = aula.duracao_minutos ?? 60;
   const fimAula = inicioAula + duracaoMin;
@@ -54,8 +61,32 @@ function obterPeriodo(periodo) {
   return { inicio: inicio.toISOString(), fim: fim.toISOString() };
 }
 
-export default function Presenca() {
+// FIX 3.2: sanitização de célula CSV — neutraliza fórmulas (=, +, -, @) e
+// escapa aspas internas corretamente (antes só tratava vírgula).
+function sanitizarCelulaCSV(valor) {
+  if (valor === null || valor === undefined) return '';
+  let v = String(valor);
+  if (/^[=+\-@]/.test(v)) v = `'${v}`; // neutraliza CSV/formula injection
+  if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+    v = `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
+// FIX 2: helper central para log + mensagem amigável, evita
+// catch(e) genérico espalhado e silencioso pelo arquivo inteiro.
+function tratarErro(err, { contexto, mensagemPadrao }) {
+  // eslint-disable-next-line no-console
+  console.error(`[Presenca] ${contexto} falhou:`, err);
+  if (err?.code === '42501' || err?.status === 403) {
+    return 'Você não tem permissão para executar esta ação.';
+  }
+  return mensagemPadrao;
+}
+
+export default function Presenca({ isAdmin = false }) {
   const [modo, setModo] = useState('chamada');
+  const [modoInicializado, setModoInicializado] = useState(false); // FIX 1.2
   const [alunos, setAlunos]       = useState([]);
   const [aulas, setAulas]         = useState([]);
   const [todasAulas, setTodasAulas] = useState([]);
@@ -86,51 +117,52 @@ export default function Presenca() {
     setLoading(true);
     try {
       // Alunos ativos
-      const { data: alunosData } = await supabase
+      const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
         .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
+      if (errAlunos) throw errAlunos;
 
-      // Aulas para o período selecionado (usado no relatório/filtros)
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
-const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
+      const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
 
-let aulasQuery = supabase
-  .from('agenda')
-  .select('*')
-  .eq('ativa', true)
-  .order('dia_semana')
-  .order('horario');
+      let aulasQuery = supabase
+        .from('agenda')
+        .select('*')
+        .eq('ativa', true)
+        .order('dia_semana')
+        .order('horario');
 
-if (filtros.periodo === 'hoje') {
-  aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
-}
+      if (filtros.periodo === 'hoje') {
+        aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
+      }
 
-// Todas as aulas ativas — usado no seletor manual da Chamada Rápida
-const todasAulasQuery = supabase
-  .from('agenda')
-  .select('id, atividade, horario, dia_semana')
-  .eq('ativa', true)
-  .order('dia_semana')
-  .order('horario');
+      // Todas as aulas ativas — usado no seletor manual da Chamada Rápida
+      const todasAulasQuery = supabase
+        .from('agenda')
+        .select('id, atividade, horario, dia_semana')
+        .eq('ativa', true)
+        .order('dia_semana')
+        .order('horario');
 
-const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
-  aulasQuery,
-  todasAulasQuery,
-]);
+      const [{ data: aulasData, error: errAulas }, { data: todasAulasData, error: errTodasAulas }] =
+        await Promise.all([aulasQuery, todasAulasQuery]);
+      if (errAulas) throw errAulas;
+      if (errTodasAulas) throw errTodasAulas;
 
       const { inicio, fim } = obterPeriodo(filtros.periodo);
       const inicioData = inicio.split('T')[0];
       const fimData = fim.split('T')[0];
-      const { data: presencasData } = await supabase
+      const { data: presencasData, error: errPresencas } = await supabase
         .from('presencas')
         .select(`*, alunos(nome_completo, email), agenda(atividade, horario)`)
         .eq('status', 'presente') // só presença real confirmada entra no relatório
         .gte('data_aula', inicioData)
         .lte('data_aula', fimData)
         .order('data_checkin', { ascending: false });
+      if (errPresencas) throw errPresencas;
 
       setAlunos(alunosData || []);
       setAulas(aulasData || []);
@@ -142,45 +174,54 @@ const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
 
       if (aulaEmCurso) {
         const hojeDateStr = new Date().toISOString().split('T')[0];
-        const [{ data: todasPresencasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, status')
-    .eq('aula_id', aulaEmCurso.id)
-    .eq('data_aula', hojeDateStr),
-  supabase
-    .from('agenda_fixa')
-    .select('aluno_id')
-    .eq('aula_id', aulaEmCurso.id),
-]);
+        const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+          await Promise.all([
+            supabase
+              .from('presencas')
+              .select('id, aluno_id, status, origem')
+              .eq('aula_id', aulaEmCurso.id)
+              .eq('data_aula', hojeDateStr),
+            supabase
+              .from('agenda_fixa')
+              .select('aluno_id')
+              .eq('aula_id', aulaEmCurso.id),
+          ]);
+        if (errHoje) throw errHoje;
+        if (errFixos) throw errFixos;
 
-const confirmados = (todasPresencasHoje || []).filter(p => p.status === 'presente');
-const pendentes = (todasPresencasHoje || []).filter(
-  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
+        const confirmados = (todasPresencasHoje || []).filter(p => p.status === 'presente');
+        const pendentes = (todasPresencasHoje || []).filter(
+          p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+        );
 
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
-
+        setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+        setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
       } else {
         setCheckinsDaAula(new Set());
         setAlunosFixosDaAula(new Set());
       }
 
-      setModo(prev => prev === 'chamada' || prev === 'relatorio'
-  ? (aulaEmCurso ? prev : prev)
-  : (aulaEmCurso ? 'chamada' : 'relatorio')
-);
+      // FIX 1.2: a troca automática de aba agora acontece de fato, mas só na
+      // primeira carga — não sobrescreve a aba que o usuário escolher depois.
+      if (!modoInicializado) {
+        setModo(aulaEmCurso ? 'chamada' : 'relatorio');
+        setModoInicializado(true);
+      }
+
       calcularMetricas(presencasData || [], alunosData || []);
     } catch (err) {
-      showToast.error('Erro ao carregar dados de presença.');
+      showToast.error(tratarErro(err, {
+        contexto: 'fetchDados',
+        mensagemPadrao: 'Erro ao carregar dados de presença.',
+      }));
     } finally {
       setLoading(false);
     }
-  }, [filtros.periodo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.periodo, modoInicializado]);
 
-  useEffect(() => { fetchDados(); }, [filtros.periodo]);
+  useEffect(() => { fetchDados(); }, [filtros.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Quando o usuário muda a aula selecionada manualmente (sem aula automática ativa),
   // atualiza os Sets de check-ins e de fixos para refletir quem pertence àquela aula.
@@ -192,28 +233,48 @@ setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
       }
       return;
     }
+
+    // FIX 1.4: flag de "efeito vivo" evita que uma resposta obsoleta
+    // (troca rápida de aula no <select>) sobrescreva o estado mais recente.
+    let ativo = true;
+
     async function buscarDadosAulaSelecionada() {
       const hojeDateStr = new Date().toISOString().split('T')[0];
-      const [{ data: todasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, status')
-    .eq('aula_id', aulaSelecionada)
-    .eq('data_aula', hojeDateStr),
-        supabase
-          .from('agenda_fixa')
-          .select('aluno_id')
-          .eq('aula_id', aulaSelecionada),
-      ]);
-const confirmados = (todasHoje || []).filter(p => p.status === 'presente');
-const pendentes = (todasHoje || []).filter(
-  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-      setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+      try {
+        const [{ data: todasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+          await Promise.all([
+            supabase
+              .from('presencas')
+              .select('id, aluno_id, status, origem')
+              .eq('aula_id', aulaSelecionada)
+              .eq('data_aula', hojeDateStr),
+            supabase
+              .from('agenda_fixa')
+              .select('aluno_id')
+              .eq('aula_id', aulaSelecionada),
+          ]);
+        if (errHoje) throw errHoje;
+        if (errFixos) throw errFixos;
+        if (!ativo) return; // resposta obsoleta — descarta
+
+        const confirmados = (todasHoje || []).filter(p => p.status === 'presente');
+        const pendentes = (todasHoje || []).filter(
+          p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+        );
+        setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+        setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+      } catch (err) {
+        if (!ativo) return;
+        showToast.error(tratarErro(err, {
+          contexto: 'buscarDadosAulaSelecionada',
+          mensagemPadrao: 'Erro ao carregar dados da aula selecionada.',
+        }));
+      }
     }
+
     buscarDadosAulaSelecionada();
+    return () => { ativo = false; };
   }, [aulaSelecionada, aulaAtiva]);
 
   function calcularMetricas(presencasData, alunosData) {
@@ -261,85 +322,109 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
   }
 
   // ─── check-in ─────────────────────────────────────────────────────────────
-async function realizarCheckin(aluno, aulaId, dataRef = null) {
-  if (!aulaId) {
-    showToast.error('Selecione uma aula para fazer o check-in.');
-    return;
-  }
-  setLoadingCheckin(aluno.id);
-  // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
-  const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
-  const dataCheckin = dataRef
-    ? `${dataRef}T12:00:00.000Z`
-    : new Date().toISOString();
-  try {
-    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
-
-    if (agendadoId) {
-      const { error } = await supabase
-        .from('presencas')
-        .update({ status: 'presente', data_checkin: dataCheckin })
-        .eq('id', agendadoId);
-      if (error) throw error;
-    } else {
-      const payload = {
-        aluno_id: aluno.id,
-        aula_id: aulaId,
-        data_aula: dataAula,
-        status: 'presente',
-        origem: alunosFixosDaAula.has(aluno.id) ? 'fixo' : 'avulso',
-        data_checkin: dataCheckin,
-      };
-
-      const { error } = await supabase
-        .from('presencas')
-        .upsert([payload], {
-          onConflict: 'aluno_id,aula_id,data_aula',
-          ignoreDuplicates: true,
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
-          return;
-        }
-        throw error;
-      }
+  async function realizarCheckin(aluno, aulaId, dataRef = null) {
+    if (!aulaId) {
+      showToast.error('Selecione uma aula para fazer o check-in.');
+      return;
     }
+    setLoadingCheckin(aluno.id);
+    // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
+    const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+    const dataCheckin = dataRef
+      ? `${dataRef}T12:00:00.000Z`
+      : new Date().toISOString();
+    try {
+      const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
 
-    showToast.success(`✅ ${aluno.nome_completo}`);
+      if (agendadoId) {
+        // FIX 1.3 (parte 1): marca a origem como 'agendamento' para que o
+        // desfazer saiba reverter o status em vez de apagar o registro.
+        const { error } = await supabase
+          .from('presencas')
+          .update({ status: 'presente', data_checkin: dataCheckin, origem: 'agendamento' })
+          .eq('id', agendadoId);
+        if (error) throw error;
+      } else {
+        const payload = {
+          aluno_id: aluno.id,
+          aula_id: aulaId,
+          data_aula: dataAula,
+          status: 'presente',
+          origem: alunosFixosDaAula.has(aluno.id) ? 'fixo' : 'avulso',
+          data_checkin: dataCheckin,
+        };
 
-    setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
-    setAgendadosDaAula(prev => {
-      const next = new Map(prev);
-      next.delete(aluno.id);
-      return next;
-    });
-    setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
+        const { error } = await supabase
+          .from('presencas')
+          .upsert([payload], {
+            onConflict: 'aluno_id,aula_id,data_aula',
+            ignoreDuplicates: true,
+          });
 
-    queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+        if (error) {
+          if (error.code === '23505') {
+            showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
+            return;
+          }
+          throw error;
+        }
+      }
 
-  } catch (err) {
-    showToast.error('Erro ao registrar presença.');
-  } finally {
-    setLoadingCheckin(null);
+      showToast.success(`✅ ${aluno.nome_completo}`);
+
+      setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
+      setAgendadosDaAula(prev => {
+        const next = new Map(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+      setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
+
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+    } catch (err) {
+      showToast.error(tratarErro(err, {
+        contexto: 'realizarCheckin',
+        mensagemPadrao: 'Erro ao registrar presença.',
+      }));
+    } finally {
+      setLoadingCheckin(null);
+    }
   }
-}
 
+  // FIX 1.3 (parte 2): desfazer agora reverte para 'agendado' quando o
+  // registro veio de um agendamento formal, em vez de apagar o vínculo.
   async function desfazerCheckin(aluno) {
+    // FIX 3.1: camada extra de defesa no client — a autorização "de verdade"
+    // deve estar garantida via RLS no Supabase (a confirmar com o time de backend).
+    if (!isAdmin) {
+      showToast.error('Você não tem permissão para desfazer check-ins.');
+      return;
+    }
     try {
       const hoje = new Date().toISOString().split('T')[0];
       const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
-      const { data: reg } = await supabase
+      const { data: reg, error: errBusca } = await supabase
         .from('presencas')
-        .select('id')
+        .select('id, origem')
         .eq('aluno_id', aluno.id)
         .eq('aula_id', aulaIdAtual)
         .eq('data_aula', hoje)
         .maybeSingle();
+      if (errBusca) throw errBusca;
       if (!reg) { showToast.error('Registro não encontrado.'); return; }
-      const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
-      if (error) throw error;
+
+      if (reg.origem === 'agendamento') {
+        const { error } = await supabase
+          .from('presencas')
+          .update({ status: 'agendado', data_checkin: null })
+          .eq('id', reg.id);
+        if (error) throw error;
+        setAgendadosDaAula(prev => new Map(prev).set(aluno.id, reg.id));
+      } else {
+        const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
+        if (error) throw error;
+      }
+
       showToast.success(`↩️ Check-in desfeito: ${aluno.nome_completo}`);
       queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       setCheckinsDaAula(prev => {
@@ -349,7 +434,35 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
       });
       setMetricas(prev => ({ ...prev, checkinsHoje: Math.max(0, prev.checkinsHoje - 1) }));
     } catch (err) {
-      showToast.error('Erro ao desfazer check-in.');
+      showToast.error(tratarErro(err, {
+        contexto: 'desfazerCheckin',
+        mensagemPadrao: 'Erro ao desfazer check-in.',
+      }));
+    }
+  }
+
+  async function marcarAusencia(aluno, presencaId) {
+    // FIX 3.1: mesma camada extra de defesa client-side.
+    if (!isAdmin) {
+      showToast.error('Você não tem permissão para marcar ausências.');
+      return;
+    }
+    if (!presencaId) return;
+    try {
+      const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
+      await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
+      setAgendadosDaAula(prev => {
+        const next = new Map(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      showToast.success(`${aluno.nome_completo} marcado como ausente. Professor será notificado.`);
+    } catch (err) {
+      showToast.error(tratarErro(err, {
+        contexto: 'marcarAusencia',
+        mensagemPadrao: 'Erro ao marcar ausência.',
+      }));
     }
   }
 
@@ -358,20 +471,25 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
       const trintaDiasAtras = new Date();
       trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
       const trintaDiasAtrasStr = trintaDiasAtras.toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('presencas')
         .select(`*, agenda(atividade, horario)`)
         .eq('aluno_id', aluno.id)
         .eq('status', 'presente')
         .gte('data_aula', trintaDiasAtrasStr)
         .order('data_checkin', { ascending: false });
+      if (error) throw error;
       setAlunoSelecionado({ ...aluno, historico: data || [] });
       modalDetalhes.abrir();
     } catch (err) {
-      showToast.error('Erro ao carregar histórico.');
+      showToast.error(tratarErro(err, {
+        contexto: 'visualizarDetalhes',
+        mensagemPadrao: 'Erro ao carregar histórico.',
+      }));
     }
   }
 
+  // FIX 3.2: exportação agora sanitiza fórmulas e aspas corretamente.
   function exportarRelatorio() {
     const dadosExport = presencasFiltradas.map(p => ({
       Aluno: p.alunos?.nome_completo,
@@ -385,12 +503,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
     const headers = Object.keys(dadosExport[0]);
     const csvRows = [
       headers.join(','),
-      ...dadosExport.map(row =>
-        headers.map(h => {
-          const v = row[h];
-          return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
-        }).join(',')
-      )
+      ...dadosExport.map(row => headers.map(h => sanitizarCelulaCSV(row[h])).join(','))
     ];
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -398,42 +511,74 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
     link.setAttribute('href', url);
     link.setAttribute('download', `presencas_${filtros.periodo}.csv`);
     link.click();
+    URL.revokeObjectURL(url); // libera memória — pequeno leak evitado
     showToast.success('Relatório exportado!');
   }
 
-  // ─── dados derivados ──────────────────────────────────────────────────────
-  const presencasFiltradas = presencas.filter(p => {
+  // ─── dados derivados (memoizados — FIX 4.2) ────────────────────────────────
+  const presencasFiltradas = useMemo(() => presencas.filter(p => {
     const matchAluno = filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
     const matchAula  = filtros.aula  === 'todas' || p.aula_id  === Number(filtros.aula);
     return matchAluno && matchAula;
-  });
+  }), [presencas, filtros.aluno, filtros.aula]);
 
   // Aula em uso (automática ou selecionada manualmente)
   const aulaEmUso = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
 
-  // Função de filtro por texto de busca
-  const filtrarPorBusca = (lista) =>
+  const filtrarPorBusca = useCallback((lista) =>
     !buscaChamada
       ? lista
       : lista.filter(a =>
           a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
           a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-        );
+        ), [buscaChamada]);
 
   // Quando há uma aula em uso, separa alunos da turma (fixos) dos demais.
   // Os fixos aparecem no topo da lista para facilitar a chamada.
-  const alunosDaAula    = aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : [];
-  const alunosRestantes = aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos;
+  const alunosDaAula = useMemo(
+    () => (aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : []),
+    [aulaEmUso, alunos, alunosFixosDaAula]
+  );
+  const alunosRestantes = useMemo(
+    () => (aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos),
+    [aulaEmUso, alunos, alunosFixosDaAula]
+  );
 
-  const alunosDaAulaFiltrados    = filtrarPorBusca(alunosDaAula);
-  const alunosRestantesFiltrados = filtrarPorBusca(alunosRestantes);
+  const alunosDaAulaFiltrados    = useMemo(() => filtrarPorBusca(alunosDaAula), [filtrarPorBusca, alunosDaAula]);
+  const alunosRestantesFiltrados = useMemo(() => filtrarPorBusca(alunosRestantes), [filtrarPorBusca, alunosRestantes]);
 
   // Lista final: alunos da turma primeiro, depois os demais ativos
-  const alunosChamadaFiltrados = [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados];
+  const alunosChamadaFiltrados = useMemo(
+    () => [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados],
+    [alunosDaAulaFiltrados, alunosRestantesFiltrados]
+  );
 
-  const presentes      = alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id));
-  const ausentes       = alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id));
+  const presentes = useMemo(
+    () => alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id)),
+    [alunosChamadaFiltrados, checkinsDaAula]
+  );
+  const ausentes = useMemo(
+    () => alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id)),
+    [alunosChamadaFiltrados, checkinsDaAula]
+  );
   const totalPresentes = checkinsDaAula.size;
+
+  const agendadosFiltrados = useMemo(
+    () => alunos
+      .filter(a => agendadosDaAula.has(a.id))
+      .filter(a =>
+        !buscaChamada ||
+        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
+        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
+      ),
+    [alunos, agendadosDaAula, buscaChamada]
+  );
+
+  // FIX 4.3: máximo do gráfico calculado uma única vez, fora do .map() de render.
+  const maxAlturaSemana = useMemo(
+    () => Math.max(...metricas.presencaSemana.map(d => d.total), 0),
+    [metricas.presencaSemana]
+  );
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
@@ -518,7 +663,9 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                     <p className="text-[10px] font-black uppercase text-muted-foreground">Presentes</p>
                   </div>
                   <div>
-                    <p className="text-3xl font-black text-muted-foreground">{alunosDaAula.length - totalPresentes < 0 ? 0 : alunosDaAula.length - totalPresentes}</p>
+                    <p className="text-3xl font-black text-muted-foreground">
+                      {Math.max(alunosDaAula.length - totalPresentes, 0)}
+                    </p>
                     <p className="text-[10px] font-black uppercase text-muted-foreground">Ausentes</p>
                   </div>
                   <div>
@@ -616,77 +763,54 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
             <div className="space-y-6">
 
               {/* Agendados via Agenda */}
-{agendadosDaAula.size > 0 && (
-  <div className="space-y-2">
-    <div className="flex items-center gap-2 px-1">
-      <Clock size={14} className="text-warning" />
-      <p className="text-xs font-black uppercase tracking-widest text-warning">
-        Agendados — aguardando confirmação ({agendadosDaAula.size})
-      </p>
-    </div>
-    {alunos
-      .filter(a => agendadosDaAula.has(a.id))
-      .filter(a =>
-        !buscaChamada ||
-        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
-        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-      )
-      .map(aluno => (
-        <div
-          key={aluno.id}
-          className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
-        >
-          <div className="flex items-center gap-3">
-            <Clock className="text-warning shrink-0" size={22} />
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-                {alunosFixosDaAula.has(aluno.id) && (
-                  <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
-                )}
-                <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{aluno.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="brand"
-              disabled={loadingCheckin === aluno.id}
-              onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
-            >
-              Confirmar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={loadingCheckin === aluno.id}
-              onClick={async () => {
-                const presencaId = agendadosDaAula.get(aluno.id);
-                if (!presencaId) return;
-                try {
-                  const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
-                  await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
-                  setAgendadosDaAula(prev => {
-                    const next = new Map(prev);
-                    next.delete(aluno.id);
-                    return next;
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-                  showToast.success(`${aluno.nome_completo} marcado como ausente. Professor será notificado.`);
-                } catch (err) {
-                  showToast.error('Erro ao marcar ausência.');
-                }
-              }}
-            >
-              Ausente
-            </Button>
-          </div>
-        </div>
-      ))}
-  </div>
-)}
+              {agendadosDaAula.size > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <Clock size={14} className="text-warning" />
+                    <p className="text-xs font-black uppercase tracking-widest text-warning">
+                      Agendados — aguardando confirmação ({agendadosDaAula.size})
+                    </p>
+                  </div>
+                  {agendadosFiltrados.map(aluno => (
+                    <div
+                      key={aluno.id}
+                      className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Clock className="text-warning shrink-0" size={22} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+                            {alunosFixosDaAula.has(aluno.id) && (
+                              <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+                            )}
+                            <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{aluno.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="brand"
+                          disabled={loadingCheckin === aluno.id}
+                          onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
+                        >
+                          Confirmar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loadingCheckin === aluno.id || !isAdmin}
+                          onClick={() => marcarAusencia(aluno, agendadosDaAula.get(aluno.id))}
+                        >
+                          Ausente
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Subseção: Ausentes (aparecem primeiro para facilitar o check-in) */}
               {ausentes.length > 0 && (
@@ -706,6 +830,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -730,6 +855,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -765,8 +891,8 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
               <h3 className="font-bold text-foreground mb-6">Distribuição Semanal</h3>
               <div className="flex gap-2 items-end h-48">
                 {metricas.presencaSemana.map((dia, idx) => {
-                  const maxAltura = Math.max(...metricas.presencaSemana.map(d => d.total));
-                  const altura = maxAltura > 0 ? (dia.total / maxAltura) * 100 : 0;
+                  // FIX 4.3: maxAlturaSemana calculado uma única vez fora do map.
+                  const altura = maxAlturaSemana > 0 ? (dia.total / maxAlturaSemana) * 100 : 0;
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                       <div className="flex-1 flex items-end w-full">
@@ -952,8 +1078,9 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
  * - isDaAula: true quando o aluno está matriculado na agenda_fixa da aula em curso
  * - Ausente: botão verde para marcar presença
  * - Presente: badge verde + botão discreto para desfazer + link histórico
+ * - isAdmin: FIX 3.1 — controla se o botão "Desfazer" fica habilitado
  */
-function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes }) {
+function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes, isAdmin }) {
   const carregando = loadingId === aluno.id;
 
   if (presente) {
@@ -980,8 +1107,9 @@ function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, o
           </button>
           <button
             onClick={() => onDesfazer(aluno)}
-            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft"
-            title="Desfazer check-in"
+            disabled={!isAdmin}
+            title={isAdmin ? 'Desfazer check-in' : 'Apenas administradores podem desfazer'}
+            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
           >
             Desfazer
           </button>

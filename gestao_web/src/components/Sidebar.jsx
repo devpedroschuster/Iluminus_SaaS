@@ -9,6 +9,7 @@ import {
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
 import { usePWA } from '../hooks/usePWA';
+import { showToast } from './shared/Toast';
 
 function resolverPerfil(perfil) {
   if (!perfil) return 'admin';
@@ -37,6 +38,7 @@ function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
       navigate('/login');
     } catch (error) {
       console.error('Erro ao sair:', error);
+      showToast.error('Não foi possível sair. Tente novamente.');
     }
   }
 

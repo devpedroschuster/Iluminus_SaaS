@@ -88,7 +88,12 @@ export const gradeService = {
     try {
       await supabase.from('agenda_fixa').delete().eq('aula_id', id);
       await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
-      await supabase.from('presencas').delete().eq('aula_id', id);
+      // IMPORTANTE: não apagamos as presenças. O histórico de frequência do
+      // aluno é dado real e deve sobreviver à exclusão da grade/aula — só
+      // desvinculamos a referência (aula_id = null), preservando a linha.
+      // Requer que presencas.aula_id aceite NULL e que a FK use
+      // ON DELETE SET NULL (ver migration fix_presencas_old_fk.sql).
+      await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
       const { error } = await supabase.from('agenda').delete().eq('id', id);
       if (error) throw error;
       return true;

@@ -41,13 +41,15 @@ export default function Modalidades() {
 
   async function fetchDados() {
     try {
-      const { data: profs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
+      const { data: profs, error: errProfs } = await supabase.from('professores').select('id, nome').eq('ativo', true).order('nome');
+      if (errProfs) throw errProfs;
       if (profs) setProfessores(profs);
 
       const mods = await modalidadeService.listar();
       if (mods) setModalidades(mods);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
+      showToast.error("Erro ao carregar professores e modalidades. Tente recarregar a página.");
     } finally {
       setLoadingList(false);
     }

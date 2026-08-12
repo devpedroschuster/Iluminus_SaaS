@@ -355,6 +355,20 @@ export const professoresService = {
 };
 </file>
 
+<file path="gestao_web/src/types/agenda.ts">
+export interface InfoVaga {
+  podeAgendarLivremente: boolean;
+  avisoCritico: string | null;
+  capacidadeMax: number;
+  ocupacaoAtual: number;
+  limiteSemanal: number;
+  usoSemanal: number;
+  isLivre: boolean;
+  modNome: string;
+  temModalidadeNoPlano: boolean;
+}
+</file>
+
 <file path="gestao_web/eslint.config.js">
 import js from '@eslint/js'
 import globals from 'globals'
@@ -2964,6 +2978,12 @@ export function useTheme() {
 }
 </file>
 
+<file path="gestao_web/src/services/agendaService.js">
+export { gradeService } from './gradeService';
+export { agendamentoService } from './agendamentoService';
+export { leadsService } from './leadsService';
+</file>
+
 <file path="gestao_web/src/services/configuracoesRepasseService.js">
 import { supabase } from '../lib/supabase';
 
@@ -3426,20 +3446,6 @@ async buscarPerfil(id, nome) {
     return true;
   }
 };
-</file>
-
-<file path="gestao_web/src/types/agenda.ts">
-export interface InfoVaga {
-  podeAgendarLivremente: boolean;
-  avisoCritico: string | null;
-  capacidadeMax: number;
-  ocupacaoAtual: number;
-  limiteSemanal: number;
-  usoSemanal: number;
-  isLivre: boolean;
-  modNome: string;
-  temModalidadeNoPlano: boolean;
-}
 </file>
 
 <file path="gestao_web/supabase/.gitignore">
@@ -6034,12 +6040,6 @@ export default function RedefinirSenha() {
 }
 </file>
 
-<file path="gestao_web/src/services/agendaService.js">
-export { gradeService } from './gradeService';
-export { agendamentoService } from './agendamentoService';
-export { leadsService } from './leadsService';
-</file>
-
 <file path="gestao_web/src/services/feriadosService.js">
 import { supabase } from '../lib/supabase';
 
@@ -6083,6 +6083,20 @@ export const feriadosService = {
     return data ?? [];
   }
 };
+</file>
+
+<file path="gestao_web/src/types/leads.ts">
+export interface Lead {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  data_checkin: string;
+  status_conversao: 'pendente' | 'convertido' | 'perdido';
+  observacao: string | null;
+  agenda: {
+    atividade: string
+  } | null;
+}
 </file>
 
 <file path="gestao_web/package.json">
@@ -10186,20 +10200,6 @@ function SeletorRegras({ regras, setRegras }) {
 }
 </file>
 
-<file path="gestao_web/src/types/leads.ts">
-export interface Lead {
-  id: string;
-  nome: string;
-  telefone: string | null;
-  data_checkin: string;
-  status_conversao: 'pendente' | 'convertido' | 'perdido';
-  observacao: string | null;
-  agenda: {
-    atividade: string
-  } | null;
-}
-</file>
-
 <file path="gestao_web/index.html">
 <!doctype html>
 <html lang="pt-BR">
@@ -11761,6 +11761,310 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
 }
 </file>
 
+<file path="gestao_web/src/hooks/useLeads.ts">
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
+import { leadsService } from '../services/leadsService';
+import { showToast } from '../components/shared/Toast';
+import { Lead } from '../types/leads';
+
+export function useLeadsPendentes() {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'pendentes'],
+    queryFn: async () => {
+      const data = await leadsService.listarLeadsPendentes();
+      return data as unknown as Lead[];
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+/**
+ * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
+ * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
+ */
+export function useLeadsPendentesPorMes(ano: number, mes: number) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'pendentes', 'mes', ano, mes],
+    queryFn: async () => {
+      const data = await leadsService.listarLeadsPendentesPorMes({ ano, mes });
+      return data as unknown as Lead[];
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useHistoricoLeads() {
+  return useInfiniteQuery<Lead[], Error, InfiniteData<Lead[]>, string[], number>({
+    queryKey: ['leads', 'historico'],
+    queryFn: async ({ pageParam = 0 }) => {
+      const data = await leadsService.listarHistoricoLeads({ pageParam, limit: 30 });
+      return data as unknown as Lead[];
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length === 30 ? allPages.length * 30 : undefined;
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * Histórico de leads filtrado por mês/ano específico.
+ * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
+ */
+export function useHistoricoLeadsPorMes(ano: number, mes: number) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'historico', 'mes', ano, mes],
+    queryFn: async () => {
+      const data = await leadsService.listarHistoricoLeadsPorMes({ ano, mes });
+      return data as unknown as Lead[];
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+interface ResumoLead {
+  id: string;
+  data_checkin: string;
+  status_conversao: 'pendente' | 'convertido' | 'perdido';
+}
+
+export interface ResumoMensal {
+  ano: number;
+  mes: number; // 0-indexado
+  chave: string; // 'AAAA-MM'
+  label: string; // 'Junho 2026'
+  total: number;
+  convertidos: number;
+  pendentes: number;
+  perdidos: number;
+  taxa: number | null;
+}
+
+function agruparPorMes(data: ResumoLead[]): ResumoMensal[] {
+  const mapa = new Map<string, ResumoMensal>();
+
+  for (const lead of data) {
+    const d = new Date(lead.data_checkin);
+    const ano = d.getFullYear();
+    const mes = d.getMonth();
+    const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+
+    if (!mapa.has(chave)) {
+      mapa.set(chave, {
+        ano,
+        mes,
+        chave,
+        label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        total: 0,
+        convertidos: 0,
+        pendentes: 0,
+        perdidos: 0,
+        taxa: null,
+      });
+    }
+
+    const item = mapa.get(chave)!;
+    item.total += 1;
+    if (lead.status_conversao === 'convertido') item.convertidos += 1;
+    else if (lead.status_conversao === 'pendente') item.pendentes += 1;
+    else if (lead.status_conversao === 'perdido') item.perdidos += 1;
+  }
+
+  const resultado = Array.from(mapa.values()).map(item => ({
+    ...item,
+    taxa: item.total > 0 ? item.convertidos / item.total : null,
+    // Capitaliza a primeira letra do label (ex: "junho 2026" → "Junho 2026")
+    label: item.label.charAt(0).toUpperCase() + item.label.slice(1),
+  }));
+
+  // Mais recente primeiro
+  resultado.sort((a, b) => b.chave.localeCompare(a.chave));
+
+  return resultado;
+}
+
+/**
+ * Carrega todos os leads (campos leves) e agrupa por mês/ano,
+ * gerando contagens e taxa de conversão para cada período.
+ * Usado para alimentar o seletor de meses na Visão Histórico.
+ */
+export function useResumoMensalLeads() {
+  return useQuery<ResumoMensal[]>({
+    queryKey: ['leads', 'resumo-mensal'],
+    queryFn: async () => {
+      const data = await leadsService.listarResumoLeads() as unknown as ResumoLead[];
+      return agruparPorMes(data);
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * Igual ao resumo mensal, mas considerando apenas leads pendentes.
+ * Usado para alimentar o seletor de meses na Visão Ação (organização
+ * de leads em aberto por período de realização da experimental).
+ */
+export function useResumoMensalLeadsPendentes() {
+  return useQuery<ResumoMensal[]>({
+    queryKey: ['leads', 'resumo-mensal-pendentes'],
+    queryFn: async () => {
+      const data = await leadsService.listarResumoLeadsPendentes() as unknown as ResumoLead[];
+      return agruparPorMes(data);
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useAtualizarStatusLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: 'convertido' | 'perdido' | 'pendente' }) => {
+      return await leadsService.atualizarStatusLead(id, status);
+    },
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const previousPendentes = queryClient.getQueryData<Lead[]>(['leads', 'pendentes']);
+      if (previousPendentes) {
+        queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], old => {
+           if (!old) return [];
+           if (status !== 'pendente') return old.filter(l => l.id !== id);
+           return old.map(l => l.id === id ? { ...l, status_conversao: status } : l);
+        });
+      }
+
+      const previousHistorico = queryClient.getQueryData<InfiniteData<Lead[]>>(['leads', 'historico']);
+      if (previousHistorico) {
+        queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], oldData => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) =>
+              page.map((l) => l.id === id ? { ...l, status_conversao: status } : l)
+            )
+          };
+        });
+      }
+
+      return { previousPendentes, previousHistorico };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousPendentes) queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], context.previousPendentes);
+      if (context?.previousHistorico) queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], context.previousHistorico);
+      showToast.error("Erro de conexão. Ação desfeita.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
+/**
+ * Salva a observação livre da administração sobre o lead.
+ * Atualiza o cache otimisticamente nas listas de pendentes e histórico
+ * (incluindo páginas paginadas e filtradas por mês).
+ */
+export function useAtualizarObservacaoLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, observacao }: { id: string, observacao: string }) => {
+      return await leadsService.atualizarObservacaoLead(id, observacao);
+    },
+    onMutate: async ({ id, observacao }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const atualizarLista = (old?: Lead[]) =>
+        old?.map(l => l.id === id ? { ...l, observacao: observacao } : l);
+
+      // Listas simples (pendentes, pendentes por mês, histórico por mês)
+      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'pendentes'] }, (old) => atualizarLista(old) ?? old);
+      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'historico', 'mes'] }, (old) => atualizarLista(old) ?? old);
+
+      // Histórico paginado (infinite query)
+      queryClient.setQueriesData<InfiniteData<Lead[]>>({ queryKey: ['leads', 'historico'], exact: false }, (oldData) => {
+        if (!oldData || !('pages' in oldData)) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) =>
+            page.map((l) => l.id === id ? { ...l, observacao: observacao } : l)
+          ),
+        };
+      });
+    },
+    onError: () => {
+      showToast.error("Erro ao salvar observação. Tente novamente.");
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onSuccess: () => {
+      showToast.success("Observação salva.");
+    },
+  });
+}
+
+/**
+ * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
+ * lead, com atualização otimista das listas de pendentes e histórico
+ * (incluindo páginas paginadas) e rollback em caso de erro — seguindo
+ * o mesmo padrão de `useAtualizarStatusLead`.
+ */
+export function useExcluirLead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await leadsService.excluirLead(id);
+    },
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const previousPendentes = queryClient.getQueryData<Lead[]>(['leads', 'pendentes']);
+      if (previousPendentes) {
+        queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], old => old?.filter(l => l.id !== id) ?? []);
+      }
+
+      const previousHistorico = queryClient.getQueryData<InfiniteData<Lead[]>>(['leads', 'historico']);
+      if (previousHistorico) {
+        queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], oldData => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => page.filter((l) => l.id !== id)),
+          };
+        });
+      }
+
+      return { previousPendentes, previousHistorico };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousPendentes) queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], context.previousPendentes);
+      if (context?.previousHistorico) queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], context.previousHistorico);
+      showToast.error("Erro ao excluir lead. Ação desfeita.");
+    },
+    onSuccess: () => {
+      showToast.success("Lead excluído.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
+export function useLeadsProfessor(professorId: string | null) {
+  return useQuery<Lead[]>({
+    queryKey: ['leads', 'professor', professorId],
+    queryFn: async () => {
+      const data = await leadsService.listarLeadsProfessor(professorId);
+      return data as unknown as Lead[];
+    },
+    enabled: !!professorId,
+    staleTime: 1000 * 30,
+  });
+}
+</file>
+
 <file path="gestao_web/src/pages/Agenda/components/CalendarioGrade.jsx">
 import React from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
@@ -12551,6 +12855,431 @@ export default function ConfiguracoesRepasse() {
 }
 </file>
 
+<file path="gestao_web/src/services/agendamentoService.js">
+import { supabase } from '../lib/supabase';
+
+export const agendamentoService = {
+
+  async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
+    if (!aulaId) return null;
+
+    try {
+      const { data, error } = await supabase.rpc('verificar_disponibilidade_v2', {
+        p_aula_id: aulaId,
+        p_data: dataAula,
+        p_aluno_id: alunoId || null
+      });
+
+      if (error) throw error;
+      return data;
+
+    } catch (error) {
+      console.error("Erro estrutural ao verificar disponibilidade:", error);
+
+      return {
+        podeAgendarLivremente: false,
+        avisoCritico: "Não foi possível verificar as vagas no momento. Verifique sua conexão.",
+        capacidadeMax: 0,
+        ocupacaoAtual: 0,
+        limiteSemanal: 0,
+        usoSemanal: 0,
+        isLivre: false,
+        modNome: 'Indisponível',
+        temModalidadeNoPlano: false
+      };
+    }
+  },
+
+  // dados.tipo: 'aluno' (matriculado) ou 'visitante' (lead/experimental)
+async agendarAulaAdmin(dados) {
+  if (!dados.ignorarAvisos) {
+    const checagem = await agendamentoService.verificarDisponibilidade(
+      dados.aula_id,
+      dados.data_aula,
+      dados.tipo === 'visitante' ? null : dados.aluno_id
+    );
+    if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
+  }
+
+  if (dados.tipo === 'visitante') {
+    // Snapshot do professor responsável pela turma NO MOMENTO do agendamento.
+    // Congela o vínculo aqui — se a turma for reatribuída depois, este lead
+    // continua marcado com o professor que efetivamente deu a experimental.
+    const { data: aulaAtual, error: erroAula } = await supabase
+      .from('agenda')
+      .select('professor_id')
+      .eq('id', dados.aula_id)
+      .single();
+    if (erroAula) throw erroAula;
+
+    const payload = {
+      nome: dados.nome_visitante,
+      telefone: dados.telefone_visitante || null,
+      aula_id: dados.aula_id,
+      data_aula: dados.data_aula,
+      data_checkin: `${dados.data_aula}T12:00:00`,
+      status_conversao: 'pendente',
+      professor_id: aulaAtual?.professor_id ?? null,
+    };
+    const { error } = await supabase.from('leads').insert([payload]);
+    if (error) throw error;
+    return;
+  }
+
+  const payload = {
+    aluno_id: dados.aluno_id,
+    aula_id: dados.aula_id,
+    data_aula: dados.data_aula,
+    status: 'agendado',
+    origem: 'avulso',
+  };
+  const { error } = await supabase.from('presencas').insert([payload]);
+  if (error && error.code === '23505') throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
+  else if (error) throw error;
+},
+
+  // Cancela um agendamento. `tipo` indica a origem do id_relacao:
+  // 'lead' -> remove de `leads`. Qualquer outro valor -> trata como
+  // `presencas` (comportamento padrão, mantém histórico via status='cancelado').
+  async cancelarAgendamento(id, tipo = 'presenca') {
+    if (tipo === 'lead') {
+      const { data, error } = await supabase.from('leads').delete().eq('id', id).select();
+      if (error) throw error;
+      return data;
+    }
+
+    const { data: linha, error: errBusca } = await supabase
+      .from('presencas')
+      .select('status')
+      .eq('id', id)
+      .single();
+    if (errBusca) throw errBusca;
+
+    if (linha?.status === 'agendado') {
+      const { data, error } = await supabase
+        .from('presencas')
+        .update({ status: 'cancelado', cancelado_em: new Date().toISOString() })
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      return data;
+    }
+
+    const { data, error } = await supabase.from('presencas').delete().eq('id', id).select();
+    if (error) throw error;
+    return data;
+  },
+
+  async listarPresencasPeriodo(inicio, fim) {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select('id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
+      .gte('data_aula', inicio)
+      .lte('data_aula', fim);
+    if (error) throw error;
+    return data;
+  },
+
+  async listarPresencas(aulaId, dataAula) {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select('id, data_checkin, status, origem, alunos ( id, nome_completo )')
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataAula);
+    if (error) throw error;
+    return data;
+  },
+
+  // Lista de chamada do dia: une presencas (já cobre fixo gerado pelo job +
+  // avulso) com agenda_fixa para fixos cuja linha ainda não foi gerada
+  // (ex: chamada aberta antes do job noturno rodar, ou matrícula criada
+  // depois da geração). Evita duplicar quem já tem linha em presencas.
+  async listarChamadaCompleta(aulaId, dataAula) {
+    const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }] = await Promise.all([
+      supabase
+        .from('presencas')
+        .select('id, status, origem, aluno_id, alunos(id, nome_completo)')
+        .eq('aula_id', aulaId)
+        .eq('data_aula', dataAula),
+      supabase
+        .from('agenda_fixa')
+        .select('id, aluno_id, alunos(id, nome_completo)')
+        .eq('aula_id', aulaId),
+      supabase
+        .from('leads')
+        .select('id, nome, status_conversao')
+        .eq('aula_id', aulaId)
+        .eq('data_aula', dataAula),
+    ]);
+
+    const alunoIdsComLinha = new Set((presencasDia || []).map(p => p.aluno_id));
+    const lista = [];
+
+    // Fixos que ainda não têm linha gerada pra hoje — mostra como 'agendado'
+    // (estado padrão, ainda não houve check-in nem job de falta rodou)
+    (fixos || []).forEach(f => {
+      if (alunoIdsComLinha.has(f.aluno_id)) return; // já coberto pela linha em presencas
+      lista.push({
+        id_relacao: null, // não existe linha em presencas ainda
+        aluno_id: f.alunos.id,
+        nome: f.alunos.nome_completo,
+        tipo: 'fixo',
+        status: 'agendado',
+      });
+    });
+
+    // Leads/experimentais agendados pra essa aula
+    (leadsDia || []).forEach(l => {
+      lista.push({
+        id_relacao: l.id,
+        aluno_id: null,
+        nome: l.nome,
+        tipo: 'experimental',
+        status: 'agendado',
+      });
+    });
+
+    // Tudo que já tem linha em presencas (fixo gerado + avulso)
+    (presencasDia || []).forEach(p => {
+      lista.push({
+        id_relacao: p.id,
+        aluno_id: p.aluno_id,
+        nome: p.alunos?.nome_completo,
+        tipo: p.origem, // 'fixo' | 'avulso'
+        status: p.status, // 'agendado' | 'presente' | 'falta' | 'cancelado'
+      });
+    });
+
+    return lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  },
+
+  // Falta com aviso prévio (recepção/admin registra que o aluno avisou
+  // que não virá). Antes: insert em agenda_excecoes. Agora: UPDATE direto
+  // na linha de presencas, que dispara notificação ao professor (migration 008).
+  // Se a linha ainda não existir (fixo sem linha gerada pra hoje), cria com
+  // status já 'cancelado'.
+  async registrarFalta(alunoId, aulaId, dataEspecifica, motivo = null) {
+    const { data: existente } = await supabase
+      .from('presencas')
+      .select('id, status')
+      .eq('aluno_id', alunoId)
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataEspecifica)
+      .maybeSingle();
+
+    if (existente) {
+      const { error } = await supabase
+        .from('presencas')
+        .update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo })
+        .eq('id', existente.id);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase
+      .from('presencas')
+      .insert({
+        aluno_id: alunoId,
+        aula_id: aulaId,
+        data_aula: dataEspecifica,
+        status: 'cancelado',
+        origem: 'fixo',
+        cancelado_em: new Date().toISOString(),
+        cancelado_motivo: motivo,
+      });
+    if (error) throw error;
+  },
+
+  // Reverte um aviso de falta (volta para 'agendado').
+  async removerFalta(alunoId, aulaId, dataEspecifica) {
+    const { error } = await supabase
+      .from('presencas')
+      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
+      .eq('aluno_id', alunoId)
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataEspecifica)
+      .eq('status', 'cancelado'); // só reverte se ainda estava cancelado (proteção)
+    if (error) throw error;
+  }
+};
+</file>
+
+<file path="gestao_web/src/services/leadsService.js">
+import { supabase } from '../lib/supabase';
+
+const SELECT_BASE = 'id, nome, telefone, data_checkin, status_conversao, observacao, agenda(atividade)';
+
+export const leadsService = {
+  // Usado pelo calendário (useAgendaDadosMes) para indexar leads por
+  // aula_id + data_aula no período visível. Diferente das demais funções
+  // deste service, que filtram por data_checkin (mês de criação do lead).
+  async listarLeadsPeriodo(inicio, fim) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, nome, aula_id, data_aula')
+      .gte('data_aula', inicio)
+      .lte('data_aula', fim);
+
+    if (error) throw error;
+    return data;
+  },
+
+  async listarLeadsPendentes() {
+    const { data, error } = await supabase
+      .from('leads')
+      .select(SELECT_BASE)
+      .eq('status_conversao', 'pendente')
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
+   * `mes` é 0-indexado (igual ao Date.getMonth()).
+   */
+  async listarLeadsPendentesPorMes({ ano, mes }) {
+    const inicio = new Date(ano, mes, 1);
+    const fim = new Date(ano, mes + 1, 1);
+
+    const { data, error } = await supabase
+      .from('leads')
+      .select(SELECT_BASE)
+      .eq('status_conversao', 'pendente')
+      .gte('data_checkin', inicio.toISOString())
+      .lt('data_checkin', fim.toISOString())
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Histórico paginado (modo "Todos os períodos").
+   */
+  async listarHistoricoLeads({ pageParam = 0, limit = 30 }) {
+    const from = pageParam;
+    const to = from + limit - 1;
+
+    const { data, error } = await supabase
+      .from('leads')
+      .select(SELECT_BASE)
+      .order('data_checkin', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Histórico filtrado por mês/ano específico (ex: 2026, 5 → Junho/2026).
+   * `mes` é 0-indexado (igual ao Date.getMonth()).
+   */
+  async listarHistoricoLeadsPorMes({ ano, mes }) {
+    const inicio = new Date(ano, mes, 1);
+    const fim = new Date(ano, mes + 1, 1);
+
+    const { data, error } = await supabase
+      .from('leads')
+      .select(SELECT_BASE)
+      .gte('data_checkin', inicio.toISOString())
+      .lt('data_checkin', fim.toISOString())
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Retorna todos os registros (apenas campos necessários para agregação)
+   * usados para montar o resumo mensal e a lista de meses disponíveis.
+   * Mantém payload leve: sem telefone/agenda/observação.
+   */
+  async listarResumoLeads() {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, data_checkin, status_conversao')
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Resumo mensal apenas dos leads pendentes (para o filtro de período
+   * na Visão Ação). Payload leve.
+   */
+  async listarResumoLeadsPendentes() {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, data_checkin, status_conversao')
+      .eq('status_conversao', 'pendente')
+      .order('data_checkin', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async atualizarStatusLead(leadId, novoStatus) {
+    const { error } = await supabase
+      .from('leads')
+      .update({ status_conversao: novoStatus })
+      .eq('id', leadId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  /**
+   * Salva/atualiza a observação livre da administração sobre o lead
+   * (ex: "não fechou por preço", "aguardando dinheiro").
+   */
+  async atualizarObservacaoLead(leadId, observacao) {
+    const { error } = await supabase
+      .from('leads')
+      .update({ observacao: observacao || null })
+      .eq('id', leadId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  /**
+   * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
+   * lead — usado para remover cadastros duplicados, testes ou registros
+   * incorretos. Diferente de "marcar como perdido" (que preserva o
+   * registro no histórico e na taxa de conversão), esta operação remove
+   * a linha permanentemente da tabela `leads`.
+   */
+  async excluirLead(leadId) {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', leadId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  /**
+ * Leads (experimentais) vinculados ao professor que efetivamente dava a
+ * turma no momento em que o lead foi criado (snapshot em leads.professor_id).
+ * Não é afetado por reatribuições futuras da turma — o histórico fica fixo.
+ */
+async listarLeadsProfessor(professorId) {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('id, nome, data_checkin, status_conversao, observacao, agenda(atividade)')
+    .eq('professor_id', professorId)
+    .order('data_checkin', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+};
+</file>
+
 <file path="gestao_web/src/main.jsx">
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -12579,310 +13308,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
-</file>
-
-<file path="gestao_web/src/hooks/useLeads.ts">
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
-import { leadsService } from '../services/leadsService';
-import { showToast } from '../components/shared/Toast';
-import { Lead } from '../types/leads';
-
-export function useLeadsPendentes() {
-  return useQuery<Lead[]>({
-    queryKey: ['leads', 'pendentes'],
-    queryFn: async () => {
-      const data = await leadsService.listarLeadsPendentes();
-      return data as unknown as Lead[];
-    },
-    staleTime: 1000 * 30,
-  });
-}
-
-/**
- * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
- * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
- */
-export function useLeadsPendentesPorMes(ano: number, mes: number) {
-  return useQuery<Lead[]>({
-    queryKey: ['leads', 'pendentes', 'mes', ano, mes],
-    queryFn: async () => {
-      const data = await leadsService.listarLeadsPendentesPorMes({ ano, mes });
-      return data as unknown as Lead[];
-    },
-    staleTime: 1000 * 30,
-  });
-}
-
-export function useHistoricoLeads() {
-  return useInfiniteQuery<Lead[], Error, InfiniteData<Lead[]>, string[], number>({
-    queryKey: ['leads', 'historico'],
-    queryFn: async ({ pageParam = 0 }) => {
-      const data = await leadsService.listarHistoricoLeads({ pageParam, limit: 30 });
-      return data as unknown as Lead[];
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      return lastPage.length === 30 ? allPages.length * 30 : undefined;
-    },
-    staleTime: 1000 * 60,
-  });
-}
-
-/**
- * Histórico de leads filtrado por mês/ano específico.
- * `mes` é 0-indexado (0 = Janeiro, 11 = Dezembro).
- */
-export function useHistoricoLeadsPorMes(ano: number, mes: number) {
-  return useQuery<Lead[]>({
-    queryKey: ['leads', 'historico', 'mes', ano, mes],
-    queryFn: async () => {
-      const data = await leadsService.listarHistoricoLeadsPorMes({ ano, mes });
-      return data as unknown as Lead[];
-    },
-    staleTime: 1000 * 60,
-  });
-}
-
-interface ResumoLead {
-  id: string;
-  data_checkin: string;
-  status_conversao: 'pendente' | 'convertido' | 'perdido';
-}
-
-export interface ResumoMensal {
-  ano: number;
-  mes: number; // 0-indexado
-  chave: string; // 'AAAA-MM'
-  label: string; // 'Junho 2026'
-  total: number;
-  convertidos: number;
-  pendentes: number;
-  perdidos: number;
-  taxa: number | null;
-}
-
-function agruparPorMes(data: ResumoLead[]): ResumoMensal[] {
-  const mapa = new Map<string, ResumoMensal>();
-
-  for (const lead of data) {
-    const d = new Date(lead.data_checkin);
-    const ano = d.getFullYear();
-    const mes = d.getMonth();
-    const chave = `${ano}-${String(mes).padStart(2, '0')}`;
-
-    if (!mapa.has(chave)) {
-      mapa.set(chave, {
-        ano,
-        mes,
-        chave,
-        label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
-        total: 0,
-        convertidos: 0,
-        pendentes: 0,
-        perdidos: 0,
-        taxa: null,
-      });
-    }
-
-    const item = mapa.get(chave)!;
-    item.total += 1;
-    if (lead.status_conversao === 'convertido') item.convertidos += 1;
-    else if (lead.status_conversao === 'pendente') item.pendentes += 1;
-    else if (lead.status_conversao === 'perdido') item.perdidos += 1;
-  }
-
-  const resultado = Array.from(mapa.values()).map(item => ({
-    ...item,
-    taxa: item.total > 0 ? item.convertidos / item.total : null,
-    // Capitaliza a primeira letra do label (ex: "junho 2026" → "Junho 2026")
-    label: item.label.charAt(0).toUpperCase() + item.label.slice(1),
-  }));
-
-  // Mais recente primeiro
-  resultado.sort((a, b) => b.chave.localeCompare(a.chave));
-
-  return resultado;
-}
-
-/**
- * Carrega todos os leads (campos leves) e agrupa por mês/ano,
- * gerando contagens e taxa de conversão para cada período.
- * Usado para alimentar o seletor de meses na Visão Histórico.
- */
-export function useResumoMensalLeads() {
-  return useQuery<ResumoMensal[]>({
-    queryKey: ['leads', 'resumo-mensal'],
-    queryFn: async () => {
-      const data = await leadsService.listarResumoLeads() as unknown as ResumoLead[];
-      return agruparPorMes(data);
-    },
-    staleTime: 1000 * 60,
-  });
-}
-
-/**
- * Igual ao resumo mensal, mas considerando apenas leads pendentes.
- * Usado para alimentar o seletor de meses na Visão Ação (organização
- * de leads em aberto por período de realização da experimental).
- */
-export function useResumoMensalLeadsPendentes() {
-  return useQuery<ResumoMensal[]>({
-    queryKey: ['leads', 'resumo-mensal-pendentes'],
-    queryFn: async () => {
-      const data = await leadsService.listarResumoLeadsPendentes() as unknown as ResumoLead[];
-      return agruparPorMes(data);
-    },
-    staleTime: 1000 * 30,
-  });
-}
-
-export function useAtualizarStatusLead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, status }: { id: string, status: 'convertido' | 'perdido' | 'pendente' }) => {
-      return await leadsService.atualizarStatusLead(id, status);
-    },
-    onMutate: async ({ id, status }) => {
-      await queryClient.cancelQueries({ queryKey: ['leads'] });
-
-      const previousPendentes = queryClient.getQueryData<Lead[]>(['leads', 'pendentes']);
-      if (previousPendentes) {
-        queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], old => {
-           if (!old) return [];
-           if (status !== 'pendente') return old.filter(l => l.id !== id);
-           return old.map(l => l.id === id ? { ...l, status_conversao: status } : l);
-        });
-      }
-
-      const previousHistorico = queryClient.getQueryData<InfiniteData<Lead[]>>(['leads', 'historico']);
-      if (previousHistorico) {
-        queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], oldData => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) =>
-              page.map((l) => l.id === id ? { ...l, status_conversao: status } : l)
-            )
-          };
-        });
-      }
-
-      return { previousPendentes, previousHistorico };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousPendentes) queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], context.previousPendentes);
-      if (context?.previousHistorico) queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], context.previousHistorico);
-      showToast.error("Erro de conexão. Ação desfeita.");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-    },
-  });
-}
-
-/**
- * Salva a observação livre da administração sobre o lead.
- * Atualiza o cache otimisticamente nas listas de pendentes e histórico
- * (incluindo páginas paginadas e filtradas por mês).
- */
-export function useAtualizarObservacaoLead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, observacao }: { id: string, observacao: string }) => {
-      return await leadsService.atualizarObservacaoLead(id, observacao);
-    },
-    onMutate: async ({ id, observacao }) => {
-      await queryClient.cancelQueries({ queryKey: ['leads'] });
-
-      const atualizarLista = (old?: Lead[]) =>
-        old?.map(l => l.id === id ? { ...l, observacao: observacao } : l);
-
-      // Listas simples (pendentes, pendentes por mês, histórico por mês)
-      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'pendentes'] }, (old) => atualizarLista(old) ?? old);
-      queryClient.setQueriesData<Lead[]>({ queryKey: ['leads', 'historico', 'mes'] }, (old) => atualizarLista(old) ?? old);
-
-      // Histórico paginado (infinite query)
-      queryClient.setQueriesData<InfiniteData<Lead[]>>({ queryKey: ['leads', 'historico'], exact: false }, (oldData) => {
-        if (!oldData || !('pages' in oldData)) return oldData;
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) =>
-            page.map((l) => l.id === id ? { ...l, observacao: observacao } : l)
-          ),
-        };
-      });
-    },
-    onError: () => {
-      showToast.error("Erro ao salvar observação. Tente novamente.");
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-    },
-    onSuccess: () => {
-      showToast.success("Observação salva.");
-    },
-  });
-}
-
-/**
- * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
- * lead, com atualização otimista das listas de pendentes e histórico
- * (incluindo páginas paginadas) e rollback em caso de erro — seguindo
- * o mesmo padrão de `useAtualizarStatusLead`.
- */
-export function useExcluirLead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      return await leadsService.excluirLead(id);
-    },
-    onMutate: async (id: string) => {
-      await queryClient.cancelQueries({ queryKey: ['leads'] });
-
-      const previousPendentes = queryClient.getQueryData<Lead[]>(['leads', 'pendentes']);
-      if (previousPendentes) {
-        queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], old => old?.filter(l => l.id !== id) ?? []);
-      }
-
-      const previousHistorico = queryClient.getQueryData<InfiniteData<Lead[]>>(['leads', 'historico']);
-      if (previousHistorico) {
-        queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], oldData => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => page.filter((l) => l.id !== id)),
-          };
-        });
-      }
-
-      return { previousPendentes, previousHistorico };
-    },
-    onError: (err, id, context) => {
-      if (context?.previousPendentes) queryClient.setQueryData<Lead[]>(['leads', 'pendentes'], context.previousPendentes);
-      if (context?.previousHistorico) queryClient.setQueryData<InfiniteData<Lead[]>>(['leads', 'historico'], context.previousHistorico);
-      showToast.error("Erro ao excluir lead. Ação desfeita.");
-    },
-    onSuccess: () => {
-      showToast.success("Lead excluído.");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-    },
-  });
-}
-
-export function useLeadsProfessor(professorId: string | null) {
-  return useQuery<Lead[]>({
-    queryKey: ['leads', 'professor', professorId],
-    queryFn: async () => {
-      const data = await leadsService.listarLeadsProfessor(professorId);
-      return data as unknown as Lead[];
-    },
-    enabled: !!professorId,
-    staleTime: 1000 * 30,
-  });
-}
 </file>
 
 <file path="gestao_web/src/pages/Agenda/components/ModalAcoesEvento.jsx">
@@ -12993,6 +13418,164 @@ export default function ModalAcoesEvento({
         </div>
       )}
     </div>
+  );
+}
+</file>
+
+<file path="gestao_web/src/pages/Agenda/components/ModalAgendamento.jsx">
+import React from 'react';
+import { UserCheck, RefreshCw, MessageCircle } from 'lucide-react';
+import { ModalConfirmacao } from '../../../components/ui/Modal';
+import Button from '../../../components/ui/Button';
+import Input, { Label } from '../../../components/ui/Input';
+
+// Configuração do modal de aviso conforme o tipo de bloqueio.
+function resolverConfigModal(tipo, msg) {
+  if (tipo === 'plano') {
+    return {
+      titulo: 'Fora do plano do aluno',
+      mensagem: `${msg} Você tem ciência que este agendamento está fora do plano contratado pelo aluno. Deseja prosseguir mesmo assim?`,
+      textoBotaoConfirmar: 'Sim, agendar mesmo assim',
+    };
+  }
+  // tipo === 'lotacao' ou fallback
+  return {
+    titulo: 'Turma lotada',
+    mensagem: `${msg} Deseja agendar mesmo assim?`,
+    textoBotaoConfirmar: 'Agendar mesmo assim',
+  };
+}
+
+export default function ModalAgendamento({
+  agendamentoForm, setAgendamentoForm, aulas, listaAlunos, handleAgendarAluno,
+  savingAgendamento, infoVaga, verificandoVaga,
+  modalLotacao, confirmarAgendamentoLotado, cancelarAgendamentoLotado
+}) {
+  const configModal = resolverConfigModal(modalLotacao?.tipo, modalLotacao?.msg);
+
+  return (
+    <>
+      <form onSubmit={(e) => handleAgendarAluno(e)} className="space-y-4 pt-2">
+        <div className="flex bg-muted p-1 rounded-2xl mb-4 border border-border">
+          <button
+            type="button"
+            onClick={() => setAgendamentoForm({ ...agendamentoForm, tipo: 'cadastrado' })}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'cadastrado' ? 'bg-card shadow-sm text-info' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Aluno da Casa
+          </button>
+          <button
+            type="button"
+            onClick={() => setAgendamentoForm({ ...agendamentoForm, tipo: 'visitante' })}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'visitante' ? 'bg-card shadow-sm text-warning' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Aula Experimental
+          </button>
+        </div>
+
+        {/* Seleção da aula — enriquece _nomeAtividade */}
+        <Input
+          as="select"
+          required
+          value={agendamentoForm.aula_id}
+          onChange={e => {
+            const aula = aulas.find(a => a.id === e.target.value);
+            setAgendamentoForm({
+              ...agendamentoForm,
+              aula_id: e.target.value,
+              _nomeAtividade: aula?.atividade || '',
+            });
+          }}
+        >
+          <option value="">Selecione a aula da grade...</option>
+          {aulas.map(aula => (
+            <option key={aula.id} value={aula.id}>
+              {aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'} às {aula.horario?.slice(0, 5)}
+            </option>
+          ))}
+        </Input>
+
+        {agendamentoForm.tipo === 'cadastrado' ? (
+          /* Seleção de aluno cadastrado — enriquece _nomeAluno */
+          <Input
+            as="select"
+            required
+            value={agendamentoForm.aluno_id}
+            onChange={e => {
+              const aluno = listaAlunos.find(a => a.id === e.target.value);
+              setAgendamentoForm({
+                ...agendamentoForm,
+                aluno_id: e.target.value,
+                _nomeAluno: aluno?.nome_completo?.split(' ')[0] || '',
+              });
+            }}
+          >
+            <option value="">Selecione o aluno...</option>
+            {listaAlunos.map(a => (
+              <option key={a.id} value={a.id}>{a.nome_completo}</option>
+            ))}
+          </Input>
+        ) : (
+          <div className="space-y-3 bg-warning-soft p-4 rounded-2xl border border-warning/20 animate-in slide-in-from-right-4">
+            <Input
+              required
+              type="text"
+              placeholder="Nome do Visitante *"
+              value={agendamentoForm.nome_visitante || ''}
+              onChange={e => setAgendamentoForm({ ...agendamentoForm, nome_visitante: e.target.value })}
+              className="bg-card"
+            />
+          </div>
+        )}
+
+        <Input
+          type="date"
+          required
+          value={agendamentoForm.data_aula}
+          onChange={e => setAgendamentoForm({ ...agendamentoForm, data_aula: e.target.value })}
+        />
+
+        {/* Feedback de vagas */}
+        {verificandoVaga && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <RefreshCw size={12} className="animate-spin" /> Verificando disponibilidade...
+          </p>
+        )}
+        {infoVaga && !verificandoVaga && (
+          <div className={`text-xs font-bold p-3 rounded-xl ${infoVaga.podeAgendarLivremente ? 'bg-success-soft text-success' : 'bg-destructive-soft text-destructive'}`}>
+            {infoVaga.podeAgendarLivremente
+              ? `✅ Vaga disponível (${infoVaga.ocupacaoAtual}/${infoVaga.capacidadeMax})`
+              : `⚠️ ${infoVaga.avisoCritico}`}
+          </div>
+        )}
+
+        <div className="pt-2">
+          <Button
+            type="submit"
+            variant="brand"
+            size="lg"
+            fullWidth
+            loading={savingAgendamento}
+            disabled={savingAgendamento}
+          >
+            <UserCheck size={18} /> Confirmar Agendamento
+          </Button>
+        </div>
+      </form>
+
+      {/* Modal de aviso — cobre turma lotada E restrições de plano */}
+      {modalLotacao?.isOpen && (
+        <ModalConfirmacao
+          aberto={modalLotacao.isOpen}
+          titulo={configModal.titulo}
+          mensagem={configModal.mensagem}
+          textoConfirmar={configModal.textoBotaoConfirmar}
+          textoCancelar="Cancelar"
+          onConfirm={confirmarAgendamentoLotado}
+          onClose={cancelarAgendamentoLotado}
+        />
+      )}
+    </>
   );
 }
 </file>
@@ -13520,255 +14103,6 @@ function RecuperarFormInterno({ onSubmit, loading }) {
 }
 </file>
 
-<file path="gestao_web/src/services/agendamentoService.js">
-import { supabase } from '../lib/supabase';
-
-export const agendamentoService = {
-
-  async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
-    if (!aulaId) return null;
-
-    try {
-      const { data, error } = await supabase.rpc('verificar_disponibilidade_v2', {
-        p_aula_id: aulaId,
-        p_data: dataAula,
-        p_aluno_id: alunoId || null
-      });
-
-      if (error) throw error;
-      return data;
-
-    } catch (error) {
-      console.error("Erro estrutural ao verificar disponibilidade:", error);
-
-      return {
-        podeAgendarLivremente: false,
-        avisoCritico: "Não foi possível verificar as vagas no momento. Verifique sua conexão.",
-        capacidadeMax: 0,
-        ocupacaoAtual: 0,
-        limiteSemanal: 0,
-        usoSemanal: 0,
-        isLivre: false,
-        modNome: 'Indisponível',
-        temModalidadeNoPlano: false
-      };
-    }
-  },
-
-  // dados.tipo: 'aluno' (matriculado) ou 'visitante' (lead/experimental)
-async agendarAulaAdmin(dados) {
-  if (!dados.ignorarAvisos) {
-    const checagem = await agendamentoService.verificarDisponibilidade(
-      dados.aula_id,
-      dados.data_aula,
-      dados.tipo === 'visitante' ? null : dados.aluno_id
-    );
-    if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
-  }
-
-  if (dados.tipo === 'visitante') {
-    // Snapshot do professor responsável pela turma NO MOMENTO do agendamento.
-    // Congela o vínculo aqui — se a turma for reatribuída depois, este lead
-    // continua marcado com o professor que efetivamente deu a experimental.
-    const { data: aulaAtual, error: erroAula } = await supabase
-      .from('agenda')
-      .select('professor_id')
-      .eq('id', dados.aula_id)
-      .single();
-    if (erroAula) throw erroAula;
-
-    const payload = {
-      nome: dados.nome_visitante,
-      telefone: dados.telefone_visitante || null,
-      aula_id: dados.aula_id,
-      data_aula: dados.data_aula,
-      data_checkin: `${dados.data_aula}T12:00:00`,
-      status_conversao: 'pendente',
-      professor_id: aulaAtual?.professor_id ?? null,
-    };
-    const { error } = await supabase.from('leads').insert([payload]);
-    if (error) throw error;
-    return;
-  }
-
-  const payload = {
-    aluno_id: dados.aluno_id,
-    aula_id: dados.aula_id,
-    data_aula: dados.data_aula,
-    status: 'agendado',
-    origem: 'avulso',
-  };
-  const { error } = await supabase.from('presencas').insert([payload]);
-  if (error && error.code === '23505') throw new Error("Este aluno já possui um agendamento nesta mesma turma e mesma data.");
-  else if (error) throw error;
-},
-
-  // Cancela um agendamento. `tipo` indica a origem do id_relacao:
-  // 'lead' -> remove de `leads`. Qualquer outro valor -> trata como
-  // `presencas` (comportamento padrão, mantém histórico via status='cancelado').
-  async cancelarAgendamento(id, tipo = 'presenca') {
-    if (tipo === 'lead') {
-      const { data, error } = await supabase.from('leads').delete().eq('id', id).select();
-      if (error) throw error;
-      return data;
-    }
-
-    const { data: linha, error: errBusca } = await supabase
-      .from('presencas')
-      .select('status')
-      .eq('id', id)
-      .single();
-    if (errBusca) throw errBusca;
-
-    if (linha?.status === 'agendado') {
-      const { data, error } = await supabase
-        .from('presencas')
-        .update({ status: 'cancelado', cancelado_em: new Date().toISOString() })
-        .eq('id', id)
-        .select();
-      if (error) throw error;
-      return data;
-    }
-
-    const { data, error } = await supabase.from('presencas').delete().eq('id', id).select();
-    if (error) throw error;
-    return data;
-  },
-
-  async listarPresencasPeriodo(inicio, fim) {
-    const { data, error } = await supabase
-      .from('presencas')
-      .select('id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
-      .gte('data_aula', inicio)
-      .lte('data_aula', fim);
-    if (error) throw error;
-    return data;
-  },
-
-  async listarPresencas(aulaId, dataAula) {
-    const { data, error } = await supabase
-      .from('presencas')
-      .select('id, data_checkin, status, origem, alunos ( id, nome_completo )')
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataAula);
-    if (error) throw error;
-    return data;
-  },
-
-  // Lista de chamada do dia: une presencas (já cobre fixo gerado pelo job +
-  // avulso) com agenda_fixa para fixos cuja linha ainda não foi gerada
-  // (ex: chamada aberta antes do job noturno rodar, ou matrícula criada
-  // depois da geração). Evita duplicar quem já tem linha em presencas.
-  async listarChamadaCompleta(aulaId, dataAula) {
-    const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }] = await Promise.all([
-      supabase
-        .from('presencas')
-        .select('id, status, origem, aluno_id, alunos(id, nome_completo)')
-        .eq('aula_id', aulaId)
-        .eq('data_aula', dataAula),
-      supabase
-        .from('agenda_fixa')
-        .select('id, aluno_id, alunos(id, nome_completo)')
-        .eq('aula_id', aulaId),
-      supabase
-        .from('leads')
-        .select('id, nome, status_conversao')
-        .eq('aula_id', aulaId)
-        .eq('data_aula', dataAula),
-    ]);
-
-    const alunoIdsComLinha = new Set((presencasDia || []).map(p => p.aluno_id));
-    const lista = [];
-
-    // Fixos que ainda não têm linha gerada pra hoje — mostra como 'agendado'
-    // (estado padrão, ainda não houve check-in nem job de falta rodou)
-    (fixos || []).forEach(f => {
-      if (alunoIdsComLinha.has(f.aluno_id)) return; // já coberto pela linha em presencas
-      lista.push({
-        id_relacao: null, // não existe linha em presencas ainda
-        aluno_id: f.alunos.id,
-        nome: f.alunos.nome_completo,
-        tipo: 'fixo',
-        status: 'agendado',
-      });
-    });
-
-    // Leads/experimentais agendados pra essa aula
-    (leadsDia || []).forEach(l => {
-      lista.push({
-        id_relacao: l.id,
-        aluno_id: null,
-        nome: l.nome,
-        tipo: 'experimental',
-        status: 'agendado',
-      });
-    });
-
-    // Tudo que já tem linha em presencas (fixo gerado + avulso)
-    (presencasDia || []).forEach(p => {
-      lista.push({
-        id_relacao: p.id,
-        aluno_id: p.aluno_id,
-        nome: p.alunos?.nome_completo,
-        tipo: p.origem, // 'fixo' | 'avulso'
-        status: p.status, // 'agendado' | 'presente' | 'falta' | 'cancelado'
-      });
-    });
-
-    return lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  },
-
-  // Falta com aviso prévio (recepção/admin registra que o aluno avisou
-  // que não virá). Antes: insert em agenda_excecoes. Agora: UPDATE direto
-  // na linha de presencas, que dispara notificação ao professor (migration 008).
-  // Se a linha ainda não existir (fixo sem linha gerada pra hoje), cria com
-  // status já 'cancelado'.
-  async registrarFalta(alunoId, aulaId, dataEspecifica, motivo = null) {
-    const { data: existente } = await supabase
-      .from('presencas')
-      .select('id, status')
-      .eq('aluno_id', alunoId)
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataEspecifica)
-      .maybeSingle();
-
-    if (existente) {
-      const { error } = await supabase
-        .from('presencas')
-        .update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo })
-        .eq('id', existente.id);
-      if (error) throw error;
-      return;
-    }
-
-    const { error } = await supabase
-      .from('presencas')
-      .insert({
-        aluno_id: alunoId,
-        aula_id: aulaId,
-        data_aula: dataEspecifica,
-        status: 'cancelado',
-        origem: 'fixo',
-        cancelado_em: new Date().toISOString(),
-        cancelado_motivo: motivo,
-      });
-    if (error) throw error;
-  },
-
-  // Reverte um aviso de falta (volta para 'agendado').
-  async removerFalta(alunoId, aulaId, dataEspecifica) {
-    const { error } = await supabase
-      .from('presencas')
-      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
-      .eq('aluno_id', alunoId)
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataEspecifica)
-      .eq('status', 'cancelado'); // só reverte se ainda estava cancelado (proteção)
-    if (error) throw error;
-  }
-};
-</file>
-
 <file path="gestao_web/src/services/comissoesService.js">
 import { supabase } from '../lib/supabase';
 
@@ -13998,182 +14332,6 @@ export const comissoesService = {
     if (error) throw error;
     return true;
   },
-};
-</file>
-
-<file path="gestao_web/src/services/leadsService.js">
-import { supabase } from '../lib/supabase';
-
-const SELECT_BASE = 'id, nome, telefone, data_checkin, status_conversao, observacao, agenda(atividade)';
-
-export const leadsService = {
-  // Usado pelo calendário (useAgendaDadosMes) para indexar leads por
-  // aula_id + data_aula no período visível. Diferente das demais funções
-  // deste service, que filtram por data_checkin (mês de criação do lead).
-  async listarLeadsPeriodo(inicio, fim) {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('id, nome, aula_id, data_aula')
-      .gte('data_aula', inicio)
-      .lte('data_aula', fim);
-
-    if (error) throw error;
-    return data;
-  },
-
-  async listarLeadsPendentes() {
-    const { data, error } = await supabase
-      .from('leads')
-      .select(SELECT_BASE)
-      .eq('status_conversao', 'pendente')
-      .order('data_checkin', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Leads pendentes filtrados por mês/ano específico (data da aula experimental).
-   * `mes` é 0-indexado (igual ao Date.getMonth()).
-   */
-  async listarLeadsPendentesPorMes({ ano, mes }) {
-    const inicio = new Date(ano, mes, 1);
-    const fim = new Date(ano, mes + 1, 1);
-
-    const { data, error } = await supabase
-      .from('leads')
-      .select(SELECT_BASE)
-      .eq('status_conversao', 'pendente')
-      .gte('data_checkin', inicio.toISOString())
-      .lt('data_checkin', fim.toISOString())
-      .order('data_checkin', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Histórico paginado (modo "Todos os períodos").
-   */
-  async listarHistoricoLeads({ pageParam = 0, limit = 30 }) {
-    const from = pageParam;
-    const to = from + limit - 1;
-
-    const { data, error } = await supabase
-      .from('leads')
-      .select(SELECT_BASE)
-      .order('data_checkin', { ascending: false })
-      .range(from, to);
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Histórico filtrado por mês/ano específico (ex: 2026, 5 → Junho/2026).
-   * `mes` é 0-indexado (igual ao Date.getMonth()).
-   */
-  async listarHistoricoLeadsPorMes({ ano, mes }) {
-    const inicio = new Date(ano, mes, 1);
-    const fim = new Date(ano, mes + 1, 1);
-
-    const { data, error } = await supabase
-      .from('leads')
-      .select(SELECT_BASE)
-      .gte('data_checkin', inicio.toISOString())
-      .lt('data_checkin', fim.toISOString())
-      .order('data_checkin', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Retorna todos os registros (apenas campos necessários para agregação)
-   * usados para montar o resumo mensal e a lista de meses disponíveis.
-   * Mantém payload leve: sem telefone/agenda/observação.
-   */
-  async listarResumoLeads() {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('id, data_checkin, status_conversao')
-      .order('data_checkin', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Resumo mensal apenas dos leads pendentes (para o filtro de período
-   * na Visão Ação). Payload leve.
-   */
-  async listarResumoLeadsPendentes() {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('id, data_checkin, status_conversao')
-      .eq('status_conversao', 'pendente')
-      .order('data_checkin', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  },
-
-  async atualizarStatusLead(leadId, novoStatus) {
-    const { error } = await supabase
-      .from('leads')
-      .update({ status_conversao: novoStatus })
-      .eq('id', leadId);
-
-    if (error) throw error;
-    return true;
-  },
-
-  /**
-   * Salva/atualiza a observação livre da administração sobre o lead
-   * (ex: "não fechou por preço", "aguardando dinheiro").
-   */
-  async atualizarObservacaoLead(leadId, observacao) {
-    const { error } = await supabase
-      .from('leads')
-      .update({ observacao: observacao || null })
-      .eq('id', leadId);
-
-    if (error) throw error;
-    return true;
-  },
-
-  /**
-   * LEAD-01 (solicitado pelo cliente): exclusão manual e definitiva de um
-   * lead — usado para remover cadastros duplicados, testes ou registros
-   * incorretos. Diferente de "marcar como perdido" (que preserva o
-   * registro no histórico e na taxa de conversão), esta operação remove
-   * a linha permanentemente da tabela `leads`.
-   */
-  async excluirLead(leadId) {
-    const { error } = await supabase
-      .from('leads')
-      .delete()
-      .eq('id', leadId);
-
-    if (error) throw error;
-    return true;
-  },
-
-  /**
- * Leads (experimentais) vinculados ao professor que efetivamente dava a
- * turma no momento em que o lead foi criado (snapshot em leads.professor_id).
- * Não é afetado por reatribuições futuras da turma — o histórico fica fixo.
- */
-async listarLeadsProfessor(professorId) {
-  const { data, error } = await supabase
-    .from('leads')
-    .select('id, nome, data_checkin, status_conversao, observacao, agenda(atividade)')
-    .eq('professor_id', professorId)
-    .order('data_checkin', { ascending: false });
-
-  if (error) throw error;
-  return data;
-}
 };
 </file>
 
@@ -14831,164 +14989,6 @@ async function networkFirst(request) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-}
-</file>
-
-<file path="gestao_web/src/pages/Agenda/components/ModalAgendamento.jsx">
-import React from 'react';
-import { UserCheck, RefreshCw, MessageCircle } from 'lucide-react';
-import { ModalConfirmacao } from '../../../components/ui/Modal';
-import Button from '../../../components/ui/Button';
-import Input, { Label } from '../../../components/ui/Input';
-
-// Configuração do modal de aviso conforme o tipo de bloqueio.
-function resolverConfigModal(tipo, msg) {
-  if (tipo === 'plano') {
-    return {
-      titulo: 'Fora do plano do aluno',
-      mensagem: `${msg} Você tem ciência que este agendamento está fora do plano contratado pelo aluno. Deseja prosseguir mesmo assim?`,
-      textoBotaoConfirmar: 'Sim, agendar mesmo assim',
-    };
-  }
-  // tipo === 'lotacao' ou fallback
-  return {
-    titulo: 'Turma lotada',
-    mensagem: `${msg} Deseja agendar mesmo assim?`,
-    textoBotaoConfirmar: 'Agendar mesmo assim',
-  };
-}
-
-export default function ModalAgendamento({
-  agendamentoForm, setAgendamentoForm, aulas, listaAlunos, handleAgendarAluno,
-  savingAgendamento, infoVaga, verificandoVaga,
-  modalLotacao, confirmarAgendamentoLotado, cancelarAgendamentoLotado
-}) {
-  const configModal = resolverConfigModal(modalLotacao?.tipo, modalLotacao?.msg);
-
-  return (
-    <>
-      <form onSubmit={(e) => handleAgendarAluno(e)} className="space-y-4 pt-2">
-        <div className="flex bg-muted p-1 rounded-2xl mb-4 border border-border">
-          <button
-            type="button"
-            onClick={() => setAgendamentoForm({ ...agendamentoForm, tipo: 'cadastrado' })}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'cadastrado' ? 'bg-card shadow-sm text-info' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            Aluno da Casa
-          </button>
-          <button
-            type="button"
-            onClick={() => setAgendamentoForm({ ...agendamentoForm, tipo: 'visitante' })}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${agendamentoForm.tipo === 'visitante' ? 'bg-card shadow-sm text-warning' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            Aula Experimental
-          </button>
-        </div>
-
-        {/* Seleção da aula — enriquece _nomeAtividade */}
-        <Input
-          as="select"
-          required
-          value={agendamentoForm.aula_id}
-          onChange={e => {
-            const aula = aulas.find(a => a.id === e.target.value);
-            setAgendamentoForm({
-              ...agendamentoForm,
-              aula_id: e.target.value,
-              _nomeAtividade: aula?.atividade || '',
-            });
-          }}
-        >
-          <option value="">Selecione a aula da grade...</option>
-          {aulas.map(aula => (
-            <option key={aula.id} value={aula.id}>
-              {aula.atividade} - {aula.eh_recorrente ? aula.dia_semana : 'Evento Único'} às {aula.horario?.slice(0, 5)}
-            </option>
-          ))}
-        </Input>
-
-        {agendamentoForm.tipo === 'cadastrado' ? (
-          /* Seleção de aluno cadastrado — enriquece _nomeAluno */
-          <Input
-            as="select"
-            required
-            value={agendamentoForm.aluno_id}
-            onChange={e => {
-              const aluno = listaAlunos.find(a => a.id === e.target.value);
-              setAgendamentoForm({
-                ...agendamentoForm,
-                aluno_id: e.target.value,
-                _nomeAluno: aluno?.nome_completo?.split(' ')[0] || '',
-              });
-            }}
-          >
-            <option value="">Selecione o aluno...</option>
-            {listaAlunos.map(a => (
-              <option key={a.id} value={a.id}>{a.nome_completo}</option>
-            ))}
-          </Input>
-        ) : (
-          <div className="space-y-3 bg-warning-soft p-4 rounded-2xl border border-warning/20 animate-in slide-in-from-right-4">
-            <Input
-              required
-              type="text"
-              placeholder="Nome do Visitante *"
-              value={agendamentoForm.nome_visitante || ''}
-              onChange={e => setAgendamentoForm({ ...agendamentoForm, nome_visitante: e.target.value })}
-              className="bg-card"
-            />
-          </div>
-        )}
-
-        <Input
-          type="date"
-          required
-          value={agendamentoForm.data_aula}
-          onChange={e => setAgendamentoForm({ ...agendamentoForm, data_aula: e.target.value })}
-        />
-
-        {/* Feedback de vagas */}
-        {verificandoVaga && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <RefreshCw size={12} className="animate-spin" /> Verificando disponibilidade...
-          </p>
-        )}
-        {infoVaga && !verificandoVaga && (
-          <div className={`text-xs font-bold p-3 rounded-xl ${infoVaga.podeAgendarLivremente ? 'bg-success-soft text-success' : 'bg-destructive-soft text-destructive'}`}>
-            {infoVaga.podeAgendarLivremente
-              ? `✅ Vaga disponível (${infoVaga.ocupacaoAtual}/${infoVaga.capacidadeMax})`
-              : `⚠️ ${infoVaga.avisoCritico}`}
-          </div>
-        )}
-
-        <div className="pt-2">
-          <Button
-            type="submit"
-            variant="brand"
-            size="lg"
-            fullWidth
-            loading={savingAgendamento}
-            disabled={savingAgendamento}
-          >
-            <UserCheck size={18} /> Confirmar Agendamento
-          </Button>
-        </div>
-      </form>
-
-      {/* Modal de aviso — cobre turma lotada E restrições de plano */}
-      {modalLotacao?.isOpen && (
-        <ModalConfirmacao
-          aberto={modalLotacao.isOpen}
-          titulo={configModal.titulo}
-          mensagem={configModal.mensagem}
-          textoConfirmar={configModal.textoBotaoConfirmar}
-          textoCancelar="Cancelar"
-          onConfirm={confirmarAgendamentoLotado}
-          onClose={cancelarAgendamentoLotado}
-        />
-      )}
-    </>
-  );
 }
 </file>
 
@@ -15994,7 +15994,7 @@ export default function Despesas() {
 </file>
 
 <file path="gestao_web/src/pages/Presenca.jsx">
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { agendamentoService } from '../services/agendamentoService';
@@ -16013,16 +16013,23 @@ import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
 
+// ─── helpers puros (fora do componente — sem re-criação a cada render) ───────
+
 function aulaEmAndamento(aula) {
+  // FIX 1.1: guarda contra horario/dia_semana nulos ou malformados,
+  // que antes lançavam TypeError e derrubavam o fetchDados inteiro.
+  if (!aula?.dia_semana || !aula?.horario) return false;
+
   const agora = new Date();
-  const diasSemana = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
   const diaHoje = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
   const diaHojeFormatado = diaHoje.charAt(0).toUpperCase() + diaHoje.slice(1);
 
   if (aula.dia_semana !== diaHojeFormatado) return false;
 
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const [h, m] = aula.horario.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return false;
+
+  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
   const inicioAula = h * 60 + m;
   const duracaoMin = aula.duracao_minutos ?? 60;
   const fimAula = inicioAula + duracaoMin;
@@ -16050,8 +16057,32 @@ function obterPeriodo(periodo) {
   return { inicio: inicio.toISOString(), fim: fim.toISOString() };
 }
 
-export default function Presenca() {
+// FIX 3.2: sanitização de célula CSV — neutraliza fórmulas (=, +, -, @) e
+// escapa aspas internas corretamente (antes só tratava vírgula).
+function sanitizarCelulaCSV(valor) {
+  if (valor === null || valor === undefined) return '';
+  let v = String(valor);
+  if (/^[=+\-@]/.test(v)) v = `'${v}`; // neutraliza CSV/formula injection
+  if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+    v = `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
+// FIX 2: helper central para log + mensagem amigável, evita
+// catch(e) genérico espalhado e silencioso pelo arquivo inteiro.
+function tratarErro(err, { contexto, mensagemPadrao }) {
+  // eslint-disable-next-line no-console
+  console.error(`[Presenca] ${contexto} falhou:`, err);
+  if (err?.code === '42501' || err?.status === 403) {
+    return 'Você não tem permissão para executar esta ação.';
+  }
+  return mensagemPadrao;
+}
+
+export default function Presenca({ isAdmin = false }) {
   const [modo, setModo] = useState('chamada');
+  const [modoInicializado, setModoInicializado] = useState(false); // FIX 1.2
   const [alunos, setAlunos]       = useState([]);
   const [aulas, setAulas]         = useState([]);
   const [todasAulas, setTodasAulas] = useState([]);
@@ -16082,51 +16113,52 @@ export default function Presenca() {
     setLoading(true);
     try {
       // Alunos ativos
-      const { data: alunosData } = await supabase
+      const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
         .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
+      if (errAlunos) throw errAlunos;
 
-      // Aulas para o período selecionado (usado no relatório/filtros)
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
-const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
+      const diaFormatado = hoje.charAt(0).toUpperCase() + hoje.slice(1);
 
-let aulasQuery = supabase
-  .from('agenda')
-  .select('*')
-  .eq('ativa', true)
-  .order('dia_semana')
-  .order('horario');
+      let aulasQuery = supabase
+        .from('agenda')
+        .select('*')
+        .eq('ativa', true)
+        .order('dia_semana')
+        .order('horario');
 
-if (filtros.periodo === 'hoje') {
-  aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
-}
+      if (filtros.periodo === 'hoje') {
+        aulasQuery = aulasQuery.eq('dia_semana', diaFormatado);
+      }
 
-// Todas as aulas ativas — usado no seletor manual da Chamada Rápida
-const todasAulasQuery = supabase
-  .from('agenda')
-  .select('id, atividade, horario, dia_semana')
-  .eq('ativa', true)
-  .order('dia_semana')
-  .order('horario');
+      // Todas as aulas ativas — usado no seletor manual da Chamada Rápida
+      const todasAulasQuery = supabase
+        .from('agenda')
+        .select('id, atividade, horario, dia_semana')
+        .eq('ativa', true)
+        .order('dia_semana')
+        .order('horario');
 
-const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
-  aulasQuery,
-  todasAulasQuery,
-]);
+      const [{ data: aulasData, error: errAulas }, { data: todasAulasData, error: errTodasAulas }] =
+        await Promise.all([aulasQuery, todasAulasQuery]);
+      if (errAulas) throw errAulas;
+      if (errTodasAulas) throw errTodasAulas;
 
       const { inicio, fim } = obterPeriodo(filtros.periodo);
       const inicioData = inicio.split('T')[0];
       const fimData = fim.split('T')[0];
-      const { data: presencasData } = await supabase
+      const { data: presencasData, error: errPresencas } = await supabase
         .from('presencas')
         .select(`*, alunos(nome_completo, email), agenda(atividade, horario)`)
         .eq('status', 'presente') // só presença real confirmada entra no relatório
         .gte('data_aula', inicioData)
         .lte('data_aula', fimData)
         .order('data_checkin', { ascending: false });
+      if (errPresencas) throw errPresencas;
 
       setAlunos(alunosData || []);
       setAulas(aulasData || []);
@@ -16138,45 +16170,54 @@ const [{ data: aulasData }, { data: todasAulasData }] = await Promise.all([
 
       if (aulaEmCurso) {
         const hojeDateStr = new Date().toISOString().split('T')[0];
-        const [{ data: todasPresencasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, status')
-    .eq('aula_id', aulaEmCurso.id)
-    .eq('data_aula', hojeDateStr),
-  supabase
-    .from('agenda_fixa')
-    .select('aluno_id')
-    .eq('aula_id', aulaEmCurso.id),
-]);
+        const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+          await Promise.all([
+            supabase
+              .from('presencas')
+              .select('id, aluno_id, status, origem')
+              .eq('aula_id', aulaEmCurso.id)
+              .eq('data_aula', hojeDateStr),
+            supabase
+              .from('agenda_fixa')
+              .select('aluno_id')
+              .eq('aula_id', aulaEmCurso.id),
+          ]);
+        if (errHoje) throw errHoje;
+        if (errFixos) throw errFixos;
 
-const confirmados = (todasPresencasHoje || []).filter(p => p.status === 'presente');
-const pendentes = (todasPresencasHoje || []).filter(
-  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
+        const confirmados = (todasPresencasHoje || []).filter(p => p.status === 'presente');
+        const pendentes = (todasPresencasHoje || []).filter(
+          p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+        );
 
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
-
+        setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+        setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
       } else {
         setCheckinsDaAula(new Set());
         setAlunosFixosDaAula(new Set());
       }
 
-      setModo(prev => prev === 'chamada' || prev === 'relatorio'
-  ? (aulaEmCurso ? prev : prev)
-  : (aulaEmCurso ? 'chamada' : 'relatorio')
-);
+      // FIX 1.2: a troca automática de aba agora acontece de fato, mas só na
+      // primeira carga — não sobrescreve a aba que o usuário escolher depois.
+      if (!modoInicializado) {
+        setModo(aulaEmCurso ? 'chamada' : 'relatorio');
+        setModoInicializado(true);
+      }
+
       calcularMetricas(presencasData || [], alunosData || []);
     } catch (err) {
-      showToast.error('Erro ao carregar dados de presença.');
+      showToast.error(tratarErro(err, {
+        contexto: 'fetchDados',
+        mensagemPadrao: 'Erro ao carregar dados de presença.',
+      }));
     } finally {
       setLoading(false);
     }
-  }, [filtros.periodo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.periodo, modoInicializado]);
 
-  useEffect(() => { fetchDados(); }, [filtros.periodo]);
+  useEffect(() => { fetchDados(); }, [filtros.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Quando o usuário muda a aula selecionada manualmente (sem aula automática ativa),
   // atualiza os Sets de check-ins e de fixos para refletir quem pertence àquela aula.
@@ -16188,28 +16229,48 @@ setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
       }
       return;
     }
+
+    // FIX 1.4: flag de "efeito vivo" evita que uma resposta obsoleta
+    // (troca rápida de aula no <select>) sobrescreva o estado mais recente.
+    let ativo = true;
+
     async function buscarDadosAulaSelecionada() {
       const hojeDateStr = new Date().toISOString().split('T')[0];
-      const [{ data: todasHoje }, { data: fixosDaAula }] = await Promise.all([
-  supabase
-    .from('presencas')
-    .select('id, aluno_id, status')
-    .eq('aula_id', aulaSelecionada)
-    .eq('data_aula', hojeDateStr),
-        supabase
-          .from('agenda_fixa')
-          .select('aluno_id')
-          .eq('aula_id', aulaSelecionada),
-      ]);
-const confirmados = (todasHoje || []).filter(p => p.status === 'presente');
-const pendentes = (todasHoje || []).filter(
-  p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
-);
-setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
-setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-      setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+      try {
+        const [{ data: todasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+          await Promise.all([
+            supabase
+              .from('presencas')
+              .select('id, aluno_id, status, origem')
+              .eq('aula_id', aulaSelecionada)
+              .eq('data_aula', hojeDateStr),
+            supabase
+              .from('agenda_fixa')
+              .select('aluno_id')
+              .eq('aula_id', aulaSelecionada),
+          ]);
+        if (errHoje) throw errHoje;
+        if (errFixos) throw errFixos;
+        if (!ativo) return; // resposta obsoleta — descarta
+
+        const confirmados = (todasHoje || []).filter(p => p.status === 'presente');
+        const pendentes = (todasHoje || []).filter(
+          p => p.status === 'agendado' && !confirmados.find(c => c.aluno_id === p.aluno_id)
+        );
+        setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
+        setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
+        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+      } catch (err) {
+        if (!ativo) return;
+        showToast.error(tratarErro(err, {
+          contexto: 'buscarDadosAulaSelecionada',
+          mensagemPadrao: 'Erro ao carregar dados da aula selecionada.',
+        }));
+      }
     }
+
     buscarDadosAulaSelecionada();
+    return () => { ativo = false; };
   }, [aulaSelecionada, aulaAtiva]);
 
   function calcularMetricas(presencasData, alunosData) {
@@ -16257,85 +16318,109 @@ setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
   }
 
   // ─── check-in ─────────────────────────────────────────────────────────────
-async function realizarCheckin(aluno, aulaId, dataRef = null) {
-  if (!aulaId) {
-    showToast.error('Selecione uma aula para fazer o check-in.');
-    return;
-  }
-  setLoadingCheckin(aluno.id);
-  // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
-  const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
-  const dataCheckin = dataRef
-    ? `${dataRef}T12:00:00.000Z`
-    : new Date().toISOString();
-  try {
-    const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
-
-    if (agendadoId) {
-      const { error } = await supabase
-        .from('presencas')
-        .update({ status: 'presente', data_checkin: dataCheckin })
-        .eq('id', agendadoId);
-      if (error) throw error;
-    } else {
-      const payload = {
-        aluno_id: aluno.id,
-        aula_id: aulaId,
-        data_aula: dataAula,
-        status: 'presente',
-        origem: alunosFixosDaAula.has(aluno.id) ? 'fixo' : 'avulso',
-        data_checkin: dataCheckin,
-      };
-
-      const { error } = await supabase
-        .from('presencas')
-        .upsert([payload], {
-          onConflict: 'aluno_id,aula_id,data_aula',
-          ignoreDuplicates: true,
-        });
-
-      if (error) {
-        if (error.code === '23505') {
-          showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
-          return;
-        }
-        throw error;
-      }
+  async function realizarCheckin(aluno, aulaId, dataRef = null) {
+    if (!aulaId) {
+      showToast.error('Selecione uma aula para fazer o check-in.');
+      return;
     }
+    setLoadingCheckin(aluno.id);
+    // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
+    const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+    const dataCheckin = dataRef
+      ? `${dataRef}T12:00:00.000Z`
+      : new Date().toISOString();
+    try {
+      const agendadoId = agendadosDaAula.get(aluno.id) ?? null;
 
-    showToast.success(`✅ ${aluno.nome_completo}`);
+      if (agendadoId) {
+        // FIX 1.3 (parte 1): marca a origem como 'agendamento' para que o
+        // desfazer saiba reverter o status em vez de apagar o registro.
+        const { error } = await supabase
+          .from('presencas')
+          .update({ status: 'presente', data_checkin: dataCheckin, origem: 'agendamento' })
+          .eq('id', agendadoId);
+        if (error) throw error;
+      } else {
+        const payload = {
+          aluno_id: aluno.id,
+          aula_id: aulaId,
+          data_aula: dataAula,
+          status: 'presente',
+          origem: alunosFixosDaAula.has(aluno.id) ? 'fixo' : 'avulso',
+          data_checkin: dataCheckin,
+        };
 
-    setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
-    setAgendadosDaAula(prev => {
-      const next = new Map(prev);
-      next.delete(aluno.id);
-      return next;
-    });
-    setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
+        const { error } = await supabase
+          .from('presencas')
+          .upsert([payload], {
+            onConflict: 'aluno_id,aula_id,data_aula',
+            ignoreDuplicates: true,
+          });
 
-    queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+        if (error) {
+          if (error.code === '23505') {
+            showToast.error(`${aluno.nome_completo} já fez check-in hoje!`);
+            return;
+          }
+          throw error;
+        }
+      }
 
-  } catch (err) {
-    showToast.error('Erro ao registrar presença.');
-  } finally {
-    setLoadingCheckin(null);
+      showToast.success(`✅ ${aluno.nome_completo}`);
+
+      setCheckinsDaAula(prev => new Set([...prev, aluno.id]));
+      setAgendadosDaAula(prev => {
+        const next = new Map(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+      setMetricas(prev => ({ ...prev, checkinsHoje: prev.checkinsHoje + 1 }));
+
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+    } catch (err) {
+      showToast.error(tratarErro(err, {
+        contexto: 'realizarCheckin',
+        mensagemPadrao: 'Erro ao registrar presença.',
+      }));
+    } finally {
+      setLoadingCheckin(null);
+    }
   }
-}
 
+  // FIX 1.3 (parte 2): desfazer agora reverte para 'agendado' quando o
+  // registro veio de um agendamento formal, em vez de apagar o vínculo.
   async function desfazerCheckin(aluno) {
+    // FIX 3.1: camada extra de defesa no client — a autorização "de verdade"
+    // deve estar garantida via RLS no Supabase (a confirmar com o time de backend).
+    if (!isAdmin) {
+      showToast.error('Você não tem permissão para desfazer check-ins.');
+      return;
+    }
     try {
       const hoje = new Date().toISOString().split('T')[0];
       const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
-      const { data: reg } = await supabase
+      const { data: reg, error: errBusca } = await supabase
         .from('presencas')
-        .select('id')
+        .select('id, origem')
         .eq('aluno_id', aluno.id)
         .eq('aula_id', aulaIdAtual)
         .eq('data_aula', hoje)
         .maybeSingle();
+      if (errBusca) throw errBusca;
       if (!reg) { showToast.error('Registro não encontrado.'); return; }
-      const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
-      if (error) throw error;
+
+      if (reg.origem === 'agendamento') {
+        const { error } = await supabase
+          .from('presencas')
+          .update({ status: 'agendado', data_checkin: null })
+          .eq('id', reg.id);
+        if (error) throw error;
+        setAgendadosDaAula(prev => new Map(prev).set(aluno.id, reg.id));
+      } else {
+        const { error } = await supabase.from('presencas').delete().eq('id', reg.id);
+        if (error) throw error;
+      }
+
       showToast.success(`↩️ Check-in desfeito: ${aluno.nome_completo}`);
       queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
       setCheckinsDaAula(prev => {
@@ -16345,7 +16430,35 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
       });
       setMetricas(prev => ({ ...prev, checkinsHoje: Math.max(0, prev.checkinsHoje - 1) }));
     } catch (err) {
-      showToast.error('Erro ao desfazer check-in.');
+      showToast.error(tratarErro(err, {
+        contexto: 'desfazerCheckin',
+        mensagemPadrao: 'Erro ao desfazer check-in.',
+      }));
+    }
+  }
+
+  async function marcarAusencia(aluno, presencaId) {
+    // FIX 3.1: mesma camada extra de defesa client-side.
+    if (!isAdmin) {
+      showToast.error('Você não tem permissão para marcar ausências.');
+      return;
+    }
+    if (!presencaId) return;
+    try {
+      const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
+      await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
+      setAgendadosDaAula(prev => {
+        const next = new Map(prev);
+        next.delete(aluno.id);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      showToast.success(`${aluno.nome_completo} marcado como ausente. Professor será notificado.`);
+    } catch (err) {
+      showToast.error(tratarErro(err, {
+        contexto: 'marcarAusencia',
+        mensagemPadrao: 'Erro ao marcar ausência.',
+      }));
     }
   }
 
@@ -16354,20 +16467,25 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
       const trintaDiasAtras = new Date();
       trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
       const trintaDiasAtrasStr = trintaDiasAtras.toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('presencas')
         .select(`*, agenda(atividade, horario)`)
         .eq('aluno_id', aluno.id)
         .eq('status', 'presente')
         .gte('data_aula', trintaDiasAtrasStr)
         .order('data_checkin', { ascending: false });
+      if (error) throw error;
       setAlunoSelecionado({ ...aluno, historico: data || [] });
       modalDetalhes.abrir();
     } catch (err) {
-      showToast.error('Erro ao carregar histórico.');
+      showToast.error(tratarErro(err, {
+        contexto: 'visualizarDetalhes',
+        mensagemPadrao: 'Erro ao carregar histórico.',
+      }));
     }
   }
 
+  // FIX 3.2: exportação agora sanitiza fórmulas e aspas corretamente.
   function exportarRelatorio() {
     const dadosExport = presencasFiltradas.map(p => ({
       Aluno: p.alunos?.nome_completo,
@@ -16381,12 +16499,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
     const headers = Object.keys(dadosExport[0]);
     const csvRows = [
       headers.join(','),
-      ...dadosExport.map(row =>
-        headers.map(h => {
-          const v = row[h];
-          return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
-        }).join(',')
-      )
+      ...dadosExport.map(row => headers.map(h => sanitizarCelulaCSV(row[h])).join(','))
     ];
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -16394,42 +16507,74 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
     link.setAttribute('href', url);
     link.setAttribute('download', `presencas_${filtros.periodo}.csv`);
     link.click();
+    URL.revokeObjectURL(url); // libera memória — pequeno leak evitado
     showToast.success('Relatório exportado!');
   }
 
-  // ─── dados derivados ──────────────────────────────────────────────────────
-  const presencasFiltradas = presencas.filter(p => {
+  // ─── dados derivados (memoizados — FIX 4.2) ────────────────────────────────
+  const presencasFiltradas = useMemo(() => presencas.filter(p => {
     const matchAluno = filtros.aluno === 'todos' || p.aluno_id === Number(filtros.aluno);
     const matchAula  = filtros.aula  === 'todas' || p.aula_id  === Number(filtros.aula);
     return matchAluno && matchAula;
-  });
+  }), [presencas, filtros.aluno, filtros.aula]);
 
   // Aula em uso (automática ou selecionada manualmente)
   const aulaEmUso = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
 
-  // Função de filtro por texto de busca
-  const filtrarPorBusca = (lista) =>
+  const filtrarPorBusca = useCallback((lista) =>
     !buscaChamada
       ? lista
       : lista.filter(a =>
           a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
           a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-        );
+        ), [buscaChamada]);
 
   // Quando há uma aula em uso, separa alunos da turma (fixos) dos demais.
   // Os fixos aparecem no topo da lista para facilitar a chamada.
-  const alunosDaAula    = aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : [];
-  const alunosRestantes = aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos;
+  const alunosDaAula = useMemo(
+    () => (aulaEmUso ? alunos.filter(a => alunosFixosDaAula.has(a.id)) : []),
+    [aulaEmUso, alunos, alunosFixosDaAula]
+  );
+  const alunosRestantes = useMemo(
+    () => (aulaEmUso ? alunos.filter(a => !alunosFixosDaAula.has(a.id)) : alunos),
+    [aulaEmUso, alunos, alunosFixosDaAula]
+  );
 
-  const alunosDaAulaFiltrados    = filtrarPorBusca(alunosDaAula);
-  const alunosRestantesFiltrados = filtrarPorBusca(alunosRestantes);
+  const alunosDaAulaFiltrados    = useMemo(() => filtrarPorBusca(alunosDaAula), [filtrarPorBusca, alunosDaAula]);
+  const alunosRestantesFiltrados = useMemo(() => filtrarPorBusca(alunosRestantes), [filtrarPorBusca, alunosRestantes]);
 
   // Lista final: alunos da turma primeiro, depois os demais ativos
-  const alunosChamadaFiltrados = [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados];
+  const alunosChamadaFiltrados = useMemo(
+    () => [...alunosDaAulaFiltrados, ...alunosRestantesFiltrados],
+    [alunosDaAulaFiltrados, alunosRestantesFiltrados]
+  );
 
-  const presentes      = alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id));
-  const ausentes       = alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id));
+  const presentes = useMemo(
+    () => alunosChamadaFiltrados.filter(a => checkinsDaAula.has(a.id)),
+    [alunosChamadaFiltrados, checkinsDaAula]
+  );
+  const ausentes = useMemo(
+    () => alunosChamadaFiltrados.filter(a => !checkinsDaAula.has(a.id)),
+    [alunosChamadaFiltrados, checkinsDaAula]
+  );
   const totalPresentes = checkinsDaAula.size;
+
+  const agendadosFiltrados = useMemo(
+    () => alunos
+      .filter(a => agendadosDaAula.has(a.id))
+      .filter(a =>
+        !buscaChamada ||
+        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
+        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
+      ),
+    [alunos, agendadosDaAula, buscaChamada]
+  );
+
+  // FIX 4.3: máximo do gráfico calculado uma única vez, fora do .map() de render.
+  const maxAlturaSemana = useMemo(
+    () => Math.max(...metricas.presencaSemana.map(d => d.total), 0),
+    [metricas.presencaSemana]
+  );
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
@@ -16514,7 +16659,9 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                     <p className="text-[10px] font-black uppercase text-muted-foreground">Presentes</p>
                   </div>
                   <div>
-                    <p className="text-3xl font-black text-muted-foreground">{alunosDaAula.length - totalPresentes < 0 ? 0 : alunosDaAula.length - totalPresentes}</p>
+                    <p className="text-3xl font-black text-muted-foreground">
+                      {Math.max(alunosDaAula.length - totalPresentes, 0)}
+                    </p>
                     <p className="text-[10px] font-black uppercase text-muted-foreground">Ausentes</p>
                   </div>
                   <div>
@@ -16612,77 +16759,54 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
             <div className="space-y-6">
 
               {/* Agendados via Agenda */}
-{agendadosDaAula.size > 0 && (
-  <div className="space-y-2">
-    <div className="flex items-center gap-2 px-1">
-      <Clock size={14} className="text-warning" />
-      <p className="text-xs font-black uppercase tracking-widest text-warning">
-        Agendados — aguardando confirmação ({agendadosDaAula.size})
-      </p>
-    </div>
-    {alunos
-      .filter(a => agendadosDaAula.has(a.id))
-      .filter(a =>
-        !buscaChamada ||
-        a.nome_completo?.toLowerCase().includes(buscaChamada.toLowerCase()) ||
-        a.email?.toLowerCase().includes(buscaChamada.toLowerCase())
-      )
-      .map(aluno => (
-        <div
-          key={aluno.id}
-          className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
-        >
-          <div className="flex items-center gap-3">
-            <Clock className="text-warning shrink-0" size={22} />
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-foreground">{aluno.nome_completo}</p>
-                {alunosFixosDaAula.has(aluno.id) && (
-                  <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
-                )}
-                <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{aluno.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="brand"
-              disabled={loadingCheckin === aluno.id}
-              onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
-            >
-              Confirmar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={loadingCheckin === aluno.id}
-              onClick={async () => {
-                const presencaId = agendadosDaAula.get(aluno.id);
-                if (!presencaId) return;
-                try {
-                  const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
-                  await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
-                  setAgendadosDaAula(prev => {
-                    const next = new Map(prev);
-                    next.delete(aluno.id);
-                    return next;
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
-                  showToast.success(`${aluno.nome_completo} marcado como ausente. Professor será notificado.`);
-                } catch (err) {
-                  showToast.error('Erro ao marcar ausência.');
-                }
-              }}
-            >
-              Ausente
-            </Button>
-          </div>
-        </div>
-      ))}
-  </div>
-)}
+              {agendadosDaAula.size > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <Clock size={14} className="text-warning" />
+                    <p className="text-xs font-black uppercase tracking-widest text-warning">
+                      Agendados — aguardando confirmação ({agendadosDaAula.size})
+                    </p>
+                  </div>
+                  {agendadosFiltrados.map(aluno => (
+                    <div
+                      key={aluno.id}
+                      className="flex items-center justify-between w-full p-4 bg-warning-soft border border-warning/20 rounded-2xl"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Clock className="text-warning shrink-0" size={22} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-foreground">{aluno.nome_completo}</p>
+                            {alunosFixosDaAula.has(aluno.id) && (
+                              <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+                            )}
+                            <Badge tone="warning" variant="soft" size="sm">Agendado</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{aluno.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="brand"
+                          disabled={loadingCheckin === aluno.id}
+                          onClick={() => realizarCheckin(aluno, aulaEmUso, aulaAtiva ? null : dataManual)}
+                        >
+                          Confirmar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loadingCheckin === aluno.id || !isAdmin}
+                          onClick={() => marcarAusencia(aluno, agendadosDaAula.get(aluno.id))}
+                        >
+                          Ausente
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Subseção: Ausentes (aparecem primeiro para facilitar o check-in) */}
               {ausentes.length > 0 && (
@@ -16702,6 +16826,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -16726,6 +16851,7 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
                         onDetalhes={visualizarDetalhes}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -16761,8 +16887,8 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
               <h3 className="font-bold text-foreground mb-6">Distribuição Semanal</h3>
               <div className="flex gap-2 items-end h-48">
                 {metricas.presencaSemana.map((dia, idx) => {
-                  const maxAltura = Math.max(...metricas.presencaSemana.map(d => d.total));
-                  const altura = maxAltura > 0 ? (dia.total / maxAltura) * 100 : 0;
+                  // FIX 4.3: maxAlturaSemana calculado uma única vez fora do map.
+                  const altura = maxAlturaSemana > 0 ? (dia.total / maxAlturaSemana) * 100 : 0;
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                       <div className="flex-1 flex items-end w-full">
@@ -16948,8 +17074,9 @@ async function realizarCheckin(aluno, aulaId, dataRef = null) {
  * - isDaAula: true quando o aluno está matriculado na agenda_fixa da aula em curso
  * - Ausente: botão verde para marcar presença
  * - Presente: badge verde + botão discreto para desfazer + link histórico
+ * - isAdmin: FIX 3.1 — controla se o botão "Desfazer" fica habilitado
  */
-function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes }) {
+function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes, isAdmin }) {
   const carregando = loadingId === aluno.id;
 
   if (presente) {
@@ -16976,8 +17103,9 @@ function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, o
           </button>
           <button
             onClick={() => onDesfazer(aluno)}
-            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft"
-            title="Desfazer check-in"
+            disabled={!isAdmin}
+            title={isAdmin ? 'Desfazer check-in' : 'Apenas administradores podem desfazer'}
+            className="text-[10px] font-black uppercase tracking-widest text-destructive/70 hover:text-destructive transition-colors px-2 py-1 rounded-lg hover:bg-destructive-soft disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
           >
             Desfazer
           </button>
@@ -17038,6 +17166,165 @@ function CardMetrica({ titulo, valor, subtitulo, icone, tone = 'neutral' }) {
     </Surface>
   );
 }
+</file>
+
+<file path="gestao_web/src/services/gradeService.js">
+import { supabase } from '../lib/supabase';
+
+export const gradeService = {
+  async listarProfessores() {
+    const { data, error } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+  async listarModalidades() {
+    const { data, error } = await supabase
+      .from('modalidades')
+      .select('*')
+      .order('nome');
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * @param {'admin' | 'professor' | 'aluno'} perfil  — vem do useAuth
+   * @param {string | null} professorId                — id do professor logado (se perfil === 'professor')
+   */
+  async listarGrade(perfil, professorId) {
+    if (perfil === 'admin') {
+      const { data, error } = await supabase
+        .from('agenda')
+        .select('*, professores(nome), modalidades(id, nome)')
+        .order('horario', { ascending: true });
+      if (error) throw error;
+      return data;
+    }
+
+    if (perfil !== 'professor' || !professorId) return [];
+
+    // Busca modalidades do professor e aulas em paralelo
+    const { data: modalidadesDoProf } = await supabase
+      .from('modalidades')
+      .select('id')
+      .eq('professor_id', professorId);
+
+    const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
+
+    const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
+      await Promise.all([
+        supabase
+          .from('agenda')
+          .select('*, professores(nome), modalidades(id, nome)')
+          .eq('professor_id', professorId)
+          .order('horario', { ascending: true }),
+
+        idsModsDoProf.length > 0
+          ? supabase
+              .from('agenda')
+              .select('*, professores(nome), modalidades(id, nome)')
+              .is('professor_id', null)
+              .in('modalidade_id', idsModsDoProf)
+              .order('horario', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+    if (errDiretas) throw errDiretas;
+    if (errMod) throw errMod;
+
+    const vistas = new Set();
+    return [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])].filter((a) => {
+      if (vistas.has(a.id)) return false;
+      vistas.add(a.id);
+      return true;
+    });
+  },
+
+  async salvarAula(aula) {
+    if (aula.id) {
+      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('agenda').insert([aula]);
+      if (error) throw error;
+    }
+    return true;
+  },
+
+  async excluirAula(id) {
+    try {
+      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
+      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      // IMPORTANTE: não apagamos as presenças. O histórico de frequência do
+      // aluno é dado real e deve sobreviver à exclusão da grade/aula — só
+      // desvinculamos a referência (aula_id = null), preservando a linha.
+      // Requer que presencas.aula_id aceite NULL e que a FK use
+      // ON DELETE SET NULL (ver migration fix_presencas_old_fk.sql).
+      await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
+      const { error } = await supabase.from('agenda').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Erro ao excluir aula em cascata:', error);
+      throw error;
+    }
+  },
+
+  async encerrarAula(id, dataEncerramento) {
+    const { error } = await supabase
+      .from('agenda')
+      .update({ data_fim: dataEncerramento })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  async listarFeriados() {
+    const { data, error } = await supabase
+      .from('feriados')
+      .select('*')
+      .gte('data', new Date().toISOString().split('T')[0])
+      .order('data', { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+
+  async cadastrarFeriado(dados) {
+    const { error } = await supabase.from('feriados').insert([dados]);
+    if (error) throw error;
+
+    if (dados.bloqueia_agenda) {
+      const inicioDia = `${dados.data}T00:00:00`;
+      const fimDia    = `${dados.data}T23:59:59`;
+      await supabase
+        .from('presencas')
+        .delete()
+        .gte('data_checkin', inicioDia)
+        .lte('data_checkin', fimDia);
+    }
+  },
+
+  async listarMatriculasFixas(aulasIds = null) {
+  let query = supabase
+    .from('agenda_fixa')
+    .select('aula_id, alunos (id, nome_completo, data_inicio_plano, data_fim_plano)');
+
+  if (aulasIds !== null) {
+    query = query.in('aula_id', aulasIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erro ao buscar alunos fixos:', error);
+    return [];
+  }
+  return data;
+},
+};
 </file>
 
 <file path="gestao_web/src/services/repasseService.js">
@@ -17151,6 +17438,174 @@ export async function listarRepassesProfessor(professorId, mesAno) {
 }
 </file>
 
+<file path="gestao_web/src/hooks/useAuth.js">
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+
+export function useAuth() {
+  const [sessao, setSessao] = useState(null);
+  const [perfil, setPerfil] = useState(null);
+  const [professorId, setProfessorId] = useState(null);
+  const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
+  const [professorInativo, setProfessorInativo] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const perfilJaCarregado = useRef(false);
+  // FIX Issue 2: rastreia para qual auth_id o perfil foi carregado,
+  // para detectar troca de usuário mesmo sem SIGNED_OUT (ex: tab recarregada).
+  const perfilCarregadoParaId = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const carregarPerfilUsuario = async (session) => {
+      if (cancelled) return;
+
+      if (!session) {
+        if (!cancelled) {
+          setSessao(null);
+          setPerfil(null);
+          setProfessorId(null);
+          setNomeUsuario(null); // #18
+          setProfessorInativo(false);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
+
+      // FIX Issue 2: se o perfil já foi carregado para este mesmo user.id, reutiliza.
+      // Se for um user.id diferente (login de outro usuário na mesma aba),
+      // força recarregar mesmo que perfilJaCarregado.current seja true.
+      if (perfilJaCarregado.current && perfilCarregadoParaId.current === session.user.id) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      // Reset para garantir que um usuário diferente não herde o perfil do anterior.
+      perfilJaCarregado.current = false;
+
+      // Usa auth_id (UUID do Supabase Auth) em vez de email.
+      // Isso garante que alterações de email no painel do Auth não quebrem o lookup.
+      const authId = session.user.id;
+
+      try {
+        const { data: usuario, error: errAluno } = await supabase
+          .from('alunos').select('id, role').eq('auth_id', authId).maybeSingle();
+        if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
+
+        if (cancelled) return;
+
+        if (usuario) {
+          perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
+          setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
+          setProfessorId(null);
+          setNomeUsuario(null); // alunos não têm nome exposto aqui
+          setLoading(false);
+          return;
+        }
+
+        // #18 — busca 'nome' além de 'id'
+        const { data: professor, error: errProf } = await supabase
+          .from('professores').select('id, nome, ativo').eq('auth_id', authId).maybeSingle();
+        if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
+
+        if (cancelled) return;
+
+         if (professor && professor.ativo !== false) {
+          perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
+          setPerfil('professor');
+          // Number() garante que o id seja sempre number,
+          // independente do Supabase retornar bigint como string.
+          setProfessorId(professor.id);
+          setNomeUsuario(professor.nome ?? null); // #18
+          setProfessorInativo(false);
+          setLoading(false);
+          return;
+        }
+
+        if (professor && professor.ativo === false) {
+        perfilJaCarregado.current = true;
+        perfilCarregadoParaId.current = authId;
+        setProfessorInativo(true);
+        setPerfil(null);
+        setProfessorId(null);
+        setNomeUsuario(null);
+        setLoading(false);
+        await supabase.auth.signOut();
+        return;
+      }
+
+        perfilJaCarregado.current = true;
+        perfilCarregadoParaId.current = authId;
+        console.warn('Nenhum perfil encontrado para auth_id:', authId);
+        setPerfil(null);
+        setProfessorId(null);
+        setNomeUsuario(null);
+      } catch (error) {
+        console.error('Erro fatal ao carregar perfil:', error);
+        if (cancelled) return;
+        perfilJaCarregado.current = true;
+        perfilCarregadoParaId.current = authId;
+        setPerfil(null);
+        setProfessorId(null);
+        setNomeUsuario(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) carregarPerfilUsuario(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
+
+      if (event === 'SIGNED_OUT') {
+        perfilJaCarregado.current = false;
+        perfilCarregadoParaId.current = null;
+        setSessao(null);
+        setPerfil(null);
+        setProfessorId(null);
+        setNomeUsuario(null); // #18
+        setProfessorInativo(false);
+        setLoading(false);
+
+      } else if (event === 'SIGNED_IN') {
+        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
+          setSessao(session);
+          return;
+        }
+
+        perfilJaCarregado.current = false;
+        setLoading(true);
+        carregarPerfilUsuario(session);
+
+      } else {
+        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
+          setSessao(session);
+        } else {
+          carregarPerfilUsuario(session);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo };
+}
+</file>
+
 <file path="gestao_web/src/pages/Agenda/hooks/useEventosCalendario.js">
 import { useMemo } from 'react';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -17218,160 +17673,6 @@ export function useEventosCalendario({ aulas, feriados, presencasCalendario, mat
     return eventosGerados;
   }, [aulasFiltradas, limitesVisiveis, eventosFeriados, feriados, indexes]);
 }
-</file>
-
-<file path="gestao_web/src/services/gradeService.js">
-import { supabase } from '../lib/supabase';
-
-export const gradeService = {
-  async listarProfessores() {
-    const { data, error } = await supabase
-      .from('professores')
-      .select('*')
-      .eq('ativo', true)
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-  async listarModalidades() {
-    const { data, error } = await supabase
-      .from('modalidades')
-      .select('*')
-      .order('nome');
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * @param {'admin' | 'professor' | 'aluno'} perfil  — vem do useAuth
-   * @param {string | null} professorId                — id do professor logado (se perfil === 'professor')
-   */
-  async listarGrade(perfil, professorId) {
-    if (perfil === 'admin') {
-      const { data, error } = await supabase
-        .from('agenda')
-        .select('*, professores(nome), modalidades(id, nome)')
-        .order('horario', { ascending: true });
-      if (error) throw error;
-      return data;
-    }
-
-    if (perfil !== 'professor' || !professorId) return [];
-
-    // Busca modalidades do professor e aulas em paralelo
-    const { data: modalidadesDoProf } = await supabase
-      .from('modalidades')
-      .select('id')
-      .eq('professor_id', professorId);
-
-    const idsModsDoProf = modalidadesDoProf?.map((m) => m.id) ?? [];
-
-    const [{ data: aulasDiretas, error: errDiretas }, { data: aulasPorMod, error: errMod }] =
-      await Promise.all([
-        supabase
-          .from('agenda')
-          .select('*, professores(nome), modalidades(id, nome)')
-          .eq('professor_id', professorId)
-          .order('horario', { ascending: true }),
-
-        idsModsDoProf.length > 0
-          ? supabase
-              .from('agenda')
-              .select('*, professores(nome), modalidades(id, nome)')
-              .is('professor_id', null)
-              .in('modalidade_id', idsModsDoProf)
-              .order('horario', { ascending: true })
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-
-    if (errDiretas) throw errDiretas;
-    if (errMod) throw errMod;
-
-    const vistas = new Set();
-    return [...(aulasDiretas ?? []), ...(aulasPorMod ?? [])].filter((a) => {
-      if (vistas.has(a.id)) return false;
-      vistas.add(a.id);
-      return true;
-    });
-  },
-
-  async salvarAula(aula) {
-    if (aula.id) {
-      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('agenda').insert([aula]);
-      if (error) throw error;
-    }
-    return true;
-  },
-
-  async excluirAula(id) {
-    try {
-      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
-      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
-      await supabase.from('presencas').delete().eq('aula_id', id);
-      const { error } = await supabase.from('agenda').delete().eq('id', id);
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Erro ao excluir aula em cascata:', error);
-      throw error;
-    }
-  },
-
-  async encerrarAula(id, dataEncerramento) {
-    const { error } = await supabase
-      .from('agenda')
-      .update({ data_fim: dataEncerramento })
-      .eq('id', id);
-    if (error) throw error;
-    return true;
-  },
-
-  async listarFeriados() {
-    const { data, error } = await supabase
-      .from('feriados')
-      .select('*')
-      .gte('data', new Date().toISOString().split('T')[0])
-      .order('data', { ascending: true });
-    if (error) throw error;
-    return data;
-  },
-
-  async cadastrarFeriado(dados) {
-    const { error } = await supabase.from('feriados').insert([dados]);
-    if (error) throw error;
-
-    if (dados.bloqueia_agenda) {
-      const inicioDia = `${dados.data}T00:00:00`;
-      const fimDia    = `${dados.data}T23:59:59`;
-      await supabase
-        .from('presencas')
-        .delete()
-        .gte('data_checkin', inicioDia)
-        .lte('data_checkin', fimDia);
-    }
-  },
-
-  async listarMatriculasFixas(aulasIds = null) {
-  let query = supabase
-    .from('agenda_fixa')
-    .select('aula_id, alunos (id, nome_completo, data_inicio_plano, data_fim_plano)');
-
-  if (aulasIds !== null) {
-    query = query.in('aula_id', aulasIds);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('Erro ao buscar alunos fixos:', error);
-    return [];
-  }
-  return data;
-},
-};
 </file>
 
 <file path="gestao_web/src/utils/calendarioParser.js">
@@ -17994,174 +18295,6 @@ serve(async (req: Request) => {
     return response({ error: message }, 500);
   }
 });
-</file>
-
-<file path="gestao_web/src/hooks/useAuth.js">
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-
-export function useAuth() {
-  const [sessao, setSessao] = useState(null);
-  const [perfil, setPerfil] = useState(null);
-  const [professorId, setProfessorId] = useState(null);
-  const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
-  const [professorInativo, setProfessorInativo] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const perfilJaCarregado = useRef(false);
-  // FIX Issue 2: rastreia para qual auth_id o perfil foi carregado,
-  // para detectar troca de usuário mesmo sem SIGNED_OUT (ex: tab recarregada).
-  const perfilCarregadoParaId = useRef(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const carregarPerfilUsuario = async (session) => {
-      if (cancelled) return;
-
-      if (!session) {
-        if (!cancelled) {
-          setSessao(null);
-          setPerfil(null);
-          setProfessorId(null);
-          setNomeUsuario(null); // #18
-          setProfessorInativo(false);
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (!cancelled) setSessao((prev) => (prev?.user?.id === session.user.id ? prev : session));
-
-      // FIX Issue 2: se o perfil já foi carregado para este mesmo user.id, reutiliza.
-      // Se for um user.id diferente (login de outro usuário na mesma aba),
-      // força recarregar mesmo que perfilJaCarregado.current seja true.
-      if (perfilJaCarregado.current && perfilCarregadoParaId.current === session.user.id) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
-
-      // Reset para garantir que um usuário diferente não herde o perfil do anterior.
-      perfilJaCarregado.current = false;
-
-      // Usa auth_id (UUID do Supabase Auth) em vez de email.
-      // Isso garante que alterações de email no painel do Auth não quebrem o lookup.
-      const authId = session.user.id;
-
-      try {
-        const { data: usuario, error: errAluno } = await supabase
-          .from('alunos').select('id, role').eq('auth_id', authId).maybeSingle();
-        if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
-
-        if (cancelled) return;
-
-        if (usuario) {
-          perfilJaCarregado.current = true;
-          perfilCarregadoParaId.current = authId;
-          setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
-          setProfessorId(null);
-          setNomeUsuario(null); // alunos não têm nome exposto aqui
-          setLoading(false);
-          return;
-        }
-
-        // #18 — busca 'nome' além de 'id'
-        const { data: professor, error: errProf } = await supabase
-          .from('professores').select('id, nome, ativo').eq('auth_id', authId).maybeSingle();
-        if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
-
-        if (cancelled) return;
-
-         if (professor && professor.ativo !== false) {
-          perfilJaCarregado.current = true;
-          perfilCarregadoParaId.current = authId;
-          setPerfil('professor');
-          // Number() garante que o id seja sempre number,
-          // independente do Supabase retornar bigint como string.
-          setProfessorId(professor.id);
-          setNomeUsuario(professor.nome ?? null); // #18
-          setProfessorInativo(false);
-          setLoading(false);
-          return;
-        }
-
-        if (professor && professor.ativo === false) {
-        perfilJaCarregado.current = true;
-        perfilCarregadoParaId.current = authId;
-        setProfessorInativo(true);
-        setPerfil(null);
-        setProfessorId(null);
-        setNomeUsuario(null);
-        setLoading(false);
-        await supabase.auth.signOut();
-        return;
-      }
-
-        perfilJaCarregado.current = true;
-        perfilCarregadoParaId.current = authId;
-        console.warn('Nenhum perfil encontrado para auth_id:', authId);
-        setPerfil(null);
-        setProfessorId(null);
-        setNomeUsuario(null);
-      } catch (error) {
-        console.error('Erro fatal ao carregar perfil:', error);
-        if (cancelled) return;
-        perfilJaCarregado.current = true;
-        perfilCarregadoParaId.current = authId;
-        setPerfil(null);
-        setProfessorId(null);
-        setNomeUsuario(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!cancelled) carregarPerfilUsuario(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return;
-
-      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
-
-      if (event === 'SIGNED_OUT') {
-        perfilJaCarregado.current = false;
-        perfilCarregadoParaId.current = null;
-        setSessao(null);
-        setPerfil(null);
-        setProfessorId(null);
-        setNomeUsuario(null); // #18
-        setProfessorInativo(false);
-        setLoading(false);
-
-      } else if (event === 'SIGNED_IN') {
-        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
-          setSessao(session);
-          return;
-        }
-
-        perfilJaCarregado.current = false;
-        setLoading(true);
-        carregarPerfilUsuario(session);
-
-      } else {
-        if (perfilJaCarregado.current && perfilCarregadoParaId.current === session?.user?.id) {
-          setSessao(session);
-        } else {
-          carregarPerfilUsuario(session);
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo };
-}
 </file>
 
 <file path="gestao_web/src/pages/Alunos.jsx">
@@ -19182,66 +19315,6 @@ export default function Dashboard() {
       </Modal>
     </div>
   );
-}
-</file>
-
-<file path="gestao_web/src/hooks/usePWA.js">
-import { useState, useEffect, useRef } from 'react';
-
-export function usePWA() {
-  const [canInstall, setCanInstall] = useState(false);
-  const deferredPrompt = useRef(null);
-
-  useEffect(() => {
-    // 1. Intercepta e bloqueia a instalação automática do navegador
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      deferredPrompt.current = e;
-      setCanInstall(true); // Avisa a interface que o botão pode aparecer
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    const handleAppInstalled = () => {
-      setCanInstall(false);
-      deferredPrompt.current = null;
-    };
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    // 2. Registro simples e silencioso do Service Worker (sem forçar reloads)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
-        console.error('Falha ao registrar SW:', err);
-      });
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  // 3. Função que será chamada APENAS quando o usuário clicar no seu botão
-  const install = async () => {
-    if (!deferredPrompt.current) return false;
-    
-    try {
-      deferredPrompt.current.prompt();
-      const { outcome } = await deferredPrompt.current.userChoice;
-      
-      if (outcome === 'accepted') {
-        setCanInstall(false);
-      }
-      deferredPrompt.current = null;
-      return outcome === 'accepted';
-    } catch (err) {
-      console.error('[PWA] Erro ao instalar:', err);
-      return false;
-    }
-  };
-
-  // Retorna apenas o necessário para o botão funcionar
-  return { canInstall, install };
 }
 </file>
 
@@ -21397,6 +21470,66 @@ export default function NovoAluno() {
       </Modal>
     </div>
   );
+}
+</file>
+
+<file path="gestao_web/src/hooks/usePWA.js">
+import { useState, useEffect, useRef } from 'react';
+
+export function usePWA() {
+  const [canInstall, setCanInstall] = useState(false);
+  const deferredPrompt = useRef(null);
+
+  useEffect(() => {
+    // 1. Intercepta e bloqueia a instalação automática do navegador
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      deferredPrompt.current = e;
+      setCanInstall(true); // Avisa a interface que o botão pode aparecer
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const handleAppInstalled = () => {
+      setCanInstall(false);
+      deferredPrompt.current = null;
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // 2. Registro simples e silencioso do Service Worker (sem forçar reloads)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('Falha ao registrar SW:', err);
+      });
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  // 3. Função que será chamada APENAS quando o usuário clicar no seu botão
+  const install = async () => {
+    if (!deferredPrompt.current) return false;
+    
+    try {
+      deferredPrompt.current.prompt();
+      const { outcome } = await deferredPrompt.current.userChoice;
+      
+      if (outcome === 'accepted') {
+        setCanInstall(false);
+      }
+      deferredPrompt.current = null;
+      return outcome === 'accepted';
+    } catch (err) {
+      console.error('[PWA] Erro ao instalar:', err);
+      return false;
+    }
+  };
+
+  // Retorna apenas o necessário para o botão funcionar
+  return { canInstall, install };
 }
 </file>
 
@@ -25287,6 +25420,231 @@ const emptyStateEspaco = useMemo(() => {
 }
 </file>
 
+<file path="gestao_web/src/components/Sidebar.jsx">
+import React from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, Users, Calendar, Download, LogOut, 
+  Package, TrendingDown, UserCheck, Calculator, X,
+  Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
+  CreditCard, UserPlus
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import ThemeToggle from './ui/ThemeToggle';
+import { usePWA } from '../hooks/usePWA';
+
+function resolverPerfil(perfil) {
+  if (!perfil) return 'admin';
+  if (typeof perfil === 'string') return perfil.toLowerCase().trim();
+  const valor = perfil.role ?? perfil.tipo ?? 'admin';
+  return String(valor).toLowerCase().trim();
+}
+
+// S3 UX — extrai inicial do nome para o avatar
+function inicialNome(nome) {
+  if (!nome) return '?';
+  return nome.trim().charAt(0).toUpperCase();
+}
+
+// #17 — recebe nomeUsuario como prop
+function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    try {
+      await supabase.auth.signOut();
+      Object.keys(localStorage)
+        .filter(key => key.startsWith('supabase.'))
+        .forEach(key => localStorage.removeItem(key));
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+    }
+  }
+
+  const menuAdmin = [
+    { label: 'Visão Geral' },
+    { name: 'Painel Avisos', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Notificações', path: '/notificacoes', icon: Bell },
+    { name: 'Leads', path: '/leads', icon: Clock },
+    { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
+    
+    { label: 'Gestão e Operação' },
+    { name: 'Alunos', path: '/alunos', icon: Users },
+    { name: 'Planos', path: '/planos', icon: CreditCard },
+    { name: 'Professores', path: '/professores', icon: UserCheck },
+    { name: 'Modalidades', path: '/modalidades', icon: Package },
+    { name: 'Agenda', path: '/agenda', icon: Calendar },
+    { name: 'Presença', path: '/presenca', icon: Clock },
+    { name: 'Feriados', path: '/configuracoes/feriados', icon: TableConfigIcon },
+    
+    { label: 'Financeiro' },
+    { name: 'Mensalidades', path: '/financeiro', icon: DollarSign },
+    { name: 'Despesas', path: '/despesas', icon: TrendingDown },
+    { name: 'Resultado Financeiro', path: '/resultado-financeiro', icon: Calculator },
+    { name: 'Comissões', path: '/comissoes', icon: Percent },
+    { name: 'Repasse Regras', path: '/configuracoes/repasse', icon: Calculator },
+  ];
+
+  const menuProfessor = [
+    { label: 'Menu Professor' },
+    { name: 'Minha Agenda',           path: '/agenda',              icon: Calendar },
+    { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
+    { name: 'Meus Leads',             path: '/professor/leads',     icon: UserPlus },
+    { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
+  ];
+
+  const isProfessor = resolverPerfil(perfil) === 'professor';
+  const itensMenu = isProfessor ? menuProfessor : menuAdmin;
+  const { canInstall, install } = usePWA();
+
+  return (
+    <>
+      {/* Overlay Mobile */}
+      {menuAberto && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden transition-all"
+          onClick={() => setMenuAberto(false)}
+        />
+      )}
+
+      {/* Container Sidebar */}
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-72 bg-card border-r border-border
+        transform transition-transform duration-300 ease-in-out
+        flex flex-col h-full
+        ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        
+        {/* Header / Logo */}
+        <div className="p-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <span className="text-primary-foreground font-black text-xl">I</span>
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-foreground tracking-tighter leading-none">
+                Iluminus
+              </h1>
+              {/* UX — label de contexto abaixo do logo para o professor */}
+              {isProfessor && (
+                <p className="text-[10px] font-bold text-muted-foreground tracking-wide mt-0.5">
+                  Área do Professor
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setMenuAberto(false)}
+            className="md:hidden p-2 text-muted-foreground hover:bg-subtle rounded-xl border border-border bg-card"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* S3 UX — Avatar + nome do professor no topo da nav (apenas para professor) */}
+        {isProfessor && nomeUsuario && (
+          <div className="px-6 pb-4">
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary-soft rounded-2xl">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow shadow-primary/20">
+                <span className="text-primary-foreground font-black text-sm">
+                  {inicialNome(nomeUsuario)}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground font-medium">Bem-vindo,</p>
+                <p className="font-black text-sm text-foreground truncate">{nomeUsuario}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navegação */}
+        <nav className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
+          {itensMenu.map((item, index) => {
+            if (item.label) {
+              return (
+                <p key={`label-${index}`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 px-4 mt-6 mb-2">
+                  {item.label}
+                </p>
+              );
+            }
+
+            const Icon = item.icon;
+            const ativo = location.pathname === item.path;
+
+            return (
+              <Link 
+                key={item.path} 
+                to={item.path}
+                onClick={() => setMenuAberto(false)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all
+                  ${ativo 
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
+                    : 'text-muted-foreground hover:bg-subtle hover:text-foreground'}
+                `}
+              >
+                <Icon size={20} />
+                <span className="text-sm">{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Rodapé da Sidebar */}
+        <div className="p-4 border-t border-border mt-auto space-y-2">
+
+          {/* #17 / S3 FIX — chip de identidade: exibe para admin; professor já tem avatar no topo */}
+          {nomeUsuario && !isProfessor && (
+            <div className="px-4 py-3 bg-muted rounded-xl">
+              <p className="text-xs text-muted-foreground">Logado como</p>
+              <p className="font-bold text-sm text-foreground truncate">{nomeUsuario}</p>
+            </div>
+          )}
+
+          <div className="flex justify-center w-full pb-2">
+            <ThemeToggle />
+          </div>
+
+          {canInstall && (
+            <button 
+              onClick={install}
+              className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
+            >
+              <Download size={20} />
+              <span className="text-sm">Instalar Aplicativo</span>
+            </button>
+          )}
+
+          {/* UX — divisor visual antes do logout */}
+          <div className="border-t border-border pt-2">
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
+            >
+              <LogOut size={20} />
+              <span className="text-sm">Sair do Sistema</span>
+            </button>
+          </div>
+          
+          <div className="px-4 py-2">
+            <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">
+              v3.0
+            </p>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+export default Sidebar;
+</file>
+
 <file path="gestao_web/src/pages/Financeiro.jsx">
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
@@ -25752,7 +26110,12 @@ const handleAbrirEdicao = async (item) => {
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 text-muted-foreground font-medium text-sm">
+  {item.data_pagamento
+    ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+    : <span className="text-xs">—</span>}
+</td>
+<td className="p-4">
   {item.tipo_aula === 'regular' ? (
     item.modalidades?.nome
       ? <Badge tone="info" variant="soft">{item.modalidades.nome}</Badge>
@@ -25761,11 +26124,6 @@ const handleAbrirEdicao = async (item) => {
     <span className="text-muted-foreground text-xs">—</span>
   )}
 </td>
-                    <td className="p-4 text-muted-foreground font-medium text-sm">
-                      {item.data_pagamento
-                        ? new Date(item.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
-                        : <span className="text-xs">—</span>}
-                    </td>
                     <td className="p-4">
                       <Badge
                         tone={
@@ -26117,231 +26475,6 @@ const CardMetrica = ({ titulo, valor, icone, tone }) => (
     </div>
   </Surface>
 );
-</file>
-
-<file path="gestao_web/src/components/Sidebar.jsx">
-import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, Users, Calendar, Download, LogOut, 
-  Package, TrendingDown, UserCheck, Calculator, X,
-  Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
-  CreditCard, UserPlus
-} from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import ThemeToggle from './ui/ThemeToggle';
-import { usePWA } from '../hooks/usePWA';
-
-function resolverPerfil(perfil) {
-  if (!perfil) return 'admin';
-  if (typeof perfil === 'string') return perfil.toLowerCase().trim();
-  const valor = perfil.role ?? perfil.tipo ?? 'admin';
-  return String(valor).toLowerCase().trim();
-}
-
-// S3 UX — extrai inicial do nome para o avatar
-function inicialNome(nome) {
-  if (!nome) return '?';
-  return nome.trim().charAt(0).toUpperCase();
-}
-
-// #17 — recebe nomeUsuario como prop
-function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    try {
-      await supabase.auth.signOut();
-      Object.keys(localStorage)
-        .filter(key => key.startsWith('supabase.'))
-        .forEach(key => localStorage.removeItem(key));
-      navigate('/login');
-    } catch (error) {
-      console.error('Erro ao sair:', error);
-    }
-  }
-
-  const menuAdmin = [
-    { label: 'Visão Geral' },
-    { name: 'Painel Avisos', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Notificações', path: '/notificacoes', icon: Bell },
-    { name: 'Leads', path: '/leads', icon: Clock },
-    { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
-    
-    { label: 'Gestão e Operação' },
-    { name: 'Alunos', path: '/alunos', icon: Users },
-    { name: 'Planos', path: '/planos', icon: CreditCard },
-    { name: 'Professores', path: '/professores', icon: UserCheck },
-    { name: 'Modalidades', path: '/modalidades', icon: Package },
-    { name: 'Agenda', path: '/agenda', icon: Calendar },
-    { name: 'Presença', path: '/presenca', icon: Clock },
-    { name: 'Feriados', path: '/configuracoes/feriados', icon: TableConfigIcon },
-    
-    { label: 'Financeiro' },
-    { name: 'Mensalidades', path: '/financeiro', icon: DollarSign },
-    { name: 'Despesas', path: '/despesas', icon: TrendingDown },
-    { name: 'Resultado Financeiro', path: '/resultado-financeiro', icon: Calculator },
-    { name: 'Comissões', path: '/comissoes', icon: Percent },
-    { name: 'Repasse Regras', path: '/configuracoes/repasse', icon: Calculator },
-  ];
-
-  const menuProfessor = [
-    { label: 'Menu Professor' },
-    { name: 'Minha Agenda',           path: '/agenda',              icon: Calendar },
-    { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
-    { name: 'Meus Leads',             path: '/professor/leads',     icon: UserPlus },
-    { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
-  ];
-
-  const isProfessor = resolverPerfil(perfil) === 'professor';
-  const itensMenu = isProfessor ? menuProfessor : menuAdmin;
-  const { canInstall, install } = usePWA();
-
-  return (
-    <>
-      {/* Overlay Mobile */}
-      {menuAberto && (
-        <div 
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden transition-all"
-          onClick={() => setMenuAberto(false)}
-        />
-      )}
-
-      {/* Container Sidebar */}
-      <aside className={`
-        fixed md:static inset-y-0 left-0 z-50
-        w-72 bg-card border-r border-border
-        transform transition-transform duration-300 ease-in-out
-        flex flex-col h-full
-        ${menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        
-        {/* Header / Logo */}
-        <div className="p-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-primary-foreground font-black text-xl">I</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-foreground tracking-tighter leading-none">
-                Iluminus
-              </h1>
-              {/* UX — label de contexto abaixo do logo para o professor */}
-              {isProfessor && (
-                <p className="text-[10px] font-bold text-muted-foreground tracking-wide mt-0.5">
-                  Área do Professor
-                </p>
-              )}
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setMenuAberto(false)}
-            className="md:hidden p-2 text-muted-foreground hover:bg-subtle rounded-xl border border-border bg-card"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* S3 UX — Avatar + nome do professor no topo da nav (apenas para professor) */}
-        {isProfessor && nomeUsuario && (
-          <div className="px-6 pb-4">
-            <div className="flex items-center gap-3 px-4 py-3 bg-primary-soft rounded-2xl">
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow shadow-primary/20">
-                <span className="text-primary-foreground font-black text-sm">
-                  {inicialNome(nomeUsuario)}
-                </span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground font-medium">Bem-vindo,</p>
-                <p className="font-black text-sm text-foreground truncate">{nomeUsuario}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Navegação */}
-        <nav className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
-          {itensMenu.map((item, index) => {
-            if (item.label) {
-              return (
-                <p key={`label-${index}`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 px-4 mt-6 mb-2">
-                  {item.label}
-                </p>
-              );
-            }
-
-            const Icon = item.icon;
-            const ativo = location.pathname === item.path;
-
-            return (
-              <Link 
-                key={item.path} 
-                to={item.path}
-                onClick={() => setMenuAberto(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all
-                  ${ativo 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
-                    : 'text-muted-foreground hover:bg-subtle hover:text-foreground'}
-                `}
-              >
-                <Icon size={20} />
-                <span className="text-sm">{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Rodapé da Sidebar */}
-        <div className="p-4 border-t border-border mt-auto space-y-2">
-
-          {/* #17 / S3 FIX — chip de identidade: exibe para admin; professor já tem avatar no topo */}
-          {nomeUsuario && !isProfessor && (
-            <div className="px-4 py-3 bg-muted rounded-xl">
-              <p className="text-xs text-muted-foreground">Logado como</p>
-              <p className="font-bold text-sm text-foreground truncate">{nomeUsuario}</p>
-            </div>
-          )}
-
-          <div className="flex justify-center w-full pb-2">
-            <ThemeToggle />
-          </div>
-
-          {canInstall && (
-            <button 
-              onClick={install}
-              className="flex items-center gap-3 px-4 py-3 w-full text-primary font-bold hover:bg-primary/10 rounded-xl transition-all"
-            >
-              <Download size={20} />
-              <span className="text-sm">Instalar Aplicativo</span>
-            </button>
-          )}
-
-          {/* UX — divisor visual antes do logout */}
-          <div className="border-t border-border pt-2">
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 w-full text-muted-foreground font-bold hover:text-destructive hover:bg-destructive-soft rounded-xl transition-all"
-            >
-              <LogOut size={20} />
-              <span className="text-sm">Sair do Sistema</span>
-            </button>
-          </div>
-          
-          <div className="px-4 py-2">
-            <p className="text-[10px] text-muted-foreground/40 font-medium text-center italic">
-              v3.0
-            </p>
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-}
-
-export default Sidebar;
 </file>
 
 <file path="gestao_web/src/App.jsx">

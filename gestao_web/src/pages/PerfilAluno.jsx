@@ -16,6 +16,7 @@ import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -800,36 +801,81 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
 // ─────────────────────────────────────────────────────────────
 // Aba Agenda Fixa
 // ─────────────────────────────────────────────────────────────
+// Nome canônico (completo) de cada dia, indexado por ordem 0-6
+const DIAS_CANONICOS = [
+  'Domingo', 'Segunda-feira', 'Terça-feira',
+  'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado',
+];
+const DIAS_ABREV = {
+  'Domingo': 'Dom', 'Segunda-feira': 'Seg', 'Terça-feira': 'Ter',
+  'Quarta-feira': 'Qua', 'Quinta-feira': 'Qui', 'Sexta-feira': 'Sex', 'Sábado': 'Sáb',
+};
+ 
+// Remove acentos e deixa minúsculo, para comparação tolerante
+function _semAcento(str = '') {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+ 
+// Mapa de todas as variações conhecidas (nome completo, abreviação, com/sem
+// hífen, com/sem acento) → índice do dia (0=Domingo ... 6=Sábado)
+const _MAPA_DIA = (() => {
+  const base = {
+    domingo: 0, dom: 0,
+    'segunda-feira': 1, 'segunda feira': 1, segunda: 1, seg: 1,
+    'terca-feira': 2, 'terca feira': 2, terca: 2, ter: 2,
+    'quarta-feira': 3, 'quarta feira': 3, quarta: 3, qua: 3,
+    'quinta-feira': 4, 'quinta feira': 4, quinta: 4, qui: 4,
+    'sexta-feira': 5, 'sexta feira': 5, sexta: 5, sex: 5,
+    sabado: 6, sab: 6,
+  };
+  return base;
+})();
+ 
+// Recebe qualquer variação salva no banco e devolve o nome canônico completo
+// (ex.: "Qui", "quinta", "Quinta-Feira" → "Quinta-feira")
+function normalizarDiaSemana(valor) {
+  const chave = _semAcento(valor);
+  const idx = _MAPA_DIA[chave];
+  return idx !== undefined ? DIAS_CANONICOS[idx] : (valor || 'Dia não definido');
+}
+function ordemDiaSemana(valor) {
+  const chave = _semAcento(valor);
+  const idx = _MAPA_DIA[chave];
+  return idx !== undefined ? idx : 99;
+}
+ 
 function AbaAgendaFixa({ aluno, alunoId }) {
-  const [aulasGrade, setAulasGrade]         = useState([]);
+  const [aulasGrade, setAulasGrade]           = useState([]);
   const [matriculasAluno, setMatriculasAluno] = useState([]);
-  const [loading, setLoading]               = useState(true);
+  const [loading, setLoading]                 = useState(true);
   // BP-01 – substituição de window.confirm
-  const [confirmModal, setConfirmModal]     = useState(null);
-  // confirmModal: { mensagem, onConfirmar } | null
-  const modalidades = aluno?.modalidades_selecionadas
-    ? [...new Set(aluno.modalidades_selecionadas)]
-    : [];
-
+  const [confirmModal, setConfirmModal]       = useState(null);
+  // Modalidade cujo modal de turmas está aberto (id) | null
+  const [modalidadeAberta, setModalidadeAberta] = useState(null);
+  // Filtro de dia da semana dentro do modal ('todos' | nome do dia)
+  const [diaFiltro, setDiaFiltro]              = useState('todos');
+ 
   React.useEffect(() => {
     carregarAgendaFixa();
   }, [alunoId]);
-
+ 
   async function carregarAgendaFixa() {
     setLoading(true);
     try {
-      const diasOrdem = {
-        'Domingo': 0, 'Segunda-feira': 1, 'Terça-feira': 2,
-        'Quarta-feira': 3, 'Quinta-feira': 4, 'Sexta-feira': 5, 'Sábado': 6,
-      };
       const { data: aulas } = await supabase
         .from('agenda')
         .select('*, modalidades(id, nome)')
         .eq('eh_recorrente', true);
+      // Padroniza o dia_semana (o banco tem valores inconsistentes, ex:
+      // "Qui" e "Quinta-feira" para o mesmo dia) antes de agrupar/ordenar
+      const aulasNormalizadas = (aulas || []).map(a => ({
+        ...a,
+        dia_semana: normalizarDiaSemana(a.dia_semana),
+      }));
       setAulasGrade(
-        (aulas || []).sort((a, b) => {
-          if (diasOrdem[a.dia_semana] !== diasOrdem[b.dia_semana])
-            return diasOrdem[a.dia_semana] - diasOrdem[b.dia_semana];
+        aulasNormalizadas.sort((a, b) => {
+          if (ordemDiaSemana(a.dia_semana) !== ordemDiaSemana(b.dia_semana))
+            return ordemDiaSemana(a.dia_semana) - ordemDiaSemana(b.dia_semana);
           return a.horario.localeCompare(b.horario);
         })
       );
@@ -844,16 +890,16 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       setLoading(false);
     }
   }
-
-  // Conta quantas vezes uma modalidade (id) aparece em modalidadesSelecionadas do aluno
+ 
+  // Conta quantas vezes uma modalidade (id) aparece em modalidades_selecionadas do aluno
   const getCountModEspecifica = (modId) =>
     (aluno?.modalidades_selecionadas || []).filter(id => id === modId).length;
-
+ 
   const countUsoModNaGrade = (modId) =>
     matriculasAluno.filter(aulaId =>
       aulasGrade.find(a => a.id === aulaId)?.modalidades?.id === modId
     ).length;
-
+ 
   async function executarMatricula(aula) {
     try {
       const { error } = await supabase.from('agenda_fixa')
@@ -863,7 +909,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       carregarAgendaFixa();
     } catch { showToast.error('Erro ao matricular na turma.'); }
   }
-
+ 
   async function executarRemocao(aula) {
     try {
       const { error } = await supabase.from('agenda_fixa')
@@ -873,7 +919,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       carregarAgendaFixa();
     } catch { showToast.error('Erro ao remover da turma.'); }
   }
-
+ 
   function toggleMatriculaFixa(aula) {
     const isMatriculado = matriculasAluno.includes(aula.id);
     if (!isMatriculado) {
@@ -894,7 +940,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       });
     }
   }
-
+ 
   if (loading) {
     return (
       <div className="flex justify-center p-16">
@@ -902,14 +948,14 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       </div>
     );
   }
-
+ 
   // Agrupa as aulas disponíveis por modalidade (somente as que o aluno tem em modalidades_selecionadas)
   // Se o aluno não tiver modalidades definidas, exibe todas as aulas
   const modIdsDoAluno = [...new Set(aluno?.modalidades_selecionadas || [])];
   const aulasDoAluno = modIdsDoAluno.length > 0
     ? aulasGrade.filter(a => modIdsDoAluno.includes(a.modalidades?.id))
     : aulasGrade;
-
+ 
   // Agrupa por modalidade
   const aulasAgrupadasPorMod = aulasDoAluno.reduce((acc, aula) => {
     const modId   = aula.modalidades?.id   || 'sem-mod';
@@ -918,115 +964,196 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     acc[modId].aulas.push(aula);
     return acc;
   }, {});
-
+ 
   const semModalidades = modIdsDoAluno.length === 0;
-
+ 
+  // Dados da modalidade cujo modal está aberto
+  const grupoAberto = modalidadeAberta ? aulasAgrupadasPorMod[modalidadeAberta] : null;
+  const diasDisponiveisNoGrupo = grupoAberto
+    ? [...new Set(grupoAberto.aulas.map(a => a.dia_semana))]
+        .sort((a, b) => ordemDiaSemana(a) - ordemDiaSemana(b))
+    : [];
+  const turmasFiltradas = grupoAberto
+    ? (diaFiltro === 'todos'
+        ? grupoAberto.aulas
+        : grupoAberto.aulas.filter(a => a.dia_semana === diaFiltro))
+    : [];
+ 
+  function abrirModalidade(modId) {
+    setDiaFiltro('todos');
+    setModalidadeAberta(modId);
+  }
+ 
   return (
     <>
-    <div className="space-y-6 animate-in slide-in-from-bottom-4">
-      <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary-soft border border-primary/20">
-        <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
-        <div>
-          <p className="font-bold text-sm text-foreground">Turmas Fixas</p>
-          <p className="text-xs font-medium mt-0.5 text-muted-foreground">
-            Matricule o aluno nas turmas regulares.
-            {semModalidades
-              ? ' As modalidades do aluno ainda não foram definidas — todas as turmas estão visíveis.'
-              : ' Exibindo apenas as turmas das modalidades selecionadas no perfil.'}
-          </p>
-        </div>
-      </div>
-
-      {Object.keys(aulasAgrupadasPorMod).length === 0 ? (
-        <Surface variant="card" padding="xl" className="text-center">
-          <CalendarDays size={32} className="text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground font-medium">
-            Nenhuma turma disponível para as modalidades selecionadas.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Verifique a aba <strong>Modalidades</strong> e a grade de aulas.
-          </p>
-        </Surface>
-      ) : (
-        Object.entries(aulasAgrupadasPorMod).map(([modId, { nome: modNome, aulas: turmas }]) => {
-          const limite = getCountModEspecifica(modId === 'sem-mod' ? null : modId);
-          const usado  = countUsoModNaGrade(modId === 'sem-mod' ? null : modId);
-          const isFull = limite > 0 && usado >= limite;
-          return (
-            <div key={modId} className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-              <div className="bg-muted/50 border-b border-border p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                <h3 className="font-black text-foreground text-lg">{modNome}</h3>
-                {limite > 0 && (
-                  <span className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider
-                    ${isFull ? 'bg-warning-soft text-warning-foreground' : 'bg-success-soft text-success'}`}>
-                    Vagas: {usado} de {limite}
-                  </span>
-                )}
-              </div>
-              <div className="p-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {turmas.map(aula => {
-                    const isMatriculado = matriculasAluno.includes(aula.id);
-                    return (
-                      <div key={aula.id} className={`p-4 rounded-2xl border-2 flex justify-between items-center transition-all
-                        ${isMatriculado
-                          ? 'border-success/30 bg-success-soft/30'
-                          : 'border-border bg-background hover:border-primary/30'}`}>
-                        <div>
-                          <p className="font-black text-foreground">{aula.dia_semana}</p>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            {aula.horario.slice(0, 5)} — {aula.atividade}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => toggleMatriculaFixa(aula)}
-                          className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors
-                            ${isMatriculado
-                              ? 'bg-destructive-soft text-destructive hover:bg-destructive hover:text-destructive-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-success hover:text-success-foreground'}`}
-                          title={isMatriculado ? 'Remover da turma' : 'Matricular na turma'}
-                        >
-                          {isMatriculado ? <Trash2 size={18} /> : <Plus size={18} />}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-
-    {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
-    {confirmModal && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={(e) => { if (e.target === e.currentTarget) setConfirmModal(null); }}
-      >
-        <div className="bg-background rounded-3xl shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
-          <h3 className="font-black text-foreground text-lg mb-4">Confirmação</h3>
-          <p className="text-muted-foreground font-medium mb-8 whitespace-pre-line leading-relaxed">
-            {confirmModal.mensagem}
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setConfirmModal(null)}
-              className="flex-1 py-3 rounded-2xl font-black text-muted-foreground bg-muted hover:bg-muted/80 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={() => { confirmModal.onConfirmar(); setConfirmModal(null); }}
-              className="flex-1 py-3 rounded-2xl font-black text-primary-foreground bg-primary hover:opacity-90 transition-all"
-            >
-              Confirmar
-            </button>
+      <div className="space-y-6 animate-in slide-in-from-bottom-4">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary-soft border border-primary/20">
+          <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
+          <div>
+            <p className="font-bold text-sm text-foreground">Turmas Fixas</p>
+            <p className="text-xs font-medium mt-0.5 text-muted-foreground">
+              Matricule o aluno nas turmas regulares.
+              {semModalidades
+                ? ' As modalidades do aluno ainda não foram definidas — todas as turmas estão visíveis.'
+                : ' Exibindo apenas as turmas das modalidades selecionadas no perfil.'}
+            </p>
           </div>
         </div>
+ 
+        {Object.keys(aulasAgrupadasPorMod).length === 0 ? (
+          <Surface variant="card" padding="xl" className="text-center">
+            <CalendarDays size={32} className="text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">
+              Nenhuma turma disponível para as modalidades selecionadas.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Verifique a aba <strong>Modalidades</strong> e a grade de aulas.
+            </p>
+          </Surface>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(aulasAgrupadasPorMod).map(([modId, { nome: modNome, aulas: turmas }]) => {
+              const limite = getCountModEspecifica(modId === 'sem-mod' ? null : modId);
+              const usado  = countUsoModNaGrade(modId === 'sem-mod' ? null : modId);
+              const isFull = limite > 0 && usado >= limite;
+              const matriculadoNestaMod = turmas.filter(a => matriculasAluno.includes(a.id)).length;
+              return (
+                <button
+                  key={modId}
+                  type="button"
+                  onClick={() => abrirModalidade(modId)}
+                  className="text-left bg-card border border-border rounded-3xl overflow-hidden shadow-sm hover:border-primary/40 hover:shadow-md transition-all p-4 flex flex-col gap-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-black text-foreground text-base leading-tight">{modNome}</h3>
+                    {limite > 0 && (
+                      <span className={`shrink-0 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider
+                        ${isFull ? 'bg-warning-soft text-warning-foreground' : 'bg-success-soft text-success'}`}>
+                        {usado}/{limite}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                    <span>{turmas.length} turma{turmas.length !== 1 ? 's' : ''} disponíve{turmas.length !== 1 ? 'is' : 'l'}</span>
+                    {matriculadoNestaMod > 0 && (
+                      <span className="inline-flex items-center gap-1 text-success font-bold">
+                        <CheckCircle size={12} /> {matriculadoNestaMod} ativa{matriculadoNestaMod !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <span className="mt-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-muted text-muted-foreground font-black text-xs uppercase tracking-wide group-hover:bg-primary-soft">
+                    Ver turmas
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
-    )}
+ 
+      {/* Modal com as turmas da modalidade selecionada */}
+      <Modal
+        aberto={!!modalidadeAberta}
+        fechar={() => setModalidadeAberta(null)}
+        title={grupoAberto?.nome}
+        description="Selecione o dia da semana e marque as turmas."
+        size="lg"
+      >
+        {grupoAberto && (
+          <div className="space-y-4">
+            {/* Chips de filtro por dia */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDiaFiltro('todos')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide transition-colors
+                  ${diaFiltro === 'todos'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
+              >
+                Todos
+              </button>
+              {diasDisponiveisNoGrupo.map(dia => (
+                <button
+                  key={dia}
+                  type="button"
+                  onClick={() => setDiaFiltro(dia)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide transition-colors
+                    ${diaFiltro === dia
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
+                >
+                  {DIAS_ABREV[dia] || dia}
+                </button>
+              ))}
+            </div>
+ 
+            {/* Lista de turmas filtradas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {turmasFiltradas.map(aula => {
+                const isMatriculado = matriculasAluno.includes(aula.id);
+                return (
+                  <div key={aula.id} className={`p-4 rounded-2xl border-2 flex justify-between items-center transition-all
+                    ${isMatriculado
+                      ? 'border-success/30 bg-success-soft/30'
+                      : 'border-border bg-background hover:border-primary/30'}`}>
+                    <div>
+                      <p className="font-black text-foreground">{aula.dia_semana}</p>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {aula.horario.slice(0, 5)} — {aula.atividade}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => toggleMatriculaFixa(aula)}
+                      className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-colors
+                        ${isMatriculado
+                          ? 'bg-destructive-soft text-destructive hover:bg-destructive hover:text-destructive-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-success hover:text-success-foreground'}`}
+                      title={isMatriculado ? 'Remover da turma' : 'Matricular na turma'}
+                    >
+                      {isMatriculado ? <Trash2 size={18} /> : <Plus size={18} />}
+                    </button>
+                  </div>
+                );
+              })}
+              {turmasFiltradas.length === 0 && (
+                <p className="col-span-full text-center text-sm text-muted-foreground py-8">
+                  Nenhuma turma neste dia.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+ 
+      {/* BP-01 – Modal de confirmação (substitui window.confirm) */}
+      {confirmModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmModal(null); }}
+        >
+          <div className="bg-background rounded-3xl shadow-2xl w-full max-w-sm p-8 animate-in zoom-in-95 duration-200">
+            <h3 className="font-black text-foreground text-lg mb-4">Confirmação</h3>
+            <p className="text-muted-foreground font-medium mb-8 whitespace-pre-line leading-relaxed">
+              {confirmModal.mensagem}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-3 rounded-2xl font-black text-muted-foreground bg-muted hover:bg-muted/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { confirmModal.onConfirmar(); setConfirmModal(null); }}
+                className="flex-1 py-3 rounded-2xl font-black text-primary-foreground bg-primary hover:opacity-90 transition-all"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

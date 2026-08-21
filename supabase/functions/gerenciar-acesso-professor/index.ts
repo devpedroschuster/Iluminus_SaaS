@@ -1,12 +1,15 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// ⚠️ Ajuste este valor para o domínio real do seu sistema em produção
+// antes de fazer deploy. Usar '*' permite que QUALQUER site na internet
+// chame esta função a partir do navegador de um usuário logado.
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const SENHA_PADRAO = 'Iluminus576';
 
 function resp(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -15,13 +18,63 @@ function resp(body: object, status = 200): Response {
   });
 }
 
+// Gera uma senha temporária aleatória e segura (equivalente ao
+// generateSecurePassword() do front-end, mas rodando no servidor,
+// que é o Deno runtime — usamos a Web Crypto API, disponível nativamente).
+function gerarSenhaTemporaria(length = 12): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => chars[byte % chars.length]).join('');
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const admin       = createClient(supabaseUrl, serviceKey);
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+  // Cliente com privilégio total (ignora RLS) — só deve ser usado
+  // DEPOIS de confirmarmos que quem chamou é um admin.
+  const admin = createClient(supabaseUrl, serviceKey);
+
+  // ── PASSO 1: AUTENTICAÇÃO + AUTORIZAÇÃO ─────────────────────────────────
+  // Cliente "como o usuário", usando o token que veio na requisição.
+  // Isso nos permite descobrir QUEM está chamando a função.
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return resp({ error: 'Não autenticado: token ausente' }, 401);
+  }
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData?.user) {
+    return resp({ error: 'Não autenticado: token inválido' }, 401);
+  }
+
+  // Confirma que o usuário autenticado é admin. No schema real do projeto,
+  // o cargo de admin é modelado na tabela `alunos` (coluna `role`), não em
+  // `professores` — confirmado via auditoria da função is_admin() no banco.
+  const { data: solicitante, error: perfilErr } = await admin
+    .from('alunos')
+    .select('role')
+    .eq('auth_id', userData.user.id)
+    .maybeSingle();
+
+  if (perfilErr) {
+    console.error('[gerenciar-acesso-professor] erro ao checar perfil:', perfilErr.message);
+    return resp({ error: 'Erro ao validar permissões' }, 500);
+  }
+
+  if (solicitante?.role !== 'admin') {
+    return resp({ error: 'Acesso negado: apenas administradores podem executar esta ação' }, 403);
+  }
+
+  // ── A PARTIR DAQUI, SABEMOS QUE QUEM CHAMOU É ADMIN ─────────────────────
   try {
     const { acao, professor_id, auth_id, email, nome } = await req.json();
 
@@ -31,7 +84,6 @@ serve(async (req: Request) => {
 
       const emailNormalizado = email.trim().toLowerCase();
 
-      // Verifica se já existe um auth user com esse email
       const { data: { users }, error: listErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
       if (listErr) throw listErr;
 
@@ -39,14 +91,17 @@ serve(async (req: Request) => {
 
       let novoAuthId: string;
       let reutilizado = false;
+      let senhaTemporaria: string | null = null;
 
       if (existente) {
         novoAuthId = existente.id;
         reutilizado = true;
       } else {
+        // PASSO 2: senha aleatória por chamada, nunca mais um valor fixo.
+        senhaTemporaria = gerarSenhaTemporaria();
         const { data, error } = await admin.auth.admin.createUser({
           email: emailNormalizado,
-          password: SENHA_PADRAO,
+          password: senhaTemporaria,
           email_confirm: true,
           user_metadata: { nome, role: 'professor' },
         });
@@ -54,9 +109,6 @@ serve(async (req: Request) => {
         novoAuthId = data.user.id;
       }
 
-      // Só atualiza a tabela professores se já existir um registro (edição).
-      // Em cadastro novo, professor_id ainda não existe; o frontend salva
-      // o auth_id junto com o insert do professor logo em seguida.
       if (professor_id) {
         const { error: upErr } = await admin
           .from('professores')
@@ -69,7 +121,12 @@ serve(async (req: Request) => {
         if (upErr) throw upErr;
       }
 
-      return resp({ auth_id: novoAuthId, reutilizado });
+      // A senha temporária só é retornada aqui, na resposta direta pro admin
+      // que fez a ação (nunca logada, nunca salva em texto puro em lugar nenhum).
+      // O front-end deve mostrar isso uma única vez pro admin copiar/repassar
+      // ao professor com segurança (ex.: por WhatsApp direto), e o fluxo de
+      // login deve obrigar troca de senha por causa de `primeiro_acesso: true`.
+      return resp({ auth_id: novoAuthId, reutilizado, senha_temporaria: senhaTemporaria });
     }
 
     // ── REMOVER ───────────────────────────────────────────────────────────────
@@ -122,14 +179,16 @@ serve(async (req: Request) => {
 
       let novoAuthId: string;
       let reutilizado = false;
+      let senhaTemporaria: string | null = null;
 
       if (existente) {
         novoAuthId = existente.id;
         reutilizado = true;
       } else {
+        senhaTemporaria = gerarSenhaTemporaria();
         const { data, error } = await admin.auth.admin.createUser({
           email: emailNormalizado,
-          password: SENHA_PADRAO,
+          password: senhaTemporaria,
           email_confirm: true,
           user_metadata: { nome, role: 'professor' },
         });
@@ -147,7 +206,7 @@ serve(async (req: Request) => {
         .eq('id', professor_id);
       if (upErr) throw upErr;
 
-      return resp({ auth_id: novoAuthId, reutilizado });
+      return resp({ auth_id: novoAuthId, reutilizado, senha_temporaria: senhaTemporaria });
     }
 
     return resp({ error: `Ação desconhecida: ${acao}` }, 400);

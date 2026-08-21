@@ -30,3 +30,5 @@ out/
 *.sw?
 .vercel
 .env*.local
+
+repomix-output.xml

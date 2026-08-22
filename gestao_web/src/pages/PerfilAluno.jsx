@@ -5,7 +5,8 @@ import {
   User, CreditCard, Calendar, Activity,
   ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
   Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
-  CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info,
+  CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info, CalendarCheck,
+  CalendarX, RotateCcw, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
@@ -1294,6 +1295,112 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
 }
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ILU-8: Resumo de frequência (aulas previstas x feitas, faltas,
+// reposições) do período do plano vigente.
+// ─────────────────────────────────────────────────────────────
+const ICON_TONE_FREQ = {
+  brand:   'bg-primary-soft text-primary',
+  info:    'bg-info-soft text-info',
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  destructive: 'bg-destructive-soft text-destructive',
+};
+
+function CardMetricaFrequencia({ titulo, valor, subtitulo, icone, tone = 'brand' }) {
+  return (
+    <Surface variant="card" padding="lg" className="rounded-[32px]">
+      <div className={`${ICON_TONE_FREQ[tone]} w-12 h-12 rounded-2xl flex items-center justify-center mb-4`}>
+        {icone}
+      </div>
+      <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider mb-2">{titulo}</p>
+      <h2 className="text-3xl font-black text-foreground mb-1">{valor}</h2>
+      {subtitulo && <p className="text-xs text-muted-foreground font-medium">{subtitulo}</p>}
+    </Surface>
+  );
+}
+
+function ResumoFrequenciaAluno({ alunoId }) {
+  const { data: resumo, isLoading } = useQuery({
+    queryKey: ['aluno-resumo-frequencia', alunoId],
+    queryFn: () => alunosService.buscarResumoFrequencia(alunoId),
+    enabled: !!alunoId,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Surface key={i} variant="card" padding="lg" className="rounded-[32px] h-32 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!resumo?.periodo_inicio) {
+    return (
+      <Surface variant="card" padding="lg" className="flex items-center gap-3 text-muted-foreground">
+        <Info size={18} className="shrink-0" />
+        <p className="text-sm font-medium">
+          Este aluno ainda não tem um plano com vigência definida — não é possível calcular o resumo de frequência.
+        </p>
+      </Surface>
+    );
+  }
+
+  const {
+    periodo_inicio, periodo_fim, aulas_previstas, aulas_feitas,
+    faltas, reposicoes_feitas, reposicoes_pendentes,
+  } = resumo;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+        Período do plano vigente: {formatarDataBR(periodo_inicio)} – {formatarDataBR(periodo_fim)}
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <CardMetricaFrequencia
+          titulo="Aulas Previstas"
+          valor={aulas_previstas}
+          icone={<Clock size={20} />}
+          tone="brand"
+        />
+        <CardMetricaFrequencia
+          titulo="Aulas Feitas"
+          valor={aulas_feitas}
+          icone={<CalendarCheck size={20} />}
+          tone="success"
+        />
+        <CardMetricaFrequencia
+          titulo="Faltas"
+          valor={faltas}
+          icone={<CalendarX size={20} />}
+          tone="destructive"
+        />
+        <CardMetricaFrequencia
+          titulo="Reposições Feitas"
+          valor={reposicoes_feitas}
+          icone={<RotateCcw size={20} />}
+          tone="info"
+        />
+        <CardMetricaFrequencia
+          titulo="Reposições Pendentes"
+          valor={reposicoes_pendentes}
+          subtitulo={reposicoes_pendentes > 0 ? 'aguardando reposição' : undefined}
+          icone={<AlertTriangle size={20} />}
+          tone={reposicoes_pendentes > 0 ? 'warning' : 'brand'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function formatarDataBR(iso) {
+  if (!iso) return '—';
+  const [ano, mes, dia] = iso.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1535,6 +1642,7 @@ export default function PerfilAluno() {
           });
           return (
             <div className="space-y-4 animate-in slide-in-from-bottom-4">
+              <ResumoFrequenciaAluno alunoId={id} />
               <Surface variant="card" padding="lg">
                 <HeatmapFrequencia frequencia={frequencia} planoAtivo={planoAtivo} />
               </Surface>

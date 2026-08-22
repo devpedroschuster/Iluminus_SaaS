@@ -343,6 +343,50 @@ export const alunosService = {
     }
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // ILU-8: resumo de frequência do aluno (aulas previstas x feitas,
+  // faltas, reposições feitas/pendentes) para o período do plano vigente.
+  // ─────────────────────────────────────────────────────────────
+
+  async buscarResumoFrequencia(alunoId) {
+    const { data, error } = await supabase
+      .rpc('fn_resumo_frequencia_aluno', { p_aluno_id: alunoId })
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Faltas (sem ou com aviso) do aluno, dentro do período do plano vigente,
+  // que ainda não têm uma reposição vinculada. Usado para popular o seletor
+  // "é reposição de qual falta" ao marcar presença numa aula avulsa.
+  async listarFaltasPendentesReposicao(alunoId) {
+    const resumo = await this.buscarResumoFrequencia(alunoId);
+    if (!resumo?.periodo_inicio) return [];
+
+    const { data: faltas, error } = await supabase
+      .from('presencas')
+      .select('id, data_aula, status, agenda ( atividade )')
+      .eq('aluno_id', alunoId)
+      .in('status', ['falta', 'cancelado'])
+      .gte('data_aula', resumo.periodo_inicio)
+      .lte('data_aula', resumo.periodo_fim)
+      .order('data_aula', { ascending: false });
+
+    if (error) throw error;
+
+    const { data: reposicoesExistentes, error: errRep } = await supabase
+      .from('presencas')
+      .select('reposicao_de_id')
+      .not('reposicao_de_id', 'is', null)
+      .in('reposicao_de_id', (faltas ?? []).map(f => f.id));
+
+    if (errRep) throw errRep;
+
+    const jaRepostaIds = new Set((reposicoesExistentes ?? []).map(r => r.reposicao_de_id));
+    return (faltas ?? []).filter(f => !jaRepostaIds.has(f.id));
+  },
+
   async normalizarHistoricoPlanos() {
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')

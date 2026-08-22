@@ -1,8 +1,82 @@
-import React from 'react';
-import { RefreshCw, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RefreshCw, Trash2, CalendarCheck } from 'lucide-react';
 import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
+import { alunosService } from '../../../services/alunosService';
+
+function formatarDataCurta(iso) {
+  if (!iso) return '—';
+  const [ano, mes, dia] = iso.split('-');
+  return `${dia}/${mes}`;
+}
+
+// ILU-8: ao marcar presença numa aula avulsa, permite indicar que esta
+// aula é reposição de uma falta específica do aluno (dentro do período
+// do plano vigente e que ainda não foi reposta).
+function SeletorReposicao({ aluno, marcando, onConfirmar }) {
+  const [aberto, setAberto] = useState(false);
+  const [carregando, setCarregando] = useState(false);
+  const [faltas, setFaltas] = useState([]);
+  const [selecionada, setSelecionada] = useState('');
+
+  useEffect(() => {
+    if (!aberto || !aluno.aluno_id) return;
+    let cancelado = false;
+    setCarregando(true);
+    alunosService.listarFaltasPendentesReposicao(aluno.aluno_id)
+      .then(lista => { if (!cancelado) setFaltas(lista); })
+      .catch(() => { if (!cancelado) setFaltas([]); })
+      .finally(() => { if (!cancelado) setCarregando(false); });
+    return () => { cancelado = true; };
+  }, [aberto, aluno.aluno_id]);
+
+  if (!aberto) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        leftIcon={<CalendarCheck size={14} />}
+        onClick={() => setAberto(true)}
+      >
+        Reposição?
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        className="text-xs font-bold border border-border rounded-lg px-2 py-1.5 bg-card text-foreground max-w-[160px]"
+        value={selecionada}
+        onChange={e => setSelecionada(e.target.value)}
+        disabled={carregando}
+      >
+        <option value="">
+          {carregando ? 'Carregando...' : 'Falta a repor'}
+        </option>
+        {faltas.map(f => (
+          <option key={f.id} value={f.id}>
+            {formatarDataCurta(f.data_aula)} · {f.agenda?.atividade ?? 'Aula'}
+            {f.status === 'cancelado' ? ' (avisou)' : ''}
+          </option>
+        ))}
+      </select>
+      <Button
+        variant="success"
+        size="sm"
+        disabled={!selecionada}
+        loading={marcando}
+        onClick={() => onConfirmar(Number(selecionada))}
+      >
+        Confirmar
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setAberto(false)}>
+        Cancelar
+      </Button>
+    </div>
+  );
+}
 
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
@@ -94,6 +168,13 @@ export default function ModalListaPresenca({
                         >
                           Marcar Presente
                         </Button>
+                      )}
+                      {isAdmin && aluno.tipo === 'avulso' && aluno.aluno_id && (
+                        <SeletorReposicao
+                          aluno={aluno}
+                          marcando={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          onConfirmar={(reposicaoDeId) => handleMarcarPresenca(aluno, reposicaoDeId)}
+                        />
                       )}
                       <Button variant="destructive" size="sm" onClick={() => handleRegistrarFalta(aluno)}>
                         Informar Falta

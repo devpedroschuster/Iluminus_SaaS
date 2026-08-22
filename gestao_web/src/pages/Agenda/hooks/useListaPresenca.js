@@ -75,7 +75,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
   // Marcar/desmarcar presença: admin pode fazer isso a qualquer horário,
   // direto pelo modal de chamada na Agenda (não fica preso à janela de
   // ±30min que existe na Chamada Rápida).
-  const handleMarcarPresenca = async (aluno) => {
+  const handleMarcarPresenca = async (aluno, reposicaoDeId = null) => {
     const chaveLoading = aluno.id_relacao || aluno.aluno_id;
     setMarcandoId(chaveLoading);
     try {
@@ -85,6 +85,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
         dataAula: dataLista,
         idRelacao: aluno.id_relacao,
         tipo: aluno.tipo,
+        reposicaoDeId,
       });
       showToast.success("Presença confirmada!");
       queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });

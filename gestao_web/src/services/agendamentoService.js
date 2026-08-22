@@ -249,7 +249,10 @@ async agendarAulaAdmin(dados) {
   // do Presenca.jsx: se já existe linha em `presencas` (id_relacao), faz
   // UPDATE preservando a origem; se não existe ainda (fixo cuja linha o job
   // noturno ainda não gerou), faz INSERT com origem 'fixo'.
-  async marcarPresenca({ alunoId, aulaId, dataAula, idRelacao, tipo }) {
+  // reposicaoDeId (opcional): se informado, marca esta presença como
+  // reposição da falta apontada (presencas.id de uma linha com
+  // status 'falta' ou 'cancelado'). Ver ILU-8.
+  async marcarPresenca({ alunoId, aulaId, dataAula, idRelacao, tipo, reposicaoDeId = null }) {
     const dataCheckin = `${dataAula}T12:00:00`;
 
     if (idRelacao) {
@@ -258,7 +261,12 @@ async agendarAulaAdmin(dados) {
       // deve reverter para 'agendado' em vez de apagar a linha.
       const { error } = await supabase
         .from('presencas')
-        .update({ status: 'presente', data_checkin: dataCheckin, origem: 'agendamento' })
+        .update({
+          status: 'presente',
+          data_checkin: dataCheckin,
+          origem: 'agendamento',
+          reposicao_de_id: reposicaoDeId,
+        })
         .eq('id', idRelacao);
       if (error) throw error;
       return;
@@ -273,6 +281,7 @@ async agendarAulaAdmin(dados) {
         status: 'presente',
         origem: tipo === 'fixo' ? 'fixo' : 'avulso',
         data_checkin: dataCheckin,
+        reposicao_de_id: reposicaoDeId,
       });
     if (error && error.code === '23505') throw new Error("Este aluno já possui um registro nesta aula e data.");
     else if (error) throw error;

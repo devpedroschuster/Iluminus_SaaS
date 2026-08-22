@@ -242,5 +242,59 @@ async agendarAulaAdmin(dados) {
       .eq('data_aula', dataEspecifica)
       .eq('status', 'cancelado'); // só reverte se ainda estava cancelado (proteção)
     if (error) throw error;
+  },
+
+  // Marca presença manualmente (uso do admin, a qualquer horário — antes,
+  // durante ou depois da aula). Reaproveita a mesma regra de realizarCheckin
+  // do Presenca.jsx: se já existe linha em `presencas` (id_relacao), faz
+  // UPDATE preservando a origem; se não existe ainda (fixo cuja linha o job
+  // noturno ainda não gerou), faz INSERT com origem 'fixo'.
+  async marcarPresenca({ alunoId, aulaId, dataAula, idRelacao, tipo }) {
+    const dataCheckin = `${dataAula}T12:00:00`;
+
+    if (idRelacao) {
+      // origem 'agendamento' sinaliza que essa presença veio de um registro
+      // que já existia como 'agendado' — assim desmarcarPresenca sabe que
+      // deve reverter para 'agendado' em vez de apagar a linha.
+      const { error } = await supabase
+        .from('presencas')
+        .update({ status: 'presente', data_checkin: dataCheckin, origem: 'agendamento' })
+        .eq('id', idRelacao);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase
+      .from('presencas')
+      .insert({
+        aluno_id: alunoId,
+        aula_id: aulaId,
+        data_aula: dataAula,
+        status: 'presente',
+        origem: tipo === 'fixo' ? 'fixo' : 'avulso',
+        data_checkin: dataCheckin,
+      });
+    if (error && error.code === '23505') throw new Error("Este aluno já possui um registro nesta aula e data.");
+    else if (error) throw error;
+  },
+
+  // Desmarca uma presença já confirmada. Espelha desfazerCheckin do
+  // Presenca.jsx: se a origem é 'agendamento' (veio de um agendamento
+  // prévio), volta para 'agendado'; caso contrário (fixo/avulso lançado
+  // direto como presente), remove a linha por completo.
+  async desmarcarPresenca({ idRelacao, tipo }) {
+    if (!idRelacao) return;
+
+    if (tipo === 'agendamento') {
+      const { error } = await supabase
+        .from('presencas')
+        .update({ status: 'agendado', data_checkin: null })
+        .eq('id', idRelacao);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from('presencas').delete().eq('id', idRelacao);
+    if (error) throw error;
   }
 };

@@ -7,6 +7,7 @@ import Input, { Label } from '../../../components/ui/Input';
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
   handleRegistrarFalta, handleDesfazerFalta,
+  handleMarcarPresenca, handleDesmarcarPresenca, marcandoId,
   alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey,
   isAdmin,
 }) {
@@ -71,8 +72,29 @@ export default function ModalListaPresenca({
                     <Button variant="secondary" size="sm" onClick={() => handleDesfazerFalta(aluno)}>
                       Desfazer
                     </Button>
+                  ) : aluno.status === 'presente' ? (
+                    isAdmin && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                        onClick={() => handleDesmarcarPresenca(aluno)}
+                      >
+                        Desmarcar
+                      </Button>
+                    )
                   ) : (
                     <>
+                      {isAdmin && (
+                        <Button
+                          variant="success"
+                          size="sm"
+                          loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          onClick={() => handleMarcarPresenca(aluno)}
+                        >
+                          Marcar Presente
+                        </Button>
+                      )}
                       <Button variant="destructive" size="sm" onClick={() => handleRegistrarFalta(aluno)}>
                         Informar Falta
                       </Button>

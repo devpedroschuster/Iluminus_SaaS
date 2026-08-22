@@ -8,6 +8,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
   const queryClient = useQueryClient();
   const [loadingLista, setLoadingLista] = useState(false);
   const [removendoId, setRemovendoId] = useState(null);
+  const [marcandoId, setMarcandoId] = useState(null); // id_relacao (ou aluno_id p/ fixo sem linha) em processamento
   const [alunoParaRemover, setAlunoParaRemover] = useState(null); // { idRelacao, tipo }
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -71,9 +72,50 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     }
   };
 
+  // Marcar/desmarcar presença: admin pode fazer isso a qualquer horário,
+  // direto pelo modal de chamada na Agenda (não fica preso à janela de
+  // ±30min que existe na Chamada Rápida).
+  const handleMarcarPresenca = async (aluno) => {
+    const chaveLoading = aluno.id_relacao || aluno.aluno_id;
+    setMarcandoId(chaveLoading);
+    try {
+      await agendamentoService.marcarPresenca({
+        alunoId: aluno.aluno_id,
+        aulaId: aulaParaLista.id,
+        dataAula: dataLista,
+        idRelacao: aluno.id_relacao,
+        tipo: aluno.tipo,
+      });
+      showToast.success("Presença confirmada!");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      setRefreshKey(old => old + 1);
+      if (onAtualizar) onAtualizar();
+    } catch (err) {
+      showToast.error("Erro ao marcar presença: " + err.message);
+    } finally {
+      setMarcandoId(null);
+    }
+  };
+
+  const handleDesmarcarPresenca = async (aluno) => {
+    setMarcandoId(aluno.id_relacao);
+    try {
+      await agendamentoService.desmarcarPresenca({ idRelacao: aluno.id_relacao, tipo: aluno.tipo });
+      showToast.success("Presença desmarcada.");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      setRefreshKey(old => old + 1);
+      if (onAtualizar) onAtualizar();
+    } catch (err) {
+      showToast.error("Erro ao desmarcar presença: " + err.message);
+    } finally {
+      setMarcandoId(null);
+    }
+  };
+
   return { 
-    listaPresenca, loadingLista, removendoId, 
+    listaPresenca, loadingLista, removendoId, marcandoId,
     handleRegistrarFalta, handleDesfazerFalta,
+    handleMarcarPresenca, handleDesmarcarPresenca,
     alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey
   };
 }

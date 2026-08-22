@@ -292,7 +292,7 @@ function CardUsoPlan({ aluno, planos, frequencia }) {
       </div>
     );
   }
-  const planoAtivo = planos?.find(p => p.status === 'ativo') ?? null;
+  const planoAtivo = derivarPlanoVigente(planos);
   if (!planoAtivo) {
     return (
       <div className="bg-warning/10 border border-warning/30 p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center min-h-[140px]">
@@ -1401,6 +1401,32 @@ function formatarDataBR(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Deriva o ciclo de plano "vigente" a partir do histórico por DATA,
+// em vez de confiar apenas no campo `status` armazenado — que pode
+// ficar dessincronizado se uma renovação não finalizar corretamente
+// o ciclo anterior (ver correção de renovar_plano_aluno / ILU-8).
+// ─────────────────────────────────────────────────────────────
+function derivarPlanoVigente(planos) {
+  if (!Array.isArray(planos) || planos.length === 0) return null;
+  const hojeStr = new Date().toISOString().split('T')[0];
+  const naoCancelados = planos.filter(p => p.status !== 'cancelado');
+
+  // 1) Prioridade: o ciclo cuja janela [data_inicio, data_fim] contém hoje.
+  //    Se houver mais de um (dado inconsistente), fica com o de data_inicio
+  //    mais recente.
+  const vigentesPorData = naoCancelados
+    .filter(p => p.data_inicio <= hojeStr && p.data_fim >= hojeStr)
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  if (vigentesPorData.length > 0) return vigentesPorData[0];
+
+  // 2) Nenhum ciclo cobre hoje (ex: venceu e ainda não foi renovado) —
+  //    usa o de data_inicio mais recente entre os não cancelados.
+  const maisRecente = [...naoCancelados]
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  return maisRecente[0] ?? null;
+}
+
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1481,7 +1507,7 @@ export default function PerfilAluno() {
   // Early return APÓS todos os hooks
   if (loadingAluno) return <TableSkeleton />;
 
-  const planoAtivo   = planos?.find(p => p.status === 'ativo') ?? null;
+  const planoAtivo   = derivarPlanoVigente(planos);
   const semHistorico = Array.isArray(planos) && planos.length === 0 && aluno?.plano_id;
 
   const abas = [
@@ -1544,7 +1570,7 @@ export default function PerfilAluno() {
               </span>
             </div>
             <h2 className="text-xl font-bold text-foreground">
-              {aluno?.planos?.nome || 'Sem plano ativo'}
+              {planoAtivo?.planos?.nome || aluno?.planos?.nome || 'Sem plano ativo'}
             </h2>
             <p className="text-muted-foreground text-sm">
               Desde {new Date(aluno?.created_at).toLocaleDateString('pt-BR')}

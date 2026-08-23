@@ -442,4 +442,62 @@ export const alunosService = {
     );
     return { normalizados, ignorados };
   },
+
+  // ─────────────────────────────────────────────────────────────
+  // ILU-11: marca/desmarca um aluno como bolsista (matriculado, mas
+  // não paga mensalidade), independente do plano que ele tiver.
+  //
+  // Ao ATIVAR (bolsista = true):
+  //   1) seta alunos.bolsista = true;
+  //   2) zera IMEDIATAMENTE todas as mensalidades em aberto
+  //      (pendente/atrasado) do aluno — valor_pago = 0, status = 'pago',
+  //      forma_pagamento = 'bolsa' — independente do valor do plano
+  //      vinculado. Não dispara geração de repasse (comissão), já que
+  //      não há pagamento real associado.
+  //
+  // Ao DESATIVAR (bolsista = false):
+  //   apenas remove a flag. Não recria cobranças retroativas — a
+  //   cobrança volta ao normal a partir da próxima geração mensal
+  //   (gerar-mensalidades), que passa a considerar o plano vigente.
+  //
+  // @param {string} alunoId
+  // @param {boolean} bolsista
+  // @returns {{ aluno: object, mensalidadesZeradas: number }}
+  // ─────────────────────────────────────────────────────────────
+  async definirBolsista(alunoId, bolsista) {
+    try {
+      const { data: aluno, error: errUpdate } = await supabase
+        .from('alunos')
+        .update({ bolsista: !!bolsista })
+        .eq('id', alunoId)
+        .select()
+        .single();
+
+      if (errUpdate) throw errUpdate;
+
+      let mensalidadesZeradas = 0;
+
+      if (bolsista) {
+        const { data: zeradas, error: errZerar } = await supabase
+          .from('mensalidades')
+          .update({
+            valor_pago: 0,
+            status: 'pago',
+            forma_pagamento: 'bolsa',
+            data_pagamento: new Date().toISOString().split('T')[0],
+          })
+          .eq('aluno_id', alunoId)
+          .in('status', ['pendente', 'atrasado'])
+          .select('id');
+
+        if (errZerar) throw errZerar;
+        mensalidadesZeradas = zeradas?.length ?? 0;
+      }
+
+      return { aluno, mensalidadesZeradas };
+    } catch (error) {
+      console.error('[alunosService.definirBolsista]', error);
+      throw error;
+    }
+  },
 };

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, UserPlus, Edit2, ShieldAlert, Trash2,
-  Calendar, Eye, ChevronLeft, ChevronRight,
+  Calendar, Eye, ChevronLeft, ChevronRight, GraduationCap,
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
 import { useDebounce } from '../hooks/useDebounce';
@@ -85,6 +85,8 @@ export default function Alunos() {
   const [confirmacaoNome,  setConfirmacaoNome]  = useState('');
   const modalStatus  = useModal();
   const modalExcluir = useModal();
+  // ILU-11: modal de confirmação para ativar/desativar bolsista.
+  const modalBolsista = useModal();
 
   const buscaDebounced = useDebounce(busca, 400);
 
@@ -173,6 +175,29 @@ export default function Alunos() {
       }
     }
   }, [alunoSelecionado, confirmacaoNome, modalExcluir, refetch]);
+
+  // ILU-11: alterna o status de bolsista. Ao ativar, zera na hora as
+  // mensalidades em aberto do aluno (ver alunosService.definirBolsista).
+  const alternarBolsista = useCallback(async () => {
+    if (!alunoSelecionado) return;
+    try {
+      const novoValor = !alunoSelecionado.bolsista;
+      const { mensalidadesZeradas } = await alunosService.definirBolsista(alunoSelecionado.id, novoValor);
+      if (novoValor) {
+        showToast.success(
+          mensalidadesZeradas > 0
+            ? `Aluno marcado como bolsista! ${mensalidadesZeradas} mensalidade(s) em aberto foram zeradas.`
+            : 'Aluno marcado como bolsista!'
+        );
+      } else {
+        showToast.success('Bolsa removida. A cobrança volta ao normal na próxima geração de mensalidades.');
+      }
+      modalBolsista.fechar();
+      refetch();
+    } catch {
+      showToast.error('Erro ao alterar status de bolsista.');
+    }
+  }, [alunoSelecionado, modalBolsista, refetch]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -331,21 +356,27 @@ export default function Alunos() {
 
                         {/* Status ativo/inativo — via mapa, nunca raw */}
                         <td className="px-6 md:px-8 py-4 md:py-6">
-                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${
-                            statusInfo.tone === 'success'
-                              ? 'bg-success-soft text-success'
-                              : statusInfo.tone === 'destructive'
-                              ? 'bg-destructive-soft text-destructive'
-                              : 'bg-muted text-muted-foreground'
-                          }`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${
-                              statusInfo.tone === 'success'     ? 'bg-success'
-                              : statusInfo.tone === 'destructive' ? 'bg-destructive'
-                              : 'bg-muted-foreground'
-                            }`} />
-                            <span className="text-[10px] font-black uppercase">
-                              {statusInfo.label}
-                            </span>
+                          <div className="flex items-center gap-2">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${
+                              statusInfo.tone === 'success'
+                                ? 'bg-success-soft text-success'
+                                : statusInfo.tone === 'destructive'
+                                ? 'bg-destructive-soft text-destructive'
+                                : 'bg-muted text-muted-foreground'
+                            }`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                statusInfo.tone === 'success'     ? 'bg-success'
+                                : statusInfo.tone === 'destructive' ? 'bg-destructive'
+                                : 'bg-muted-foreground'
+                              }`} />
+                              <span className="text-[10px] font-black uppercase">
+                                {statusInfo.label}
+                              </span>
+                            </div>
+                            {/* ILU-11: tag "B" — aluno bolsista (não paga) */}
+                            {aluno.bolsista && (
+                              <Badge tone="brand" variant="soft" title="Bolsista">B</Badge>
+                            )}
                           </div>
                         </td>
 
@@ -391,6 +422,17 @@ export default function Alunos() {
                               title="Editar"
                             >
                               <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => { setAlunoSelecionado(aluno); modalBolsista.abrir(); }}
+                              className={`p-2 rounded-xl transition-colors ${
+                                aluno.bolsista
+                                  ? 'text-primary bg-primary-soft hover:bg-primary-soft/70'
+                                  : 'text-muted-foreground hover:text-primary hover:bg-primary-soft'
+                              }`}
+                              title={aluno.bolsista ? 'Remover bolsa' : 'Marcar como bolsista'}
+                            >
+                              <GraduationCap size={16} />
                             </button>
                             <button
                               onClick={() => { setAlunoSelecionado(aluno); modalStatus.abrir(); }}
@@ -483,6 +525,22 @@ export default function Alunos() {
         tipo={alunoSelecionado?.ativo ? 'danger' : 'success'}
         onConfirm={alternarStatus}
       />
+
+      {/* Modal: Ativar/Desativar Bolsista (ILU-11) */}
+      <ModalConfirmacao
+        aberto={modalBolsista.isOpen}
+        fechar={modalBolsista.fechar}
+        titulo={alunoSelecionado?.bolsista ? 'Remover Bolsa' : 'Marcar como Bolsista'}
+        mensagem={
+          alunoSelecionado?.bolsista
+            ? `Deseja remover a bolsa de ${alunoSelecionado?.nome_completo}? A cobrança volta ao normal a partir da próxima geração de mensalidades (não recria cobranças retroativas).`
+            : `Deseja marcar ${alunoSelecionado?.nome_completo} como bolsista? Isso zera imediatamente todas as mensalidades em aberto dele, independente do plano vinculado, e passa a contá-lo como "B" no Dashboard.`
+        }
+        textoConfirmar={alunoSelecionado?.bolsista ? 'Remover bolsa' : 'Marcar como bolsista'}
+        tipo={alunoSelecionado?.bolsista ? 'warning' : 'success'}
+        onConfirm={alternarBolsista}
+      />
+
 
       {/* Modal: Excluir */}
       <ModalConfirmacao

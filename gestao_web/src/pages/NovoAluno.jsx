@@ -192,7 +192,7 @@ export default function NovoAluno() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(alunoSchema),
-    defaultValues: { role: 'aluno' },
+    defaultValues: { role: 'aluno', bolsista: false },
   });
 
   const roleAtual          = watch('role');
@@ -203,7 +203,7 @@ export default function NovoAluno() {
 
   useEffect(() => {
     if (!alunoParaEditar && !leadParaConversao) {
-      reset({ nome_completo: '', email: '', role: 'aluno' });
+      reset({ nome_completo: '', email: '', role: 'aluno', bolsista: false });
       setModalidadesSelecionadas([]);
       setCpfDisplay('');
       setCpfErro('');
@@ -261,6 +261,7 @@ export default function NovoAluno() {
             bairro:           aluno.bairro           || '',
             cidade:           aluno.cidade           || '',
             contato_emergencia: aluno.contato_emergencia || '',
+            bolsista:         aluno.bolsista           || false,
           });
           if (aluno.cpf) setCpfDisplay(formatarCPF(aluno.cpf));
           setModalidadesSelecionadas(aluno.modalidades_selecionadas || []);
@@ -465,6 +466,8 @@ export default function NovoAluno() {
         bairro:                    data.bairro            || null,
         cidade:                    data.cidade            || null,
         contato_emergencia:        data.contato_emergencia|| null,
+        // ILU-11: aluno bolsista não entra na contagem de pagantes do Dashboard.
+        bolsista:                  !!data.bolsista,
       };
 
       if (planoFinal) {
@@ -947,6 +950,19 @@ export default function NovoAluno() {
             </select>
           </div>
           <PlanoSlots />
+          {/* ILU-11: marcador de bolsista — aluno matriculado que não paga.
+              Usado para separar pagantes de não pagantes no Dashboard. */}
+          <label className="relative flex items-center gap-3 px-4 py-4 bg-gray-50 rounded-2xl
+            cursor-pointer md:col-span-2">
+            <input
+              type="checkbox"
+              {...register('bolsista')}
+              className="w-5 h-5 rounded-md accent-primary cursor-pointer"
+            />
+            <span className="font-bold text-gray-600">
+              Aluno bolsista (matriculado, mas não paga mensalidade)
+            </span>
+          </label>
         </div>
       </div>
     );

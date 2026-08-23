@@ -55,10 +55,14 @@ serve(async (req) => {
 
   try {
     // 1. Busca alunos ativos com plano (join em planos para pegar o preco)
+    // BUG CRÍTICO CORRIGIDO: a tabela `alunos` não tem coluna `status` (só o
+    // booleano `ativo`). O filtro `.eq('status', 'ativo')` fazia essa query
+    // falhar com 400 (coluna inexistente) em toda execução da function,
+    // quebrando a geração automática de mensalidades por completo.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, nome_completo, plano_id, planos(id, preco)')
-      .eq('status', 'ativo')
+      .select('id, nome_completo, plano_id, bolsista, planos(id, preco)')
+      .eq('ativo', true)
       .not('plano_id', 'is', null) // ignora alunos sem plano
 
     if (errAlunos) throw errAlunos
@@ -66,9 +70,21 @@ serve(async (req) => {
       return response({ message: 'Nenhum aluno ativo com plano.' })
     }
 
+    // ILU-11: bolsista não é cobrado, independente do plano vinculado —
+    // não gera mensalidade nenhuma para ele (em vez de gerar com valor e
+    // depender de alguém zerar manualmente todo mês).
+    const alunosBolsistas: string[] = []
+    const alunosNaoBolsistas = alunos.filter(a => {
+      if (a.bolsista) {
+        alunosBolsistas.push(a.nome_completo)
+        return false
+      }
+      return true
+    })
+
     // 2. Filtra plano "DEFINIR PLANO" (preco = 0 ou nulo) — não gera cobrança
     const alunosSemPreco: string[] = []
-    const alunosValidos = alunos.filter(a => {
+    const alunosValidos = alunosNaoBolsistas.filter(a => {
       const preco = Number(a.planos?.preco)
       const valido = Number.isFinite(preco) && preco > 0
       if (!valido) alunosSemPreco.push(a.nome_completo)
@@ -99,6 +115,7 @@ serve(async (req) => {
       return response({
         message: 'Mensalidades já geradas para todos os alunos ativos.',
         ignoradosSemPreco: alunosSemPreco,
+        ignoradosBolsistas: alunosBolsistas,
       })
     }
 
@@ -162,6 +179,7 @@ serve(async (req) => {
       mes: mesLabel,
       data_vencimento,
       ignoradosSemPreco: alunosSemPreco,
+      ignoradosBolsistas: alunosBolsistas,
     })
 
   } catch (err) {

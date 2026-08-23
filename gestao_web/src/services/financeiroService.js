@@ -61,16 +61,21 @@ async listarModalidadesDoAluno(alunoId) {
       );
     }
 
-    // FIX: usar status = 'ativo' (campo correto na tabela alunos),
-    // consistente com a Edge Function gerar-mensalidades/index.ts.
-    // Antes estava .eq('ativo', true) que não filtrava alunos inativos corretamente.
+    // BUG CRÍTICO CORRIGIDO (ILU-11): a tabela `alunos` não tem coluna
+    // `status` — só o booleano `ativo`. O filtro `.eq('status', 'ativo')`
+    // fazia essa query falhar com 400 (coluna inexistente) sempre que o
+    // botão "Gerar Mensalidades" era usado manualmente.
+    // ILU-11: também busca `bolsista` para nunca gerar cobrança para quem
+    // está isento, independente do plano vinculado.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, plano_id')
-      .eq('status', 'ativo')
+      .select('id, plano_id, bolsista')
+      .eq('ativo', true)
       .not('plano_id', 'is', null);
 
     if (errAlunos) throw errAlunos;
+
+    const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
 
     const tresMesesAtras = new Date();
     tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
@@ -91,7 +96,7 @@ async listarModalidadesDoAluno(alunoId) {
 
     const novasCobrancas = [];
 
-    alunos.forEach(aluno => {
+    alunosCobraveis.forEach(aluno => {
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
 
       let proximaData;

@@ -26,15 +26,18 @@ export const dashboardService = {
 
     const areaById = Object.fromEntries((mods || []).map(m => [m.id, m.area]));
 
-    // Busca alunos ativos com suas modalidades selecionadas
+    // Busca alunos ativos com suas modalidades selecionadas e status de bolsista.
+    // ILU-11: `bolsista` é um atributo de pagamento (cruzado), não uma área —
+    // um bolsista também pode estar em Dança, Funcional ou Combo. Por isso ele
+    // é contado à parte, e não como um 5º grupo mutuamente exclusivo.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, modalidades_selecionadas')
+      .select('id, modalidades_selecionadas, bolsista')
       .eq('ativo', true)
       .eq('role', 'aluno');
     if (errAlunos) throw errAlunos;
 
-    let danca = 0, funcional = 0, ambos = 0, semModalidade = 0;
+    let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
 
     for (const aluno of alunos || []) {
       const ids = aluno.modalidades_selecionadas || [];
@@ -46,9 +49,11 @@ export const dashboardService = {
       else if (temDanca)            danca++;
       else if (temFuncional)        funcional++;
       else                          semModalidade++;
+
+      if (aluno.bolsista) bolsistas++;
     }
 
-    return { danca, funcional, ambos, semModalidade };
+    return { danca, funcional, ambos, semModalidade, bolsistas };
   },
 
   async obterPagamentosMes(inicioMes) {

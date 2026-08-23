@@ -1528,8 +1528,12 @@ export default function PerfilAluno() {
             <ArrowLeft size={24} />
           </Button>
           <div>
-            <h1 className="text-2xl font-black text-foreground tracking-tight">
+            <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
               {aluno?.nome_completo}
+              {/* ILU-11: sinaliza no perfil que o aluno não é cobrado */}
+              {aluno?.bolsista && (
+                <Badge tone="brand" variant="soft">Bolsista</Badge>
+              )}
             </h1>
             <p className="text-muted-foreground font-medium">Gestão de Aluno</p>
           </div>

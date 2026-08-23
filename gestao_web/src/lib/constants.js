@@ -39,6 +39,9 @@ export const FORMAS_PAGAMENTO = [
   { valor: 'debito', label: 'Cartão de Débito' },
   { valor: 'dinheiro', label: 'Dinheiro' },
   { valor: 'transferencia', label: 'Transferência' },
+  // ILU-11: usada nos registros de mensalidade zerados automaticamente
+  // quando um aluno é marcado como bolsista.
+  { valor: 'bolsa', label: 'Bolsa (isento)' },
 ];
 
 export const TIPOS_AULA = [

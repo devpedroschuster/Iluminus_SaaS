@@ -13,6 +13,7 @@ export const alunoSchema = yup.object().shape({
   }),
   role: yup.string().oneOf(['aluno', 'admin']).default('aluno'),
   plano_id: yup.string().nullable().optional(),
+  bolsista: yup.boolean().default(false),
   data_nascimento: yup.string().nullable().optional(),
   telefone: yup.string().nullable().optional(),
   cep: yup.string().nullable().optional(),

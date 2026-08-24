@@ -66,10 +66,19 @@ export const comissoesService = {
 
     if (error) throw error;
 
-    const { data: fechamentos } = await supabase
+    // ILU-12 FIX: a coluna correta em `fechamento_comissoes` é
+    // `data_pagamento` — `fechado_em` nunca existiu na tabela, o que
+    // fazia essa query falhar com 400 (Bad Request / coluna inexistente)
+    // toda vez que a página de Comissões era aberta. O `error` também
+    // estava sendo ignorado (não desestruturado), o que mascarava a
+    // falha: a tela seguia renderizando sem nenhum aviso, escondendo
+    // quais professores já tinham o mês fechado.
+    const { data: fechamentos, error: errFechamentos } = await supabase
       .from('fechamento_comissoes')
-      .select('professor_id, valor_total, fechado_em')
+      .select('professor_id, valor_total, data_pagamento')
       .eq('mes_referencia', `${mesAno}-01`);
+
+    if (errFechamentos) throw errFechamentos;
 
     const fechamentosPorProf = new Map(
       (fechamentos || []).map(f => [f.professor_id, f])

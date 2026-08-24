@@ -230,7 +230,7 @@ export default function Dashboard() {
                 <p className="text-[14px] font-medium text-muted-foreground mt-0.5">
                   {distribuicaoAreas.funcional}F · {distribuicaoAreas.danca}D · {distribuicaoAreas.ambos} combo
                   {distribuicaoAreas.semModalidade > 0 && ` · ${distribuicaoAreas.semModalidade} s/ modalidade`}
-                  {distribuicaoAreas.bolsistas > 0 && ` · ${distribuicaoAreas.bolsistas}B`}
+                  {distribuicaoAreas.bolsistas > 0 && ` · ${distribuicaoAreas.bolsistas} B`}
                 </p>
               </>
             )}

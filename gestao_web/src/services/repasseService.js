@@ -49,11 +49,12 @@ export async function gerarRepassesMensais(mes, ano) {
   });
 
   if (error) throw error;
-  // AUDITORIA 2026-07: mesma correção de previewRepassesMensais — mas aqui
-  // preservamos o caso `jaGerados` (409 tratado como aviso na UI, não como
-  // exceção), já que Comissoes.jsx depende de `resultado?.jaGerados` para
-  // mostrar a mensagem correta sem quebrar o fluxo.
-  if (data?.error && !data?.jaGerados) throw new Error(data.error);
+  // AUDITORIA 2026-07: mesma correção de previewRepassesMensais — checa erro
+  // no corpo mesmo com HTTP 200.
+  // ILU-13: `jaGerados` não é mais retornado junto de `error` (deixou de ser
+  // um bloqueio 409) — passou a ser só um campo informativo em respostas de
+  // sucesso, indicando que o mês já tinha lançamentos antes desta chamada.
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 

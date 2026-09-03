@@ -472,7 +472,14 @@ export default function NovoAluno() {
 
       if (planoFinal) {
         planoInfos = planos.find(p => String(p.id) === String(planoFinal));
-        if (planoInfos) {
+        // ILU-13: em modo de EDIÇÃO, `data_inicio_plano`/`data_fim_plano` já
+        // vêm corretos do formulário (payloadBase acima), incluindo qualquer
+        // ajuste manual do staff no campo "Fim (Calculado)". Recalcular aqui
+        // a partir de "hoje" + duração do plano sobrescrevia silenciosamente
+        // essa edição manual — vencimento alterado na tela nunca persistia,
+        // sempre recaindo em hoje+30d. Em modo de CRIAÇÃO o contrato começa
+        // de fato na data do 1º pagamento, então o recálculo continua válido.
+        if (planoInfos && !alunoParaEditar) {
           payloadBase.data_inicio_plano = new Date().toISOString().split('T')[0];
           payloadBase.data_fim_plano    = calcularDataFim(dataVencimento, planoInfos.duracao_meses || 1);
         }

@@ -785,13 +785,19 @@ export default function Comissoes() {
     setResultadoGeracao(null);
     try {
       const resultado = await gerarRepassesMensais(mes, ano);
-      if (resultado?.jaGerados) {
-        showToast.error(resultado.error || 'Repasses deste mês já foram gerados.');
-        modalGeracao.fechar();
-        return;
-      }
       setResultadoGeracao(resultado);
-      showToast.success(`${resultado.gerados} repasse(s) gerado(s) com sucesso!`);
+      // ILU-13: `jaGerados` agora é informativo — o mês pode já ter tido uma
+      // geração parcial, e esta chamada completa o que faltava em vez de
+      // ser bloqueada. `gerados` reflete só os lançamentos NOVOS desta vez.
+      if (resultado.gerados > 0 || resultado.avulsasReconciliadas > 0) {
+        showToast.success(
+          resultado.jaGerados
+            ? `${resultado.gerados} repasse(s) pendente(s) foram completados com sucesso!`
+            : `${resultado.gerados} repasse(s) gerado(s) com sucesso!`
+        );
+      } else {
+        showToast.success(resultado.aviso || 'Nenhum repasse novo — este mês já estava completo.');
+      }
       invalidarComissoes(filtros.professorId, filtros.mesAno);
     } catch (err) {
       const msg = err?.message || 'Erro ao gerar repasses mensais.';

@@ -112,7 +112,6 @@ export default function ProfessorAlunos() {
         )
         .eq('ativo', true)
         .eq('role', 'aluno')
-        // Usa .overlaps() — traduzido pelo PostgREST para o operador && do Postgres (uuid[])
         .overlaps('modalidades_selecionadas', idsModalidades)
         .order('nome_completo');
 

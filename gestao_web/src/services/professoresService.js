@@ -48,12 +48,19 @@ export const professoresService = {
   },
 
   async alternarStatus(id, novoStatus) {
-    const { error } = await supabase
+    // ILU-13: mesma correção de alunosService.alterarStatus — sem `.select()`
+    // um `.update()` que afeta 0 linhas (ex.: RLS) retorna sucesso silencioso.
+    const { data, error } = await supabase
       .from('professores')
       .update({ ativo: novoStatus })
-      .eq('id', id);
-    
+      .eq('id', id)
+      .select('id, ativo')
+      .single();
+
     if (error) throw error;
+    if (data.ativo !== novoStatus) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   }
 };

@@ -8,7 +8,10 @@
 //
 // Response (200):
 // {
-//   jaGerados: boolean,          // true → lote deste mês já existe
+//   jaGerados: boolean,          // true → o mês já teve alguma geração anterior
+//                                //   (ILU-13: informativo — totalGeral/professores/
+//                                //   lancamentosPrevistos ainda refletem o que FALTA
+//                                //   gerar, não mais um preview vazio bloqueado)
 //   totalGeral: number,          // soma de todos os repasses calculados
 //   professores: [               // ordenado por total desc
 //     { professor_id, nome, total, qtdLancamentos, breakdown: { regular, plano_livre } }
@@ -101,7 +104,11 @@ serve(async (req: Request) => {
     const inicioPeriodo = `${ano}-${mesStr}-01`;
     const fimPeriodo = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
 
-    // ── 1. Verifica se lote já existe ───────────────────────────────────────
+    // ── 1. Detecta se o lote deste mês já foi gerado antes (informativo) ────
+    // ILU-13: antes, isso encerrava o preview sem calcular nada — mesmo que
+    // ainda houvesse alunos elegíveis faltando no lote (ver mesma correção em
+    // gerar-repasses-mensais). Agora o preview sempre calcula o que falta;
+    // `jaGerados` só indica que o mês já teve alguma geração anterior.
     const { data: jaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
@@ -109,13 +116,7 @@ serve(async (req: Request) => {
       .is('mensalidade_id', null)
       .limit(1);
 
-    if (jaExistem && jaExistem.length > 0) {
-      return response({
-        jaGerados: true,
-        mes: `${mesStr}/${ano}`,
-        mensagem: `Repasses de ${mesStr}/${ano} já foram gerados.`,
-      });
-    }
+    const loteJaGeradoAntes = !!(jaExistem && jaExistem.length > 0);
 
     // ── 2. Repasses já gerados via pagamento individual (deduplicação) ───────
     const { data: repassesPagamento } = await supabase
@@ -127,6 +128,20 @@ serve(async (req: Request) => {
     const repassesJaPagos = new Set<string>();
     for (const r of repassesPagamento ?? []) {
       repassesJaPagos.add(`${r.aluno_id}|${r.modalidade}|${r.tipo_aula}`);
+    }
+
+    // ── 2b. Repasses do lote mensal já existentes (mesma chave do índice único
+    // uq_repasse_lote_mensal) — para o preview não contar de novo o que já
+    // seria ignorado pelo upsert de gerar-repasses-mensais.
+    const { data: loteExistente } = await supabase
+      .from('repasses_lancamentos')
+      .select('aluno_id, modalidade, tipo_aula')
+      .eq('data_referencia', dataReferencia)
+      .is('mensalidade_id', null);
+
+    const loteJaExistente = new Set<string>();
+    for (const r of loteExistente ?? []) {
+      loteJaExistente.add(`${r.aluno_id}|${r.modalidade}|${r.tipo_aula}`);
     }
 
     // ── 3. Configurações ────────────────────────────────────────────────────
@@ -157,7 +172,7 @@ serve(async (req: Request) => {
     if (errMods) throw errMods;
     if (!modsRaw || modsRaw.length === 0) {
       return response({
-        jaGerados: false,
+        jaGerados: loteJaGeradoAntes,
         totalGeral: 0,
         professores: [],
         avisos: ['Nenhuma modalidade com professor vinculado.'],
@@ -207,7 +222,7 @@ serve(async (req: Request) => {
 
     if (alunosComMods.length === 0) {
       return response({
-        jaGerados: false,
+        jaGerados: loteJaGeradoAntes,
         totalGeral: 0,
         professores: [],
         avisos: ['Nenhum aluno ativo com modalidades vinculadas.'],
@@ -281,6 +296,9 @@ serve(async (req: Request) => {
             avisos.push(`"${aluno.nome_completo}" (plano livre, ${mod.nome}): já gerado via pagamento — ignorado.`);
             continue;
           }
+          if (loteJaExistente.has(chave)) {
+            continue;
+          }
           itens.push({ professor_id: mod.professor_id, tipo_aula: 'plano_livre', valor: valoresPorMod[i] });
         }
       } else {
@@ -302,6 +320,9 @@ serve(async (req: Request) => {
           const chave = `${aluno.id}|${mod.nome}|regular`;
           if (repassesJaPagos.has(chave)) {
             avisos.push(`"${aluno.nome_completo}" (${mod.nome}): já gerado via pagamento — ignorado.`);
+            continue;
+          }
+          if (loteJaExistente.has(chave)) {
             continue;
           }
           itens.push({ professor_id: mod.professor_id, tipo_aula: 'regular', valor: valorPorMod });
@@ -341,7 +362,7 @@ serve(async (req: Request) => {
     const professores = [...resumoMap.values()].sort((a, b) => b.total - a.total);
 
     return response({
-      jaGerados: false,
+      jaGerados: loteJaGeradoAntes,
       mes: `${mesStr}/${ano}`,
       totalGeral: Math.round(totalGeral * 100) / 100,
       professores,

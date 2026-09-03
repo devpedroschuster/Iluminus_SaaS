@@ -6,7 +6,9 @@
 //   - Total geral a ser gerado
 //   - Breakdown por professor (regular vs plano livre)
 //   - Avisos de alunos ignorados
-//   - Estado "já gerado" com bloqueio visual
+//   - Aviso informativo quando o mês já teve geração anterior (ILU-13: o
+//     lote pode ser completado com os lançamentos que ainda faltam — não
+//     bloqueia mais a geração)
 //
 // Uso:
 //   <ModalPreviewRepasses
@@ -159,7 +161,7 @@ function AvisosSection({ avisos }) {
 // ─── componente principal ────────────────────────────────────────────────────
 
 export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfirm }) {
-  const [estado, setEstado] = useState('idle'); // idle | carregando | pronto | erro | ja_gerado
+  const [estado, setEstado] = useState('idle'); // idle | carregando | pronto | vazio | erro
   const [preview, setPreview] = useState(null);
   const [erroMsg, setErroMsg] = useState('');
   const [confirmando, setConfirmando] = useState(false);
@@ -174,12 +176,9 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
       const [ano, mes] = mesAno.split('-').map(Number);
       const data = await previewRepassesMensais(mes, ano);
 
-      if (data?.jaGerados) {
-        setEstado('ja_gerado');
-        setPreview(data);
-        return;
-      }
-
+      // ILU-13: `jaGerados` agora é apenas informativo — o mês pode já ter
+      // tido uma geração parcial e `lancamentosPrevistos` reflete o que
+      // ainda falta para completá-lo. Não bloqueia mais o preview.
       setPreview(data);
       setEstado(data?.lancamentosPrevistos === 0 ? 'vazio' : 'pronto');
     } catch (err) {
@@ -273,22 +272,6 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
         </div>
       )}
 
-      {/* ── JÁ GERADO ── */}
-      {estado === 'ja_gerado' && (
-        <div className="flex flex-col items-center gap-3 py-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-            <ShieldAlert size={24} className="text-warning-foreground" />
-          </div>
-          <div>
-            <p className="font-black text-foreground">Repasses já gerados</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              O lote de <strong>{label}</strong> já foi processado anteriormente.
-              Exclua os lançamentos existentes antes de regerar.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ── VAZIO ── */}
       {estado === 'vazio' && (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
@@ -296,9 +279,13 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
             <Info size={24} className="text-muted-foreground" />
           </div>
           <div>
-            <p className="font-bold text-foreground">Nenhum repasse previsto</p>
+            <p className="font-bold text-foreground">
+              {preview?.jaGerados ? 'Repasses já completos' : 'Nenhum repasse previsto'}
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Não há alunos ativos com modalidades vinculadas a professores para {label}.
+              {preview?.jaGerados
+                ? <>O lote de <strong>{label}</strong> já foi gerado e não há lançamentos pendentes.</>
+                : <>Não há alunos ativos com modalidades vinculadas a professores para {label}.</>}
             </p>
           </div>
           {preview?.avisos?.length > 0 && (
@@ -312,6 +299,17 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
       {/* ── PRONTO ── */}
       {estado === 'pronto' && preview && (
         <div className="space-y-4">
+          {/* ILU-13: mês já teve geração anterior — isto é uma complementação */}
+          {preview.jaGerados && (
+            <div className="rounded-xl bg-warning/10 border border-warning/20 p-3 flex items-start gap-2.5">
+              <ShieldAlert size={16} className="text-warning-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                O lote de <strong className="text-foreground">{label}</strong> já foi gerado antes.
+                Os valores abaixo são só os lançamentos que ainda faltam.
+              </p>
+            </div>
+          )}
+
           {/* KPI: total geral */}
           <div className="rounded-2xl bg-primary/5 border border-primary/15 p-4 flex items-center justify-between">
             <div>

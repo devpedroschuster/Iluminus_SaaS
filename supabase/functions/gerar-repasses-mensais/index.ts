@@ -38,6 +38,17 @@
 //   FIX-04: nova etapa 11 de reconciliação de avulsas/experimentais (ver nota
 //           arquitetural acima).
 //
+// AUDITORIA 2026-09 (ILU-13):
+//   Antes, qualquer repasse do lote já existente para o mês bloqueava a função
+//   inteira com 409 ("já foram gerados, exclua antes de regerar"). Um aluno
+//   excluído do lote por qualquer motivo transitório (ex.: estava inativo no
+//   instante exato da geração) ficava permanentemente sem comissão naquele
+//   mês, sem nenhum jeito de completar depois — diferente do que já existia
+//   para avulsas/experimentais. Agora a função sempre recalcula o lote
+//   completo e insere só o que ainda falta (a proteção contra duplicidade já
+//   é garantida pelo índice único abaixo); `jaGerados` na resposta virou
+//   informativo, não mais um erro bloqueante.
+//
 // Chamada manual via: supabase.functions.invoke('gerar-repasses-mensais', { body: { mes, ano } })
 //
 // PRÉ-REQUISITO DE BANCO (rodar uma vez, via migration):
@@ -148,14 +159,19 @@ serve(async (req: Request) => {
     const inicioPeriodo = `${ano}-${mesStr}-01`;
     const fimPeriodo = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
 
-    // ── 1. Previne dupla geração no mesmo mês ───────────────────────────────
-    // Bloqueia apenas se já existirem repasses do LOTE MENSAL (mensalidade_id IS NULL)
-    // para este mês. Repasses originados de pagamentos individuais (gerar-repasses,
-    // mensalidade_id preenchido) não bloqueiam o lote — eles serão deduplicados
-    // no passo 8 abaixo.
+    // ── 1. Detecta se o lote deste mês já foi gerado antes (informativo) ────
+    // ILU-13: antes, qualquer repasse do LOTE MENSAL (mensalidade_id IS NULL)
+    // já existente para este mês bloqueava a função inteira com 409 — mesmo
+    // a proteção real contra duplicidade já sendo garantida pelo índice único
+    // `uq_repasse_lote_mensal` (aluno_id, modalidade, tipo_aula, data_referencia)
+    // usado no upsert do passo 9. Isso tornava qualquer exclusão transitória
+    // de um aluno do lote (ex.: estava temporariamente inativo no instante
+    // exato da geração) uma lacuna PERMANENTE — sem nenhum jeito de completar
+    // depois, diferente do que já existe para avulsas/experimentais (passo 11).
+    // Agora a função sempre recalcula o lote completo (passos 2–8) e insere só
+    // o que ainda falta; linhas já existentes são ignoradas pelo upsert.
     // FIX-01: error agora é checado — antes uma falha nesta query fazia `jaExistem`
-    // ficar `undefined`, o que era tratado como "nunca gerado" e permitia
-    // gerar o lote de novo mesmo quando não deveríamos ter certeza disso.
+    // ficar `undefined`, o que era tratado como "nunca gerado".
     const { data: jaExistem, error: errJaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
@@ -165,12 +181,7 @@ serve(async (req: Request) => {
 
     if (errJaExistem) throw errJaExistem;
 
-    if (jaExistem && jaExistem.length > 0) {
-      return response({
-        error: `Repasses de ${mesStr}/${ano} já foram gerados. Exclua-os antes de regerar.`,
-        jaGerados: true,
-      }, 409);
-    }
+    const loteJaGeradoAntes = !!(jaExistem && jaExistem.length > 0);
 
     // ── 1b. Repasses já gerados via pagamento individual neste mês ──────────
     // (mensalidade_id IS NOT NULL) — usados para não duplicar no lote.
@@ -406,23 +417,34 @@ serve(async (req: Request) => {
     // execuções concorrentes (duplo clique, retry de rede) não dupliquem
     // lançamentos, mesmo que ambas passem pela checagem do passo 1.
     // Requer a unique index descrita no cabeçalho do arquivo.
+    // ILU-13: `.select()` no upsert faz o Postgres retornar SÓ as linhas que
+    // foram de fato inseridas (o `ON CONFLICT DO NOTHING` do ignoreDuplicates
+    // não retorna as que já existiam) — é assim que sabemos quantas foram
+    // realmente NOVAS nesta execução, mesmo quando o mês já tinha lote parcial.
+    let itensInseridos: typeof itens = [];
     if (itens.length > 0) {
-      const { error: errInsert } = await supabase
+      const { data: inseridos, error: errInsert } = await supabase
         .from('repasses_lancamentos')
         .upsert(itens, {
           onConflict: 'aluno_id,modalidade,tipo_aula,data_referencia',
           ignoreDuplicates: true,
-        });
+        })
+        .select('professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia');
 
       if (errInsert) throw errInsert;
+      itensInseridos = (inseridos ?? []) as typeof itens;
     }
 
-    // ── 10. Resumo por professor (apenas dos itens deste lote) ──────────────
+    // ── 10. Resumo por professor (apenas dos itens REALMENTE inseridos) ─────
+    // ILU-13: `valor` é `numeric` no Postgres — o PostgREST serializa como
+    // STRING no JSON de retorno do `.select()` (preserva precisão arbitrária).
+    // Sem o `Number()`, `atual.total += item.valor` faria concatenação de
+    // string em vez de soma.
     const resumoMap = new Map<string, ResumoProf>();
-    for (const item of itens) {
+    for (const item of itensInseridos) {
       const nome = mapaProfs.get(item.professor_id) ?? 'Professor';
       const atual = resumoMap.get(item.professor_id) ?? { nome, total: 0, alunos: 0 };
-      atual.total += item.valor;
+      atual.total += Number(item.valor);
       atual.alunos += 1;
       resumoMap.set(item.professor_id, atual);
     }
@@ -472,10 +494,13 @@ serve(async (req: Request) => {
       }
     }
 
-    if (itens.length === 0 && avulsasReconciliadas === 0) {
+    if (itensInseridos.length === 0 && avulsasReconciliadas === 0) {
       return response({
-        aviso: 'Nenhum repasse calculado. Verifique se as modalidades têm professores vinculados.',
+        aviso: loteJaGeradoAntes
+          ? `Repasses de ${mesStr}/${ano} já estavam completos — nenhum lançamento novo encontrado.`
+          : 'Nenhum repasse calculado. Verifique se as modalidades têm professores vinculados.',
         gerados: 0,
+        jaGerados: loteJaGeradoAntes,
         avisos,
       });
     }
@@ -483,7 +508,8 @@ serve(async (req: Request) => {
     return response({
       sucesso: true,
       mes: `${mesStr}/${ano}`,
-      gerados: itens.length,
+      gerados: itensInseridos.length,
+      jaGerados: loteJaGeradoAntes,
       avulsasReconciliadas,
       resumo: [...resumoMap.values()],
       avisos,

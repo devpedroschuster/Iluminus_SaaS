@@ -100,12 +100,21 @@ export const alunosService = {
 
   async alterarStatus(id, novoStatus) {
     try {
-      const { error } = await supabase
+      // ILU-13: `.update()` sem `.select()` retorna sucesso mesmo quando
+      // 0 linhas são afetadas (ex.: RLS bloqueando silenciosamente). Sem
+      // conferir a linha retornada, a UI mostrava "Aluno desativado com
+      // sucesso" mesmo quando `ativo` nunca mudou no banco.
+      const { data, error } = await supabase
         .from('alunos')
         .update({ ativo: novoStatus })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id, ativo')
+        .single();
 
       if (error) throw error;
+      if (data.ativo !== novoStatus) {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return true;
     } catch (error) {
       console.error('[alunosService.alterarStatus]', error);

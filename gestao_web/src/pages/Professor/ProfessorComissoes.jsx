@@ -119,9 +119,8 @@ function KPICard({ icon, label, value, subtitle, tone = 'neutral', loading }) {
   );
 }
 
-// ─── página ──────────────────────────────────────────────────────────────────
+// Página
 
-// R1 FIX — nome do componente alinhado com o nome do arquivo
 export default function ProfessorComissoes() {
   const { professorId } = useAuth();
   const [mesAno, setMesAno] = useState(mesAnoAtual);

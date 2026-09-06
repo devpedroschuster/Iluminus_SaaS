@@ -75,6 +75,19 @@ async function enviarPush(supabase: any, professorId: string, title: string, bod
 }
 
 serve(async (req) => {
+  // ── AUTORIZAÇÃO (ILU-10) ───────────────────────────────────────────────────
+  // Função só deve rodar via cron. Chamada direta por usuário autenticado
+  // causaria envio de push duplicado/fora de hora para professores (spam).
+  // Exige um segredo compartilhado que só o job de cron conhece, enviado
+  // como header `x-cron-secret`.
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';

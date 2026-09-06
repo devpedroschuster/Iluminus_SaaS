@@ -94,15 +94,52 @@ serve(async (req: Request) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ── AUTORIZAÇÃO (ILU-10) ─────────────────────────────────────────────────
+    // Sem isso, qualquer aluno/professor autenticado podia reescrever
+    // lançamentos de comissão de qualquer mensalidade. Só admin pode chamar —
+    // exceto a própria plataforma chamando com a service role key, usada pela
+    // reconciliação de avulsas/experimentais em gerar-repasses-mensais (passo 11).
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return response({ error: 'Não autenticado: token ausente' }, 401);
+    }
+
+    const isServiceRole = authHeader === `Bearer ${supabaseKey}`;
+    if (!isServiceRole) {
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: userData, error: userErr } = await userClient.auth.getUser();
+      if (userErr || !userData?.user) {
+        return response({ error: 'Não autenticado: token inválido' }, 401);
+      }
+
+      const { data: solicitante, error: perfilErr } = await supabase
+        .from('alunos')
+        .select('role')
+        .eq('auth_id', userData.user.id)
+        .maybeSingle();
+
+      if (perfilErr) {
+        console.error('[gerar-repasses] erro ao checar perfil:', perfilErr.message);
+        return response({ error: 'Erro ao validar permissões' }, 500);
+      }
+
+      if (solicitante?.role !== 'admin') {
+        return response({ error: 'Acesso negado: apenas administradores podem executar esta ação' }, 403);
+      }
+    }
+
     const { mensalidadeId } = await req.json();
 
     if (!mensalidadeId) {
       return response({ error: 'Parâmetro mensalidadeId é obrigatório.' }, 400);
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ── 1. Busca a mensalidade ──────────────────────────────────────────────
     const { data: mens, error: errMens } = await supabase

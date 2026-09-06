@@ -88,15 +88,48 @@ serve(async (req: Request) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ── AUTORIZAÇÃO (ILU-10) ─────────────────────────────────────────────────
+    // Embora não escreva dados, este preview expõe o valor exato de comissão
+    // projetada de CADA professor para qualquer mês — vazamento de
+    // remuneração de terceiros para qualquer aluno/professor autenticado.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return response({ error: 'Não autenticado: token ausente' }, 401);
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) {
+      return response({ error: 'Não autenticado: token inválido' }, 401);
+    }
+
+    const { data: solicitante, error: perfilErr } = await supabase
+      .from('alunos')
+      .select('role')
+      .eq('auth_id', userData.user.id)
+      .maybeSingle();
+
+    if (perfilErr) {
+      console.error('[preview-repasses-mensais] erro ao checar perfil:', perfilErr.message);
+      return response({ error: 'Erro ao validar permissões' }, 500);
+    }
+
+    if (solicitante?.role !== 'admin') {
+      return response({ error: 'Acesso negado: apenas administradores podem executar esta ação' }, 403);
+    }
+
     const { mes, ano } = await req.json();
 
     if (!mes || !ano || mes < 1 || mes > 12) {
       return response({ error: 'Parâmetros inválidos. Informe mes (1–12) e ano.' }, 400);
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const mesStr = String(mes).padStart(2, '0');
     const dataReferencia = `${ano}-${mesStr}-01`;

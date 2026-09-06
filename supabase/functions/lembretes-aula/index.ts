@@ -2,6 +2,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 serve(async (req) => {
+  // ── AUTORIZAÇÃO (ILU-10) ───────────────────────────────────────────────────
+  // Função só deve rodar via cron. Chamada direta por usuário autenticado
+  // causaria envio de notificação push duplicado/fora de hora para alunos.
+  // Exige um segredo compartilhado que só o job de cron conhece, enviado
+  // como header `x-cron-secret`.
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     console.log("🤖 Robô de Lembretes Iniciado!");
 

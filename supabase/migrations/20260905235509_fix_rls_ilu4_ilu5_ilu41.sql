@@ -52,6 +52,7 @@ DROP POLICY IF EXISTS financeiro_select_authenticated ON financeiro_movimentacoe
 DROP POLICY IF EXISTS repasses_select_authenticated ON repasses_lancamentos;
 
 DROP POLICY IF EXISTS config_repasse_select_auth ON configuracoes_repasse;
+DROP POLICY IF EXISTS config_repasse_select_admin ON configuracoes_repasse;
 CREATE POLICY config_repasse_select_admin ON configuracoes_repasse
   FOR SELECT
   USING (is_admin());

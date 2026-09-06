@@ -13,7 +13,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const { professorInativo } = useAuth();
+  const { professorInativo, alunoInativo } = useAuth();
 
   const navigate = useNavigate();
   const modalRecuperar = useModal();
@@ -142,7 +142,7 @@ export default function Login() {
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
         </div>
 
-        {professorInativo && (
+        {(professorInativo || alunoInativo) && (
     <div className="p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-destructive text-sm font-medium">
       Sua conta está desativada. Entre em contato com a gestão do espaço.
     </div>

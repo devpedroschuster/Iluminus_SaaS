@@ -7,6 +7,7 @@ export function useAuth() {
   const [professorId, setProfessorId] = useState(null);
   const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
   const [professorInativo, setProfessorInativo] = useState(false);
+  const [alunoInativo, setAlunoInativo] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const perfilJaCarregado = useRef(false);
@@ -27,6 +28,7 @@ export function useAuth() {
           setProfessorId(null);
           setNomeUsuario(null); // #18
           setProfessorInativo(false);
+          setAlunoInativo(false);
           setLoading(false);
         }
         return;
@@ -51,10 +53,22 @@ export function useAuth() {
 
       try {
         const { data: usuario, error: errAluno } = await supabase
-          .from('alunos').select('id, role').eq('auth_id', authId).maybeSingle();
+          .from('alunos').select('id, role, ativo').eq('auth_id', authId).maybeSingle();
         if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
 
         if (cancelled) return;
+
+        if (usuario && usuario.role !== 'admin' && usuario.ativo === false) {
+          perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
+          setAlunoInativo(true);
+          setPerfil(null);
+          setProfessorId(null);
+          setNomeUsuario(null);
+          setLoading(false);
+          await supabase.auth.signOut();
+          return;
+        }
 
         if (usuario) {
           perfilJaCarregado.current = true;
@@ -62,6 +76,7 @@ export function useAuth() {
           setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
           setProfessorId(null);
           setNomeUsuario(null); // alunos não têm nome exposto aqui
+          setAlunoInativo(false);
           setLoading(false);
           return;
         }
@@ -134,6 +149,7 @@ export function useAuth() {
         setProfessorId(null);
         setNomeUsuario(null); // #18
         setProfessorInativo(false);
+        setAlunoInativo(false);
         setLoading(false);
 
       } else if (event === 'SIGNED_IN') {
@@ -161,5 +177,5 @@ export function useAuth() {
     };
   }, []);
 
-  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo };
+  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo, alunoInativo };
 }

@@ -23,6 +23,7 @@
 - O formulário de login não tem `<label>`/`id` nos inputs — seletores de E2E usam `getByPlaceholder('Seu e-mail')` / `getByPlaceholder('Sua senha')` (`gestao_web/src/pages/Login.jsx`), não `getByLabel`.
 - Perfil "admin" é uma linha na tabela `alunos` com `role = 'admin'` e `auth_id` = UUID do usuário no Supabase Auth (`gestao_web/src/hooks/useAuth.js:55-82`) — não existe tabela `admins`/`usuarios` separada.
 - O heading real do Dashboard pós-login é "Painel de Avisos" (`gestao_web/src/pages/Dashboard.jsx:175-180`) — use-o para esperar login concluído, não só a URL (URL sozinha é mais flaky, lição documentada no Nexofy).
+- **RULING (pré-flight, antes da Task 1):** `npm run lint` na baseline atual do repositório (antes de qualquer mudança deste plano) já falha com dezenas de erros pré-existentes, não relacionados a este trabalho (ex.: `src/App.jsx`, `src/components/shared/Loading.jsx`, `src/components/ui/Modal.jsx`, entre outros — confirmado rodando `npm run lint` na raiz de `gestao_web/` numa checkout limpa). `npm run build` (o build real que vai pra produção via Vite) passa limpo — o problema é só do ESLint, nunca antes rodado como gate. Corrigir essa dívida preexistente está fora do escopo deste plano (mudaria comportamento de componentes não relacionados, sem necessidade). Se a Task 5 usasse `npm run lint` (repo inteiro) como o step "Lint" do job `Lint, Test & Build`, esse check NUNCA passaria — e como ele é um required status check (Task 6), isso bloquearia PERMANENTEMENTE todo merge em `main`, de qualquer PR, para sempre, o que contradiz o próprio objetivo deste plano. Decisão: o step "Lint" do job `lint-and-build` em `ci.yml` (Task 5) linta só os arquivos `.js`/`.jsx` alterados no PR (diff contra `origin/main`), não o repositório inteiro — assim o gate é real e obrigatório para código novo, sem travar em dívida legada. Ver o step atualizado na Task 5 abaixo. Custo se essa decisão estiver errada: código legado com erros de lint continua sem ser pego pelo CI até ser tocado por um PR futuro — aceitável, dado que já está em produção há tempo sem esse gate.
 
 ---
 
@@ -69,8 +70,8 @@ describe('isFeriado', () => {
 
 - [ ] **Step 2: Rodar o teste antes de instalar o Vitest, para confirmar que falha por falta de harness**
 
-Run (dentro de `gestao_web/`): `npx vitest run`
-Expected: falha — comando não encontrado ou erro de dependência ausente (prova que nada roda o teste silenciosamente sem configuração).
+Run (dentro de `gestao_web/`): `npm test`
+Expected: falha — `npm error Missing script: "test"` (o script ainda não existe em `package.json`; prova que nada roda o teste silenciosamente sem configuração). Não use `npx vitest run` aqui — `npx` baixa e roda o pacote sob demanda mesmo sem instalação prévia, o que mascararia esta verificação.
 
 - [ ] **Step 3: Instalar o Vitest e adicionar o script**
 
@@ -556,8 +557,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      # RULING (ver Global Constraints): a baseline do repo já tinha dezenas
+      # de erros de ESLint pré-existentes antes deste plano (nunca tinha
+      # rodado como gate). Lintar o repo inteiro aqui faria este check
+      # obrigatório nunca passar, bloqueando todo merge em main pra sempre.
+      # Linta só os arquivos .js/.jsx alterados neste PR — gate real pra
+      # código novo, sem travar em dívida legada.
+      - name: Lint changed files
+        run: |
+          git fetch origin main --depth=1 --quiet
+          CHANGED=$(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx')
+          if [ -n "$CHANGED" ]; then
+            echo "$CHANGED"
+            npx eslint $CHANGED
+          else
+            echo "Nenhum arquivo .js/.jsx alterado neste PR — nada para lintar."
+          fi
 
       - name: Test
         run: npm test

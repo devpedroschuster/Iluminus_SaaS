@@ -80,6 +80,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [confirmandoDelete, setConfirmandoDelete] = useState(false);
+  const [confirmandoValor, setConfirmandoValor] = useState(false);
 
   const [camposEdit, setCamposEdit] = useState({
     valor: '',
@@ -104,6 +105,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
   function cancelarEdicao() {
     setEditando(false);
     setConfirmandoDelete(false);
+    setConfirmandoValor(false);
   }
 
   async function salvar() {
@@ -112,6 +114,21 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       showToast.error('Valor inválido.');
       return;
     }
+
+    // ILU-33: confirma quando o valor editado desviar >20% do valor original
+    // do lançamento — um erro de digitação não deve virar permanentemente o
+    // valor registrado (e a base de comissão) sem nenhum aviso.
+    const valorOriginal = Number(lancamento.valor);
+    const desviaSignificativamente =
+      Number.isFinite(valorOriginal) && valorOriginal > 0
+      && Math.abs(valor - valorOriginal) / valorOriginal > 0.2;
+
+    if (desviaSignificativamente && !confirmandoValor) {
+      setConfirmandoValor(true);
+      return;
+    }
+    setConfirmandoValor(false);
+
     setSalvando(true);
     try {
       const atualizado = await comissoesService.updateLancamento(lancamento.id, {
@@ -154,6 +171,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
 
   if (editando) {
     return (
+      <>
       <tr className="bg-primary/5 border-b border-primary/20">
         <td className="p-4 text-muted-foreground font-medium">
           {formatarData(lancamento.data_referencia)}
@@ -210,6 +228,17 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
           </div>
         </td>
       </tr>
+      <ModalConfirmacao
+        isOpen={confirmandoValor}
+        onClose={() => setConfirmandoValor(false)}
+        onConfirm={salvar}
+        tipo="warning"
+        titulo="Confirmar valor fora do padrão"
+        mensagem={`O novo valor (${formatarMoeda(parseFloat(camposEdit.valor.replace(',', '.')) || 0)}) difere em mais de 20% do valor original (${formatarMoeda(lancamento.valor)}). Confirma a alteração?`}
+        textoConfirmar="Confirmar valor"
+        loading={salvando}
+      />
+      </>
     );
   }
 

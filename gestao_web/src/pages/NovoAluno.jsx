@@ -213,6 +213,14 @@ export default function NovoAluno() {
     }
   }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
+  // ILU-30: em modo de CRIAÇÃO, "Início do Contrato" espelha "Data do 1º
+  // Pagamento" — assim o preview "Fim (Calculado)" abaixo (e o valor de fato
+  // salvo no submit) sempre partem da mesma origem e do mesmo cálculo
+  // calendarizado (setMonth), eliminando a divergência entre tela e valor persistido.
+  useEffect(() => {
+    if (!alunoParaEditar) setValue('data_inicio_plano', dataVencimento);
+  }, [dataVencimento, alunoParaEditar, setValue]);
+
   useEffect(() => {
     if (!planoSelecionadoObj || !dataInicioPlano) return;
     // O browser envia YYYY-MM-DD mesmo com ano incompleto (ex: 0002, 0020, 0202).
@@ -438,13 +446,6 @@ export default function NovoAluno() {
     }
   }
 
-  const calcularDataFim = (dataVencimentoStr, mesesAdicionais) => {
-    if (!dataVencimentoStr || !mesesAdicionais) return '';
-    const d = new Date(dataVencimentoStr + 'T12:00:00');
-    d.setDate(d.getDate() + Number(mesesAdicionais) * 30);
-    return d.toISOString().split('T')[0];
-  };
-
   // ─────────────────────────────────────────────────────────
   // Fix #4 – Phase 1: save aluno WITHOUT creating auth.
   //          Auth creation is a separate, explicit action.
@@ -478,17 +479,13 @@ export default function NovoAluno() {
 
       if (planoFinal) {
         planoInfos = planos.find(p => String(p.id) === String(planoFinal));
-        // ILU-13: em modo de EDIÇÃO, `data_inicio_plano`/`data_fim_plano` já
-        // vêm corretos do formulário (payloadBase acima), incluindo qualquer
-        // ajuste manual do staff no campo "Fim (Calculado)". Recalcular aqui
-        // a partir de "hoje" + duração do plano sobrescrevia silenciosamente
-        // essa edição manual — vencimento alterado na tela nunca persistia,
-        // sempre recaindo em hoje+30d. Em modo de CRIAÇÃO o contrato começa
-        // de fato na data do 1º pagamento, então o recálculo continua válido.
-        if (planoInfos && !alunoParaEditar) {
-          payloadBase.data_inicio_plano = new Date().toISOString().split('T')[0];
-          payloadBase.data_fim_plano    = calcularDataFim(dataVencimento, planoInfos.duracao_meses || 1);
-        }
+        // ILU-13/ILU-30: data_inicio_plano/data_fim_plano já vêm corretos do
+        // formulário (payloadBase acima) tanto em criação quanto em edição —
+        // em criação, "Início do Contrato" é mantido sincronizado com "Data
+        // do 1º Pagamento" (ver efeito acima), e "Fim (Calculado)" é sempre
+        // derivado dele via cálculo calendarizado (setMonth), o mesmo do
+        // preview da tela. Recalcular aqui com outra fórmula reintroduziria
+        // a divergência entre o que a equipe vê e o que é salvo.
       }
 
       // EDIT MODE – unchanged behaviour

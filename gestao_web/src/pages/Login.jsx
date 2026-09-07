@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -13,10 +13,35 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const { professorInativo, alunoInativo } = useAuth();
+  const [aguardandoAcesso, setAguardandoAcesso] = useState(false);
+  const [nomeSaudacao, setNomeSaudacao] = useState('');
+  const authUserIdRef = useRef(null);
+  const { sessao, perfil, loading: carregandoPerfil, professorInativo, alunoInativo } = useAuth();
 
   const navigate = useNavigate();
   const modalRecuperar = useModal();
+
+  // ILU-40: quem decide se a conta pode entrar (checando `ativo`) e para onde
+  // navegar é sempre useAuth — handleLogin só aguarda essa resolução em vez de
+  // reimplementar sua própria cópia da lógica de perfil (que já havia
+  // divergido e deixado de checar professor/aluno inativo).
+  useEffect(() => {
+    if (!aguardandoAcesso || carregandoPerfil) return;
+    if (!sessao || sessao.user.id !== authUserIdRef.current) return;
+
+    setAguardandoAcesso(false);
+
+    if (professorInativo || alunoInativo) {
+      setLoading(false);
+      return;
+    }
+
+    const primeiroNome = nomeSaudacao.split(' ')[0];
+    showToast.success(
+      primeiroNome ? `Bem-vindo de volta, ${primeiroNome}! 👋` : 'Login realizado com sucesso!'
+    );
+    navigate(rotaPorPerfil(perfil));
+  }, [aguardandoAcesso, carregandoPerfil, sessao, perfil, professorInativo, alunoInativo, nomeSaudacao, navigate]);
 
   // LOGIN
   async function handleLogin(e) {
@@ -32,10 +57,12 @@ export default function Login() {
 
       if (error) throw error;
 
+      authUserIdRef.current = authData.user.id;
+
       // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
       const { data: alunoData } = await supabase
         .from('alunos')
-        .select('primeiro_acesso, nome_completo, role')
+        .select('primeiro_acesso, nome_completo')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
@@ -45,11 +72,13 @@ export default function Login() {
         return;
       }
 
+      let nome = alunoData?.nome_completo || '';
+
       // ── 2. Verificar primeiro_acesso em professores ───────────────────────
       if (!alunoData) {
         const { data: profData } = await supabase
           .from('professores')
-          .select('primeiro_acesso, nome, id')
+          .select('primeiro_acesso, nome')
           .eq('auth_id', authData.user.id)
           .maybeSingle();
 
@@ -59,33 +88,11 @@ export default function Login() {
           return;
         }
 
-        if (profData) {
-          const primeiroNome = (profData.nome || '').split(' ')[0];
-          showToast.success(
-            primeiroNome
-              ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-              : 'Login realizado com sucesso!'
-          );
-          navigate('/agenda');
-          return;
-        }
+        nome = profData?.nome || '';
       }
 
-      // Admin ou aluno com acesso normal
-      if (alunoData) {
-        const primeiroNome = (alunoData.nome_completo || '').split(' ')[0];
-        showToast.success(
-          primeiroNome
-            ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-            : 'Login realizado com sucesso!'
-        );
-        navigate(rotaPorPerfil(alunoData.role === 'admin' ? 'admin' : 'aluno'));
-        return;
-      }
-
-      // Fallback (sem perfil correspondente)
-      showToast.success('Login realizado com sucesso!');
-      navigate('/');
+      setNomeSaudacao(nome);
+      setAguardandoAcesso(true);
 
     } catch (err) {
       // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código
@@ -98,7 +105,6 @@ export default function Login() {
       } else {
         showToast.error('Erro ao conectar. Tente novamente.');
       }
-    } finally {
       setLoading(false);
     }
   }

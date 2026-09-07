@@ -193,28 +193,42 @@ export default function AbaReprocessar({ mesAno }) {
     carregarMensalidades();
   }, [carregarMensalidades]);
 
+  // ILU-35: reprocessa em lotes paralelos (Promise.allSettled) em vez de um
+  // await sequencial por mensalidade, e reporta especificamente quais
+  // mensalidades falharam em vez de só uma contagem agregada.
   async function handleReprocessarTodos() {
     if (mensalidades.length === 0) return;
     setReprocessandoTodos(true);
 
+    const CONCORRENCIA = 5;
     let sucessos = 0;
-    let falhas = 0;
+    const falhas = [];
 
-    for (const m of mensalidades) {
-      try {
-        await reprocessarRepasse(String(m.id));
-        sucessos++;
-      } catch {
-        falhas++;
-      }
+    for (let i = 0; i < mensalidades.length; i += CONCORRENCIA) {
+      const lote = mensalidades.slice(i, i + CONCORRENCIA);
+      const resultados = await Promise.allSettled(
+        lote.map(m => reprocessarRepasse(String(m.id)))
+      );
+      resultados.forEach((resultado, idx) => {
+        if (resultado.status === 'fulfilled') {
+          sucessos++;
+        } else {
+          const m = lote[idx];
+          falhas.push(m.alunos?.nome_completo || `mensalidade #${m.id}`);
+        }
+      });
     }
 
     setReprocessandoTodos(false);
 
-    if (falhas === 0) {
+    if (falhas.length === 0) {
       showToast.success(`${sucessos} mensalidade(s) reprocessada(s) com sucesso.`);
     } else {
-      showToast.error(`${sucessos} ok, ${falhas} com erro. Reprocesse individualmente os que falharam.`);
+      const nomesFalhas = falhas.slice(0, 5).join(', ')
+        + (falhas.length > 5 ? ` e mais ${falhas.length - 5}` : '');
+      showToast.error(
+        `${sucessos} ok, ${falhas.length} com erro (${nomesFalhas}). Reprocesse individualmente os que falharam.`
+      );
     }
 
     // Recarrega para atualizar contagens

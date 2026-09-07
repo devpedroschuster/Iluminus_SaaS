@@ -3,14 +3,16 @@ import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
 import { showToast } from './shared/Toast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
+import { formatarMoeda } from '../lib/utils';
 
-import Modal from './ui/Modal';
+import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
 
 export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
   const [planos, setPlanos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmandoValor, setConfirmandoValor] = useState(false);
   const [form, setForm] = useState({
     plano_id: '',
     data_inicio: new Date().toISOString().split('T')[0], 
@@ -67,8 +69,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   }
 };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  async function executarRenovacao() {
     setLoading(true);
     try {
       await alunosService.renovarPlano(alunoId, {
@@ -85,7 +86,36 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     } finally {
       setLoading(false);
     }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // ILU-33: confirma quando o valor negociado desviar >20% do preço de
+    // tabela do plano — evita que um erro de digitação vire permanentemente
+    // o valor cobrado e a base de cálculo de comissão, sem nenhum aviso.
+    const planoSelecionado = planos.find(p => p.id === Number(form.plano_id));
+    const precoTabela = Number(planoSelecionado?.preco);
+    const valorInformado = Number(form.valor_pago);
+    const desviaSignificativamente =
+      Number.isFinite(precoTabela) && precoTabela > 0
+      && Number.isFinite(valorInformado)
+      && Math.abs(valorInformado - precoTabela) / precoTabela > 0.2;
+
+    if (desviaSignificativamente) {
+      setConfirmandoValor(true);
+      return;
+    }
+
+    executarRenovacao();
   };
+
+  const confirmarValorEEnviar = () => {
+    setConfirmandoValor(false);
+    return executarRenovacao();
+  };
+
+  const planoSelecionadoAtual = planos.find(p => p.id === Number(form.plano_id));
 
   return (
     <Modal aberto={isOpen} fechar={onClose} title="Renovar Plano do Aluno" size="md">
@@ -175,6 +205,17 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
           </Button>
         </Modal.Footer>
       </form>
+
+      <ModalConfirmacao
+        isOpen={confirmandoValor}
+        onClose={() => setConfirmandoValor(false)}
+        onConfirm={confirmarValorEEnviar}
+        tipo="warning"
+        titulo="Confirmar valor fora do padrão"
+        mensagem={`O valor negociado (${formatarMoeda(form.valor_pago)}) difere em mais de 20% do preço de tabela do plano ${planoSelecionadoAtual ? `(${formatarMoeda(planoSelecionadoAtual.preco)})` : ''}. Confirma a renovação com este valor?`}
+        textoConfirmar="Confirmar valor"
+        loading={loading}
+      />
     </Modal>
   );
 }

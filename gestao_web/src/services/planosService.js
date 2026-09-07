@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { planoSchema } from '../lib/validation';
 
 export const planosService = {
   async listar() {
@@ -6,7 +7,7 @@ export const planosService = {
       .from('planos')
       .select('*')
       .order('id', { ascending: true });
-      
+
     if (error) throw error;
     return data;
   },
@@ -19,6 +20,10 @@ export const planosService = {
       duracao_meses: Number(plano.duracao_meses),
       regras_acesso: plano.regras_acesso || []
     };
+
+    // ILU-25: valida preço/duração antes de gravar (alimentam a geração
+    // mensal de mensalidades).
+    await planoSchema.validate(payload);
 
     if (plano.id) {
       const { data, error } = await supabase.from('planos').update(payload).eq('id', plano.id).select();

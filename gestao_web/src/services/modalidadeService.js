@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { modalidadeSchema } from '../lib/validation';
 
 export const modalidadeService = {
   async listar() {
@@ -45,6 +46,11 @@ async buscarPerfil(id) {
       taxa_direcao: Number(modalidade.taxa_direcao) || 0,
       capacidade_padrao: modalidade.capacidade_padrao
     };
+
+    // ILU-25: as 3 taxas alimentam diretamente o cálculo de repasse na Edge
+    // Function gerar-repasses — valida faixa (0-100%) e soma (=100%) antes
+    // de gravar.
+    await modalidadeSchema.validate(payload);
 
     if (modalidade.id) {
       const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);

@@ -77,14 +77,21 @@ export const dashboardService = {
   },
 
 async obterComissoes(inicioMes) {
-  const [ano, mes] = inicioMes.substring(0, 7).split('-');
-  const fim = new Date(Number(ano), Number(mes), 0).toISOString().split('T')[0];
+  // ILU-20: `created_at` é timestamptz — comparar com strings sem timezone
+  // (`T00:00:00`) faz o Postgres interpretar em UTC, não em
+  // America/Sao_Paulo, deslocando lançamentos de fim/início de mês para o
+  // mês vizinho. Construímos os limites como Date reais (mesmo padrão de
+  // leadsService.listarLeadsPendentesPorMes) e usamos limite superior
+  // exclusivo.
+  const [ano, mes] = inicioMes.substring(0, 7).split('-').map(Number);
+  const inicio = new Date(ano, mes - 1, 1).toISOString();
+  const fim = new Date(ano, mes, 1).toISOString();
 
   const { data, error } = await supabase
     .from('repasses_lancamentos')
     .select('id, valor, professor_id, professores(nome)')
-    .gte('created_at', `${inicioMes.substring(0, 7)}-01T00:00:00`)
-    .lte('created_at', `${fim}T23:59:59`);
+    .gte('created_at', inicio)
+    .lt('created_at', fim);
 
   if (error) throw error;
   return data || [];

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { despesaSchema } from '../lib/validation';
 
 export const despesasService = {
   async listar(mes, ano) {
@@ -70,6 +71,7 @@ export const despesasService = {
     // Montar novas despesas avançando a data de vencimento para o mês atual
     const novas = recorrentes
       .filter(d => !chaveExistente.has(`${d.descricao}|${d.categoria}`))
+      // eslint-disable-next-line no-unused-vars -- destructuring para excluir estas chaves do `...rest`
       .map(({ id, created_at, data_pagamento, status, ...rest }) => {
         const dataOriginal = new Date(rest.data_vencimento + 'T12:00:00');
         const novaData = new Date(ano, mes - 1, dataOriginal.getDate());
@@ -103,6 +105,9 @@ export const despesasService = {
     if (!payload.id) {
       delete payload.id;
     }
+
+    // ILU-25: valor/data_vencimento não eram validados antes do insert.
+    await despesaSchema.validate(payload);
 
     if (despesa.id) {
       const { data, error } = await supabase

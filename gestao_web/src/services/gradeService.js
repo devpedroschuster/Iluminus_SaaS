@@ -86,14 +86,25 @@ export const gradeService = {
 
   async excluirAula(id) {
     try {
-      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
-      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      // ILU-23: cada passo da cascata precisa ter seu erro checado — antes
+      // só o delete final em `agenda` era conferido, então um bloqueio de
+      // RLS num passo anterior passava silenciosamente, podendo deixar
+      // linhas órfãs ou só falhar mais tarde com um erro de FK sem indicar
+      // qual passo realmente falhou.
+      const { error: errFixa } = await supabase.from('agenda_fixa').delete().eq('aula_id', id);
+      if (errFixa) throw errFixa;
+
+      const { error: errExcecoes } = await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      if (errExcecoes) throw errExcecoes;
+
       // IMPORTANTE: não apagamos as presenças. O histórico de frequência do
       // aluno é dado real e deve sobreviver à exclusão da grade/aula — só
       // desvinculamos a referência (aula_id = null), preservando a linha.
       // Requer que presencas.aula_id aceite NULL e que a FK use
       // ON DELETE SET NULL (ver migration fix_presencas_old_fk.sql).
-      await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
+      const { error: errPresencas } = await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
+      if (errPresencas) throw errPresencas;
+
       const { error } = await supabase.from('agenda').delete().eq('id', id);
       if (error) throw error;
       return true;

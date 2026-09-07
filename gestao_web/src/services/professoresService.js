@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { professorSchema } from '../lib/validation';
 
 export const professoresService = {
   async listar(busca = '') {
@@ -24,6 +25,9 @@ export const professoresService = {
       pix_comissao: professor.pix_comissao || null,
       auth_id: professor.auth_id || null
     };
+
+    // ILU-25: formato de e-mail não era validado antes do insert.
+    await professorSchema.validate(payload);
 
     if (professor.id) {
       const { data, error } = await supabase

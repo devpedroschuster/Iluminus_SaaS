@@ -176,8 +176,14 @@ export default function RedefinirSenha() {
     }
   }
 
-  // Não renderiza nada enquanto valida sessão (evita flash do form e redirect prematuro)
-  if (!sessaoValida) return null;
+  // Mostra spinner enquanto valida sessão (evita flash do form e redirect prematuro)
+  if (!sessaoValida) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <RefreshCw className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

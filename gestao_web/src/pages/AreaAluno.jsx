@@ -98,11 +98,15 @@ export default function AreaAluno() {
     queryKey: ['minhas-mensalidades', aluno?.id],
     enabled: !!aluno?.id,
     queryFn: async () => {
+      // ILU-37: limita ao histórico recente — a aba renderiza uma tabela simples
+      // sem paginação, então buscar todas as mensalidades sem limite cresce
+      // sem necessidade para alunos de longa data.
       const { data, error } = await supabase
         .from('mensalidades')
         .select('*')
         .eq('aluno_id', aluno.id)
-        .order('data_vencimento', { ascending: false });
+        .order('data_vencimento', { ascending: false })
+        .limit(100);
       if (error && error.code !== '42P01') throw error;
       return data || [];
     }
@@ -113,10 +117,14 @@ export default function AreaAluno() {
     enabled: !!aluno?.id,
     queryFn: async () => {
       const diaSelecionado = proximosDias.find(d => d.dataIso === diaAtivo);
-      const diaCurto = diaSelecionado.diaBanco.split('-')[0]; 
+      const diaCurto = diaSelecionado.diaBanco.split('-')[0];
+      // ILU-43: filtra o embed de presencas para trazer só a linha do próprio
+      // aluno (usada para computar "jaAgendado"), em vez do aluno_id de toda
+      // a turma — vagas_ocupadas já vem pronto na tabela agenda.
       const { data, error } = await supabase
         .from('agenda')
         .select(`*, professores (nome), presencas (aluno_id), modalidades(area)`)
+        .eq('presencas.aluno_id', aluno.id)
         .or(`dia_semana.ilike.*${diaCurto}*,data_especifica.eq.${diaSelecionado.dataIso}`)
         .order('horario', { ascending: true });
       if (error) throw error;

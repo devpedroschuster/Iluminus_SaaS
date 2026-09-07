@@ -150,7 +150,8 @@ export default function Alunos() {
       showToast.success(`Aluno ${novoStatus ? 'reativado' : 'desativado'} com sucesso!`);
       modalStatus.fechar();
       refetch();
-    } catch {
+    } catch (err) {
+      console.error('[Alunos] alternarStatus:', err);
       showToast.error('Erro ao alterar status.');
     }
   }, [alunoSelecionado, modalStatus, refetch]);
@@ -194,7 +195,8 @@ export default function Alunos() {
       }
       modalBolsista.fechar();
       refetch();
-    } catch {
+    } catch (err) {
+      console.error('[Alunos] alternarBolsista:', err);
       showToast.error('Erro ao alterar status de bolsista.');
     }
   }, [alunoSelecionado, modalBolsista, refetch]);

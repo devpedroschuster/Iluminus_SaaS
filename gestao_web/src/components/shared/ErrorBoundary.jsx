@@ -34,8 +34,8 @@ class ErrorBoundary extends React.Component {
               >
                 <RefreshCw size={18} /> Tentar novamente
               </button>
-              <button 
-                onClick={() => window.location.href = '/dashboard'}
+              <button
+                onClick={() => window.location.href = '/'}
                 className="text-gray-500 font-bold py-2 hover:text-gray-800 transition-colors"
               >
                 Voltar para o Início

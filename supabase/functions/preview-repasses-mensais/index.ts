@@ -269,13 +269,13 @@ serve(async (req: Request) => {
       .from('presencas')
       .select('aluno_id, agenda(modalidade_id)')
       .eq('status', 'presente')
-      .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
-      .lte('data_checkin', `${fimPeriodo}T23:59:59`)
+      .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
+      .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
       .not('aula_id', 'is', null);
 
     const presencasPorAluno = new Map<string, Set<string>>();
     for (const p of presencasRaw ?? []) {
-      const modId = p.agenda?.modalidade_id;
+      const modId = (p.agenda as any)?.modalidade_id;
       if (!p.aluno_id || !modId) continue;
       if (!presencasPorAluno.has(p.aluno_id)) presencasPorAluno.set(p.aluno_id, new Set());
       presencasPorAluno.get(p.aluno_id)!.add(modId);

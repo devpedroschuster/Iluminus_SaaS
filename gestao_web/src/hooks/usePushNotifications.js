@@ -95,6 +95,7 @@ export function usePushNotifications() {
       setInscrito(true);
       return true;
     } catch (err) {
+      console.error('[usePushNotifications]', err);
       setErro('Não foi possível ativar as notificações. Tente novamente.');
       return false;
     } finally {
@@ -114,7 +115,8 @@ export function usePushNotifications() {
         await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
       }
       setInscrito(false);
-    } catch {
+    } catch (err) {
+      console.error('[usePushNotifications]', err);
       setErro('Não foi possível desativar as notificações.');
     } finally {
       setCarregando(false);

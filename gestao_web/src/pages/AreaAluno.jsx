@@ -200,6 +200,7 @@ export default function AreaAluno() {
       setModoEdicao(false);
       showToast.success("Perfil atualizado com sucesso!");
     } catch (error) {
+      console.error('[AreaAluno] handleSalvarPerfil:', error);
       showToast.error("Erro ao atualizar os dados.");
     } finally {
       setSalvandoPerfil(false);
@@ -230,6 +231,7 @@ export default function AreaAluno() {
       await queryClient.invalidateQueries(['presencas-mes']);
       showToast.success("Agendamento cancelado.");
     } catch (error) {
+      console.error('[AreaAluno] handleCancelar:', error);
       showToast.error("Erro ao cancelar o agendamento.");
     } finally {
       setProcessandoId(null);

@@ -168,7 +168,9 @@ function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
           cidade: data.localidade || f.cidade,
         }));
       }
-    } catch {}
+    } catch (err) {
+      console.error('[PerfilAluno] buscarCep:', err);
+    }
   };
   const labelClass = 'text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-1.5';
   const inputClass = 'w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground';

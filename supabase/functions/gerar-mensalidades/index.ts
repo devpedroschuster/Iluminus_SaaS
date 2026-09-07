@@ -77,13 +77,25 @@ serve(async (req) => {
     // booleano `ativo`). O filtro `.eq('status', 'ativo')` fazia essa query
     // falhar com 400 (coluna inexistente) em toda execução da function,
     // quebrando a geração automática de mensalidades por completo.
-    const { data: alunos, error: errAlunos } = await supabase
+    // O client sem tipos gerados do schema infere `planos` como array (não
+    // consegue ver que alunos.plano_id -> planos.id é many-to-one); em
+    // runtime o PostgREST sempre devolve um objeto único aqui, nunca array.
+    type AlunoComPlano = {
+      id: string
+      nome_completo: string
+      plano_id: string
+      bolsista: boolean
+      planos: { id: string; preco: number | string | null } | null
+    }
+
+    const { data: alunosRaw, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, nome_completo, plano_id, bolsista, planos(id, preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null) // ignora alunos sem plano
 
     if (errAlunos) throw errAlunos
+    const alunos = alunosRaw as unknown as AlunoComPlano[] | null
     if (!alunos || alunos.length === 0) {
       return response({ message: 'Nenhum aluno ativo com plano.' })
     }

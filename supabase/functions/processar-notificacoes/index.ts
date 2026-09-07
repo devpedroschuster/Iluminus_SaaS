@@ -42,36 +42,48 @@ function tituloPara(tipo: string): string {
   return '📅 Atualização na agenda';
 }
 
-async function enviarPush(supabase: any, professorId: string, title: string, body: string, url = '/agenda') {
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('*')
-    .eq('professor_id', professorId);
-
+// ILU-15: `subs` agora é passado pelo chamador (pré-carregado em lote para
+// todos os professores envolvidos na execução) em vez de cada chamada de
+// enviarPush buscar suas próprias subscriptions — eliminava um round-trip ao
+// banco por notificação (N+1). Os envios para as subscriptions de UM mesmo
+// professor agora rodam em paralelo via Promise.allSettled em vez de um `for`
+// sequencial, já que são independentes entre si.
+async function enviarPush(supabase: any, subs: any[], title: string, body: string, url = '/agenda') {
   if (!subs?.length) return { enviados: 0, expiradas: 0 };
 
-  let enviados = 0;
-  let expiradas = 0;
+  const resultados = await Promise.allSettled(
+    subs.map((sub) =>
+      webpush
+        .sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify({ title, body, url }))
+        .then(() => ({ sub, expirada: false }))
+        .catch((err: any) => {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            return { sub, expirada: true };
+          }
+          console.error(`Erro ao enviar push para subscription ${sub.id}:`, err.message);
+          throw err;
+        })
+    )
+  );
 
-  for (const sub of subs) {
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: sub.keys },
-        JSON.stringify({ title, body, url })
-      );
+  let enviados = 0;
+  const idsExpirados: string[] = [];
+
+  for (const r of resultados) {
+    if (r.status !== 'fulfilled') continue;
+    if (r.value.expirada) {
+      idsExpirados.push(r.value.sub.id);
+    } else {
       enviados++;
-    } catch (err: any) {
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        // subscription expirada/revogada — remove para não tentar de novo
-        await supabase.from('push_subscriptions').delete().eq('id', sub.id);
-        expiradas++;
-      } else {
-        console.error(`Erro ao enviar push para subscription ${sub.id}:`, err.message);
-      }
     }
   }
 
-  return { enviados, expiradas };
+  if (idsExpirados.length > 0) {
+    // subscriptions expiradas/revogadas — remove para não tentar de novo
+    await supabase.from('push_subscriptions').delete().in('id', idsExpirados);
+  }
+
+  return { enviados, expiradas: idsExpirados.length };
 }
 
 serve(async (req) => {
@@ -99,23 +111,69 @@ serve(async (req) => {
 
     webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
-    const { data: pendentes, error } = await supabase
+    // ── RESERVA ATÔMICA (ILU-15) ─────────────────────────────────────────────
+    // Antes, as linhas eram lidas (processado=false), processadas e só
+    // marcadas como processado=true no FINAL — sem nenhum passo de "reservar"
+    // antes de processar. Se duas execuções se sobrepusessem (cron normal +
+    // uma chamada manual, ou um cron run mais lento que o intervalo do
+    // próximo), ambas liam as mesmas linhas não processadas e enviavam push
+    // duplicado antes de qualquer uma marcar as linhas como concluídas.
+    // Agora a reserva é um único UPDATE ... WHERE processado = false RETURNING
+    // *: como uma linha só pode ser atualizada por uma transação de cada vez,
+    // se duas execuções tentarem reservar a mesma linha, a segunda UPDATE
+    // reavalia o WHERE após a primeira commitar, vê processado=true e não a
+    // inclui no RETURNING — cada linha é processada por, no máximo, uma
+    // execução.
+    const { data: candidatos, error: errCandidatos } = await supabase
       .from('notificacoes_pendentes')
-      .select('*')
+      .select('id')
       .eq('processado', false)
       .order('criado_em', { ascending: true })
       .limit(200);
 
-    if (error) throw error;
+    if (errCandidatos) throw errCandidatos;
 
-    if (!pendentes?.length) {
+    if (!candidatos?.length) {
       console.log("😴 Nada pendente.");
       return new Response(JSON.stringify({ message: "Nada a processar" }), { status: 200 });
     }
 
+    const { data: pendentes, error: errReserva } = await supabase
+      .from('notificacoes_pendentes')
+      .update({ processado: true, processado_em: new Date().toISOString() })
+      .in('id', candidatos.map((c: any) => c.id))
+      .eq('processado', false)
+      .select('*');
+
+    if (errReserva) throw errReserva;
+
+    if (!pendentes?.length) {
+      // Outra execução reservou todas as linhas candidatas primeiro.
+      console.log("😴 Nada reservado (concorrência com outra execução).");
+      return new Response(JSON.stringify({ message: "Nada a processar" }), { status: 200 });
+    }
+
+    // ── PRÉ-CARREGA SUBSCRIPTIONS (ILU-15) ───────────────────────────────────
+    // Antes, `enviarPush` consultava `push_subscriptions` uma vez por
+    // notificação (N+1). Agora busca de uma vez só as subscriptions de todos
+    // os professores envolvidos nesta execução.
+    const professorIds = [...new Set(pendentes.map((p: any) => p.professor_id))];
+    const { data: todasSubs, error: errSubs } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .in('professor_id', professorIds);
+
+    if (errSubs) throw errSubs;
+
+    const subsPorProfessor = new Map<string, any[]>();
+    for (const sub of todasSubs ?? []) {
+      if (!subsPorProfessor.has(sub.professor_id)) subsPorProfessor.set(sub.professor_id, []);
+      subsPorProfessor.get(sub.professor_id)!.push(sub);
+    }
+
     let totalEnviados = 0;
     let totalExpiradas = 0;
-    const idsProcessados: string[] = [];
+    let eventosProcessados = 0;
 
     // ---- Eventos imediatos: um push por evento ----
     const imediatos = pendentes.filter((p: any) => p.tipo !== 'aluno_agendado');
@@ -123,11 +181,11 @@ serve(async (req) => {
       const gerarMsg = MENSAGENS[evento.tipo];
       const body = gerarMsg ? gerarMsg(evento.payload ?? {}) : 'Sua agenda foi atualizada.';
       const { enviados, expiradas } = await enviarPush(
-        supabase, evento.professor_id, tituloPara(evento.tipo), body
+        supabase, subsPorProfessor.get(evento.professor_id) ?? [], tituloPara(evento.tipo), body
       );
       totalEnviados += enviados;
       totalExpiradas += expiradas;
-      idsProcessados.push(evento.id);
+      eventosProcessados++;
     }
 
     // ---- Evento agregado: aluno_agendado agrupado por aula+professor+data ----
@@ -150,25 +208,17 @@ serve(async (req) => {
         : `${qtd} novos alunos confirmados na sua aula de ${atividade}${dataAula ? ` (${dataAula})` : ''}.`;
 
       const { enviados, expiradas } = await enviarPush(
-        supabase, primeiro.professor_id, tituloPara('aluno_agendado'), body
+        supabase, subsPorProfessor.get(primeiro.professor_id) ?? [], tituloPara('aluno_agendado'), body
       );
       totalEnviados += enviados;
       totalExpiradas += expiradas;
-      idsProcessados.push(...eventosDoGrupo.map((e: any) => e.id));
+      eventosProcessados += eventosDoGrupo.length;
     }
 
-    // ---- Marca tudo como processado ----
-    if (idsProcessados.length) {
-      await supabase
-        .from('notificacoes_pendentes')
-        .update({ processado: true, processado_em: new Date().toISOString() })
-        .in('id', idsProcessados);
-    }
-
-    console.log(`🚀 ${idsProcessados.length} eventos processados, ${totalEnviados} pushes enviados, ${totalExpiradas} subscriptions expiradas removidas.`);
+    console.log(`🚀 ${eventosProcessados} eventos processados, ${totalEnviados} pushes enviados, ${totalExpiradas} subscriptions expiradas removidas.`);
 
     return new Response(JSON.stringify({
-      eventosProcessados: idsProcessados.length,
+      eventosProcessados,
       pushesEnviados: totalEnviados,
       subscriptionsExpiradas: totalExpiradas,
     }), { headers: { "Content-Type": "application/json" } });

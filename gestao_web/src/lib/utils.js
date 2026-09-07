@@ -20,6 +20,26 @@ export const formatarMoeda = (valor) => {
   }).format(valor || 0);
 };
 
+/**
+ * Converte uma string em formato brasileiro (ex.: "1.500,90") para número.
+ * Contraparte de `formatarValorInput` — os campos de valor pago sempre
+ * pré-preenchem via `formatarValorInput`, então o texto chega aqui sempre
+ * no mesmo formato, mesmo quando o usuário não edita o campo (ILU-28).
+ */
+export const parseValorMoeda = (texto) => {
+  return parseFloat(String(texto ?? '').replace(/\./g, '').replace(',', '.'));
+};
+
+/**
+ * Formata um número para exibição em um campo de texto editável (sem o
+ * prefixo "R$" de `formatarMoeda`), sempre em formato brasileiro — para que
+ * o texto pré-preenchido seja compatível com o parse de `parseValorMoeda`.
+ */
+export const formatarValorInput = (valor) => {
+  if (valor == null || valor === '') return '';
+  return Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 export const formatarData = (data, comHora = false) => {
   if (!data) return '-';
   const options = {

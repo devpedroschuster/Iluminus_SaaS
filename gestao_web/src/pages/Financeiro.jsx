@@ -16,7 +16,7 @@ import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
-import { formatarMoeda, valorDevidoMensalidade } from '../lib/utils';
+import { formatarMoeda, valorDevidoMensalidade, parseValorMoeda, formatarValorInput } from '../lib/utils';
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -117,7 +117,7 @@ export default function Financeiro() {
 
   const handleAbrirPagamento = async (mensalidade) => {
   setPagamentoSelecionado(mensalidade);
-  setValorPago((mensalidade.valor_esperado ?? mensalidade.planos?.preco)?.toString() || '');
+  setValorPago(formatarValorInput(mensalidade.valor_esperado ?? mensalidade.planos?.preco));
   setFormaPagamento('');
   setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
   setProfessorId('');
@@ -137,7 +137,7 @@ export default function Financeiro() {
   const handleConfirmarPagamento = async (e) => {
   e.preventDefault();
   try {
-    const valorFormatado = parseFloat(valorPago.replace(/\./g, '').replace(',', '.'));
+    const valorFormatado = parseValorMoeda(valorPago);
     const payload = {
       valor_pago: valorFormatado,
       forma_pagamento: formaPagamento,
@@ -192,7 +192,7 @@ export default function Financeiro() {
 const handleAbrirEdicao = async (item) => {
   setLancamentoEditando(item);
   setFormEdicao({
-    valor_pago: item.valor_pago ?? item.valor_esperado ?? item.planos?.preco ?? '',
+    valor_pago: formatarValorInput(item.valor_pago ?? item.valor_esperado ?? item.planos?.preco),
     forma_pagamento: item.forma_pagamento || '',
     data_vencimento: item.data_vencimento || '',
     status: item.status || 'pendente',
@@ -215,7 +215,7 @@ const handleAbrirEdicao = async (item) => {
         data_vencimento: formEdicao.data_vencimento,
         status: formEdicao.status,
         forma_pagamento: formEdicao.forma_pagamento || null,
-        valor_pago: formEdicao.valor_pago !== '' ? parseFloat(String(formEdicao.valor_pago).replace(/\./g, '').replace(',', '.')) : null,
+        valor_pago: formEdicao.valor_pago !== '' ? parseValorMoeda(formEdicao.valor_pago) : null,
         data_pagamento: formEdicao.data_pagamento || null,
         modalidade_id: lancamentoEditando.tipo_aula === 'regular' ? (formEdicao.modalidade_id || null) : null,
       };
@@ -249,7 +249,7 @@ const handleAbrirEdicao = async (item) => {
     setExcluindo(true);
     try {
       // Remove repasses vinculados primeiro
-      await supabase.from('repasses').delete().eq('mensalidade_id', lancamentoExcluindo.id);
+      await supabase.from('repasses_lancamentos').delete().eq('mensalidade_id', lancamentoExcluindo.id);
       const { error } = await supabase
         .from('mensalidades')
         .delete()

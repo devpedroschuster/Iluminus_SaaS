@@ -142,21 +142,25 @@ serve(async (req: Request) => {
     // ainda houvesse alunos elegíveis faltando no lote (ver mesma correção em
     // gerar-repasses-mensais). Agora o preview sempre calcula o que falta;
     // `jaGerados` só indica que o mês já teve alguma geração anterior.
-    const { data: jaExistem } = await supabase
+    const { data: jaExistem, error: errJaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null)
       .limit(1);
 
+    if (errJaExistem) throw errJaExistem;
+
     const loteJaGeradoAntes = !!(jaExistem && jaExistem.length > 0);
 
     // ── 2. Repasses já gerados via pagamento individual (deduplicação) ───────
-    const { data: repassesPagamento } = await supabase
+    const { data: repassesPagamento, error: errRepassesPagamento } = await supabase
       .from('repasses_lancamentos')
       .select('aluno_id, modalidade, tipo_aula')
       .eq('data_referencia', dataReferencia)
       .not('mensalidade_id', 'is', null);
+
+    if (errRepassesPagamento) throw errRepassesPagamento;
 
     const repassesJaPagos = new Set<string>();
     for (const r of repassesPagamento ?? []) {
@@ -166,11 +170,13 @@ serve(async (req: Request) => {
     // ── 2b. Repasses do lote mensal já existentes (mesma chave do índice único
     // uq_repasse_lote_mensal) — para o preview não contar de novo o que já
     // seria ignorado pelo upsert de gerar-repasses-mensais.
-    const { data: loteExistente } = await supabase
+    const { data: loteExistente, error: errLoteExistente } = await supabase
       .from('repasses_lancamentos')
       .select('aluno_id, modalidade, tipo_aula')
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null);
+
+    if (errLoteExistente) throw errLoteExistente;
 
     const loteJaExistente = new Set<string>();
     for (const r of loteExistente ?? []) {
@@ -226,17 +232,23 @@ serve(async (req: Request) => {
     for (const p of (profsRaw ?? []) as Professor[]) mapaProfs.set(p.id, p.nome);
 
     // ── 6. Planos ───────────────────────────────────────────────────────────
-    const { data: planosRaw } = await supabase.from('planos').select('id, is_plano_livre');
+    const { data: planosRaw, error: errPlanos } = await supabase.from('planos').select('id, is_plano_livre');
+
+    if (errPlanos) throw errPlanos;
+
     const mapaPlanos = new Map<string, boolean>();
     for (const p of (planosRaw ?? []) as Plano[]) {
       mapaPlanos.set(p.id, p.is_plano_livre === true);
     }
 
     // Pré-carrega preços dos planos livres para evitar N queries dentro do loop
-    const { data: planosPreco } = await supabase
+    const { data: planosPreco, error: errPlanosPreco } = await supabase
       .from('planos')
       .select('id, preco')
       .eq('is_plano_livre', true);
+
+    if (errPlanosPreco) throw errPlanosPreco;
+
     const mapaPrecosPlano = new Map<string, number>();
     for (const p of planosPreco ?? []) mapaPrecosPlano.set(p.id, Number(p.preco));
 
@@ -263,15 +275,44 @@ serve(async (req: Request) => {
       });
     }
 
+    const avisos: string[] = [];
+
+    // ── 7b. Filtra só alunos adimplentes no mês de referência (ILU-13) ──────
+    // Este preview precisa espelhar exatamente a mesma regra usada no lote real
+    // (`gerar-repasses-mensais`) — caso contrário mostraria comissão para um
+    // aluno que a geração de verdade acabaria excluindo. Alinhado com o time:
+    // comissão do lote mensal exige a mensalidade `regular` do mês de
+    // referência com `status = 'pago'`, igual à regra do pagamento individual.
+    const { data: mensalidadesPagas, error: errMensalidadesPagas } = await supabase
+      .from('mensalidades')
+      .select('aluno_id')
+      .eq('tipo_aula', 'regular')
+      .eq('status', 'pago')
+      .gte('data_vencimento', inicioPeriodo)
+      .lte('data_vencimento', fimPeriodo);
+
+    if (errMensalidadesPagas) throw errMensalidadesPagas;
+
+    const alunosAdimplentes = new Set((mensalidadesPagas ?? []).map((m) => m.aluno_id as string));
+    const alunosComModsAdimplentes = alunosComMods.filter((a) => {
+      const adimplente = alunosAdimplentes.has(a.id);
+      if (!adimplente) {
+        avisos.push(`"${a.nome_completo}": mensalidade do mês não está paga — sem repasse.`);
+      }
+      return adimplente;
+    });
+
     // ── 8. Presenças do mês (para plano livre) ──────────────────────────────
     //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado'.
-    const { data: presencasRaw } = await supabase
+    const { data: presencasRaw, error: errPresencas } = await supabase
       .from('presencas')
       .select('aluno_id, agenda(modalidade_id)')
       .eq('status', 'presente')
       .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
       .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
       .not('aula_id', 'is', null);
+
+    if (errPresencas) throw errPresencas;
 
     const presencasPorAluno = new Map<string, Set<string>>();
     for (const p of presencasRaw ?? []) {
@@ -289,9 +330,8 @@ serve(async (req: Request) => {
     }
 
     const itens: ItemPreview[] = [];
-    const avisos: string[] = [];
 
-    for (const aluno of alunosComMods) {
+    for (const aluno of alunosComModsAdimplentes) {
       const isLivre = aluno.plano_id ? (mapaPlanos.get(aluno.plano_id) ?? false) : false;
 
       if (isLivre) {

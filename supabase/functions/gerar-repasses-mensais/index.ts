@@ -310,6 +310,36 @@ serve(async (req: Request) => {
       return response({ aviso: 'Nenhum aluno ativo com modalidades vinculadas.', gerados: 0 });
     }
 
+    const avisos: string[] = [];
+
+    // ── 6b. Filtra só alunos adimplentes no mês de referência (ILU-13) ──────
+    // Antes, o lote calculava comissão para todo aluno ATIVO com modalidades,
+    // sem checar se a mensalidade do mês foi paga — diferente de `gerar-repasses`
+    // (disparado por pagamento individual), que só roda depois que a mensalidade
+    // já foi confirmada como paga. Um aluno ativo mas inadimplente no mês ainda
+    // gerava comissão para o professor no lote mensal. Alinhado com o time
+    // (ILU-13): comissão do lote mensal agora exige a mensalidade `regular` do
+    // mês de referência com `status = 'pago'`, igual à regra do pagamento
+    // individual.
+    const { data: mensalidadesPagas, error: errMensalidadesPagas } = await supabase
+      .from('mensalidades')
+      .select('aluno_id')
+      .eq('tipo_aula', 'regular')
+      .eq('status', 'pago')
+      .gte('data_vencimento', inicioPeriodo)
+      .lte('data_vencimento', fimPeriodo);
+
+    if (errMensalidadesPagas) throw errMensalidadesPagas;
+
+    const alunosAdimplentes = new Set((mensalidadesPagas ?? []).map((m) => m.aluno_id as string));
+    const alunosComModsAdimplentes = alunosComMods.filter((a) => {
+      const adimplente = alunosAdimplentes.has(a.id);
+      if (!adimplente) {
+        avisos.push(`"${a.nome_completo}": mensalidade do mês não está paga — sem repasse.`);
+      }
+      return adimplente;
+    });
+
     // ── 7. Presenças do mês (apenas com aula_id — vinculadas a modalidade) ──
     //    Necessário para calcular repasse do plano livre.
     //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado',
@@ -351,9 +381,7 @@ serve(async (req: Request) => {
       data_referencia: string;
     }[] = [];
 
-    const avisos: string[] = [];
-
-    for (const aluno of alunosComMods) {
+    for (const aluno of alunosComModsAdimplentes) {
       const planoInfo = aluno.plano_id ? mapaPlanos.get(aluno.plano_id) : undefined;
       const isLivre = planoInfo?.is_plano_livre ?? false;
 

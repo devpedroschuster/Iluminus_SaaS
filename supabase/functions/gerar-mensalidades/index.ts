@@ -180,27 +180,23 @@ serve(async (req) => {
 
     const geradas = inseridas?.length ?? 0
 
-    // 6. Notifica admins via tabela notificacoes
-    const { data: admins, error: errAdmins } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-
-    if (errAdmins) {
-      console.error('[gerar-mensalidades] Falha ao buscar admins para notificação:', errAdmins.message)
-    } else if (admins && admins.length > 0 && geradas > 0) {
-      const { error: errNotif } = await supabase.from('notificacoes').insert(
-        admins.map(admin => ({
-          user_id: admin.id,
-          tipo: 'cobranca',
-          titulo: '💰 Cobranças geradas',
-          mensagem: `${geradas} mensalidade(s) gerada(s) para ${mesLabel}.`,
-          lida: false,
-        }))
+    // 6. Notifica admins sobre a geração
+    // AUDITORIA 2026-09 (ILU-7): esta etapa consultava `.from('profiles')` e
+    // inseria em `.from('notificacoes')` — NENHUMA das duas tabelas existe no
+    // banco (a tabela real de perfis é `perfis`; não existe `notificacoes`, só
+    // `notificacoes_pendentes`, que é uma fila de push exclusiva para
+    // professores — exige `professor_id` NOT NULL e é consumida por
+    // `processar-notificacoes` com mensagens fixas por `tipo`, não serve para
+    // um aviso genérico de admin). Toda execução falhava 100% das vezes nas
+    // duas queries, e o erro era só logado — a notificação nunca funcionou e
+    // ninguém percebia. Criar uma tabela de notificação para admins é uma
+    // decisão de produto fora do escopo deste fix; até lá, reportamos isso de
+    // forma explícita na resposta em vez de tentar (e falhar) silenciosamente.
+    const avisos: string[] = []
+    if (geradas > 0) {
+      avisos.push(
+        'Notificação de admin sobre cobranças geradas não foi enviada: não existe hoje uma tabela de notificação para admins no banco.'
       )
-      if (errNotif) {
-        console.error('[gerar-mensalidades] Falha ao criar notificações:', errNotif.message)
-      }
     }
 
     return response({
@@ -210,6 +206,7 @@ serve(async (req) => {
       data_vencimento,
       ignoradosSemPreco: alunosSemPreco,
       ignoradosBolsistas: alunosBolsistas,
+      avisos,
     })
 
   } catch (err) {

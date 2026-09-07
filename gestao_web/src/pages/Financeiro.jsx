@@ -16,7 +16,7 @@ import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import ModalAdicionarPagamentoManual from '../components/ModalAdicionarPagamentoManual';
-import { formatarMoeda } from '../lib/utils';
+import { formatarMoeda, valorDevidoMensalidade } from '../lib/utils';
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -70,7 +70,7 @@ export default function Financeiro() {
   const [lancamentoExcluindo, setLancamentoExcluindo] = useState(null);
   const [formEdicao, setFormEdicao] = useState({});
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
-  const [excluindo, setExcluindo] = useState(false);
+  const [, setExcluindo] = useState(false);
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState(null);
   const [valorPago, setValorPago] = useState('');
   const [formaPagamento, setFormaPagamento] = useState('');
@@ -81,7 +81,7 @@ export default function Financeiro() {
   const [dataPagamentoConfirmar, setDataPagamentoConfirmar] = useState('');
   const [resultadoRepasse, setResultadoRepasse] = useState(null);
   const [dadosPagamento, setDadosPagamento] = useState(null);
-  const [gerando, setGerando] = useState(false);
+  const [, setGerando] = useState(false);
   const [totalAtivos, setTotalAtivos] = useState(null);
   const [modalidadeId, setModalidadeId] = useState('');
 
@@ -99,8 +99,8 @@ export default function Financeiro() {
     const _d = new Date();
     const hoje = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
     return mensalidades.reduce((acc, m) => {
-      const valorOriginal = Number(m.planos?.preco) || 0;
-      const valorReal = m.valor_pago !== null ? Number(m.valor_pago) : valorOriginal;
+      const valorOriginal = Number(m.valor_esperado ?? m.planos?.preco) || 0;
+      const valorReal = valorDevidoMensalidade(m);
       if (m.status === 'pago') {
         acc.recebido += valorReal;
         acc.total += valorReal;
@@ -117,7 +117,7 @@ export default function Financeiro() {
 
   const handleAbrirPagamento = async (mensalidade) => {
   setPagamentoSelecionado(mensalidade);
-  setValorPago(mensalidade.planos?.preco?.toString() || '');
+  setValorPago((mensalidade.valor_esperado ?? mensalidade.planos?.preco)?.toString() || '');
   setFormaPagamento('');
   setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
   setProfessorId('');
@@ -158,7 +158,7 @@ export default function Financeiro() {
       data_pagamento:  dataPagamentoConfirmar,
     });
     modalResultado.abrir();
-  } catch (error) {
+  } catch {
     showToast.error("Erro ao processar pagamento");
   }
 };
@@ -170,7 +170,7 @@ export default function Financeiro() {
       showToast.success('Mensalidades criadas com sucesso!');
       refetch();
       modalGerarMensalidades.fechar();
-    } catch (error) {
+    } catch {
       showToast.error('Erro ao criar mensalidades');
     } finally {
       setGerando(false);
@@ -192,7 +192,7 @@ export default function Financeiro() {
 const handleAbrirEdicao = async (item) => {
   setLancamentoEditando(item);
   setFormEdicao({
-    valor_pago: item.valor_pago !== null ? item.valor_pago : (item.planos?.preco || ''),
+    valor_pago: item.valor_pago ?? item.valor_esperado ?? item.planos?.preco ?? '',
     forma_pagamento: item.forma_pagamento || '',
     data_vencimento: item.data_vencimento || '',
     status: item.status || 'pendente',
@@ -233,7 +233,7 @@ const handleAbrirEdicao = async (item) => {
       showToast.success('Lançamento atualizado com sucesso!');
       refetch();
       modalEditar.fechar();
-    } catch (error) {
+    } catch {
       showToast.error('Erro ao atualizar lançamento');
     } finally {
       setSalvandoEdicao(false);
@@ -258,7 +258,7 @@ const handleAbrirEdicao = async (item) => {
       showToast.success('Lançamento excluído com sucesso!');
       refetch();
       modalExcluir.fechar();
-    } catch (error) {
+    } catch {
       showToast.error('Erro ao excluir lançamento');
     } finally {
       setExcluindo(false);
@@ -295,13 +295,7 @@ const handleAbrirEdicao = async (item) => {
 
   // ── Rodapé da tabela: soma os valores do subconjunto filtrado ──────────────
   const totalFiltrado = useMemo(() => {
-    return alunosFiltrados.reduce((acc, item) => {
-      const valor =
-        item.status === 'pago'
-          ? (item.valor_pago !== null ? Number(item.valor_pago) : Number(item.planos?.preco))
-          : Number(item.planos?.preco) || 0;
-      return acc + valor;
-    }, 0);
+    return alunosFiltrados.reduce((acc, item) => acc + valorDevidoMensalidade(item), 0);
   }, [alunosFiltrados]);
 
   return (
@@ -449,9 +443,7 @@ const handleAbrirEdicao = async (item) => {
                       )}
                     </td>
                     <td className="p-4 font-bold text-foreground">
-                      {item.status === 'pago'
-                        ? formatarMoeda(item.valor_pago !== null ? item.valor_pago : item.planos?.preco)
-                        : formatarMoeda(item.planos?.preco)}
+                      {formatarMoeda(valorDevidoMensalidade(item))}
                     </td>
                     <td className="p-4">
                       {item.status === 'pago' && item.forma_pagamento ? (

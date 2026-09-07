@@ -548,6 +548,7 @@ export default function NovoAluno() {
           plano_id:        planoFinal,
           data_vencimento: dataVencimento,
           status:          'pendente',
+          valor_esperado:  planoInfos.preco ?? null,
         }]);
         if (errMensalidade) console.error('Erro na mensalidade:', errMensalidade);
       }

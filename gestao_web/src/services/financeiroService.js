@@ -69,7 +69,7 @@ async listarModalidadesDoAluno(alunoId) {
     // está isento, independente do plano vinculado.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, plano_id, bolsista')
+      .select('id, plano_id, bolsista, planos(preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null);
 
@@ -116,7 +116,8 @@ async listarModalidadesDoAluno(alunoId) {
           aluno_id: aluno.id,
           plano_id: aluno.plano_id,
           data_vencimento: proximaData,
-          status: 'pendente'
+          status: 'pendente',
+          valor_esperado: aluno.planos?.preco ?? null,
         });
       }
     });

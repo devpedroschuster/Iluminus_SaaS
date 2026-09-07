@@ -1,3 +1,18 @@
+/**
+ * Valor que uma mensalidade representa, considerando o congelamento do
+ * ILU-29: `valor_pago` só é preenchido por ação explícita (pagamento
+ * confirmado ou lançamento manual), nunca derivado automaticamente — por
+ * isso ele vale independente do `status`. Na ausência dele, usa o
+ * `valor_esperado` congelado no momento da criação da mensalidade (imune a
+ * edições posteriores no preço do plano) e só cai para o preço vigente do
+ * plano em linhas legadas que ainda não têm esse campo.
+ */
+export const valorDevidoMensalidade = (mensalidade) => {
+  if (!mensalidade) return 0;
+  if (mensalidade.valor_pago != null) return Number(mensalidade.valor_pago);
+  return Number(mensalidade.valor_esperado ?? mensalidade.planos?.preco ?? 0);
+};
+
 export const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',

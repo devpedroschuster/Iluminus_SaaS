@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { valorDevidoMensalidade } from '../lib/utils';
 
 /**
  * dreService — consolida todas as informações financeiras do espaço
@@ -30,7 +31,7 @@ export const dreService = {
     ] = await Promise.all([
       supabase
         .from('mensalidades')
-        .select('id, valor_pago, status, data_vencimento, data_pagamento, alunos(nome_completo), planos(nome)')
+        .select('id, valor_pago, valor_esperado, status, data_vencimento, data_pagamento, alunos(nome_completo), planos(nome, preco)')
         .gte('data_vencimento', dataInicio)
         .lte('data_vencimento', dataFim)
         .order('data_vencimento', { ascending: true }),
@@ -68,7 +69,7 @@ export const dreService = {
 
     const receitasPendentes = (mensalidades || [])
       .filter(m => m.status === 'pendente' || m.status === 'atrasado')
-      .reduce((acc, m) => acc + Number(m.valor_pago || 0), 0);
+      .reduce((acc, m) => acc + valorDevidoMensalidade(m), 0);
 
     const inadimplentes = (mensalidades || [])
       .filter(m => (m.status === 'pendente' || m.status === 'atrasado') && m.data_vencimento < hoje);

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { valorDevidoMensalidade } from '../lib/utils';
 
 export const dashboardService = {
   async obterTotalAlunos() {
@@ -16,8 +17,6 @@ export const dashboardService = {
    * Usa modalidades_selecionadas (array de IDs) cruzado com a tabela modalidades.
    */
   async obterDistribuicaoPorArea() {
-    const { supabase: sb } = await import('../lib/supabase');
-
     // Busca todas as modalidades para montar o mapa id → area
     const { data: mods, error: errMods } = await supabase
       .from('modalidades')
@@ -69,12 +68,12 @@ export const dashboardService = {
   async obterInadimplentes(hojeIso) {
     const { data, error } = await supabase
       .from('mensalidades')
-      .select('id, valor_pago, data_vencimento, alunos(nome_completo, telefone)')
+      .select('id, valor_pago, valor_esperado, status, data_vencimento, alunos(nome_completo, telefone), planos(preco)')
       .in('status', ['pendente', 'atrasado'])
       .lt('data_vencimento', hojeIso)
       .order('data_vencimento', { ascending: true });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(m => ({ ...m, valor_devido: valorDevidoMensalidade(m) }));
   },
 
 async obterComissoes(inicioMes) {

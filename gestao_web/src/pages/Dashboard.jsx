@@ -144,7 +144,7 @@ export default function Dashboard() {
   );
 
   const inadimplenciaTotal = useMemo(
-    () => listaInadimplentes.reduce((acc, m) => acc + Number(m.valor_pago), 0),
+    () => listaInadimplentes.reduce((acc, m) => acc + Number(m.valor_devido || 0), 0),
     [listaInadimplentes]
   );
 
@@ -276,11 +276,11 @@ export default function Dashboard() {
                   <CardAluno
                     key={item.id}
                     nome={item.alunos?.nome_completo}
-                    info={`Venc: ${format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')} · ${formatarMoeda(item.valor_pago)}`}
+                    info={`Venc: ${format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')} · ${formatarMoeda(item.valor_devido)}`}
                     acao={
                       item.alunos?.telefone && (
                         <button
-                          onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_pago)}
+                          onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_devido)}
                           className="text-xs bg-[#25D366] text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 hover:bg-[#20bd5a] transition-colors"
                         >
                           <MessageCircle size={13} /> Cobrar
@@ -485,12 +485,12 @@ export default function Dashboard() {
                     Venc: {format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}
                   </span>
                   <span className="text-xs font-black text-destructive">
-                    {formatarMoeda(item.valor_pago)}
+                    {formatarMoeda(item.valor_devido)}
                   </span>
                 </div>
               </div>
               <button
-                onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_pago)}
+                onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_devido)}
                 className="w-full sm:w-auto bg-[#25D366] text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-colors"
               >
                 <MessageCircle size={16} /> Cobrar via WhatsApp

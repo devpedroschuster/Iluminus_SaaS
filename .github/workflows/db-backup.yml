@@ -1,0 +1,83 @@
+name: Backup Supabase (stopgap manual)
+
+# Projeto Supabase está no plano Free, sem PITR/backup diário automático.
+# Este workflow é um stopgap manual (pg_dump agendado) até o upgrade de
+# plano acontecer — não substitui backup real com PITR.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 03:00 America/Sao_Paulo (UTC-3), diariamente
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # fail-fast: false porque staging e produção são backups
+      # independentes — sem isso, a perna mais lenta é cancelada assim
+      # que a outra falha.
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+    steps:
+      - name: Install postgresql-client 17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+
+      # RULING (achado na revisão da Task 9): a expressão de ternário do
+      # GitHub Actions `cond && a || b` tem uma armadilha real — se `a` for
+      # falsy mesmo com `cond` true (aqui, STAGING_DB_URL vazio), o `&&`
+      # já retorna falsy e o `||` cai pro `b` errado. Com STAGING_DB_URL
+      # vazio e PRODUCTION_DB_URL setado, a perna "staging" pegaria
+      # silenciosamente a URL de PRODUÇÃO. Resolvido fazendo a seleção em
+      # shell (if comum, sem essa ambiguidade) em vez de expressão do GHA.
+      - name: Dump database
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+          PRODUCTION_DB_URL: ${{ secrets.PRODUCTION_DB_URL }}
+        run: |
+          if [ "${{ matrix.environment }}" = "staging" ]; then
+            DB_URL="$STAGING_DB_URL"
+            SECRET_NAME="STAGING_DB_URL"
+          else
+            DB_URL="$PRODUCTION_DB_URL"
+            SECRET_NAME="PRODUCTION_DB_URL"
+          fi
+          if [ -z "$DB_URL" ]; then
+            echo "::error::Secret $SECRET_NAME não configurado. Veja docs/DEPLOY.md e supabase/migrations-down/README.md para o contexto, e o Supabase Dashboard (Settings > Database > Connection string) para obter a connection string."
+            exit 1
+          fi
+          mkdir -p backup
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --no-owner --no-privileges --format=custom \
+            --file="backup/${{ matrix.environment }}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+      # SEGURANÇA: devpedroschuster/Iluminus_SaaS é um repositório PÚBLICO —
+      # artifacts do GitHub Actions em repo público são baixáveis por
+      # qualquer pessoa com conta GitHub. Sem criptografar, isso publicaria
+      # um pg_dump completo (dados pessoais + hashes de senha) como download
+      # público. gpg simétrico com uma passphrase guardada só como GitHub
+      # Secret torna o artifact inútil pra quem não tem a senha.
+      - name: Encrypt backup
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+            echo "::error::Secret BACKUP_ENCRYPTION_PASSPHRASE não configurado. Sem ele, o backup não seria criptografado antes de subir como artifact — e este repositório é público. Veja docs/DEPLOY.md, seção 'Backup do banco'."
+            exit 1
+          fi
+          for f in backup/*.dump; do
+            gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" --symmetric --cipher-algo AES256 "$f"
+            rm "$f"
+          done
+
+      - name: Upload backup as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ matrix.environment }}-${{ github.run_id }}
+          path: backup/*.dump.gpg
+          retention-days: 30

@@ -7,14 +7,28 @@ import { expect } from '@playwright/test';
  * aparecer (lição documentada no Nexofy).
  */
 export async function loginComoAdmin(page, email, senha) {
+  // DEBUG TEMP (ILU-CI-investigation): captura console/pageerror/network para
+  // diagnosticar a falha de CI em auth.spec.js — remover depois de identificar
+  // a causa raiz. Não loga valores de formulário (email/senha).
+  const eventos = [];
+  page.on('console', msg => eventos.push(`[console:${msg.type()}] ${msg.text()}`));
+  page.on('pageerror', err => eventos.push(`[pageerror] ${err.message}`));
+  page.on('requestfailed', req => eventos.push(`[requestfailed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`));
+
   await page.goto('/login');
 
   await page.getByPlaceholder('Seu e-mail').fill(email);
   await page.getByPlaceholder('Sua senha').fill(senha);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
 
-  await expect(page.getByRole('heading', { name: 'Painel de Avisos' })).toBeVisible({
-    timeout: 25_000,
-  });
+  try {
+    await expect(page.getByRole('heading', { name: 'Painel de Avisos' })).toBeVisible({
+      timeout: 25_000,
+    });
+  } catch (err) {
+    console.log('[DEBUG loginComoAdmin] current URL:', page.url());
+    console.log('[DEBUG loginComoAdmin] captured events:\n' + eventos.join('\n'));
+    throw err;
+  }
   await expect(page).toHaveURL(/\/dashboard$/);
 }

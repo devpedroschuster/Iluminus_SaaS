@@ -30,8 +30,17 @@ jobs:
       run:
         working-directory: gestao_web
     steps:
+      # fetch-depth: 0 é obrigatório aqui — sem isso, o checkout raso da PR
+      # (depth 1) e o `git fetch origin main --depth=1` do step de lint
+      # abaixo ficam desconectados no grafo local (dois "grafts" sem
+      # ancestral comum alcançável), e `git diff origin/main...HEAD` não
+      # acha merge-base — erro, ou pior, cai para lintar tudo de novo,
+      # reabrindo exatamente o problema que este job existe pra evitar
+      # (ver RULING no step "Lint changed files" abaixo).
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4

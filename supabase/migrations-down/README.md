@@ -16,7 +16,7 @@ executada automaticamente por `supabase db push` nem pelo CI.
   "down" rodaria pra frente também, desfazendo a "up" imediatamente).
 - Pra aplicar um rollback de verdade num incidente, rode o conteúdo do
   arquivo de "down" manualmente contra o banco:
-  `supabase db execute -f supabase/migrations-down/<arquivo>.sql
+  `supabase db query -f supabase/migrations-down/<arquivo>.sql
   --project-ref <ref-de-producao>` (peça confirmação antes — ver
   `CLAUDE.md`) ou cole no SQL Editor do painel Supabase. Não existe um
   comando automático "desfazer última migration".

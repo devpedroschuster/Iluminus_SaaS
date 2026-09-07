@@ -106,3 +106,38 @@ esteja escrita e revisada, e a migration "up" já tenha passado por pelo
 menos um ciclo de release completo em produção só como aditiva.
 
 Ver `supabase/migrations-down/README.md` para a convenção completa.
+
+## 5. Backup do banco
+
+`.github/workflows/db-backup.yml` roda todo dia (cron, horário de Brasília)
+um `pg_dump` de staging e produção, criptografado com GPG (AES256) antes de
+subir como artifact do GitHub Actions — como este repositório é público, um
+dump não-criptografado seria baixável por qualquer pessoa; a versão
+criptografada não tem valor sem a senha, que existe só como GitHub Secret.
+
+### Secrets necessários
+
+- `STAGING_DB_URL` / `PRODUCTION_DB_URL`: connection string do Postgres de
+  cada projeto. Use a string do **Session Pooler** (Supabase Dashboard →
+  Settings → Database → Connection string → aba "Session pooler", formato
+  `postgres://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres`)
+  — não a conexão "direta" (IPv6-only, não funciona a partir dos runners do
+  GitHub Actions, que são IPv4-only) nem o "Transaction pooler" na porta
+  6543 (não suporta `pg_dump`).
+- `BACKUP_ENCRYPTION_PASSPHRASE`: uma senha forte qualquer (ex.:
+  `openssl rand -base64 32`), usada só pra criptografar/descriptografar os
+  dumps. Guarde-a também em um cofre de senhas pessoal — se for perdida, os
+  backups antigos ficam irrecuperáveis.
+
+Enquanto algum desses secrets não existir, o workflow falha todo dia com um
+erro claro nomeando o secret faltante — isso é esperado até você configurar
+os três.
+
+### Como restaurar um backup
+
+1. Baixe o artifact (`db-backup-<ambiente>-<run_id>`) na aba Actions do run
+   desejado.
+2. Descriptografe:
+   `gpg --batch --yes --passphrase "<BACKUP_ENCRYPTION_PASSPHRASE>" --decrypt backup.dump.gpg > backup.dump`
+3. Restaure:
+   `pg_restore --no-owner --no-privileges -d "<connection-string-de-destino>" backup.dump`

@@ -12,6 +12,7 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       # fail-fast: false porque staging e produção são backups
       # independentes — sem isso, a perna mais lenta é cancelada assim
@@ -55,9 +56,28 @@ jobs:
             --no-owner --no-privileges --format=custom \
             --file="backup/${{ matrix.environment }}-$(date -u +%Y%m%dT%H%M%SZ).dump"
 
+      # SEGURANÇA: devpedroschuster/Iluminus_SaaS é um repositório PÚBLICO —
+      # artifacts do GitHub Actions em repo público são baixáveis por
+      # qualquer pessoa com conta GitHub. Sem criptografar, isso publicaria
+      # um pg_dump completo (dados pessoais + hashes de senha) como download
+      # público. gpg simétrico com uma passphrase guardada só como GitHub
+      # Secret torna o artifact inútil pra quem não tem a senha.
+      - name: Encrypt backup
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+            echo "::error::Secret BACKUP_ENCRYPTION_PASSPHRASE não configurado. Sem ele, o backup não seria criptografado antes de subir como artifact — e este repositório é público. Veja docs/DEPLOY.md, seção 'Backup do banco'."
+            exit 1
+          fi
+          for f in backup/*.dump; do
+            gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" --symmetric --cipher-algo AES256 "$f"
+            rm "$f"
+          done
+
       - name: Upload backup as artifact
         uses: actions/upload-artifact@v4
         with:
           name: db-backup-${{ matrix.environment }}-${{ github.run_id }}
-          path: backup/*.dump
+          path: backup/*.dump.gpg
           retention-days: 30

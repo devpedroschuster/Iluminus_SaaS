@@ -28,3 +28,6 @@ dist-ssr
 
 projeto-iluminus-contexto.txt
 repomix.config.json
+
+playwright-report
+test-results

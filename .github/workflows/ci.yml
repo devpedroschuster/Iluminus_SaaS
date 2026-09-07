@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  secret-scan:
+    name: GitGuardian Secret Scan
+    runs-on: ubuntu-latest
+    env:
+      GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: GitGuardian scan
+        if: ${{ env.GITGUARDIAN_API_KEY != '' }}
+        uses: GitGuardian/ggshield-action@v1
+        env:
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+  lint-and-build:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gestao_web
+    steps:
+      # fetch-depth: 0 é obrigatório aqui — sem isso, o checkout raso da PR
+      # (depth 1) e o `git fetch origin main --depth=1` do step de lint
+      # abaixo ficam desconectados no grafo local (dois "grafts" sem
+      # ancestral comum alcançável), e `git diff origin/main...HEAD` não
+      # acha merge-base — erro, ou pior, cai para lintar tudo de novo,
+      # reabrindo exatamente o problema que este job existe pra evitar
+      # (ver RULING no step "Lint changed files" abaixo).
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gestao_web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # RULING (ver Global Constraints): a baseline do repo já tinha dezenas
+      # de erros de ESLint pré-existentes antes deste plano (nunca tinha
+      # rodado como gate). Lintar o repo inteiro aqui faria este check
+      # obrigatório nunca passar, bloqueando todo merge em main pra sempre.
+      # Linta só os arquivos .js/.jsx alterados neste PR — gate real pra
+      # código novo, sem travar em dívida legada.
+      #
+      # RULING 2 (achado rodando o PR real de verificação, ver Task 5 Step
+      # 6): `git diff --name-only` sozinho devolve caminhos relativos à
+      # RAIZ do repo (ex.: "gestao_web/e2e/auth.spec.js"), mas este job já
+      # roda com working-directory: gestao_web — sem --relative, o eslint
+      # procurava "gestao_web/gestao_web/e2e/..." e não achava nada
+      # ("No files matching the pattern"). `--relative` restringe o diff a
+      # gestao_web/ e reescreve os caminhos relativos a ela, resolvendo os
+      # dois problemas de uma vez.
+      - name: Lint changed files
+        run: |
+          git fetch origin main --depth=1 --quiet
+          CHANGED=$(git diff --relative --name-only origin/main...HEAD -- '*.js' '*.jsx')
+          if [ -n "$CHANGED" ]; then
+            echo "$CHANGED"
+            npx eslint $CHANGED
+          else
+            echo "Nenhum arquivo .js/.jsx alterado neste PR — nada para lintar."
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  db-diff:
+    name: Supabase DB Diff (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check schema drift against staging
+        if: ${{ env.STAGING_DB_URL != '' }}
+        run: ./scripts/check-db-diff.sh
+
+  deno-check:
+    name: Deno Check (Supabase Functions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # RULING (achado rodando o PR real de verificação, ver Task 5 Step
+      # 6): `deno check supabase/functions/*/index.ts` (todas as functions)
+      # encontrou 11 erros de type-check pré-existentes em 3 functions
+      # (gerar-presencas-diario, lembretes-aula, preview-repasses-mensais)
+      # sem relação nenhuma com este plano — nunca rodou como gate antes.
+      # Mesmo problema do job lint-and-build: como é required check,
+      # type-checar tudo bloquearia todo merge pra sempre. Type-checa só as
+      # functions alteradas no PR. Esses 11 erros pré-existentes ficam
+      # registrados como issue no Linear (Task 10) — parecem bugs reais
+      # (ex.: acessar `.alunos.push_token` num resultado que o Supabase
+      # tipa como array), não só ruído de lint.
+      - name: Type-check changed edge functions
+        run: |
+          git fetch origin main --depth=1 --quiet
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'supabase/functions/*/index.ts')
+          if [ -n "$CHANGED" ]; then
+            echo "$CHANGED"
+            deno check $CHANGED
+          else
+            echo "Nenhuma edge function alterada neste PR — nada para type-checar."
+          fi
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gestao_web
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gestao_web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Canário: sem VITE_SUPABASE_URL nenhuma secret de E2E está
+      # disponível (ex.: PR do Dependabot, sem acesso a secrets) — pula em
+      # vez de falhar "hard" sem relação com a mudança da PR.
+      - name: Install Playwright browsers
+        if: ${{ env.VITE_SUPABASE_URL != '' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        if: ${{ env.VITE_SUPABASE_URL != '' }}
+        run: npm run e2e
+
+      # SEGURANÇA: nenhum artifact de Playwright é publicado — tanto
+      # test-results/ (trace.zip) quanto playwright-report/ (relatório
+      # HTML) embutem o snapshot de acessibilidade da página, que pode
+      # incluir texto digitado em campos de senha. Debug de falha via
+      # `gh run view <id> --log-failed`.

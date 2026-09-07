@@ -6,6 +6,12 @@ export default defineConfig({
 
   test: {
     environment: 'node',
+    // Sem isso, o padrão de descoberta do Vitest (**/*.{test,spec}.*)
+    // também casa gestao_web/e2e/*.spec.js (specs do Playwright, criados
+    // na Task 3) — Vitest tenta rodá-los com seu próprio runner e quebra
+    // em "Playwright Test did not expect test.describe() to be called
+    // here" (achado rodando o PR real de verificação, Task 5 Step 6).
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
   },
 
   build: {

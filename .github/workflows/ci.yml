@@ -67,6 +67,10 @@ jobs:
       # ("No files matching the pattern"). `--relative` restringe o diff a
       # gestao_web/ e reescreve os caminhos relativos a ela, resolvendo os
       # dois problemas de uma vez.
+      #
+      # RASTREADO EM ILU-56: quando os 83 erros/12 warnings pré-existentes
+      # (39 arquivos, lista completa na issue) estiverem zerados, trocar
+      # este step de volta para `run: npm run lint` (repo inteiro).
       - name: Lint changed files
         run: |
           git fetch origin main --depth=1 --quiet
@@ -129,6 +133,10 @@ jobs:
       # registrados como issue no Linear (Task 10) — parecem bugs reais
       # (ex.: acessar `.alunos.push_token` num resultado que o Supabase
       # tipa como array), não só ruído de lint.
+      #
+      # RASTREADO EM ILU-56 (relacionada: ILU-54): quando os 11 erros
+      # pré-existentes estiverem zerados, trocar este step de volta para
+      # `run: deno check supabase/functions/*/index.ts` (todas as functions).
       - name: Type-check changed edge functions
         run: |
           git fetch origin main --depth=1 --quiet

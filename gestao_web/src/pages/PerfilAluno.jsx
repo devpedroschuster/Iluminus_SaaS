@@ -168,7 +168,9 @@ function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
           cidade: data.localidade || f.cidade,
         }));
       }
-    } catch {}
+    } catch (err) {
+      console.error('[PerfilAluno] buscarCep:', err);
+    }
   };
   const labelClass = 'text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-1.5';
   const inputClass = 'w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground';
@@ -908,9 +910,12 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       if (error) throw error;
       showToast.success('Aluno matriculado na turma!');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao matricular na turma.'); }
+    } catch (err) {
+      console.error('[PerfilAluno] executarMatricula:', err);
+      showToast.error('Erro ao matricular na turma.');
+    }
   }
- 
+
   async function executarRemocao(aula) {
     try {
       const { error } = await supabase.from('agenda_fixa')
@@ -918,7 +923,10 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       if (error) throw error;
       showToast.success('Aluno removido da turma.');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao remover da turma.'); }
+    } catch (err) {
+      console.error('[PerfilAluno] executarRemocao:', err);
+      showToast.error('Erro ao remover da turma.');
+    }
   }
  
   function toggleMatriculaFixa(aula) {

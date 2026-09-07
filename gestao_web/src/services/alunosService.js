@@ -161,6 +161,10 @@ export const alunosService = {
   },
 
   async buscarHistoricoFrequencia(alunoId) {
+    // ILU-37: limitada aos check-ins mais recentes — a tela de perfil só
+    // exibe uma janela de ~90 dias (heatmap de 12 semanas + filtro de data),
+    // então buscar todo o histórico sem limite cresce sem necessidade para
+    // alunos antigos.
     const { data, error } = await supabase
       .from('presencas')
       .select(`
@@ -168,7 +172,8 @@ export const alunosService = {
         agenda (atividade)
       `)
       .eq('aluno_id', alunoId)
-      .order('data_checkin', { ascending: false });
+      .order('data_checkin', { ascending: false })
+      .limit(500);
 
     if (error) throw error;
     return data;

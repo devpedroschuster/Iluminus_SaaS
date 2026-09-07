@@ -398,7 +398,10 @@ export default function NovoAluno() {
       if (error) throw error;
       showToast.success('Aluno matriculado na turma!');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao matricular na turma.'); }
+    } catch (err) {
+      console.error('[NovoAluno] executarMatricula:', err);
+      showToast.error('Erro ao matricular na turma.');
+    }
   }
 
   async function executarRemocao(aula) {
@@ -408,7 +411,10 @@ export default function NovoAluno() {
       if (error) throw error;
       showToast.success('Aluno removido da turma.');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao remover da turma.'); }
+    } catch (err) {
+      console.error('[NovoAluno] executarRemocao:', err);
+      showToast.error('Erro ao remover da turma.');
+    }
   }
 
   function toggleMatriculaFixa(aula) {

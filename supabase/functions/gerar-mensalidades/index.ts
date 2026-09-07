@@ -20,6 +20,13 @@
 //   FIX-04: dedupe agora considera (aluno_id, plano_id), não só aluno_id —
 //           caso o modelo de dados evolua para permitir múltiplos planos
 //           simultâneos por aluno, a checagem continua correta por plano.
+//
+// AUDITORIA 2026-09 — Correção aplicada:
+//   FIX-05 (ILU-50): function rodava com verify_jwt=false e sem nenhuma
+//           checagem no código — qualquer pessoa na internet, sem estar
+//           autenticada, podia disparar a geração de mensalidades do mês
+//           antes da data programada. Agora exige o mesmo segredo
+//           compartilhado usado nas demais functions cron-only (ILU-10).
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -32,6 +39,17 @@ function response(body: object, status = 200) {
 }
 
 serve(async (req) => {
+  // ── AUTORIZAÇÃO (ILU-50) ────────────────────────────────────────────────
+  // Função só deve rodar via cron, nunca por chamada direta/anônima (dispara
+  // cobrança do mês para todos os alunos ativos e notifica admins). Exige um
+  // segredo compartilhado que só o job de cron conhece, configurado como
+  // header `x-cron-secret` (mesmo padrão de gerar-presencas-diario,
+  // processar-notificacoes e lembretes-aula — ILU-10).
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return response({ error: 'Não autorizado' }, 401)
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -59,13 +77,25 @@ serve(async (req) => {
     // booleano `ativo`). O filtro `.eq('status', 'ativo')` fazia essa query
     // falhar com 400 (coluna inexistente) em toda execução da function,
     // quebrando a geração automática de mensalidades por completo.
-    const { data: alunos, error: errAlunos } = await supabase
+    // O client sem tipos gerados do schema infere `planos` como array (não
+    // consegue ver que alunos.plano_id -> planos.id é many-to-one); em
+    // runtime o PostgREST sempre devolve um objeto único aqui, nunca array.
+    type AlunoComPlano = {
+      id: string
+      nome_completo: string
+      plano_id: string
+      bolsista: boolean
+      planos: { id: string; preco: number | string | null } | null
+    }
+
+    const { data: alunosRaw, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, nome_completo, plano_id, bolsista, planos(id, preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null) // ignora alunos sem plano
 
     if (errAlunos) throw errAlunos
+    const alunos = alunosRaw as unknown as AlunoComPlano[] | null
     if (!alunos || alunos.length === 0) {
       return response({ message: 'Nenhum aluno ativo com plano.' })
     }

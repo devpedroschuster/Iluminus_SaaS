@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CheckCircle, Users, DollarSign, FileSpreadsheet,
   PieChart, Calendar, Wallet, RefreshCw, AlertTriangle,
@@ -8,7 +8,7 @@ import {
 import * as XLSX from 'xlsx';
 
 import { comissoesService } from '../services/comissoesService';
-import { gerarRepassesMensais, previewRepassesMensais } from '../services/repasseService';
+import { gerarRepassesMensais } from '../services/repasseService';
 import {
   useComissoesProfessor,
   useResumoMensal,
@@ -319,7 +319,6 @@ function AbaDetalhe({
   professores,
   filtros,
   setFiltros,
-  loading: loadingProfs,
 }) {
   const invalidarComissoes = useInvalidarComissoes();
   const modalFechamento = useModal();
@@ -786,7 +785,7 @@ export default function Comissoes() {
     tipoAula: '',
   });
   const [aba, setAba] = useState('geral');
-  const [gerando, setGerando] = useState(false);
+  const [, setGerando] = useState(false);
   const [resultadoGeracao, setResultadoGeracao] = useState(null);
   const [resumoExpandido, setResumoExpandido] = useState(false);
 
@@ -842,8 +841,6 @@ export default function Comissoes() {
     setFiltros(f => ({ ...f, professorId }));
     setAba('detalhe');
   };
-
-  const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">

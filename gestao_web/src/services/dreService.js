@@ -43,11 +43,16 @@ export const dreService = {
         .lte('data_vencimento', dataFim)
         .order('data_vencimento', { ascending: true }),
 
+      // ILU-20: `created_at` é timestamptz — comparar com dataInicio/dataFim
+      // sem timezone faz o Postgres interpretar em UTC, deslocando
+      // lançamentos de fim/início de mês para o mês vizinho. Reconstruímos
+      // os limites a partir de mes/ano como Date reais, com limite superior
+      // exclusivo (mesmo padrão de leadsService).
       supabase
         .from('repasses_lancamentos')
         .select('id, valor, professor_id, professores(nome), created_at')
-        .gte('created_at', `${dataInicio}T00:00:00`)
-        .lte('created_at', `${dataFim}T23:59:59`),
+        .gte('created_at', new Date(ano, mes, 1).toISOString())
+        .lt('created_at', new Date(ano, mes + 1, 1).toISOString()),
 
       supabase
         .from('alunos')
@@ -173,11 +178,14 @@ export const dreService = {
         .gte('data_pagamento', dataLimite)
         .lte('data_pagamento', dataFim),
 
+      // ILU-20: mesma correção de timezone aplicada acima em obterDRE —
+      // reconstrói os limites do período como Date reais em vez de
+      // concatenar `dataLimite`/`dataFim` (strings sem timezone) direto.
       supabase
         .from('repasses_lancamentos')
         .select('valor, created_at')
-        .gte('created_at', `${dataLimite}T00:00:00`)
-        .lte('created_at', `${dataFim}T23:59:59`),
+        .gte('created_at', new Date(agora.getFullYear(), agora.getMonth() - meses + 1, 1).toISOString())
+        .lt('created_at', new Date(agora.getFullYear(), agora.getMonth() + 1, 1).toISOString()),
     ]);
 
     if (e1) throw e1;

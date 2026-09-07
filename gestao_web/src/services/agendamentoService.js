@@ -40,7 +40,11 @@ async agendarAulaAdmin(dados) {
       dados.data_aula,
       dados.tipo === 'visitante' ? null : dados.aluno_id
     );
-    if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
+    // ILU-22: `verificarDisponibilidade` retorna `null` (não o objeto de
+    // fallback usado em falha de rede/API) quando `dados.aula_id` é falsy —
+    // acessar `checagem.podeAgendarLivremente` direto lançava um TypeError
+    // não tratado em vez da mensagem de validação esperada.
+    if (!checagem?.podeAgendarLivremente) throw new Error(checagem?.avisoCritico ?? 'Selecione uma turma.');
   }
 
   if (dados.tipo === 'visitante') {

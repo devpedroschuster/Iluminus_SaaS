@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { despesaSchema } from '../lib/validation';
 
 export const despesasService = {
   async listar(mes, ano) {
@@ -103,6 +104,9 @@ export const despesasService = {
     if (!payload.id) {
       delete payload.id;
     }
+
+    // ILU-25: valor/data_vencimento não eram validados antes do insert.
+    await despesaSchema.validate(payload);
 
     if (despesa.id) {
       const { data, error } = await supabase

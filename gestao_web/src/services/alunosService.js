@@ -1,6 +1,17 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
 
+// ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
+// string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
+// parênteses (ex.: "x,id.neq.0") quebrava a intenção do OR e era
+// interpretado como cláusulas de filtro adicionais. Envolver o valor em
+// aspas duplas (sintaxe de valor escapado do PostgREST) e escapar
+// barra-invertida/aspas internas neutraliza qualquer caractere reservado
+// (`,`, `(`, `)`) do termo de busca do usuário.
+function escaparValorFiltroOr(valor) {
+  return String(valor).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
     try {
@@ -15,8 +26,10 @@ export const alunosService = {
       if (filtros.role && filtros.role !== 'todos')
         query = query.eq('role', filtros.role);
 
-      if (filtros.busca)
-        query = query.or(`nome_completo.ilike.%${filtros.busca}%,email.ilike.%${filtros.busca}%`);
+      if (filtros.busca) {
+        const busca = escaparValorFiltroOr(filtros.busca);
+        query = query.or(`nome_completo.ilike."%${busca}%",email.ilike."%${busca}%"`);
+      }
 
       if (filtros.letraInicial)
         query = query.ilike('nome_completo', `${filtros.letraInicial}%`);
@@ -320,8 +333,20 @@ export const alunosService = {
       if (errPlano) throw errPlano;
 
       const dataInicio = new Date().toISOString().split('T')[0];
-      const dataFimObj = new Date(`${dataVencimento}T12:00:00`);
-      dataFimObj.setMonth(dataFimObj.getMonth() + (plano.duracao_meses || 1));
+      const dataVencimentoObj = new Date(`${dataVencimento}T12:00:00`);
+      const duracaoMeses = plano.duracao_meses || 1;
+
+      // ILU-21: `setMonth` transborda para o mês seguinte quando o dia do
+      // vencimento (29-31) não existe no mês de destino (ex.: 31/jan + 1 mês
+      // vira 3/mar em vez de 28/fev). Descobrimos o mês de destino usando
+      // dia 1 (nunca transborda) e, se o dia do vencimento não existir nele,
+      // recuamos para o último dia do mês de destino — mesma guarda usada em
+      // despesasService.replicarRecorrentes.
+      const mesDestinoObj = new Date(dataVencimentoObj.getFullYear(), dataVencimentoObj.getMonth() + duracaoMeses, 1);
+      const dataFimObj = new Date(mesDestinoObj.getFullYear(), mesDestinoObj.getMonth(), dataVencimentoObj.getDate(), 12);
+      if (dataFimObj.getMonth() !== mesDestinoObj.getMonth()) {
+        dataFimObj.setDate(0);
+      }
       dataFimObj.setDate(dataFimObj.getDate() - 1);
       const dataFim = dataFimObj.toISOString().split('T')[0];
 

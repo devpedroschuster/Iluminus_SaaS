@@ -139,8 +139,11 @@ async obterComissoes(inicioMes) {
         .eq('ativo', true)
         .eq('role', 'aluno')
         .not('data_nascimento', 'is', null)
-        .then(({ data }) => data || []),
-        this.obterDistribuicaoPorArea(),
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        }),
+      this.obterDistribuicaoPorArea(),
     ]);
 
     return { totalAlunos, pagamentosMes, listaInadimplentes, alunosPlanosVencendo, todosAlunos, distribuicaoAreas };

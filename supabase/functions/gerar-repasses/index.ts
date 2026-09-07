@@ -235,8 +235,8 @@ serve(async (req: Request) => {
         `)
         .eq('aluno_id', mensalidade.aluno_id)
         .eq('status', 'presente')
-        .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
-        .lte('data_checkin', `${fimPeriodo}T23:59:59`)
+        .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
+        .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
         .not('aula_id', 'is', null);
 
       if (errPresencas) throw errPresencas;

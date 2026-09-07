@@ -12,14 +12,16 @@ export const modalidadeService = {
   },
 
 
-async buscarPerfil(id, nome) {
-  const { data: horarios } = await supabase
+async buscarPerfil(id) {
+  const { data: horarios, error: errHorarios } = await supabase
     .from('agenda')
     .select('dia_semana, horario')
     .eq('modalidade_id', id)
     .eq('eh_recorrente', true)
     .order('dia_semana')
     .order('horario');
+
+  if (errHorarios) throw errHorarios;
 
   // ✅ busca por ID
   const { data: alunos, error: errAlunos } = await supabase

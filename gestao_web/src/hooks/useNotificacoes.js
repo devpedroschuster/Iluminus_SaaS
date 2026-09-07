@@ -1,26 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { startOfDay } from 'date-fns';
 
 export function useNotificacoes() {
-  const [resolvidas, setResolvidas] = useState([]);
-
-  useEffect(() => {
+  const [resolvidas, setResolvidas] = useState(() => {
     const salvas = localStorage.getItem('iluminus_notificacoes_resolvidas');
-    if (salvas) setResolvidas(JSON.parse(salvas));
-  }, []);
+    return salvas ? JSON.parse(salvas) : [];
+  });
 
   const marcarComoResolvida = (idUnico) => {
-    const novas = [...resolvidas, idUnico];
-    setResolvidas(novas);
-    localStorage.setItem('iluminus_notificacoes_resolvidas', JSON.stringify(novas));
+    setResolvidas(prev => {
+      const novas = [...prev, idUnico];
+      localStorage.setItem('iluminus_notificacoes_resolvidas', JSON.stringify(novas));
+      return novas;
+    });
   };
 
   const desfazerResolvida = (idUnico) => {
-    const novas = resolvidas.filter(id => id !== idUnico);
-    setResolvidas(novas);
-    localStorage.setItem('iluminus_notificacoes_resolvidas', JSON.stringify(novas));
+    setResolvidas(prev => {
+      const novas = prev.filter(id => id !== idUnico);
+      localStorage.setItem('iluminus_notificacoes_resolvidas', JSON.stringify(novas));
+      return novas;
+    });
   };
 
   const query = useQuery({
@@ -54,7 +56,7 @@ export function useNotificacoes() {
         }
 
         if (aluno.data_nascimento) {
-          const [anoNasc, mesNasc, diaNasc] = aluno.data_nascimento.split('-');
+          const [, mesNasc, diaNasc] = aluno.data_nascimento.split('-');
           let niverEsteAno = startOfDay(new Date(anoAtual, mesNasc - 1, diaNasc));
           let diasFaltandoNiver = Math.ceil((niverEsteAno - hoje) / (1000 * 60 * 60 * 24));
 

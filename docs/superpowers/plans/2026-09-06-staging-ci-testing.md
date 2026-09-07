@@ -572,10 +572,19 @@ jobs:
       # obrigatório nunca passar, bloqueando todo merge em main pra sempre.
       # Linta só os arquivos .js/.jsx alterados neste PR — gate real pra
       # código novo, sem travar em dívida legada.
+      #
+      # RULING 2 (achado rodando o PR real de verificação, ver Task 5 Step
+      # 6): `git diff --name-only` sozinho devolve caminhos relativos à
+      # RAIZ do repo (ex.: "gestao_web/e2e/auth.spec.js"), mas este job já
+      # roda com working-directory: gestao_web — sem --relative, o eslint
+      # procurava "gestao_web/gestao_web/e2e/..." e não achava nada
+      # ("No files matching the pattern"). `--relative` restringe o diff a
+      # gestao_web/ e reescreve os caminhos relativos a ela, resolvendo os
+      # dois problemas de uma vez.
       - name: Lint changed files
         run: |
           git fetch origin main --depth=1 --quiet
-          CHANGED=$(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx')
+          CHANGED=$(git diff --relative --name-only origin/main...HEAD -- '*.js' '*.jsx')
           if [ -n "$CHANGED" ]; then
             echo "$CHANGED"
             npx eslint $CHANGED
@@ -615,14 +624,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
-      - name: Type-check edge functions
-        run: deno check supabase/functions/*/index.ts
+      # RULING (achado rodando o PR real de verificação, ver Task 5 Step
+      # 6): `deno check supabase/functions/*/index.ts` (todas as functions)
+      # encontrou 11 erros de type-check pré-existentes em 3 functions
+      # (gerar-presencas-diario, lembretes-aula, preview-repasses-mensais)
+      # sem relação nenhuma com este plano — nunca rodou como gate antes.
+      # Mesmo problema do job lint-and-build: como é required check,
+      # type-checar tudo bloquearia todo merge pra sempre. Type-checa só as
+      # functions alteradas no PR. Esses 11 erros pré-existentes ficam
+      # registrados como issue no Linear (Task 10) — parecem bugs reais
+      # (ex.: acessar `.alunos.push_token` num resultado que o Supabase
+      # tipa como array), não só ruído de lint.
+      - name: Type-check changed edge functions
+        run: |
+          git fetch origin main --depth=1 --quiet
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'supabase/functions/*/index.ts')
+          if [ -n "$CHANGED" ]; then
+            echo "$CHANGED"
+            deno check $CHANGED
+          else
+            echo "Nenhuma edge function alterada neste PR — nada para type-checar."
+          fi
 
   e2e:
     name: E2E (Playwright)

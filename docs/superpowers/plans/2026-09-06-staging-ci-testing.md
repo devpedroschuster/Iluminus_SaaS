@@ -1108,4 +1108,129 @@ Cada issue deve referenciar `docs/superpowers/specs/2026-09-06-staging-ci-testin
 
 Se, ao longo das Tasks 1-9, algum outro trecho de lógica pura sem teste foi notado (além de `isFeriado`), registre como issue separada no mesmo time, com o caminho do arquivo e a função específica — não deixe a observação sem registro.
 
+---
+
+### Task 11: Correções da revisão final (achado crítico: backup exposto em repo público)
+
+**Depends on:** Task 9.
+
+A revisão final de branch (whole-branch review, depois de todas as Tasks 1-10) achou 1 finding Crítico e 3 Importantes em `db-backup.yml` e nos docs relacionados. Usuário confirmou a abordagem de criptografia para o Crítico.
+
+**Files:**
+- Modify: `.github/workflows/db-backup.yml`
+- Modify: `supabase/migrations-down/README.md`
+- Modify: `docs/DEPLOY.md`
+
+- [ ] **Step 1 (CRÍTICO): Criptografar o dump antes do upload**
+
+`devpedroschuster/Iluminus_SaaS` é um repositório **público** — artifacts do GitHub Actions em repo público são baixáveis por qualquer pessoa com conta GitHub, sem precisar ser colaborador. Sem criptografia, o job de produção publicaria um `pg_dump` completo (tabela `alunos` com CPF/telefone/endereço/`observacoes_medicas`, e `auth.users` com hashes de senha) como download público assim que os secrets `STAGING_DB_URL`/`PRODUCTION_DB_URL` existissem.
+
+Editar `.github/workflows/db-backup.yml`, adicionando `timeout-minutes: 30` ao job e um novo step de criptografia entre "Dump database" e "Upload backup as artifact":
+
+```yaml
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+```
+
+```yaml
+      # SEGURANÇA: devpedroschuster/Iluminus_SaaS é um repositório PÚBLICO —
+      # artifacts do GitHub Actions em repo público são baixáveis por
+      # qualquer pessoa com conta GitHub. Sem criptografar, isso publicaria
+      # um pg_dump completo (dados pessoais + hashes de senha) como download
+      # público. gpg simétrico com uma passphrase guardada só como GitHub
+      # Secret torna o artifact inútil pra quem não tem a senha.
+      - name: Encrypt backup
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]; then
+            echo "::error::Secret BACKUP_ENCRYPTION_PASSPHRASE não configurado. Sem ele, o backup não seria criptografado antes de subir como artifact — e este repositório é público. Veja docs/DEPLOY.md, seção 'Backup do banco'."
+            exit 1
+          fi
+          for f in backup/*.dump; do
+            gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" --symmetric --cipher-algo AES256 "$f"
+            rm "$f"
+          done
+
+      - name: Upload backup as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ matrix.environment }}-${{ github.run_id }}
+          path: backup/*.dump.gpg
+          retention-days: 30
+```
+
+(o step "Dump database" continua igual — só muda o que vem depois dele e o `path` do upload, que agora aponta pro `.dump.gpg` em vez do `.dump`.)
+
+- [ ] **Step 2 (Importante): Corrigir o comando de restore no README de migrations-down**
+
+`supabase db execute` não existe na Supabase CLI real (confirmado via `supabase db --help`: os subcomandos são `diff, dump, push, pull, reset, lint, start, query, advisors, schema`). O comando certo é `supabase db query -f <arquivo> --project-ref <ref>`.
+
+Em `supabase/migrations-down/README.md`, trocar:
+```
+`supabase db execute -f supabase/migrations-down/<arquivo>.sql --project-ref <ref-de-producao>`
+```
+por:
+```
+`supabase db query -f supabase/migrations-down/<arquivo>.sql --project-ref <ref-de-producao>`
+```
+
+- [ ] **Step 3 (Importante): Adicionar seção de backup em `docs/DEPLOY.md`**
+
+O erro do workflow (Step 1 acima) referencia `docs/DEPLOY.md` pra contexto, mas esse arquivo hoje não menciona backup nenhum. Adicionar uma seção 5 ao final de `docs/DEPLOY.md`:
+
+```markdown
+## 5. Backup do banco
+
+`.github/workflows/db-backup.yml` roda todo dia (cron, horário de Brasília)
+um `pg_dump` de staging e produção, criptografado com GPG (AES256) antes de
+subir como artifact do GitHub Actions — como este repositório é público, um
+dump não-criptografado seria baixável por qualquer pessoa; a versão
+criptografada não tem valor sem a senha, que existe só como GitHub Secret.
+
+### Secrets necessários
+
+- `STAGING_DB_URL` / `PRODUCTION_DB_URL`: connection string do Postgres de
+  cada projeto. Use a string do **Session Pooler** (Supabase Dashboard →
+  Settings → Database → Connection string → aba "Session pooler", formato
+  `postgres://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres`)
+  — não a conexão "direta" (IPv6-only, não funciona a partir dos runners do
+  GitHub Actions, que são IPv4-only) nem o "Transaction pooler" na porta
+  6543 (não suporta `pg_dump`).
+- `BACKUP_ENCRYPTION_PASSPHRASE`: uma senha forte qualquer (ex.:
+  `openssl rand -base64 32`), usada só pra criptografar/descriptografar os
+  dumps. Guarde-a também em um cofre de senhas pessoal — se for perdida, os
+  backups antigos ficam irrecuperáveis.
+
+Enquanto algum desses secrets não existir, o workflow falha todo dia com um
+erro claro nomeando o secret faltante — isso é esperado até você configurar
+os três.
+
+### Como restaurar um backup
+
+1. Baixe o artifact (`db-backup-<ambiente>-<run_id>`) na aba Actions do run
+   desejado.
+2. Descriptografe:
+   `gpg --batch --yes --passphrase "<BACKUP_ENCRYPTION_PASSPHRASE>" --decrypt backup.dump.gpg > backup.dump`
+3. Restaure:
+   `pg_restore --no-owner --no-privileges -d "<connection-string-de-destino>" backup.dump`
+```
+
+- [ ] **Step 4: Rodar o teste de sanidade do workflow**
+
+Run: `python -c "import yaml,sys; yaml.safe_load(open('.github/workflows/db-backup.yml')); print('YAML OK')"`
+Expected: `YAML OK`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .github/workflows/db-backup.yml supabase/migrations-down/README.md docs/DEPLOY.md
+git commit -m "fix: encrypt DB backups before upload (public repo), fix rollback command, document backup/restore"
+```
+
+**Nota para o usuário (fora do escopo deste plano, não bloqueia o merge):** o revisor final levantou que o Nexofy (`devpedroschuster/nexofy`), também repositório público, roda um `db-backup.yml` com o mesmo desenho (upload de artifact sem criptografia) — vale conferir lá separadamente. Este plano não investiga nem mexe no Nexofy (isolamento entre projetos, ver `CLAUDE.md`).
+
 Nenhum commit nesta task (mudança vive no Linear, não no repositório).

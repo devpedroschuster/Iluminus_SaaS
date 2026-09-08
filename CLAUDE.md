@@ -27,6 +27,14 @@ Este repositório é um projeto separado do outro projeto do usuário, **Nexofy*
 
 - Workspace "Pedro Schuster", time **Iluminus** (`038df815-2dfa-4a6a-b31d-dfc7762b173f`). Issues sobre este projeto devem ser criadas nesse time, nunca em times relacionados ao Nexofy. Achados de uma sessão que não puderem ser resolvidos no PR/sessão atual devem virar issue nesse time, não ficar sem registro.
 
+## Deploy
+
+- Sequência segura de deploy (migration + Edge Function + frontend), regra
+  de merge, rollback de frontend na Vercel, convenção de migration "down"
+  e backup do banco estão documentados em [`docs/DEPLOY.md`](docs/DEPLOY.md)
+  — leia antes de qualquer deploy manual ou mudança fora do fluxo normal de
+  PR.
+
 ## Regra geral
 
 Antes de rodar qualquer comando ou usar qualquer ferramenta MCP que toque Supabase, Vercel, GitHub ou Linear neste repositório, confirme que a conta/projeto ativo é o do Iluminus — não o do Nexofy.

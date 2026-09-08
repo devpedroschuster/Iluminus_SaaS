@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -6,11 +6,7 @@ const STORAGE_KEY_DISPENSADO = 'iluminus_push_banner_dispensado';
 
 export function PushNotificationBanner() {
   const { suportado, permissao, inscrito, carregando, ativarNotificacoes } = usePushNotifications();
-  const [dispensado, setDispensado] = useState(false);
-
-  useEffect(() => {
-    setDispensado(localStorage.getItem(STORAGE_KEY_DISPENSADO) === '1');
-  }, []);
+  const [dispensado, setDispensado] = useState(() => localStorage.getItem(STORAGE_KEY_DISPENSADO) === '1');
 
   const dispensar = () => {
     localStorage.setItem(STORAGE_KEY_DISPENSADO, '1');

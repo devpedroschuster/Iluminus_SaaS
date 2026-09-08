@@ -4,13 +4,13 @@ import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
 import { supabase } from '../lib/supabase';
 import { financeiroService } from '../services/financeiroService';
-import { showToast } from './shared/Toast';
+import { showToast } from './shared/showToast';
 import { User, DollarSign, Calendar, BookOpen, GraduationCap, Package, CreditCard, LayoutList, Loader2 } from 'lucide-react';
 
 /**
  * Traduz erros técnicos do Supabase/Postgres para mensagens humanas.
  */
-function traduzirErroRegistro(error, nomeAluno) {
+function traduzirErroRegistro(error) {
   const msg = error?.message || '';
   const code = error?.code || '';
 
@@ -34,15 +34,8 @@ function traduzirErroRegistro(error, nomeAluno) {
   return 'Não foi possível registrar o pagamento. Verifique os dados e tente de novo.';
 }
 
-export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso }) {
-  const [alunos, setAlunos] = useState([]);
-  const [planos, setPlanos] = useState([]);
-  const [professores, setProfessores] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isVisitante, setIsVisitante] = useState(false);
-  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
-
-  const initialForm = {
+function getInitialForm() {
+  return {
     aluno_id: '',
     nome_visitante: '',
     tipo_aula: 'regular',
@@ -55,13 +48,23 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     professor_id: '',
     modalidade_nome: '',
   };
-  const [form, setForm] = useState(initialForm);
+}
+
+export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso }) {
+  const [alunos, setAlunos] = useState([]);
+  const [planos, setPlanos] = useState([]);
+  const [professores, setProfessores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isVisitante, setIsVisitante] = useState(false);
+  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
+
+  const [form, setForm] = useState(getInitialForm);
 
   useEffect(() => {
     if (isOpen) {
       carregarDados();
     } else {
-      setForm(initialForm);
+      setForm(getInitialForm());
       setIsVisitante(false);
     }
   }, [isOpen]);

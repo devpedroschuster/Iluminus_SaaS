@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Phone, CheckCircle, XCircle, Clock, RefreshCw, MessageCircle, LayoutGrid, List, X, ChevronDown, TrendingUp, TrendingDown, Minus, Calendar, MessageSquare, Trash2 } from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import {
   useLeadsPendentes,
   useLeadsPendentesPorMes,
@@ -124,10 +124,12 @@ function SeletorPeriodo({ resumoMensal, periodoSelecionado, onSelecionarPeriodo,
 function ObservacaoLead({ lead, onSalvar, isSalvando }) {
   const [valor, setValor] = useState(lead.observacao || '');
   const [expandido, setExpandido] = useState(!!lead.observacao);
+  const [observacaoAnterior, setObservacaoAnterior] = useState(lead.observacao);
 
-  useEffect(() => {
+  if (lead.observacao !== observacaoAnterior) {
+    setObservacaoAnterior(lead.observacao);
     setValor(lead.observacao || '');
-  }, [lead.observacao]);
+  }
 
   function handleBlur() {
     const valorTratado = valor.trim();
@@ -177,7 +179,7 @@ export default function Leads() {
 
   // ── Visão Ação (cards pendentes) ──────────────────────────────────────────
   const { data: leadsPendentesTodos = [], isLoading: loadingPendentesTodos } = useLeadsPendentes();
-  const { data: resumoMensalPendentes = [], isLoading: loadingResumoPendentes } = useResumoMensalLeadsPendentes();
+  const { data: resumoMensalPendentes = [] } = useResumoMensalLeadsPendentes();
 
   const usandoFiltroAcao = periodoAcao !== TODOS_PERIODOS;
   const [anoAcao, mesAcao] = usandoFiltroAcao ? periodoAcao.split('-').map(Number) : [0, 0];

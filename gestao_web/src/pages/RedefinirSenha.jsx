@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { rotaPorPerfil } from '../lib/navigation';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { LIMITES } from '../lib/constants';
 
 const SENHA_MIN = LIMITES.SENHA_MIN;

@@ -139,13 +139,3 @@ export function ModalConfirmacao({
     </Modal>
   );
 }
-
-export function useModal() {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  const abrir = () => setIsOpen(true);
-  const fechar = () => setIsOpen(false);
-  const toggle = () => setIsOpen(!isOpen);
-
-  return { isOpen, abrir, fechar, toggle };
-}

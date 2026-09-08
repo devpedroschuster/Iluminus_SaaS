@@ -25,7 +25,7 @@ export default function Landing() {
           .select('id, nome, preco, duracao_meses, frequencia_semanal, regras_acesso')
           .order('preco', { ascending: true });
         if (!error && data) setPlanos(data);
-      } catch (_) {
+      } catch {
         // Silently fail — planos section will be hidden
       } finally {
         setPlanosLoading(false);
@@ -276,7 +276,7 @@ export default function Landing() {
               style={planos.length === 1 ? { gridTemplateColumns: '1fr', maxWidth: '360px' } :
                      planos.length === 2 ? { gridTemplateColumns: 'repeat(2,1fr)', maxWidth: '660px' } : {}}
             >
-              {planos.map((plano, idx) => {
+              {planos.map((plano) => {
                 const featured = isFeatured(plano, planos);
                 const regras = Array.isArray(plano.regras_acesso) ? plano.regras_acesso : [];
                 return (

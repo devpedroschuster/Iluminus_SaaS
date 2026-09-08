@@ -11,8 +11,9 @@ import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { showToast } from '../components/shared/Toast';
-import { ModalConfirmacao, useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 

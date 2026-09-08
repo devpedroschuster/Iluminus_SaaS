@@ -1,16 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Trash2, CheckCircle, Info } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import Button from './Button';
-
-export function useModal(initial = false) {
-  const [aberto, setAberto] = useState(initial);
-  const abrir  = useCallback(() => setAberto(true),          []);
-  const fechar = useCallback(() => setAberto(false),         []);
-  const toggle = useCallback(() => setAberto((v) => !v),     []);
-  return { aberto, isOpen: aberto, abrir, fechar, toggle };
-}
 
 const SIZES = {
   sm:   'max-w-md',
@@ -27,6 +19,8 @@ const SIZES_LEGACY = {
   xl:   'max-w-xl',
   '2xl':'max-w-2xl',
 };
+
+const NOOP = () => {};
 
 function Modal({
   aberto,
@@ -47,7 +41,7 @@ function Modal({
   footer,
 }) {
   const _aberto        = aberto          ?? isOpen              ?? false;
-  const _fechar        = fechar          ?? onClose             ?? (() => {});
+  const _fechar        = fechar          ?? onClose             ?? NOOP;
   const _title         = title           ?? titulo;
   const _closeOnOverlay= fecharAoClicarFora !== undefined
                            ? fecharAoClicarFora

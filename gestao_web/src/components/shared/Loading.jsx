@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 export function Spinner({ size = 24, className = "text-primary" }) {
@@ -37,12 +37,16 @@ export function CardSkeleton() {
 }
 
 export function ChartSkeleton() {
+  const [alturas] = useState(
+    () => [1, 2, 3, 4, 5, 6, 7].map(() => Math.random() * 80 + 20)
+  );
+
   return (
     <div className="bg-white dark:bg-[#1A1A1A] p-8 rounded-[40px] border border-gray-100 dark:border-zinc-800 shadow-sm h-[400px] animate-pulse transition-colors">
       <div className="h-6 w-48 bg-gray-100 dark:bg-zinc-800 rounded-lg mb-8 transition-colors" />
       <div className="flex items-end gap-4 h-[300px] pb-4 border-b border-gray-50 dark:border-zinc-800/50 transition-colors">
-        {[1,2,3,4,5,6,7].map(i => (
-          <div key={i} className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-t-lg transition-colors" style={{ height: `${Math.random() * 80 + 20}%` }} />
+        {alturas.map((altura, i) => (
+          <div key={i} className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-t-lg transition-colors" style={{ height: `${altura}%` }} />
         ))}
       </div>
     </div>

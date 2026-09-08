@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
 import { leadsService } from '../services/leadsService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { Lead } from '../types/leads';
 
 export function useLeadsPendentes() {

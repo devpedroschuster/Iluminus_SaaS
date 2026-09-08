@@ -17,9 +17,10 @@ const PADDINGS = {
 };
 
 const Surface = React.forwardRef(function Surface(
-  { variant = 'card', padding = 'lg', as: Tag = 'div', className, children, ...rest },
+  { variant = 'card', padding = 'lg', as = 'div', className, children, ...rest },
   ref
 ) {
+  const Tag = as;
   return (
     <Tag
       ref={ref}

@@ -11,7 +11,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import ModalRenovarPlano from '../components/ModalRenovarPlano';
 import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
@@ -858,11 +858,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   // Filtro de dia da semana dentro do modal ('todos' | nome do dia)
   const [diaFiltro, setDiaFiltro]              = useState('todos');
  
-  React.useEffect(() => {
-    carregarAgendaFixa();
-  }, [alunoId]);
- 
-  async function carregarAgendaFixa() {
+  const carregarAgendaFixa = React.useCallback(async () => {
     setLoading(true);
     try {
       const { data: aulas } = await supabase
@@ -892,7 +888,11 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [alunoId]);
+
+  React.useEffect(() => {
+    carregarAgendaFixa();
+  }, [carregarAgendaFixa]);
  
   // Conta quantas vezes uma modalidade (id) aparece em modalidades_selecionadas do aluno
   const getCountModEspecifica = (modId) =>

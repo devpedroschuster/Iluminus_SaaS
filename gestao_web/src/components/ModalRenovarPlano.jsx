@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
-import { showToast } from './shared/Toast';
+import { showToast } from './shared/showToast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
 import { formatarMoeda } from '../lib/utils';
 

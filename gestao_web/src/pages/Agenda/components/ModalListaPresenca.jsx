@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { RefreshCw, Trash2, CalendarCheck } from 'lucide-react';
 import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
@@ -7,7 +7,7 @@ import { alunosService } from '../../../services/alunosService';
 
 function formatarDataCurta(iso) {
   if (!iso) return '—';
-  const [ano, mes, dia] = iso.split('-');
+  const [, mes, dia] = iso.split('-');
   return `${dia}/${mes}`;
 }
 
@@ -19,17 +19,23 @@ function SeletorReposicao({ aluno, marcando, onConfirmar }) {
   const [carregando, setCarregando] = useState(false);
   const [faltas, setFaltas] = useState([]);
   const [selecionada, setSelecionada] = useState('');
+  const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    if (!aberto || !aluno.aluno_id) return;
-    let cancelado = false;
+  const handleAbrir = () => {
+    setAberto(true);
+    if (!aluno.aluno_id) return;
+    const requestId = ++requestIdRef.current;
     setCarregando(true);
     alunosService.listarFaltasPendentesReposicao(aluno.aluno_id)
-      .then(lista => { if (!cancelado) setFaltas(lista); })
-      .catch(() => { if (!cancelado) setFaltas([]); })
-      .finally(() => { if (!cancelado) setCarregando(false); });
-    return () => { cancelado = true; };
-  }, [aberto, aluno.aluno_id]);
+      .then(lista => { if (requestIdRef.current === requestId) setFaltas(lista); })
+      .catch(() => { if (requestIdRef.current === requestId) setFaltas([]); })
+      .finally(() => { if (requestIdRef.current === requestId) setCarregando(false); });
+  };
+
+  const handleCancelar = () => {
+    requestIdRef.current += 1; // invalida fetch em andamento
+    setAberto(false);
+  };
 
   if (!aberto) {
     return (
@@ -37,7 +43,7 @@ function SeletorReposicao({ aluno, marcando, onConfirmar }) {
         variant="ghost"
         size="sm"
         leftIcon={<CalendarCheck size={14} />}
-        onClick={() => setAberto(true)}
+        onClick={handleAbrir}
       >
         Reposição?
       </Button>
@@ -71,7 +77,7 @@ function SeletorReposicao({ aluno, marcando, onConfirmar }) {
       >
         Confirmar
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => setAberto(false)}>
+      <Button variant="ghost" size="sm" onClick={handleCancelar}>
         Cancelar
       </Button>
     </div>
@@ -82,7 +88,7 @@ export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
   handleRegistrarFalta, handleDesfazerFalta,
   handleMarcarPresenca, handleDesmarcarPresenca, marcandoId,
-  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey,
+  alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao,
   isAdmin,
 }) {
   if (!aulaParaLista) return null;

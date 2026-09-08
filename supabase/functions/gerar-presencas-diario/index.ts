@@ -36,7 +36,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let body = {};
+    let body: { acao?: string } = {};
     try {
       body = await req.json();
     } catch {
@@ -76,6 +76,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error("❌ Erro fatal:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 })

@@ -27,6 +27,18 @@ serve(async (req) => {
     const dataIso = amanha.toISOString().split('T')[0];
     console.log(`📅 Buscando aulas para o dia: ${dataIso}`);
 
+    // `aluno_id`/`aula_id` em `presencas` são FKs para-um (belongs-to), então
+    // em runtime o PostgREST retorna `agenda`/`alunos` como objeto único, não
+    // array — mas sem o client tipado com `Database`, a inferência de tipos
+    // do supabase-js não sabe disso e assume array por padrão (ILU-54).
+    // `.returns<T>()` corrige só o tipo, sem alterar o shape real da resposta.
+    interface Agendamento {
+      id: number;
+      data_aula: string;
+      agenda: { horario: string; atividade: string } | null;
+      alunos: { push_token: string | null; nome_completo: string | null } | null;
+    }
+
     const { data: agendamentos, error } = await supabase
       .from('presencas')
       .select(`
@@ -36,7 +48,8 @@ serve(async (req) => {
         alunos ( push_token, nome_completo )
       `)
       .eq('data_aula', dataIso)
-      .in('status', ['agendado', 'presente']); // exclui falta/cancelado — não faz sentido lembrar quem já não vai
+      .in('status', ['agendado', 'presente']) // exclui falta/cancelado — não faz sentido lembrar quem já não vai
+      .returns<Agendamento[]>();
 
     if (error) throw error;
 
@@ -48,8 +61,8 @@ serve(async (req) => {
     const notificacoes = [];
 
     for (const ag of agendamentos) {
-      if (ag.alunos?.push_token) {
-        const primeiroNome = ag.alunos.nome_completo.split(' ')[0];
+      if (ag.alunos?.push_token && ag.agenda) {
+        const primeiroNome = (ag.alunos.nome_completo ?? '').split(' ')[0];
         const horario = ag.agenda.horario.substring(0, 5);
 
         notificacoes.push({
@@ -79,6 +92,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error("❌ Erro fatal no robô:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 })

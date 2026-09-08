@@ -13,7 +13,8 @@ import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Modal, { useModal } from '../components/ui/Modal';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import { Link } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

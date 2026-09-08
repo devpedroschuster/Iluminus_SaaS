@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { agendamentoService } from '../services/agendamentoService';
@@ -7,9 +7,9 @@ import {
   Clock, Award, AlertCircle, Users, CheckCircle2,
   XCircle, Download, BarChart2, Zap, ChevronRight
 } from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
-import { formatarData } from '../lib/utils';
-import Modal, { useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
@@ -76,7 +76,6 @@ function sanitizarCelulaCSV(valor) {
 // FIX 2: helper central para log + mensagem amigável, evita
 // catch(e) genérico espalhado e silencioso pelo arquivo inteiro.
 function tratarErro(err, { contexto, mensagemPadrao }) {
-  // eslint-disable-next-line no-console
   console.error(`[Presenca] ${contexto} falhou:`, err);
   if (err?.code === '42501' || err?.status === 403) {
     return 'Você não tem permissão para executar esta ação.';
@@ -103,7 +102,6 @@ export default function Presenca({ isAdmin = false }) {
     presencaSemana: [], mediaDiaria: 0
   });
   const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
-  const [busca, setBusca]             = useState('');
   const [aulaSelecionada, setAulaSelecionada] = useState(null);
   const [dataManual, setDataManual] = useState(() => new Date().toISOString().split('T')[0]);
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
@@ -218,7 +216,6 @@ export default function Presenca({ isAdmin = false }) {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.periodo, modoInicializado]);
 
   useEffect(() => { fetchDados(); }, [filtros.periodo]); // eslint-disable-line react-hooks/exhaustive-deps

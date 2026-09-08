@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { planosService } from '../services/planosService';
 import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
-import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import Input, { Label } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
@@ -32,7 +33,7 @@ export default function Planos() {
     try {
       const data = await planosService.listar();
       setPlanos(data || []);
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao carregar planos.");
     } finally {
       setLoadingList(false);
@@ -48,7 +49,7 @@ export default function Planos() {
       showToast.success("Plano criado com sucesso!");
       setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: [] });
       fetchPlanos();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao criar plano.");
     } finally {
       setCreating(false);
@@ -63,7 +64,7 @@ export default function Planos() {
       await planosService.excluir(planoParaExcluir.id);
       showToast.success("Plano removido.");
       fetchPlanos();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao excluir. Verifique se há alunos vinculados a ele.");
     } finally {
       setDeletingId(null);
@@ -85,7 +86,7 @@ export default function Planos() {
       showToast.success("Plano atualizado com sucesso!");
       modalEdicao.fechar();
       fetchPlanos();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao atualizar plano.");
     } finally {
       setSavingEdit(false);

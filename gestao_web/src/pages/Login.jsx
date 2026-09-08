@@ -5,8 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
 import { rotaPorPerfil } from '../lib/navigation';
-import { showToast } from '../components/shared/Toast';
-import Modal, { useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 
 export default function Login() {
   const [email, setEmail] = useState('');

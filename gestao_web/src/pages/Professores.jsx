@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import { professoresService } from '../services/professoresService';
 import { useDebounce } from '../hooks/useDebounce';
 
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 
-import Modal, { useModal } from '../components/ui/Modal';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
@@ -32,11 +33,7 @@ export default function Professores() {
   const modalForm   = useModal();
   const modalStatus = useModal();
 
-  useEffect(() => {
-    carregarProfessores();
-  }, [buscaDebounced]);
-
-  async function carregarProfessores() {
+  const carregarProfessores = useCallback(async () => {
     setLoading(true);
     try {
       const data = await professoresService.listar(buscaDebounced);
@@ -46,7 +43,11 @@ export default function Professores() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [buscaDebounced]);
+
+  useEffect(() => {
+    carregarProfessores();
+  }, [carregarProfessores]);
 
   function abrirModalCriar() {
     setFormProfessor({ id: null, nome: '', email: '', telefone: '', pix_comissao: '', auth_id: null });

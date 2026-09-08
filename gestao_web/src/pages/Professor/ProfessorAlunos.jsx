@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
-import { showToast } from '../../components/shared/Toast';
+import { showToast } from '../../components/shared/showToast';
 import Surface from '../../components/ui/Surface';
 import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';

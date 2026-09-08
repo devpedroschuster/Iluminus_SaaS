@@ -8,9 +8,10 @@ import { useQuery } from '@tanstack/react-query';
 import { gradeService } from '../../services/gradeService';
 import { alunosService } from '../../services/alunosService';
 import { useAgenda } from '../../hooks/useAgenda';
-import Modal, { useModal, ModalConfirmacao } from '../../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../../components/ui/Modal';
+import { useModal } from '../../components/ui/useModal';
 import { TableSkeleton } from '../../components/shared/Loading';
-import { showToast } from '../../components/shared/Toast';
+import { showToast } from '../../components/shared/showToast';
 
 import { useAgendaPage } from './hooks/useAgendaPage';
 import { useAgendaDadosMes } from './hooks/useAgendaDadosMes';

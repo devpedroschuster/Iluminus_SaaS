@@ -1,7 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { 
+import {
   UserPlus, Users, Edit2, Ban, Trash2,
   Clock, MapPin, Dumbbell, Music, User, Hash
 } from 'lucide-react';
@@ -9,7 +8,7 @@ import { PALETA_CORES } from '../../../lib/constants';
 import Button from '../../../components/ui/Button';
 
 // ─── Ficha de informações somente-leitura (professor) ──────────────────────
-function DetalheAula({ evento, corTema }) {
+function DetalheAula({ evento }) {
   const d = evento.dadosOriginais;
   const duracaoLabel = d.duracao_minutos
     ? d.duracao_minutos < 60
@@ -43,7 +42,7 @@ function DetalheAula({ evento, corTema }) {
 
 // ─── Componente principal ──────────────────────────────────────────────────
 export default function ModalAcoesEvento({ 
-  evento, isAdmin, professorIdLogado, onAgendar, onChamada, onEditar, onEncerrar, onExcluir 
+  evento, isAdmin, onAgendar, onChamada, onEditar, onEncerrar, onExcluir
 }) {
   if (!evento) return null;
 

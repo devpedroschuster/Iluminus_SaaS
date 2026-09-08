@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { gradeService } from '../../../services/gradeService';
-import { showToast } from '../../../components/shared/Toast';
+import { showToast } from '../../../components/shared/showToast';
 
 export function useFeriados(refetch) {
   const [novoFeriado, setNovoFeriado] = useState({ data: '', descricao: '' });
@@ -16,7 +16,7 @@ export function useFeriados(refetch) {
       showToast.success("Bloqueio adicionado na agenda!");
       setNovoFeriado({ data: '', descricao: '' });
       refetch();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao salvar bloqueio.");
     } finally {
       setSavingFeriado(false);
@@ -32,7 +32,7 @@ export function useFeriados(refetch) {
       await gradeService.excluirFeriado(feriadoParaExcluir);
       showToast.success("Bloqueio removido.");
       refetch();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao remover bloqueio.");
     } finally {
       setFeriadoParaExcluir(null);

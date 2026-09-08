@@ -14,10 +14,11 @@ import {
   useResumoMensal,
   useInvalidarComissoes,
 } from '../hooks/useComissoesProfessor';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
-import Modal, { ModalConfirmacao, useModal } from '../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import ModalPreviewRepasses from '../components/ModalPreviewRepasses';
 import { formatarMoeda } from '../lib/utils';
 import Badge from '../components/ui/Badge';
@@ -345,7 +346,10 @@ function AbaDetalhe({
   }, [erroDados]);
 
   // Lançamentos efetivos = locais (com edições) ou os do servidor
-  const lancamentosEfetivos = lancamentosLocais ?? dados?.lancamentos ?? [];
+  const lancamentosEfetivos = useMemo(
+    () => lancamentosLocais ?? dados?.lancamentos ?? [],
+    [lancamentosLocais, dados?.lancamentos]
+  );
 
   // Filtra por tipo_aula no client
   const lancamentosFiltrados = useMemo(() => {

@@ -9,7 +9,7 @@ import { RefreshCw, CheckCircle, AlertTriangle, User, Calendar } from 'lucide-re
 
 import { supabase } from '../lib/supabase'; // ajuste o caminho se necessário
 import { reprocessarRepasse } from '../services/repasseService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import Surface from '../components/ui/Surface';

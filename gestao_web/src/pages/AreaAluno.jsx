@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
-import { showToast } from '../components/shared/Toast'; 
+import { showToast } from '../components/shared/showToast';
 
 const gerarProximosDias = () => {
   const dias = [];

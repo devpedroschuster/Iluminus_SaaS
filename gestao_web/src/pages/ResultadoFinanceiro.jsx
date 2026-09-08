@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
   Receipt, PiggyBank, BarChart2, Minus,
 } from 'lucide-react';
-import { format, subMonths, addMonths, startOfMonth } from 'date-fns';
+import { format, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatarMoeda } from '../lib/utils';
 import { CORES } from '../lib/constants';

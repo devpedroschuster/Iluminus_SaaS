@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { agendamentoService } from '../../../services/agendamentoService';
-import { showToast } from '../../../components/shared/Toast';
+import { showToast } from '../../../components/shared/showToast';
 
 // Classifica o motivo do bloqueio a partir da mensagem de erro do service/RPC.
 // Retorna 'lotacao' | 'plano' | null

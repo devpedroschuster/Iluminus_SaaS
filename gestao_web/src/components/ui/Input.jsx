@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/cn';
 
-export const inputBaseClass = cn(
+const inputBaseClass = cn(
   'w-full rounded-xl border border-border bg-input text-foreground',
   'placeholder:text-muted-foreground',
   'px-4 py-3 text-sm font-medium',

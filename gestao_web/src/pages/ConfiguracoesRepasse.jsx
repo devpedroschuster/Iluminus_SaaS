@@ -58,8 +58,41 @@ function Tooltip({ text }) {
   );
 }
 
+// ─── Campo numérico com label/tooltip/erro (fora do componente para evitar
+// remount/perda de foco toda vez que `errors`/`register` mudam de referência) ─
+function Field({ label, name, suffix, icon: Icon, tooltip, error, register }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
+        {Icon && <Icon size={12} />}
+        {label}
+        {tooltip && <Tooltip text={tooltip} />}
+      </label>
+      <div className="relative">
+        <Input
+          type="number"
+          step="0.01"
+          error={!!error}
+          {...register(name)}
+          className={suffix ? 'pr-10' : ''}
+        />
+        {suffix && (
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground/60 select-none">
+            {suffix}
+          </span>
+        )}
+      </div>
+      {error && (
+        <p className="text-[10px] font-bold text-destructive animate-in fade-in slide-in-from-top-1">
+          {error.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Simulador de divisão em R$ ───────────────────────────────────────────────
-function DivisaoSimulada({ label, valor, pctProf, pctCasa, pctCasaLabel = '% Casa' }) {
+function DivisaoSimulada({ valor, pctProf, pctCasa }) {
   if (!valor || valor <= 0) return null;
   const prof = ((pctProf / 100) * valor).toFixed(2);
   const casa = pctCasa != null ? ((pctCasa / 100) * valor).toFixed(2) : null;
@@ -120,36 +153,6 @@ export default function ConfiguracoesRepasse() {
   // Watch dos valores para o simulador em tempo real
   const watched = useWatch({ control });
 
-  // ─── Field component (definido fora do render para evitar re-mount) ───────
-  const Field = useCallback(({ label, name, suffix, icon: Icon, tooltip }) => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-black text-muted-foreground uppercase flex items-center gap-1.5">
-        {Icon && <Icon size={12} />}
-        {label}
-        {tooltip && <Tooltip text={tooltip} />}
-      </label>
-      <div className="relative">
-        <Input
-          type="number"
-          step="0.01"
-          error={!!errors[name]}
-          {...register(name)}
-          className={suffix ? 'pr-10' : ''}
-        />
-        {suffix && (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground/60 select-none">
-            {suffix}
-          </span>
-        )}
-      </div>
-      {errors[name] && (
-        <p className="text-[10px] font-bold text-destructive animate-in fade-in slide-in-from-top-1">
-          {errors[name].message}
-        </p>
-      )}
-    </div>
-  ), [errors, register]);
-
   if (isLoading) {
     return (
       <div className="h-full w-full flex items-center justify-center p-20">
@@ -199,6 +202,8 @@ export default function ConfiguracoesRepasse() {
               suffix="R$"
               icon={DollarSign}
               tooltip="Mensalidade padrão para alunos matriculados em uma única modalidade."
+              error={errors.valor_1_modalidade}
+              register={register}
             />
             <Field
               label="Valor Multi-Modalidade (Livre)"
@@ -206,6 +211,8 @@ export default function ConfiguracoesRepasse() {
               suffix="R$"
               icon={DollarSign}
               tooltip="Mensalidade para alunos no Plano Livre, que frequentam múltiplas modalidades sem restrição de turma."
+              error={errors.valor_multi_modalidade}
+              register={register}
             />
           </div>
         </Surface>
@@ -217,8 +224,8 @@ export default function ConfiguracoesRepasse() {
             <Tooltip text="No Plano Livre, a mensalidade é dividida proporcionalmente entre a casa e os professores com base nas aulas frequentadas. A soma deve ser 100%." />
           </h2>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="% Casa" name="plano_livre_pct_casa" suffix="%" />
-            <Field label="% Professores" name="plano_livre_pct_prof" suffix="%" />
+            <Field label="% Casa" name="plano_livre_pct_casa" suffix="%" error={errors.plano_livre_pct_casa} register={register} />
+            <Field label="% Professores" name="plano_livre_pct_prof" suffix="%" error={errors.plano_livre_pct_prof} register={register} />
           </div>
           {/* Simulador em tempo real */}
           <DivisaoSimulada
@@ -254,8 +261,8 @@ export default function ConfiguracoesRepasse() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Valor" name="aula_experimental_valor" suffix="R$" icon={DollarSign} />
-                <Field label="% Prof." name="aula_experimental_pct_prof" suffix="%" />
+                <Field label="Valor" name="aula_experimental_valor" suffix="R$" icon={DollarSign} error={errors.aula_experimental_valor} register={register} />
+                <Field label="% Prof." name="aula_experimental_pct_prof" suffix="%" error={errors.aula_experimental_pct_prof} register={register} />
               </div>
               {/* CR2: aviso de valor zero */}
               {avisoExperimental && (
@@ -277,9 +284,9 @@ export default function ConfiguracoesRepasse() {
                 <Tooltip text="Aula paga de forma avulsa, sem vínculo com plano. O valor total é dividido entre casa e professor. A soma % Casa + % Prof. deve ser 100%." />
               </p>
               <div className="grid grid-cols-3 gap-3">
-                <Field label="Valor" name="aula_avulsa_valor" suffix="R$" />
-                <Field label="% Casa" name="aula_avulsa_pct_casa" suffix="%" />
-                <Field label="% Prof." name="aula_avulsa_pct_prof" suffix="%" />
+                <Field label="Valor" name="aula_avulsa_valor" suffix="R$" error={errors.aula_avulsa_valor} register={register} />
+                <Field label="% Casa" name="aula_avulsa_pct_casa" suffix="%" error={errors.aula_avulsa_pct_casa} register={register} />
+                <Field label="% Prof." name="aula_avulsa_pct_prof" suffix="%" error={errors.aula_avulsa_pct_prof} register={register} />
               </div>
               {/* CR2: aviso de valor zero */}
               {avisoAvulsa && (

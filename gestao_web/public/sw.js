@@ -61,7 +61,7 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification.data?.url || '/agenda';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Se já existe uma aba aberta do app, foca nela e navega
       for (const client of windowClients) {
         if ('focus' in client) {
@@ -71,7 +71,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       // Senão, abre uma nova aba
-      if (clients.openWindow) return clients.openWindow(url);
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });

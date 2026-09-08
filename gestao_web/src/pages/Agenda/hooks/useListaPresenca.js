@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { agendamentoService } from '../../../services/agendamentoService';
-import { showToast } from '../../../components/shared/Toast';
+import { showToast } from '../../../components/shared/showToast';
 
 export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) {
   const [listaPresenca, setListaPresenca] = useState([]);

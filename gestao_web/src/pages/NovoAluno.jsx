@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import Modal from '../components/shared/Modal';
 
 // CPF helpers
@@ -283,14 +283,10 @@ export default function NovoAluno() {
       }
     }
     carregarFichaCompleta();
-  }, [alunoParaEditar, reset]);
-
-  useEffect(() => {
-    if (abaAtiva === 'agenda' && alunoParaEditar) carregarAgendaFixa();
-  }, [abaAtiva, alunoParaEditar]);
+  }, [alunoParaEditar, reset, leadParaConversao]);
 
   // agenda fixa
-  async function carregarAgendaFixa() {
+  const carregarAgendaFixa = useCallback(async () => {
     setLoadingAgenda(true);
     try {
       const { data: aulas } = await supabase
@@ -314,7 +310,11 @@ export default function NovoAluno() {
     } finally {
       setLoadingAgenda(false);
     }
-  }
+  }, [alunoParaEditar]);
+
+  useEffect(() => {
+    if (abaAtiva === 'agenda' && alunoParaEditar) carregarAgendaFixa();
+  }, [abaAtiva, alunoParaEditar, carregarAgendaFixa]);
 
   const buscarCep = async (cep) => {
     const cepLimpo = cep.replace(/\D/g, '');

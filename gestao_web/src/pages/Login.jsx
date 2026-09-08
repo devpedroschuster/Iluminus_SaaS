@@ -14,7 +14,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const { professorInativo, alunoInativo } = useAuth();
+  const { professorInativo, alunoInativo, perfilNaoEncontrado } = useAuth();
 
   const navigate = useNavigate();
   const modalRecuperar = useModal();
@@ -98,9 +98,17 @@ export default function Login() {
         return;
       }
 
-      // Fallback (sem perfil correspondente)
-      showToast.success('Login realizado com sucesso!');
-      navigate('/');
+      // Fallback (sem perfil correspondente) — ILU-39: conta órfã no
+      // Supabase Auth, sem linha correspondente em `alunos` nem
+      // `professores`. Mostrar sucesso e navegar pra Landing como se fosse
+      // uma conta normal escondia o problema por completo — o usuário via
+      // um toast de sucesso e caía na home pública, sem nenhuma pista de
+      // que a conta está quebrada (o mesmo caso que useAuth.js trata ao
+      // carregar uma sessão já existente, mas esta é a checagem própria do
+      // formulário de login, redundante e até agora com esse fallback
+      // silencioso).
+      showToast.error('Conta sem perfil configurado. Contate o suporte.');
+      await supabase.auth.signOut();
 
     } catch (err) {
       // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código
@@ -157,9 +165,11 @@ export default function Login() {
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
         </div>
 
-        {(professorInativo || alunoInativo) && (
+        {(professorInativo || alunoInativo || perfilNaoEncontrado) && (
     <div className="p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-destructive text-sm font-medium">
-      Sua conta está desativada. Entre em contato com a gestão do espaço.
+      {perfilNaoEncontrado
+        ? 'Conta sem perfil configurado. Contate o suporte.'
+        : 'Sua conta está desativada. Entre em contato com a gestão do espaço.'}
     </div>
   )}
 

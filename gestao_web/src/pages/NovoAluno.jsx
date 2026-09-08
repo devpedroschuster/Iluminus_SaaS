@@ -446,6 +446,70 @@ export default function NovoAluno() {
     }
   }
 
+  // ILU-31: histórico do plano + primeira mensalidade, extraídos para uma
+  // função própria para que a mesma lógica possa ser chamada de novo em
+  // caso de retry (ver avisarFalhaFinanceira abaixo). Cada insert só roda
+  // se ainda não existir um registro equivalente — assim um retry depois de
+  // uma falha parcial (ex.: histórico foi criado mas a mensalidade falhou)
+  // não duplica o que já tinha sido salvo com sucesso na tentativa anterior.
+  async function criarRegistrosFinanceiros(alunoId, planoId, planoInfo, dataInicio, dataFim, vencimento) {
+    const { data: histExistente } = await supabase
+      .from('historico_planos')
+      .select('id')
+      .match({ aluno_id: alunoId, plano_id: planoId, data_inicio: dataInicio, status: 'ativo' })
+      .maybeSingle();
+
+    if (!histExistente) {
+      const { error: errHist } = await supabase.from('historico_planos').insert([{
+        aluno_id:    alunoId,
+        plano_id:    planoId,
+        data_inicio: dataInicio,
+        data_fim:    dataFim,
+        status:      'ativo',
+        valor_pago:  planoInfo.preco || 0,
+      }]);
+      if (errHist) throw errHist;
+    }
+
+    const { data: mensExistente } = await supabase
+      .from('mensalidades')
+      .select('id')
+      .match({ aluno_id: alunoId, plano_id: planoId, data_vencimento: vencimento })
+      .maybeSingle();
+
+    if (!mensExistente) {
+      const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
+        aluno_id:        alunoId,
+        plano_id:        planoId,
+        data_vencimento: vencimento,
+        status:          'pendente',
+        valor_esperado:  planoInfo.preco ?? null,
+      }]);
+      if (errMensalidade) throw errMensalidade;
+    }
+  }
+
+  // ILU-31: aviso persistente (com botão de retry) quando o histórico do
+  // plano/primeira mensalidade falha depois que o aluno já foi salvo.
+  function avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento) {
+    async function tentarNovamente() {
+      try {
+        await criarRegistrosFinanceiros(
+          alunoId, planoId, planoInfo,
+          payload.data_inicio_plano, payload.data_fim_plano, vencimento,
+        );
+        showToast.success('Registro financeiro criado com sucesso!');
+      } catch (novoErro) {
+        console.error('[NovoAluno] Nova falha ao registrar histórico/mensalidade:', novoErro);
+        avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento);
+      }
+    }
+    showToast.custom(
+      `Cadastro de ${nomeAluno} salvo, mas falhou o registro do histórico do plano e da 1ª mensalidade.`,
+      tentarNovamente, 'Tentar novamente', 15000,
+    );
+  }
+
   // ─────────────────────────────────────────────────────────
   // Fix #4 – Phase 1: save aluno WITHOUT creating auth.
   //          Auth creation is a separate, explicit action.
@@ -535,25 +599,21 @@ export default function NovoAluno() {
       }
 
       // Financial records
+      // ILU-31: uma falha aqui não pode passar batido — o aluno já foi
+      // criado, então em vez de só logar no console e seguir direto pra
+      // tela de sucesso como se nada tivesse acontecido, avisamos o admin
+      // com uma ação de retry (o toast fica na tela mesmo que o fluxo
+      // navegue para outra rota logo em seguida).
       if (novoAlunoId && planoFinal && planoInfos) {
-        const { error: errHist } = await supabase.from('historico_planos').insert([{
-          aluno_id:    novoAlunoId,
-          plano_id:    planoFinal,
-          data_inicio: payloadBase.data_inicio_plano,
-          data_fim:    payloadBase.data_fim_plano,
-          status:      'ativo',
-          valor_pago:  planoInfos.preco || 0,
-        }]);
-        if (errHist) console.error('Erro no histórico:', errHist);
-
-        const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
-          aluno_id:        novoAlunoId,
-          plano_id:        planoFinal,
-          data_vencimento: dataVencimento,
-          status:          'pendente',
-          valor_esperado:  planoInfos.preco ?? null,
-        }]);
-        if (errMensalidade) console.error('Erro na mensalidade:', errMensalidade);
+        try {
+          await criarRegistrosFinanceiros(
+            novoAlunoId, planoFinal, planoInfos,
+            payloadBase.data_inicio_plano, payloadBase.data_fim_plano, dataVencimento,
+          );
+        } catch (errFinanceiro) {
+          console.error('[NovoAluno] Falha ao registrar histórico/mensalidade:', errFinanceiro);
+          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, planoFinal, planoInfos, payloadBase, dataVencimento);
+        }
       }
 
       // Lead conversion
@@ -598,7 +658,9 @@ export default function NovoAluno() {
       if (linkError) throw new Error('Acesso criado, mas falhou ao vincular ao cadastro. Anote o auth_id e contacte o suporte.');
 
       setAcessoCriado(true);
-      setDadosCriados({ nome: alunoSalvoNome, email: alunoSalvoEmail });
+      // ILU-32: a senha agora vem gerada pelo servidor a cada chamada —
+      // não existe mais um valor fixo pra repetir aqui.
+      setDadosCriados({ nome: alunoSalvoNome, email: alunoSalvoEmail, senha: funcData.senha_temporaria });
       setModalOpen(true);
     } catch (err) {
       setErroAcesso(err.message || 'Falha ao criar acesso. Tente novamente.');
@@ -611,7 +673,7 @@ export default function NovoAluno() {
     const texto =
       `Olá ${dadosCriados.nome}!\nSeu cadastro no Espaço Iluminus foi criado.\n\n` +
       `Acesse: ${window.location.origin}\nLogin: ${dadosCriados.email}\n` +
-      `Senha Provisória: Iluminus576\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
+      `Senha Provisória: ${dadosCriados.senha}\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
     navigator.clipboard.writeText(texto);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);

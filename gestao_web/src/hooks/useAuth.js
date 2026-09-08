@@ -8,6 +8,9 @@ export function useAuth() {
   const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
   const [professorInativo, setProfessorInativo] = useState(false);
   const [alunoInativo, setAlunoInativo] = useState(false);
+  // ILU-39: conta órfã — sessão válida no Supabase Auth, mas sem linha
+  // correspondente em `alunos` nem `professores`.
+  const [perfilNaoEncontrado, setPerfilNaoEncontrado] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const perfilJaCarregado = useRef(false);
@@ -29,6 +32,7 @@ export function useAuth() {
           setNomeUsuario(null); // #18
           setProfessorInativo(false);
           setAlunoInativo(false);
+          setPerfilNaoEncontrado(false);
           setLoading(false);
         }
         return;
@@ -77,6 +81,7 @@ export function useAuth() {
           setProfessorId(null);
           setNomeUsuario(null); // alunos não têm nome exposto aqui
           setAlunoInativo(false);
+          setPerfilNaoEncontrado(false); // ILU-39
           setLoading(false);
           return;
         }
@@ -97,6 +102,7 @@ export function useAuth() {
           setProfessorId(professor.id);
           setNomeUsuario(professor.nome ?? null); // #18
           setProfessorInativo(false);
+          setPerfilNaoEncontrado(false); // ILU-39
           setLoading(false);
           return;
         }
@@ -116,9 +122,28 @@ export function useAuth() {
         perfilJaCarregado.current = true;
         perfilCarregadoParaId.current = authId;
         console.warn('Nenhum perfil encontrado para auth_id:', authId);
+        // ILU-39: sem isso, `sessao` continuava preenchida com `perfil = null`,
+        // o que travava o usuário num loop infinito entre /login e
+        // /area-aluno (App.jsx manda pra lá quando há sessão, e a rota
+        // privada manda de volta pro /login por falta de perfil).
+        //
+        // Testado ao vivo: espelhar o branch professorInativo (setLoading(false)
+        // e só then aguardar signOut()) reproduz exatamente esse loop — o
+        // React Router alterna entre as duas rotas mais rápido do que o
+        // round-trip de rede do signOut(), e o React desiste de renderizar
+        // ("Maximum update depth exceeded"), deixando a tela em branco e a
+        // sessão presa. Por isso aqui `sessao` é limpa no mesmo lote de
+        // estado que `perfil`, antes de qualquer render acontecer, e o
+        // signOut() roda em segundo plano só para invalidar o token no
+        // servidor/localStorage — sem bloquear a UI nem participar da corrida.
+        setPerfilNaoEncontrado(true);
         setPerfil(null);
         setProfessorId(null);
         setNomeUsuario(null);
+        setSessao(null);
+        setLoading(false);
+        supabase.auth.signOut().catch(() => {});
+        return;
       } catch (error) {
         console.error('Erro fatal ao carregar perfil:', error);
         if (cancelled) return;
@@ -150,6 +175,11 @@ export function useAuth() {
         setNomeUsuario(null); // #18
         setProfessorInativo(false);
         setAlunoInativo(false);
+        // ILU-39: perfilNaoEncontrado NÃO é resetado aqui de propósito — este
+        // SIGNED_OUT é disparado pelo próprio signOut() em segundo plano do
+        // branch "nenhum perfil encontrado" acima, e a mensagem só chega a
+        // aparecer na tela de Login se sobreviver a esse evento. Ela só volta
+        // a ser limpa quando um novo login encontra um perfil válido.
         setLoading(false);
 
       } else if (event === 'SIGNED_IN') {
@@ -177,5 +207,8 @@ export function useAuth() {
     };
   }, []);
 
-  return { sessao, perfil, professorId, nomeUsuario, loading, professorInativo, alunoInativo };
+  return {
+    sessao, perfil, professorId, nomeUsuario, loading,
+    professorInativo, alunoInativo, perfilNaoEncontrado,
+  };
 }

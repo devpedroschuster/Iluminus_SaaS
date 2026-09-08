@@ -12,6 +12,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // ILU-59: no CI, workers em paralelo (default: metade das CPUs) faziam
+  // vários specs logarem com a MESMA conta de teste (E2E_ADMIN_EMAIL) ao
+  // mesmo tempo, o que multiplicava tentativas de login e parece ter
+  // acionado rate-limit do Supabase Auth (GoTrue) pra essa conta — auth.spec.js
+  // falhava de forma consistente e determinística, inclusive em reruns do
+  // mesmo commit. 1 worker no CI serializa todos os logins, eliminando a
+  // rajada concorrente sem tocar em nenhum teste.
+  workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,

@@ -115,12 +115,18 @@ export const leadsService = {
   },
 
   async atualizarStatusLead(leadId, novoStatus) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const { data, error } = await supabase
       .from('leads')
       .update({ status_conversao: novoStatus })
-      .eq('id', leadId);
+      .eq('id', leadId)
+      .select('id, status_conversao')
+      .single();
 
     if (error) throw error;
+    if (data.status_conversao !== novoStatus) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 
@@ -129,12 +135,19 @@ export const leadsService = {
    * (ex: "não fechou por preço", "aguardando dinheiro").
    */
   async atualizarObservacaoLead(leadId, observacao) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const novaObservacao = observacao || null;
+    const { data, error } = await supabase
       .from('leads')
-      .update({ observacao: observacao || null })
-      .eq('id', leadId);
+      .update({ observacao: novaObservacao })
+      .eq('id', leadId)
+      .select('id, observacao')
+      .single();
 
     if (error) throw error;
+    if (data.observacao !== novaObservacao) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 

@@ -62,6 +62,46 @@ export const paraUTC = (ano, mes, dia = 1) => {
   return new Date(Date.UTC(ano, mes, dia)).toISOString().split('T')[0];
 };
 
+/**
+ * Data de "hoje" no formato 'AAAA-MM-DD', calculada no fuso de Brasília
+ * (America/Sao_Paulo) em vez de UTC (ILU-19). `new Date().toISOString()`
+ * sempre usa UTC — como o Brasil é UTC-3, entre ~21h e meia-noite no
+ * horário de Brasília a data-calendário em UTC já virou o dia seguinte,
+ * fazendo comparações/gravações de "hoje" errarem por um dia nesse
+ * intervalo (vencimento marcado como atrasado cedo demais, data de
+ * matrícula/pagamento gravada com um dia a mais, etc).
+ */
+export const hojeBrasilia = () => {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const mapa = Object.fromEntries(partes.map((p) => [p.type, p.value]));
+  return `${mapa.year}-${mapa.month}-${mapa.day}`;
+};
+
+/**
+ * Soma um mês de calendário a uma data 'AAAA-MM-DD', preservando o dia
+ * quando possível (ex.: 2026-01-15 → 2026-02-15) e recuando para o último
+ * dia do mês de destino quando o dia original não existir nele (ex.:
+ * 2026-01-31 → 2026-02-28) — mesmo approach usado em
+ * despesasService.replicarRecorrentes. Evita o desvio de "+30 dias fixos"
+ * (ILU-17), que desalinha com o calendário real (meses têm 28-31 dias) e
+ * pode pular um mês inteiro para vencimentos perto do fim do mês.
+ */
+export const avancarUmMes = (dataStr) => {
+  const d = new Date(dataStr + 'T12:00:00');
+  const dia = d.getDate();
+  const mesAlvo = d.getMonth() + 1; // 0-indexed; pode "estourar" para 12 (Date normaliza para janeiro do ano seguinte)
+  const proxima = new Date(d.getFullYear(), mesAlvo, dia, 12);
+  if (proxima.getMonth() !== mesAlvo % 12) {
+    proxima.setDate(0); // recua para o último dia do mês de destino
+  }
+  return proxima.toISOString().split('T')[0];
+};
+
 export const validarEmail = (email) => {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);

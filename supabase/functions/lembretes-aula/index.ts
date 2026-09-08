@@ -60,23 +60,39 @@ serve(async (req) => {
 
     const notificacoes = [];
 
+    // ILU-14: `.horario`/`.atividade` agora são acessados com optional
+    // chaining — uma linha de `presencas` com `agenda` órfã/incompleta
+    // (aula excluída depois que a presença foi criada, inconsistência de
+    // dados) é logada e pulada, em vez de lançar um TypeError que abortava
+    // a function inteira com 500 (zero lembretes para TODOS os alunos do
+    // dia, não só o registro problemático).
     for (const ag of agendamentos) {
-      if (ag.alunos?.push_token && ag.agenda) {
-        const primeiroNome = (ag.alunos.nome_completo ?? '').split(' ')[0];
-        const horario = ag.agenda.horario.substring(0, 5);
+      if (!ag.alunos?.push_token) continue;
 
-        notificacoes.push({
-          to: ag.alunos.push_token,
-          title: '🏋️ Lembrete Iluminus',
-          body: `Olá, ${primeiroNome}! Sua aula de ${ag.agenda.atividade} é amanhã às ${horario}. Te esperamos!`,
-          sound: 'default'
-        });
+      const horario = ag.agenda?.horario?.substring(0, 5);
+      if (!horario || !ag.agenda?.atividade) {
+        console.warn(`⚠️ Presença ${ag.id} sem agenda/horário válido — lembrete pulado.`);
+        continue;
       }
+
+      const primeiroNome = (ag.alunos.nome_completo ?? '').split(' ')[0];
+
+      notificacoes.push({
+        to: ag.alunos.push_token,
+        title: '🏋️ Lembrete Iluminus',
+        body: `Olá, ${primeiroNome}! Sua aula de ${ag.agenda.atividade} é amanhã às ${horario}. Te esperamos!`,
+        sound: 'default'
+      });
     }
 
     if (notificacoes.length > 0) {
       console.log(`🚀 Enviando ${notificacoes.length} notificações...`);
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      // ILU-14 (bônus): a Expo retorna 200 mesmo com falhas parciais — o
+      // resultado por ticket vem no corpo da resposta, não no status HTTP.
+      // Sem checar `res.ok` nem ler o corpo, tokens inválidos/expirados
+      // falhavam silenciosamente e a function reportava `success: true`
+      // mesmo quando nenhum push foi realmente entregue.
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -84,6 +100,17 @@ serve(async (req) => {
         },
         body: JSON.stringify(notificacoes),
       });
+
+      if (!res.ok) {
+        console.error(`❌ Expo push API respondeu ${res.status}: ${await res.text()}`);
+      } else {
+        const corpo = await res.json();
+        const tickets = Array.isArray(corpo?.data) ? corpo.data : [];
+        const falhas = tickets.filter((t: { status?: string }) => t.status === 'error');
+        if (falhas.length > 0) {
+          console.error(`❌ ${falhas.length}/${tickets.length} tickets de push falharam:`, JSON.stringify(falhas));
+        }
+      }
     }
 
     return new Response(JSON.stringify({ success: true, enviados: notificacoes.length }), { 

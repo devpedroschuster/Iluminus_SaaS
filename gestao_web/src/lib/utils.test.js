@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { valorDevidoMensalidade, parseValorMoeda, formatarValorInput } from './utils';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes } from './utils';
 
 describe('valorDevidoMensalidade', () => {
   it('usa valor_pago quando a mensalidade está paga', () => {
@@ -96,5 +96,51 @@ describe('ciclo preencher→enviar (regressão ILU-28)', () => {
     const valorPreenchidoNoInput = formatarValorInput(precoDoPlano);
     const valorEnviado = parseValorMoeda(valorPreenchidoNoInput);
     expect(valorEnviado).toBe(precoDoPlano);
+  });
+});
+
+describe('hojeBrasilia (regressão ILU-19)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('usa o fuso de Brasília (UTC-3), não UTC, perto da virada do dia', () => {
+    // 2026-01-16T01:00:00Z = 2026-01-15 22:00 em Brasília (UTC-3) — ainda dia 15.
+    // O bug original (`new Date().toISOString().split('T')[0]`) retornaria "2026-01-16".
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-16T01:00:00.000Z'));
+
+    expect(hojeBrasilia()).toBe('2026-01-15');
+    expect(new Date().toISOString().split('T')[0]).toBe('2026-01-16');
+  });
+
+  it('concorda com UTC fora da janela de virada (meio da tarde)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T15:00:00.000Z'));
+
+    expect(hojeBrasilia()).toBe('2026-06-10');
+  });
+});
+
+describe('avancarUmMes (regressão ILU-17)', () => {
+  it('preserva o dia quando ele existe no mês seguinte', () => {
+    expect(avancarUmMes('2026-03-15')).toBe('2026-04-15');
+  });
+
+  it('recua para o último dia de fevereiro quando vindo do dia 31 de janeiro (não-bissexto)', () => {
+    // Bug original (+30 dias fixos): 2026-01-31 + 30 dias = 2026-03-02, pulando fevereiro inteiro.
+    expect(avancarUmMes('2026-01-31')).toBe('2026-02-28');
+  });
+
+  it('recua para 29/fev em ano bissexto', () => {
+    expect(avancarUmMes('2028-01-31')).toBe('2028-02-29');
+  });
+
+  it('vira o ano ao avançar de dezembro para janeiro', () => {
+    expect(avancarUmMes('2026-12-15')).toBe('2027-01-15');
+  });
+
+  it('mantém dia 30 ao avançar de um mês de 30 dias para um de 31', () => {
+    expect(avancarUmMes('2026-04-30')).toBe('2026-05-30');
   });
 });

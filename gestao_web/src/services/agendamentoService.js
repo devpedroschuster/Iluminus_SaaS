@@ -228,11 +228,17 @@ async agendarAulaAdmin(dados) {
       .maybeSingle();
 
     if (existente) {
-      const { error } = await supabase
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
         .from('presencas')
         .update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo })
-        .eq('id', existente.id);
+        .eq('id', existente.id)
+        .select('id, status')
+        .single();
       if (error) throw error;
+      if (data.status !== 'cancelado') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return;
     }
 
@@ -252,14 +258,35 @@ async agendarAulaAdmin(dados) {
 
   // Reverte um aviso de falta (volta para 'agendado').
   async removerFalta(alunoId, aulaId, dataEspecifica) {
-    const { error } = await supabase
+    // ILU-18: o filtro `.eq('status', 'cancelado')` faz 0 linhas afetadas
+    // ser um resultado ESPERADO quando não há falta pra reverter (proteção
+    // original) — diferente dos outros casos deste arquivo, aqui não dá pra
+    // simplesmente exigir 1 linha sempre. Por isso primeiro localizamos a
+    // linha (se existir, ainda cancelada) e só então aplicamos o mesmo
+    // padrão de alunosService.alterarStatus na atualização por id, que
+    // distingue "nada para reverter" (ok, retorna cedo) de "a linha existia
+    // mas a atualização não pegou" (RLS/permissão — deve virar erro).
+    const { data: existente, error: errBusca } = await supabase
       .from('presencas')
-      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
+      .select('id')
       .eq('aluno_id', alunoId)
       .eq('aula_id', aulaId)
       .eq('data_aula', dataEspecifica)
-      .eq('status', 'cancelado'); // só reverte se ainda estava cancelado (proteção)
+      .eq('status', 'cancelado')
+      .maybeSingle();
+    if (errBusca) throw errBusca;
+    if (!existente) return; // nada para reverter — comportamento já esperado
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
+      .eq('id', existente.id)
+      .select('id, status')
+      .single();
     if (error) throw error;
+    if (data.status !== 'agendado') {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
   },
 
   // Marca presença manualmente (uso do admin, a qualquer horário — antes,
@@ -277,7 +304,8 @@ async agendarAulaAdmin(dados) {
       // origem 'agendamento' sinaliza que essa presença veio de um registro
       // que já existia como 'agendado' — assim desmarcarPresenca sabe que
       // deve reverter para 'agendado' em vez de apagar a linha.
-      const { error } = await supabase
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
         .from('presencas')
         .update({
           status: 'presente',
@@ -285,8 +313,13 @@ async agendarAulaAdmin(dados) {
           origem: 'agendamento',
           reposicao_de_id: reposicaoDeId,
         })
-        .eq('id', idRelacao);
+        .eq('id', idRelacao)
+        .select('id, status')
+        .single();
       if (error) throw error;
+      if (data.status !== 'presente') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return;
     }
 
@@ -313,11 +346,17 @@ async agendarAulaAdmin(dados) {
     if (!idRelacao) return;
 
     if (tipo === 'agendamento') {
-      const { error } = await supabase
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
         .from('presencas')
         .update({ status: 'agendado', data_checkin: null })
-        .eq('id', idRelacao);
+        .eq('id', idRelacao)
+        .select('id, status')
+        .single();
       if (error) throw error;
+      if (data.status !== 'agendado') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return;
     }
 

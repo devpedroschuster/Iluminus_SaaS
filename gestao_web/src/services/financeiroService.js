@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
+import { avancarUmMes, hojeBrasilia } from '../lib/utils';
 
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
@@ -101,9 +102,13 @@ async listarModalidadesDoAluno(alunoId) {
 
       let proximaData;
       if (ultimaDataStr) {
-        const d = new Date(ultimaDataStr + 'T12:00:00');
-        d.setDate(d.getDate() + 30);
-        proximaData = d.toISOString().split('T')[0];
+        // ILU-17: antes somava 30 dias fixos, o que desalinha com o
+        // calendário real (meses têm 28-31 dias) e podia pular um mês
+        // inteiro para vencimentos perto do fim do mês (ex.: 31/jan + 30
+        // dias = 2/mar, nunca cai em fevereiro). `avancarUmMes` avança pro
+        // mesmo dia do mês seguinte, recuando ao último dia do mês de
+        // destino quando necessário.
+        proximaData = avancarUmMes(ultimaDataStr);
       } else {
         // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
         proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
@@ -200,7 +205,9 @@ async listarModalidadesDoAluno(alunoId) {
     // NOVO: referência explícita da modalidade quando tipo_aula === 'regular'
     // e o pagamento cobre só uma delas. Nulo preserva o rateio de sempre.
     modalidade_id: dados.tipo_aula === 'regular' ? (dados.modalidade_id || null) : null,
-    data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
+    // ILU-19: `hojeBrasilia()` em vez de UTC — perto da meia-noite em
+    // Brasília, `toISOString()` já rendia o dia seguinte.
+    data_pagamento: dados.data_pagamento || hojeBrasilia(),
   };
 
     const { error } = await supabase

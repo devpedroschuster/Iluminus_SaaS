@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { hojeBrasilia } from '../lib/utils';
 
 export const gradeService = {
   async listarProfessores() {
@@ -75,8 +76,24 @@ export const gradeService = {
 
   async salvarAula(aula) {
     if (aula.id) {
-      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
+      // ILU-18: mesmo padrão de alunosService.alterarStatus — sem
+      // `.select()`, um `.update()` que afeta 0 linhas (RLS bloqueando
+      // silenciosamente, id obsoleto etc.) retornava sucesso mesmo com a
+      // aula nunca alterada de fato.
+      const { data, error } = await supabase
+        .from('agenda')
+        .update(aula)
+        .eq('id', aula.id)
+        .select('id, horario')
+        .single();
       if (error) throw error;
+      // `horario` é `time without time zone` no Postgres — o PostgREST
+      // devolve "HH:MM:SS" (com segundos), enquanto o formulário (input
+      // type="time") manda "HH:MM" — por isso a comparação normaliza para
+      // os 5 primeiros caracteres em vez de `!==` direto.
+      if (data.horario?.substring(0, 5) !== aula.horario) {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
     } else {
       const { error } = await supabase.from('agenda').insert([aula]);
       if (error) throw error;
@@ -115,19 +132,26 @@ export const gradeService = {
   },
 
   async encerrarAula(id, dataEncerramento) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const { data, error } = await supabase
       .from('agenda')
       .update({ data_fim: dataEncerramento })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, data_fim')
+      .single();
     if (error) throw error;
+    if (data.data_fim !== dataEncerramento) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 
   async listarFeriados() {
+    // ILU-19: hojeBrasilia() em vez de UTC.
     const { data, error } = await supabase
       .from('feriados')
       .select('*')
-      .gte('data', new Date().toISOString().split('T')[0])
+      .gte('data', hojeBrasilia())
       .order('data', { ascending: true });
     if (error) throw error;
     return data;

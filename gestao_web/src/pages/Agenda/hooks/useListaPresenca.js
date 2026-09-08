@@ -61,7 +61,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
       setRefreshKey(old => old + 1);
       if (onAtualizar) onAtualizar();
     } catch (err) {
-      showToast.error("Erro ao registrar falta.");
+      showToast.error("Erro ao registrar falta: " + err.message);
     }
   };
 
@@ -73,7 +73,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
       setRefreshKey(old => old + 1);
       if (onAtualizar) onAtualizar();
     } catch (err) {
-      showToast.error("Erro ao remover falta.");
+      showToast.error("Erro ao remover falta: " + err.message);
     }
   };
 

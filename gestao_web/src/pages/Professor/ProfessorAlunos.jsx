@@ -49,103 +49,116 @@ export default function ProfessorAlunos() {
   const buscaDebounced = useDebounce(busca, 300);
 
   useEffect(() => {
-    if (professorId) carregarAlunos();
-  }, [professorId]);
+    if (!professorId) return;
 
-  async function carregarAlunos() {
-    setLoading(true);
-    try {
-      // Busca modalidades do professor (por ownership e por aulas na agenda)
-      const [{ data: modalidadesOwn }, { data: aulasDoProf }] = await Promise.all([
-        supabase
-          .from('modalidades')
-          .select('id, nome')
-          .eq('professor_id', professorId),
-        supabase
-          .from('agenda')
-          .select('modalidade_id')
-          .eq('professor_id', professorId),
-      ]);
+    // ILU-46: ignora resposta obsoleta se professorId mudar antes de resolver
+    // (cenário improvável — troca sem remount completo do componente).
+    let cancelado = false;
 
-      const idsModalidades = [
-        ...new Set([
-          ...(modalidadesOwn || []).map(m => m.id),
-          ...(aulasDoProf || []).map(a => a.modalidade_id).filter(Boolean),
-        ]),
-      ];
+    async function carregarAlunos() {
+      setLoading(true);
+      try {
+        // Busca modalidades do professor (por ownership e por aulas na agenda)
+        const [{ data: modalidadesOwn }, { data: aulasDoProf }] = await Promise.all([
+          supabase
+            .from('modalidades')
+            .select('id, nome')
+            .eq('professor_id', professorId),
+          supabase
+            .from('agenda')
+            .select('modalidade_id')
+            .eq('professor_id', professorId),
+        ]);
+        if (cancelado) return;
 
-      if (idsModalidades.length === 0) {
-        setAlunos([]);
-        setModalidades([]);
-        return;
-      }
+        const idsModalidades = [
+          ...new Set([
+            ...(modalidadesOwn || []).map(m => m.id),
+            ...(aulasDoProf || []).map(a => a.modalidade_id).filter(Boolean),
+          ]),
+        ];
 
-      // Busca nomes das modalidades da agenda que ainda não estão em modalidadesOwn
-      const idsApenasAgenda = (aulasDoProf || [])
-        .map(a => a.modalidade_id)
-        .filter(Boolean)
-        .filter(id => !(modalidadesOwn || []).some(m => m.id === id));
-
-      let modalidadesAgenda = [];
-      if (idsApenasAgenda.length > 0) {
-        const { data } = await supabase
-          .from('modalidades')
-          .select('id, nome')
-          .in('id', idsApenasAgenda);
-        modalidadesAgenda = data || [];
-      }
-
-      // Mapa id → nome para resolver nomes na renderização sem FK join
-      const modalidadesMap = new Map([
-        ...(modalidadesOwn || []).map(m => [m.id, m]),
-        ...modalidadesAgenda.map(m => [m.id, m]),
-      ]);
-
-      const todasModalidades = [...modalidadesMap.values()];
-      setModalidades(todasModalidades);
-      setModalidadesMap(modalidadesMap);
-
-      const { data: alunosFiltrados, error } = await supabase
-        .from('alunos')
-        .select(
-          'id, nome_completo, email, telefone, ativo, planos(nome), modalidades_selecionadas'
-        )
-        .eq('ativo', true)
-        .eq('role', 'aluno')
-        .overlaps('modalidades_selecionadas', idsModalidades)
-        .order('nome_completo');
-
-      if (error) throw error;
-
-      const listaAlunos = alunosFiltrados || [];
-      setAlunos(listaAlunos);
-
-      // Busca última presença de cada aluno em paralelo (batch único)
-      if (listaAlunos.length > 0) {
-        const alunoIds = listaAlunos.map(a => a.id);
-        const { data: presencas } = await supabase
-          .from('presencas')
-          .select('aluno_id, data_checkin')
-          .in('aluno_id', alunoIds)
-          .eq('status', 'presente') // só presença real, não agendamento/falta/cancelado
-          .order('data_checkin', { ascending: false });
-
-        // Mantém apenas a última presença por aluno (O(n) com Map)
-        const mapa = {};
-        for (const p of presencas || []) {
-          if (!mapa[p.aluno_id]) {
-            mapa[p.aluno_id] = p.data_checkin;
-          }
+        if (idsModalidades.length === 0) {
+          setAlunos([]);
+          setModalidades([]);
+          return;
         }
-        setUltimaPresencaMap(mapa);
+
+        // Busca nomes das modalidades da agenda que ainda não estão em modalidadesOwn
+        const idsApenasAgenda = (aulasDoProf || [])
+          .map(a => a.modalidade_id)
+          .filter(Boolean)
+          .filter(id => !(modalidadesOwn || []).some(m => m.id === id));
+
+        let modalidadesAgenda = [];
+        if (idsApenasAgenda.length > 0) {
+          const { data } = await supabase
+            .from('modalidades')
+            .select('id, nome')
+            .in('id', idsApenasAgenda);
+          modalidadesAgenda = data || [];
+        }
+        if (cancelado) return;
+
+        // Mapa id → nome para resolver nomes na renderização sem FK join
+        const modalidadesMap = new Map([
+          ...(modalidadesOwn || []).map(m => [m.id, m]),
+          ...modalidadesAgenda.map(m => [m.id, m]),
+        ]);
+
+        const todasModalidades = [...modalidadesMap.values()];
+        setModalidades(todasModalidades);
+        setModalidadesMap(modalidadesMap);
+
+        const { data: alunosFiltrados, error } = await supabase
+          .from('alunos')
+          .select(
+            'id, nome_completo, email, telefone, ativo, planos(nome), modalidades_selecionadas'
+          )
+          .eq('ativo', true)
+          .eq('role', 'aluno')
+          .overlaps('modalidades_selecionadas', idsModalidades)
+          .order('nome_completo');
+        if (cancelado) return;
+
+        if (error) throw error;
+
+        const listaAlunos = alunosFiltrados || [];
+        setAlunos(listaAlunos);
+
+        // Busca última presença de cada aluno em paralelo (batch único)
+        if (listaAlunos.length > 0) {
+          const alunoIds = listaAlunos.map(a => a.id);
+          const { data: presencas } = await supabase
+            .from('presencas')
+            .select('aluno_id, data_checkin')
+            .in('aluno_id', alunoIds)
+            .eq('status', 'presente') // só presença real, não agendamento/falta/cancelado
+            .order('data_checkin', { ascending: false });
+          if (cancelado) return;
+
+          // Mantém apenas a última presença por aluno (O(n) com Map)
+          const mapa = {};
+          for (const p of presencas || []) {
+            if (!mapa[p.aluno_id]) {
+              mapa[p.aluno_id] = p.data_checkin;
+            }
+          }
+          setUltimaPresencaMap(mapa);
+        }
+      } catch (err) {
+        if (!cancelado) {
+          showToast.error('Erro ao carregar alunos.');
+          console.error(err);
+        }
+      } finally {
+        if (!cancelado) setLoading(false);
       }
-    } catch (err) {
-      showToast.error('Erro ao carregar alunos.');
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
-  }
+
+    carregarAlunos();
+    return () => { cancelado = true; };
+  }, [professorId]);
 
   // Filtragem client-side: busca + modalidade
   const alunosFiltrados = useMemo(() => {

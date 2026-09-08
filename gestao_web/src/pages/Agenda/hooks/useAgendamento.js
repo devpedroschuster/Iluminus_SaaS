@@ -51,6 +51,11 @@ export function useAgendamento(onSucesso, feriados = []) {
   const [modalLotacao, setModalLotacao] = useState({ isOpen: false, msg: '', tipo: '' });
 
   useEffect(() => {
+    // ILU-46: ignora resposta obsoleta se aula/data/aluno mudarem antes de
+    // resolver — sem isso, a UI podia piscar "vaga disponível"/"limite
+    // atingido" errado por um instante (o agendamento final ainda é validado
+    // via RPC server-side, então isso só afeta o display).
+    let cancelado = false;
     async function checarDisponibilidadeLive() {
       if (agendamentoForm.aula_id && agendamentoForm.data_aula) {
         setVerificandoVaga(true);
@@ -61,13 +66,16 @@ export function useAgendamento(onSucesso, feriados = []) {
           agendamentoForm.data_aula,
           alunoIdParaChecar
         );
-        setInfoVaga(info);
-        setVerificandoVaga(false);
-      } else {
+        if (!cancelado) {
+          setInfoVaga(info);
+          setVerificandoVaga(false);
+        }
+      } else if (!cancelado) {
         setInfoVaga(null);
       }
     }
     checarDisponibilidadeLive();
+    return () => { cancelado = true; };
   }, [agendamentoForm.aula_id, agendamentoForm.data_aula, agendamentoForm.aluno_id, agendamentoForm.tipo]);
 
   const handleAgendarAluno = async (e, ignorarAvisos = false) => {

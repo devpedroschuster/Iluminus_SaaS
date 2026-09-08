@@ -85,5 +85,16 @@ export function useNotificacoes() {
   const ativas = todasAsNotificacoes.filter(n => !resolvidas.includes(n.idUnico));
   const concluidas = todasAsNotificacoes.filter(n => resolvidas.includes(n.idUnico));
 
-  return { ativas, concluidas, loading: query.isLoading, marcarComoResolvida, desfazerResolvida };
+  return {
+    ativas,
+    concluidas,
+    loading: query.isLoading,
+    // ILU-42: expõe erro da query em vez de deixar a página tratar falha
+    // como "nenhuma notificação" (data undefined -> [] -> lista vazia).
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+    marcarComoResolvida,
+    desfazerResolvida,
+  };
 }

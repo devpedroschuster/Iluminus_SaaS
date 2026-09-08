@@ -13,18 +13,23 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    // ILU-46: ignora resposta obsoleta se data/aula mudarem antes de resolver
+    // — sem isso, uma request lenta podia sobrescrever a lista com a turma/
+    // data errada, e o admin marcaria presença/falta na turma errada.
+    let cancelado = false;
     async function buscarLista() {
       if (isOpen && aulaParaLista && dataLista) {
         setLoadingLista(true);
         try {
           const presencas = await agendamentoService.listarChamadaCompleta(aulaParaLista.id, dataLista);
-          setListaPresenca(presencas || []);
+          if (!cancelado) setListaPresenca(presencas || []);
         } finally {
-          setLoadingLista(false);
+          if (!cancelado) setLoadingLista(false);
         }
       }
     }
     buscarLista();
+    return () => { cancelado = true; };
   }, [isOpen, aulaParaLista, dataLista, refreshKey]);
 
   const solicitarRemocao = (idRelacao, tipo) => setAlunoParaRemover({ idRelacao, tipo });

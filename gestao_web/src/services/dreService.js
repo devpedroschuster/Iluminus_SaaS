@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { valorDevidoMensalidade } from '../lib/utils';
+import { valorDevidoMensalidade, hojeBrasilia } from '../lib/utils';
 
 /**
  * dreService — consolida todas as informações financeiras do espaço
@@ -67,7 +67,10 @@ export const dreService = {
     if (e4) throw e4;
 
     // ── Receitas ──────────────────────────────────────────────────────────
-    const hoje = new Date().toISOString().split('T')[0];
+    // ILU-19: hojeBrasilia() em vez de UTC — perto da meia-noite em
+    // Brasília, a lista de inadimplentes/despesas atrasadas do DRE podia
+    // classificar itens do dia errado.
+    const hoje = hojeBrasilia();
     const receitasRecebidas = (mensalidades || [])
       .filter(m => m.status === 'pago')
       .reduce((acc, m) => acc + Number(m.valor_pago || 0), 0);

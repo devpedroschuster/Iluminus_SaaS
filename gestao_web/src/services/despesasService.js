@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { despesaSchema } from '../lib/validation';
+import { hojeBrasilia } from '../lib/utils';
 
 export const despesasService = {
   async listar(mes, ano) {
@@ -15,7 +16,10 @@ export const despesasService = {
 
     if (error) throw error;
 
-    const hoje = new Date().toISOString().split('T')[0];
+    // ILU-19: hojeBrasilia() em vez de UTC — perto da meia-noite em
+    // Brasília, uma despesa vencendo "hoje" era marcada como atrasada
+    // horas antes da hora real.
+    const hoje = hojeBrasilia();
     const despesasAtualizadas = data.map(d => {
       if (d.status === 'pendente' && d.data_vencimento < hoje) {
         return { ...d, status: 'atrasado' };
@@ -141,13 +145,23 @@ export const despesasService = {
   async registrarPagamento(id) {
     // ILU-34: data-apenas ('YYYY-MM-DD'), mesma convenção usada em data_vencimento
     // e lida pela UI (Despesas.jsx concatena 'T12:00:00' ao exibir).
-    const hoje = new Date().toISOString().split('T')[0];
-    const { error } = await supabase
+    // ILU-19: hojeBrasilia() em vez de UTC.
+    const hoje = hojeBrasilia();
+    // ILU-18: mesmo padrão de alunosService.alterarStatus — sem `.select()`,
+    // um `.update()` que afeta 0 linhas (RLS bloqueando silenciosamente, id
+    // obsoleto etc.) retornava sucesso mesmo com a despesa nunca marcada
+    // como paga de fato.
+    const { data, error } = await supabase
       .from('despesas')
       .update({ status: 'pago', data_pagamento: hoje })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, status')
+      .single();
 
     if (error) throw error;
+    if (data.status !== 'pago') {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   }
 };

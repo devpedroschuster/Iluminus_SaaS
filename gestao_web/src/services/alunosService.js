@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
+import { hojeBrasilia } from '../lib/utils';
 
 // ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
 // string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
@@ -332,7 +333,10 @@ export const alunosService = {
 
       if (errPlano) throw errPlano;
 
-      const dataInicio = new Date().toISOString().split('T')[0];
+      // ILU-19: hojeBrasilia() em vez de UTC — matrícula feita depois das
+      // 21h em Brasília gravava data_inicio_plano (e data_fim_plano) com
+      // um dia a mais.
+      const dataInicio = hojeBrasilia();
       const dataVencimentoObj = new Date(`${dataVencimento}T12:00:00`);
       const duracaoMeses = plano.duracao_meses || 1;
 
@@ -523,7 +527,8 @@ export const alunosService = {
             valor_pago: 0,
             status: 'pago',
             forma_pagamento: 'bolsa',
-            data_pagamento: new Date().toISOString().split('T')[0],
+            // ILU-19: hojeBrasilia() em vez de UTC.
+            data_pagamento: hojeBrasilia(),
           })
           .eq('aluno_id', alunoId)
           .in('status', ['pendente', 'atrasado'])

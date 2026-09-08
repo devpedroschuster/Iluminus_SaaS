@@ -53,8 +53,29 @@ async buscarPerfil(id) {
     await modalidadeSchema.validate(payload);
 
     if (modalidade.id) {
-      const { error } = await supabase.from('modalidades').update(payload).eq('id', modalidade.id);
+      // ILU-18: mesmo padrão de alunosService.alterarStatus — sem
+      // `.select()`, um `.update()` que afeta 0 linhas (RLS bloqueando
+      // silenciosamente, id obsoleto etc.) retornava sucesso mesmo com as
+      // taxas nunca alteradas de fato. Especialmente grave aqui: essas
+      // taxas alimentam diretamente o cálculo de repasse.
+      const { data, error } = await supabase
+        .from('modalidades')
+        .update(payload)
+        .eq('id', modalidade.id)
+        .select('id, taxa_professor, taxa_espaco, taxa_direcao')
+        .single();
       if (error) throw error;
+      // `taxa_*` são `numeric` no Postgres — o PostgREST serializa como
+      // STRING no JSON de retorno (preserva precisão arbitrária), por isso
+      // a comparação usa Number() em vez de `!==` direto (que sempre daria
+      // "diferente" comparando string com o number do payload).
+      if (
+        Number(data.taxa_professor) !== payload.taxa_professor ||
+        Number(data.taxa_espaco) !== payload.taxa_espaco ||
+        Number(data.taxa_direcao) !== payload.taxa_direcao
+      ) {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
     } else {
       const { error } = await supabase.from('modalidades').insert([payload]);
       if (error) throw error;

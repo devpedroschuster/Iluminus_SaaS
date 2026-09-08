@@ -135,6 +135,32 @@ function distribuirCentavos(total: number, n: number): number[] {
   return parcelas;
 }
 
+// ILU-11: `supabase/config.toml` define `max_rows = 1000`, aplicado pelo
+// PostgREST em toda consulta (inclusive com a service-role key). Sem
+// paginar, alunos/presenças além da milésima linha somem do cálculo
+// silenciosamente — sem erro, sem aviso — e professores acabam pagos a
+// menos. Pagina em blocos até a página vir incompleta (fim dos resultados).
+// Requer uma coluna de ordenação estável (`order`) para que as páginas não
+// se sobreponham/pulem linhas.
+async function buscarTodasPaginas<T>(
+  montarQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>,
+  tamanhoPagina = 1000,
+): Promise<T[]> {
+  const todas: T[] = [];
+  let pagina = 0;
+  for (;;) {
+    const from = pagina * tamanhoPagina;
+    const to = from + tamanhoPagina - 1;
+    const { data, error } = await montarQuery(from, to);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    todas.push(...data);
+    if (data.length < tamanhoPagina) break;
+    pagina++;
+  }
+  return todas;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -294,15 +320,18 @@ serve(async (req: Request) => {
     }
 
     // ── 6. Alunos ativos com modalidades definidas ──────────────────────────
-    const { data: alunosRaw, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome_completo, plano_id, modalidades_selecionadas')
-      .eq('ativo', true)
-      .not('modalidades_selecionadas', 'is', null);
+    // ILU-11: pagina via buscarTodasPaginas — ver comentário na definição.
+    const alunosRaw = await buscarTodasPaginas<Aluno>((from, to) =>
+      supabase
+        .from('alunos')
+        .select('id, nome_completo, plano_id, modalidades_selecionadas')
+        .eq('ativo', true)
+        .not('modalidades_selecionadas', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
 
-    if (errAlunos) throw errAlunos;
-
-    const alunosComMods = ((alunosRaw ?? []) as Aluno[]).filter(
+    const alunosComMods = alunosRaw.filter(
       (a) => Array.isArray(a.modalidades_selecionadas) && a.modalidades_selecionadas.length > 0,
     );
 
@@ -344,25 +373,34 @@ serve(async (req: Request) => {
     //    Necessário para calcular repasse do plano livre.
     //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado',
     //    que não devem gerar comissão (só presença real confirmada).
-    const { data: presencasRaw, error: errPresencas } = await supabase
-      .from('presencas')
-      .select(`
-        aluno_id,
-        agenda (
-          modalidade_id
-        )
-      `)
-      .eq('status', 'presente')
-      .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
-      .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
-      .not('aula_id', 'is', null);
+    interface PresencaComAgenda {
+      aluno_id: string;
+      agenda: { modalidade_id: string } | null;
+    }
 
-    if (errPresencas) throw errPresencas;
+    // ILU-11: pagina via buscarTodasPaginas — ver comentário na definição.
+    const presencasRaw = await buscarTodasPaginas<PresencaComAgenda>((from, to) =>
+      supabase
+        .from('presencas')
+        .select(`
+          aluno_id,
+          agenda (
+            modalidade_id
+          )
+        `)
+        .eq('status', 'presente')
+        .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
+        .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
+        .not('aula_id', 'is', null)
+        .order('aluno_id', { ascending: true })
+        .range(from, to)
+        .returns<PresencaComAgenda[]>(),
+    );
 
     // Mapa: aluno_id → Set de modalidade_ids frequentadas no mês
     const presencasPorAluno = new Map<string, Set<string>>();
-    for (const p of presencasRaw ?? []) {
-      const modId = (p.agenda as any)?.modalidade_id;
+    for (const p of presencasRaw) {
+      const modId = p.agenda?.modalidade_id;
       if (!p.aluno_id || !modId) continue;
 
       if (!presencasPorAluno.has(p.aluno_id)) {

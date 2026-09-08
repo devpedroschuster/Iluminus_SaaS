@@ -139,7 +139,9 @@ export const despesasService = {
   },
 
   async registrarPagamento(id) {
-    const hoje = new Date().toISOString();
+    // ILU-34: data-apenas ('YYYY-MM-DD'), mesma convenção usada em data_vencimento
+    // e lida pela UI (Despesas.jsx concatena 'T12:00:00' ao exibir).
+    const hoje = new Date().toISOString().split('T')[0];
     const { error } = await supabase
       .from('despesas')
       .update({ status: 'pago', data_pagamento: hoje })

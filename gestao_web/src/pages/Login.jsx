@@ -35,7 +35,7 @@ export default function Login() {
       // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
       const { data: alunoData } = await supabase
         .from('alunos')
-        .select('primeiro_acesso, nome_completo, role')
+        .select('primeiro_acesso, nome_completo, role, ativo')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
@@ -45,17 +45,31 @@ export default function Login() {
         return;
       }
 
+      // ILU-40: checa `ativo` aqui mesmo (mesma regra que useAuth aplica) em
+      // vez de mostrar sucesso e deixar só o listener assíncrono de useAuth
+      // barrar depois — antes, uma conta desativada via um toast de "Bem-vindo
+      // de volta!" e chegava a navegar antes do logout forçado acontecer.
+      if (alunoData && alunoData.role !== 'admin' && alunoData.ativo === false) {
+        showToast.error('Sua conta está desativada. Entre em contato com a gestão do espaço.');
+        return;
+      }
+
       // ── 2. Verificar primeiro_acesso em professores ───────────────────────
       if (!alunoData) {
         const { data: profData } = await supabase
           .from('professores')
-          .select('primeiro_acesso, nome, id')
+          .select('primeiro_acesso, nome, ativo')
           .eq('auth_id', authData.user.id)
           .maybeSingle();
 
         if (profData?.primeiro_acesso) {
           const primeiroNome = (profData.nome || 'Professor').split(' ')[0];
           navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
+          return;
+        }
+
+        if (profData?.ativo === false) {
+          showToast.error('Sua conta está desativada. Entre em contato com a gestão do espaço.');
           return;
         }
 

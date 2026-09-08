@@ -11,7 +11,7 @@ const inputBaseClass = cn(
 );
 
 const Input = React.forwardRef(function Input(
-  { as = 'input', leftIcon, rightIcon, className, wrapperClassName, ...rest },
+  { as = 'input', leftIcon, rightIcon, className, wrapperClassName, error, ...rest },
   ref
 ) {
   const Tag = as;
@@ -19,6 +19,7 @@ const Input = React.forwardRef(function Input(
     inputBaseClass,
     leftIcon && 'pl-10',
     rightIcon && 'pr-10',
+    error && 'border-destructive focus-visible:ring-destructive focus-visible:border-destructive',
     className
   );
 

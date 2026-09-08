@@ -5,6 +5,7 @@ import Input, { Label } from './ui/Input';
 import { supabase } from '../lib/supabase';
 import { financeiroService } from '../services/financeiroService';
 import { showToast } from './shared/showToast';
+import { hojeBrasilia } from '../lib/utils';
 import { User, DollarSign, Calendar, BookOpen, GraduationCap, Package, CreditCard, LayoutList, Loader2 } from 'lucide-react';
 
 /**
@@ -43,8 +44,8 @@ function getInitialForm() {
     modalidade_id: '',
     valor_pago: '',
     forma_pagamento: 'pix',
-    data_pagamento: new Date().toISOString().split('T')[0],
-    data_vencimento: new Date().toISOString().split('T')[0],
+    data_pagamento: hojeBrasilia(),
+    data_vencimento: hojeBrasilia(),
     professor_id: '',
     modalidade_nome: '',
   };

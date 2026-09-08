@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { addDays, format, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatarMoeda } from '../lib/utils';
+import { formatarMoeda, hojeBrasilia } from '../lib/utils';
 import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import Badge from '../components/ui/Badge';
@@ -111,7 +111,7 @@ export default function Dashboard() {
   const modalInadimplencia = useModal();
 
   const agora        = new Date();
-  const hojeIso      = agora.toISOString().split('T')[0];
+  const hojeIso      = hojeBrasilia();
   const inicioMes    = startOfMonth(agora).toISOString();
   const limite7Dias  = format(addDays(agora, 7), 'yyyy-MM-dd');
 

@@ -449,9 +449,11 @@ export const alunosService = {
 
     const comHistorico = new Set(historicosAtivos?.map(h => h.aluno_id));
 
-    const hoje = new Date();
     const calcularDataFimFallback = () => {
-      const fallback = new Date(hoje);
+      // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para
+      // que o fallback de 30 dias não erre por um dia perto da meia-noite
+      // em Brasília.
+      const fallback = new Date(`${hojeBrasilia()}T12:00:00`);
       fallback.setDate(fallback.getDate() + 30);
       return fallback.toISOString().split('T')[0];
     };

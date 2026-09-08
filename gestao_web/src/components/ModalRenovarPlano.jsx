@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
 import { showToast } from './shared/showToast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
-import { formatarMoeda } from '../lib/utils';
+import { formatarMoeda, hojeBrasilia } from '../lib/utils';
 
 import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
@@ -15,7 +15,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   const [confirmandoValor, setConfirmandoValor] = useState(false);
   const [form, setForm] = useState({
     plano_id: '',
-    data_inicio: new Date().toISOString().split('T')[0], 
+    data_inicio: hojeBrasilia(),
     data_fim: '',
     valor_pago: ''
   });

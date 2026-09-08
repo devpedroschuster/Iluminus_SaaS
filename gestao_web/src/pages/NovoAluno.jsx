@@ -14,6 +14,7 @@ import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/showToast';
+import { hojeBrasilia } from '../lib/utils';
 import Modal from '../components/shared/Modal';
 
 // CPF helpers
@@ -163,7 +164,7 @@ export default function NovoAluno() {
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
   const [dataVencimento,          setDataVencimento]          = useState(
-    new Date().toISOString().split('T')[0]
+    hojeBrasilia()
   );
 
   const [stepAtual, setStepAtual] = useState(1);
@@ -696,7 +697,7 @@ export default function NovoAluno() {
             <input
               type="date"
               value={dataVencimento}
-              min={new Date().toISOString().split('T')[0]}
+              min={hojeBrasilia()}
               onChange={e => setDataVencimento(e.target.value)}
               className="w-full bg-white border-none rounded-xl px-4 py-3 font-bold text-gray-700
                 focus:ring-2 focus:ring-blue-500/20 outline-none"

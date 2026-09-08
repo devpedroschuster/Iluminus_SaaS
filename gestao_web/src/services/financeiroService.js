@@ -78,7 +78,10 @@ async listarModalidadesDoAluno(alunoId) {
 
     const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
 
-    const tresMesesAtras = new Date();
+    // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para o
+    // corte de "últimos 3 meses" não errar por um dia perto da meia-noite
+    // em Brasília.
+    const tresMesesAtras = new Date(`${hojeBrasilia()}T12:00:00`);
     tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
     const filtroData = tresMesesAtras.toISOString().split('T')[0];
 

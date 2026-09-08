@@ -25,6 +25,11 @@ ordem, nesse sentido — nunca ao contrário:
    supabase link --project-ref spmvrzftyqxalprpceqn
    supabase db push
    ```
+
+   `supabase db push` (e `db pull`/`migration repair`) contra o projeto
+   linkado exigem **Docker Desktop rodando localmente** — a CLI usa um
+   shadow database local pra calcular o diff de schema (ver `CLAUDE.md`,
+   seção Supabase). `supabase db dump` não precisa de Docker.
 2. **Deploy da Edge Function** nova ou alterada, já preparada pra conviver
    com o schema pré- *e* pós-migration.
 3. **Deploy do frontend** que passa a consumir a mudança — só depois que a
@@ -61,6 +66,28 @@ com um check pendente ou vermelho. Se um required check ficar órfão
 única saída é desabilitar temporariamente a proteção (`gh api --method
 DELETE .../branches/main/protection`), mergear, e reabilitá-la em
 seguida.
+
+Para reabilitar, use `gh api --method PUT
+repos/devpedroschuster/Iluminus_SaaS/branches/main/protection --input -`
+com este payload (mesma configuração original, ver Task 6 de
+`docs/superpowers/specs/2026-09-06-staging-ci-testing-design.md`):
+
+```json
+{
+  "required_status_checks": {
+    "strict": false,
+    "contexts": ["Lint, Test & Build", "Deno Check (Supabase Functions)"]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": true,
+    "required_approving_review_count": 0
+  },
+  "required_conversation_resolution": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
 
 ## 3. Rollback de frontend na Vercel
 
@@ -101,19 +128,31 @@ automaticamente o rollback manual.
 
 Nenhuma migration destrutiva (`DROP COLUMN`, `DROP TABLE`, `DROP
 FUNCTION`, `ALTER ... DROP`, ou `UPDATE`/`DELETE` em massa irreversível)
-entra em produção sem que, antes, a migration de "down" correspondente já
-esteja escrita e revisada, e a migration "up" já tenha passado por pelo
-menos um ciclo de release completo em produção só como aditiva.
+entra em produção fora do padrão expand/contract: primeiro uma migration
+puramente aditiva (expand) introduz o novo formato sem remover o antigo;
+só depois que essa migration aditiva já rodou em produção por pelo menos
+um ciclo de release completo — com o código já migrado pro novo formato —
+a migration destrutiva (contract) é aplicada, sempre acompanhada da
+migration "down" correspondente já escrita e revisada antes do deploy.
 
 Ver `supabase/migrations-down/README.md` para a convenção completa.
 
 ## 5. Backup do banco
 
 `.github/workflows/db-backup.yml` roda todo dia (cron, horário de Brasília)
-um `pg_dump` de staging e produção, criptografado com GPG (AES256) antes de
-subir como artifact do GitHub Actions — como este repositório é público, um
-dump não-criptografado seria baixável por qualquer pessoa; a versão
-criptografada não tem valor sem a senha, que existe só como GitHub Secret.
+um `pg_dump` de staging e produção, verifica a integridade do dump
+(`pg_restore --list` + piso de tamanho — um dump truncado ou vazio falha o
+job em vez de subir silenciosamente um backup inútil) e criptografa com
+GPG (AES256) antes de subir como artifact do GitHub Actions — como este
+repositório é público, um dump não-criptografado seria baixável por
+qualquer pessoa; a versão criptografada não tem valor sem a senha, que
+existe só como GitHub Secret.
+
+O job também referencia um GitHub Environment por perna da matrix
+(`staging`/`production`), mas os secrets `STAGING_DB_URL` e
+`PRODUCTION_DB_URL` abaixo ainda são repository-level — para isolamento
+real (secrets escopados por ambiente + protection rules), migre-os
+manualmente em Settings → Environments → staging/production.
 
 ### Secrets necessários
 

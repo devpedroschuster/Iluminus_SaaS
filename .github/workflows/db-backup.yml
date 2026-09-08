@@ -20,6 +20,14 @@ jobs:
       fail-fast: false
       matrix:
         environment: [staging, production]
+    # ILU-55: referencia um GitHub Environment por perna da matrix. Isso por
+    # si só não re-escopa os secrets (STAGING_DB_URL/PRODUCTION_DB_URL
+    # continuam repository-level até alguém migrar os valores manualmente
+    # para Settings > Environments > staging/production — Claude não tem
+    # como ler o valor atual de um secret pra fazer essa migração sozinho),
+    # mas já prepara o job pra usar environment protection rules assim que
+    # isso for feito, e documenta a intenção de isolamento.
+    environment: ${{ matrix.environment }}
     steps:
       - name: Install postgresql-client 17
         run: |
@@ -55,6 +63,28 @@ jobs:
           /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
             --no-owner --no-privileges --format=custom \
             --file="backup/${{ matrix.environment }}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+      # ILU-55: um pg_dump que sai truncado (conexão caiu no meio, disco
+      # cheio no runner, etc.) ainda deixava este job verde — "passou" sem
+      # nunca produzir um backup restaurável. `pg_restore --list` lê o TOC
+      # do dump custom-format sem precisar de banco nenhum, então falha
+      # rápido se o arquivo estiver corrompido/incompleto; o piso de tamanho
+      # pega o caso degenerado de um dump "válido" mas vazio (schema sem
+      # dados, ex. DB_URL apontando pro banco errado).
+      - name: Verify dump integrity
+        run: |
+          min_size=1024
+          for f in backup/*.dump; do
+            size=$(stat -c%s "$f")
+            if [ "$size" -lt "$min_size" ]; then
+              echo "::error::Dump $f tem $size bytes (mínimo esperado: $min_size). Provavelmente truncado ou vazio — abortando antes de subir um backup inútil."
+              exit 1
+            fi
+            if ! /usr/lib/postgresql/17/bin/pg_restore --list "$f" > /dev/null; then
+              echo "::error::Dump $f falhou na checagem de integridade (pg_restore --list) — arquivo corrompido ou truncado."
+              exit 1
+            fi
+          done
 
       # SEGURANÇA: devpedroschuster/Iluminus_SaaS é um repositório PÚBLICO —
       # artifacts do GitHub Actions em repo público são baixáveis por

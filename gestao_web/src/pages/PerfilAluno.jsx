@@ -9,6 +9,7 @@ import {
   CalendarX, RotateCcw, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { hojeBrasilia } from '../lib/utils';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
 import { showToast } from '../components/shared/showToast';
@@ -359,7 +360,10 @@ function CardUsoPlan({ aluno, planos, frequencia }) {
 // Heatmap Frequência
 // ─────────────────────────────────────────────────────────────
 function HeatmapFrequencia({ frequencia, planoAtivo }) {
-  const hoje      = new Date();
+  // ILU-66: ancorado em hojeBrasilia() ao meio-dia (em vez de `new Date()`
+  // "agora", que perto da meia-noite em Brasília já pode ser o dia
+  // seguinte em UTC) para que a célula "hoje" não fique errada à noite.
+  const hoje      = new Date(`${hojeBrasilia()}T12:00:00`);
   const SEMANAS   = 12;
   const totalDias = SEMANAS * 7;
   const ancor = new Date(hoje);
@@ -375,7 +379,7 @@ function HeatmapFrequencia({ frequencia, planoAtivo }) {
     return {
       iso,
       hasPresence: datasComPresenca.has(iso),
-      isToday:     iso === hoje.toISOString().split('T')[0],
+      isToday:     iso === hojeBrasilia(),
       isFuture:    d > hoje,
     };
   });
@@ -1417,7 +1421,7 @@ function formatarDataBR(iso) {
 // ─────────────────────────────────────────────────────────────
 function derivarPlanoVigente(planos) {
   if (!Array.isArray(planos) || planos.length === 0) return null;
-  const hojeStr = new Date().toISOString().split('T')[0];
+  const hojeStr = hojeBrasilia();
   const naoCancelados = planos.filter(p => p.status !== 'cancelado');
 
   // 1) Prioridade: o ciclo cuja janela [data_inicio, data_fim] contém hoje.
@@ -1448,7 +1452,7 @@ export default function PerfilAluno() {
   const [confirmDeleteId, setConfirmDeleteId]   = useState(null);
   const [deletando, setDeletando]               = useState(false);
 
-  const hoje = new Date();
+  const hoje = new Date(`${hojeBrasilia()}T12:00:00`);
   const noventa = new Date(hoje);
   noventa.setDate(hoje.getDate() - 90);
   const fmt = (d) => d.toISOString().split('T')[0];

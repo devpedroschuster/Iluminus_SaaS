@@ -8,6 +8,7 @@ import {
   XCircle, Download, BarChart2, Zap, ChevronRight
 } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
+import { hojeBrasilia } from '../lib/utils';
 import Modal from '../components/ui/Modal';
 import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
@@ -103,7 +104,7 @@ export default function Presenca({ isAdmin = false }) {
   });
   const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
   const [aulaSelecionada, setAulaSelecionada] = useState(null);
-  const [dataManual, setDataManual] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataManual, setDataManual] = useState(() => hojeBrasilia());
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const modalQRCode   = useModal();
   const modalDetalhes = useModal();
@@ -171,7 +172,7 @@ export default function Presenca({ isAdmin = false }) {
       setAulaAtiva(aulaEmCurso);
 
       if (aulaEmCurso) {
-        const hojeDateStr = new Date().toISOString().split('T')[0];
+        const hojeDateStr = hojeBrasilia();
         const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
           await Promise.all([
             supabase
@@ -236,7 +237,7 @@ export default function Presenca({ isAdmin = false }) {
     let ativo = true;
 
     async function buscarDadosAulaSelecionada() {
-      const hojeDateStr = new Date().toISOString().split('T')[0];
+      const hojeDateStr = hojeBrasilia();
       try {
         const [{ data: todasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
           await Promise.all([
@@ -275,7 +276,7 @@ export default function Presenca({ isAdmin = false }) {
   }, [aulaSelecionada, aulaAtiva]);
 
   function calcularMetricas(presencasData, alunosData) {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = hojeBrasilia();
     const alunosAtivos = alunosData.length;
     const semanaAtras = new Date();
     semanaAtras.setDate(semanaAtras.getDate() - 7);
@@ -326,7 +327,7 @@ export default function Presenca({ isAdmin = false }) {
     }
     setLoadingCheckin(aluno.id);
     // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
-    const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+    const dataAula = dataRef ?? hojeBrasilia();
     const dataCheckin = dataRef
       ? `${dataRef}T12:00:00.000Z`
       : new Date().toISOString();
@@ -398,7 +399,7 @@ export default function Presenca({ isAdmin = false }) {
       return;
     }
     try {
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = hojeBrasilia();
       const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
       const { data: reg, error: errBusca } = await supabase
         .from('presencas')
@@ -446,7 +447,7 @@ export default function Presenca({ isAdmin = false }) {
     }
     if (!presencaId) return;
     try {
-      const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
+      const dataRef = aulaAtiva ? hojeBrasilia() : dataManual;
       await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
       setAgendadosDaAula(prev => {
         const next = new Map(prev);
@@ -465,7 +466,7 @@ export default function Presenca({ isAdmin = false }) {
 
   async function visualizarDetalhes(aluno) {
     try {
-      const trintaDiasAtras = new Date();
+      const trintaDiasAtras = new Date(`${hojeBrasilia()}T12:00:00`);
       trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
       const trintaDiasAtrasStr = trintaDiasAtras.toISOString().split('T')[0];
       const { data, error } = await supabase
@@ -722,7 +723,7 @@ export default function Presenca({ isAdmin = false }) {
                 <Input
                   type="date"
                   value={dataManual}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={hojeBrasilia()}
                   onChange={e => setDataManual(e.target.value)}
                   className="bg-card w-auto"
                 />

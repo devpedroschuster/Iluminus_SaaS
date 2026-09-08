@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { gradeService } from '../../services/gradeService';
 import { alunosService } from '../../services/alunosService';
+import { hojeBrasilia } from '../../lib/utils';
 import { useAgenda } from '../../hooks/useAgenda';
 import Modal, { ModalConfirmacao } from '../../components/ui/Modal';
 import { useModal } from '../../components/ui/useModal';
@@ -55,7 +56,7 @@ export default function Agenda() {
   const [novaAula, setNovaAula] = useState(INITIAL_FORM_STATE);
   const [eventoSelecionado, setEventoSelecionado] = useState(null);
   const [aulaParaLista, setAulaParaLista] = useState(null);
-  const [dataLista, setDataLista] = useState(new Date().toISOString().split('T')[0]);
+  const [dataLista, setDataLista] = useState(hojeBrasilia());
 
   const { aulas, feriados, loading, isError, refetch } = useAgenda();
 

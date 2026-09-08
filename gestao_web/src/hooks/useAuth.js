@@ -17,6 +17,15 @@ export function useAuth() {
   // FIX Issue 2: rastreia para qual auth_id o perfil foi carregado,
   // para detectar troca de usuário mesmo sem SIGNED_OUT (ex: tab recarregada).
   const perfilCarregadoParaId = useRef(null);
+  // ILU-64: contador incrementado sempre que uma nova sessão começa a ser
+  // processada. Um signOut() disparado em segundo plano (branches
+  // alunoInativo/professorInativo/perfilNaoEncontrado) anota a geração
+  // vigente no momento do disparo; se o SIGNED_OUT correspondente só
+  // chegar depois de uma sessão mais nova já ter sido estabelecida, a
+  // geração não bate mais e o evento atrasado é ignorado em vez de
+  // derrubar a sessão válida.
+  const geracaoRef = useRef(0);
+  const signOutEmVooRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +59,7 @@ export function useAuth() {
 
       // Reset para garantir que um usuário diferente não herde o perfil do anterior.
       perfilJaCarregado.current = false;
+      geracaoRef.current += 1;
 
       // Usa auth_id (UUID do Supabase Auth) em vez de email.
       // Isso garante que alterações de email no painel do Auth não quebrem o lookup.
@@ -70,6 +80,7 @@ export function useAuth() {
           setProfessorId(null);
           setNomeUsuario(null);
           setLoading(false);
+          signOutEmVooRef.current = geracaoRef.current;
           await supabase.auth.signOut();
           return;
         }
@@ -115,6 +126,7 @@ export function useAuth() {
         setProfessorId(null);
         setNomeUsuario(null);
         setLoading(false);
+        signOutEmVooRef.current = geracaoRef.current;
         await supabase.auth.signOut();
         return;
       }
@@ -142,6 +154,7 @@ export function useAuth() {
         setNomeUsuario(null);
         setSessao(null);
         setLoading(false);
+        signOutEmVooRef.current = geracaoRef.current;
         supabase.auth.signOut().catch(() => {});
         return;
       } catch (error) {
@@ -167,6 +180,16 @@ export function useAuth() {
       if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 
       if (event === 'SIGNED_OUT') {
+        // ILU-64: um signOut() de "kick-out" (branches acima) anotou a
+        // geração vigente no momento do disparo. Se uma sessão mais nova
+        // já foi estabelecida desde então, este SIGNED_OUT chegou
+        // atrasado e não corresponde mais à sessão atual — ignora, em
+        // vez de derrubar a sessão válida como se fosse um logout real.
+        if (signOutEmVooRef.current !== null && geracaoRef.current !== signOutEmVooRef.current) {
+          signOutEmVooRef.current = null;
+          return;
+        }
+        signOutEmVooRef.current = null;
         perfilJaCarregado.current = false;
         perfilCarregadoParaId.current = null;
         setSessao(null);

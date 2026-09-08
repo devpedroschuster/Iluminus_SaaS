@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, UserPlus, Edit2, ShieldAlert, Users } from 'lucide-react';
+import { Search, UserPlus, Edit2, ShieldAlert, Users, Copy, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import { professoresService } from '../services/professoresService';
@@ -29,9 +29,15 @@ export default function Professores() {
   const [profSelecionado, setProfSelecionado] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // ILU-65: senha temporária gerada pela Edge Function ao criar/trocar
+  // acesso — exibida uma única vez para o admin repassar ao professor.
+  const [dadosAcessoCriado, setDadosAcessoCriado] = useState(null);
+  const [copiado, setCopiado] = useState(false);
+
   const buscaDebounced = useDebounce(busca, 400);
   const modalForm   = useModal();
   const modalStatus = useModal();
+  const modalAcesso = useModal();
 
   const carregarProfessores = useCallback(async () => {
     setLoading(true);
@@ -93,6 +99,7 @@ export default function Professores() {
       const emailMudou     = emailNovo !== emailAntigo;
 
       let toastMsg = 'Professor salvo com sucesso!';
+      let senhaTemporaria = null;
 
       if (isNovoCadastro && temEmailNovo) {
         // Caso 1 — novo cadastro com email: chama Edge Function e ela já salva auth_id
@@ -111,6 +118,7 @@ export default function Professores() {
         toastMsg = funcData.reutilizado
           ? 'Professor vinculado ao acesso existente!'
           : 'Professor cadastrado e acesso criado!';
+        senhaTemporaria = funcData.senha_temporaria ?? null;
 
       } else if (!isNovoCadastro && tinhaAcesso && !temEmailNovo) {
         // Caso 2 — removeu o email: exclui acesso
@@ -138,6 +146,7 @@ export default function Professores() {
 
         await professoresService.salvar({ ...formProfessor, email: emailNovo, auth_id: funcData.auth_id });
         toastMsg = 'E-mail atualizado e novo acesso criado!';
+        senhaTemporaria = funcData.senha_temporaria ?? null;
 
       } else if (!isNovoCadastro && !tinhaAcesso && temEmailNovo) {
         // Caso 4 — não tinha acesso, adicionou email: cria acesso
@@ -152,6 +161,7 @@ export default function Professores() {
         toastMsg = funcData.reutilizado
           ? 'Professor vinculado ao acesso existente!'
           : 'Acesso criado e professor atualizado!';
+        senhaTemporaria = funcData.senha_temporaria ?? null;
 
       } else {
         // Casos 5 e 6 — sem mudança de acesso, salva só os dados
@@ -161,11 +171,27 @@ export default function Professores() {
       showToast.success(toastMsg);
       modalForm.fechar();
       carregarProfessores();
+
+      if (senhaTemporaria) {
+        setDadosAcessoCriado({ nome: formProfessor.nome, email: emailNovo, senha: senhaTemporaria });
+        setCopiado(false);
+        modalAcesso.abrir();
+      }
     } catch (error) {
       showToast.error(error.message || 'Erro ao salvar dados.');
     } finally {
       setSaving(false);
     }
+  }
+
+  function copiarInstrucoesAcesso() {
+    const texto =
+      `Olá ${dadosAcessoCriado.nome}!\nSeu acesso ao painel do Espaço Iluminus foi criado.\n\n` +
+      `Acesse: ${window.location.origin}\nLogin: ${dadosAcessoCriado.email}\n` +
+      `Senha Provisória: ${dadosAcessoCriado.senha}\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
+    navigator.clipboard.writeText(texto);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
   }
 
   async function alternarStatus() {
@@ -392,6 +418,28 @@ export default function Professores() {
             {profSelecionado?.ativo ? 'Desativar' : 'Reativar'}
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* Modal Acesso Criado — ILU-65: exibe a senha temporária gerada
+          pela Edge Function, já que não há outra forma de o admin
+          descobri-la depois. */}
+      <Modal
+        aberto={modalAcesso.aberto}
+        fechar={modalAcesso.fechar}
+        title="Acesso Criado!"
+        size="sm"
+      >
+        <p className="text-sm text-muted-foreground mb-4">
+          Repasse estas instruções ao professor. A senha provisória não poderá ser exibida novamente.
+        </p>
+        <Button
+          variant="outline"
+          fullWidth
+          leftIcon={copiado ? <Check size={18} /> : <Copy size={18} />}
+          onClick={copiarInstrucoesAcesso}
+        >
+          Copiar Instruções
+        </Button>
       </Modal>
     </div>
   );

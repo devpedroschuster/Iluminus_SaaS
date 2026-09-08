@@ -116,12 +116,26 @@ async agendarAulaAdmin(dados) {
     return data;
   },
 
-  async listarPresencasPeriodo(inicio, fim) {
-    const { data, error } = await supabase
+  // professorId (opcional): quando informado, filtra no servidor só pelas
+  // presenças de aulas daquele professor (join via agenda.professor_id) —
+  // evita mandar pro cliente nomes/presença de alunos de outros professores
+  // (ver ILU-45). Admin não passa professorId e continua vendo tudo.
+  async listarPresencasPeriodo(inicio, fim, professorId = null) {
+    let query = supabase
       .from('presencas')
-      .select('id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
+      .select(
+        professorId
+          ? 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo ), agenda!inner ( professor_id )'
+          : 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )'
+      )
       .gte('data_aula', inicio)
       .lte('data_aula', fim);
+
+    if (professorId) {
+      query = query.eq('agenda.professor_id', professorId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data;
   },

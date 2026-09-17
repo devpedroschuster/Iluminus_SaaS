@@ -9,7 +9,7 @@ import {
   CalendarX, RotateCcw, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { hojeBrasilia } from '../lib/utils';
+import { hojeBrasilia, derivarPlanoVigente } from '../lib/utils';
 import { alunosService } from '../services/alunosService';
 import { TableSkeleton } from '../components/shared/Loading';
 import { showToast } from '../components/shared/showToast';
@@ -1177,11 +1177,12 @@ function AbaAgendaFixa({ aluno, alunoId }) {
 function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient, onClose }) {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({
-    plano_id:    registro?.plano_id    ?? '',
-    data_inicio: registro?.data_inicio ?? '',
-    data_fim:    registro?.data_fim    ?? '',
-    valor_pago:  registro?.valor_pago  ?? '',
-    status:      registro?.status      ?? 'finalizado',
+    plano_id:          registro?.plano_id          ?? '',
+    data_inicio:       registro?.data_inicio        ?? '',
+    data_fim:          registro?.data_fim           ?? '',
+    valor_pago:        registro?.valor_pago         ?? '',
+    status:            registro?.status             ?? 'finalizado',
+    forma_recebimento: registro?.forma_recebimento  ?? 'recorrente',
   });
 
   const handleSalvar = async () => {
@@ -1194,20 +1195,27 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
       const { error } = await supabase
         .from('historico_planos')
         .update({
-          plano_id:    Number(form.plano_id),
-          data_inicio: form.data_inicio,
-          data_fim:    form.data_fim,
-          valor_pago:  Number(form.valor_pago) || 0,
-          status:      form.status,
+          plano_id:          Number(form.plano_id),
+          data_inicio:       form.data_inicio,
+          data_fim:          form.data_fim,
+          valor_pago:        Number(form.valor_pago) || 0,
+          status:            form.status,
+          forma_recebimento: form.forma_recebimento,
         })
         .eq('id', registro.id);
       if (error) throw error;
-      // Se status virou 'ativo', sincroniza o campo alunos.plano_id / data_fim_plano
-      if (form.status === 'ativo') {
+      // Recalcula o ciclo vigente com o histórico já atualizado e sincroniza
+      // alunos.plano_id/data_fim_plano com ele — em vez de assumir que o
+      // registro editado é o vigente só porque seu status é 'ativo' (podia
+      // deixar a lista/perfil desatualizados ao editar um registro antigo,
+      // ou não atualizar quando a edição tirava o registro da vigência).
+      const historicoAtualizado = await alunosService.buscarHistoricoPlanos(alunoId);
+      const vigente = derivarPlanoVigente(historicoAtualizado);
+      if (vigente) {
         await supabase.from('alunos').update({
-          plano_id:        Number(form.plano_id),
-          data_inicio_plano: form.data_inicio,
-          data_fim_plano:  form.data_fim,
+          plano_id:          vigente.plano_id,
+          data_inicio_plano: vigente.data_inicio,
+          data_fim_plano:    vigente.data_fim,
         }).eq('id', alunoId);
       }
       queryClient.invalidateQueries(['aluno-planos', alunoId]);
@@ -1286,6 +1294,15 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
                 <option value="cancelado">cancelado</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className={labelClass}>Forma de Recebimento</label>
+            <select className={inputClass}
+              value={form.forma_recebimento}
+              onChange={e => setForm(f => ({ ...f, forma_recebimento: e.target.value }))}>
+              <option value="recorrente">Recorrente (mensal)</option>
+              <option value="a_vista">À vista</option>
+            </select>
           </div>
           {form.status === 'ativo' && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-warning-foreground">
@@ -1419,26 +1436,6 @@ function formatarDataBR(iso) {
 // ficar dessincronizado se uma renovação não finalizar corretamente
 // o ciclo anterior (ver correção de renovar_plano_aluno / ILU-8).
 // ─────────────────────────────────────────────────────────────
-function derivarPlanoVigente(planos) {
-  if (!Array.isArray(planos) || planos.length === 0) return null;
-  const hojeStr = hojeBrasilia();
-  const naoCancelados = planos.filter(p => p.status !== 'cancelado');
-
-  // 1) Prioridade: o ciclo cuja janela [data_inicio, data_fim] contém hoje.
-  //    Se houver mais de um (dado inconsistente), fica com o de data_inicio
-  //    mais recente.
-  const vigentesPorData = naoCancelados
-    .filter(p => p.data_inicio <= hojeStr && p.data_fim >= hojeStr)
-    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
-  if (vigentesPorData.length > 0) return vigentesPorData[0];
-
-  // 2) Nenhum ciclo cobre hoje (ex: venceu e ainda não foi renovado) —
-  //    usa o de data_inicio mais recente entre os não cancelados.
-  const maisRecente = [...naoCancelados]
-    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
-  return maisRecente[0] ?? null;
-}
-
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1774,7 +1771,12 @@ export default function PerfilAluno() {
                   {planos?.map(p => (
                     <tr key={p.id} className={`hover:bg-muted/30 transition-colors ${confirmDeleteId === p.id ? 'bg-destructive-soft/30' : ''}`}>
                       <td className="p-5">
-                        <p className="font-bold text-foreground">{p.planos?.nome}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-foreground">{p.planos?.nome}</p>
+                          <Badge tone={p.forma_recebimento === 'a_vista' ? 'brand' : 'neutral'} variant="soft">
+                            {p.forma_recebimento === 'a_vista' ? 'À vista' : 'Recorrente'}
+                          </Badge>
+                        </div>
                         <p className="text-xs font-medium text-muted-foreground">R$ {p.valor_pago}</p>
                       </td>
                       <td className="p-5">

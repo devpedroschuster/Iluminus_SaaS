@@ -14,7 +14,7 @@ import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/showToast';
-import { hojeBrasilia } from '../lib/utils';
+import { hojeBrasilia, calcularFimPlano } from '../lib/utils';
 import Modal from '../components/shared/Modal';
 
 // CPF helpers
@@ -193,11 +193,12 @@ export default function NovoAluno() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(alunoSchema),
-    defaultValues: { role: 'aluno', bolsista: false },
+    defaultValues: { role: 'aluno', bolsista: false, forma_recebimento: 'recorrente' },
   });
 
   const roleAtual          = watch('role');
   const planoSelecionado   = watch('plano_id');
+  const formaRecebimentoAtual = watch('forma_recebimento');
   const dataInicioPlano    = useWatch({ control, name: 'data_inicio_plano' });
   const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
   const regrasPlano         = planoSelecionadoObj?.regras_acesso || [];
@@ -231,11 +232,8 @@ export default function NovoAluno() {
     if (!ano || ano < 1900) return;
     const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
     if (isNaN(dataInicio.getTime())) return;
-    const meses   = planoSelecionadoObj.duracao_meses || 1;
-    const dataFim = new Date(dataInicio);
-    dataFim.setMonth(dataFim.getMonth() + meses);
-    dataFim.setDate(dataFim.getDate() - 1);
-    setValue('data_fim_plano', dataFim.toISOString().split('T')[0]);
+    const meses = planoSelecionadoObj.duracao_meses || 1;
+    setValue('data_fim_plano', calcularFimPlano(dataInicioPlano, meses));
   }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
   useEffect(() => {
@@ -453,7 +451,13 @@ export default function NovoAluno() {
   // se ainda não existir um registro equivalente — assim um retry depois de
   // uma falha parcial (ex.: histórico foi criado mas a mensalidade falhou)
   // não duplica o que já tinha sido salvo com sucesso na tentativa anterior.
-  async function criarRegistrosFinanceiros(alunoId, planoId, planoInfo, dataInicio, dataFim, vencimento) {
+  async function criarRegistrosFinanceiros(alunoId, planoId, planoInfo, dataInicio, dataFim, vencimento, formaRecebimento = 'recorrente') {
+    // 'a_vista': o ciclo inteiro é cobrado de uma vez (preço mensal ×
+    // duração, congelado) — mesma conta usada nas RPCs matricular_aluno /
+    // renovar_plano_aluno para manter os dois caminhos consistentes.
+    const valorIntegral = Number(planoInfo.preco || 0) * (planoInfo.duracao_meses || 1);
+    const valorCiclo = formaRecebimento === 'a_vista' ? valorIntegral : (planoInfo.preco || 0);
+
     const { data: histExistente } = await supabase
       .from('historico_planos')
       .select('id')
@@ -462,12 +466,13 @@ export default function NovoAluno() {
 
     if (!histExistente) {
       const { error: errHist } = await supabase.from('historico_planos').insert([{
-        aluno_id:    alunoId,
-        plano_id:    planoId,
-        data_inicio: dataInicio,
-        data_fim:    dataFim,
-        status:      'ativo',
-        valor_pago:  planoInfo.preco || 0,
+        aluno_id:          alunoId,
+        plano_id:          planoId,
+        data_inicio:       dataInicio,
+        data_fim:          dataFim,
+        status:            'ativo',
+        valor_pago:        valorCiclo,
+        forma_recebimento: formaRecebimento,
       }]);
       if (errHist) throw errHist;
     }
@@ -484,7 +489,8 @@ export default function NovoAluno() {
         plano_id:        planoId,
         data_vencimento: vencimento,
         status:          'pendente',
-        valor_esperado:  planoInfo.preco ?? null,
+        valor_esperado:  valorCiclo,
+        descricao:       formaRecebimento === 'a_vista' ? 'Pagamento integral do plano' : null,
       }]);
       if (errMensalidade) throw errMensalidade;
     }
@@ -492,17 +498,17 @@ export default function NovoAluno() {
 
   // ILU-31: aviso persistente (com botão de retry) quando o histórico do
   // plano/primeira mensalidade falha depois que o aluno já foi salvo.
-  function avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento) {
+  function avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento = 'recorrente') {
     async function tentarNovamente() {
       try {
         await criarRegistrosFinanceiros(
           alunoId, planoId, planoInfo,
-          payload.data_inicio_plano, payload.data_fim_plano, vencimento,
+          payload.data_inicio_plano, payload.data_fim_plano, vencimento, formaRecebimento,
         );
         showToast.success('Registro financeiro criado com sucesso!');
       } catch (novoErro) {
         console.error('[NovoAluno] Nova falha ao registrar histórico/mensalidade:', novoErro);
-        avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento);
+        avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento);
       }
     }
     showToast.custom(
@@ -609,11 +615,11 @@ export default function NovoAluno() {
         try {
           await criarRegistrosFinanceiros(
             novoAlunoId, planoFinal, planoInfos,
-            payloadBase.data_inicio_plano, payloadBase.data_fim_plano, dataVencimento,
+            payloadBase.data_inicio_plano, payloadBase.data_fim_plano, dataVencimento, data.forma_recebimento,
           );
         } catch (errFinanceiro) {
           console.error('[NovoAluno] Falha ao registrar histórico/mensalidade:', errFinanceiro);
-          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, planoFinal, planoInfos, payloadBase, dataVencimento);
+          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, planoFinal, planoInfos, payloadBase, dataVencimento, data.forma_recebimento);
         }
       }
 
@@ -1024,6 +1030,33 @@ export default function NovoAluno() {
             </select>
           </div>
           <PlanoSlots />
+          {/* Forma de recebimento do plano: mensalidade recorrente (padrão,
+              1 cobrança por mês) ou pagamento integral do ciclo inteiro de
+              uma vez (ex.: plano semestral/anual pago à vista). */}
+          <div className="grid grid-cols-2 gap-4 md:col-span-2">
+            <label className={`relative flex items-center gap-3 px-4 py-4 rounded-2xl cursor-pointer border-2 ${
+              formaRecebimentoAtual === 'recorrente' ? 'border-primary bg-gray-50' : 'border-transparent bg-gray-50'
+            }`}>
+              <input
+                type="radio"
+                value="recorrente"
+                {...register('forma_recebimento')}
+                className="w-5 h-5 accent-primary cursor-pointer"
+              />
+              <span className="font-bold text-gray-600">Recorrente (mensal)</span>
+            </label>
+            <label className={`relative flex items-center gap-3 px-4 py-4 rounded-2xl cursor-pointer border-2 ${
+              formaRecebimentoAtual === 'a_vista' ? 'border-primary bg-gray-50' : 'border-transparent bg-gray-50'
+            }`}>
+              <input
+                type="radio"
+                value="a_vista"
+                {...register('forma_recebimento')}
+                className="w-5 h-5 accent-primary cursor-pointer"
+              />
+              <span className="font-bold text-gray-600">À vista</span>
+            </label>
+          </div>
           {/* ILU-11: marcador de bolsista — aluno matriculado que não paga.
               Usado para separar pagantes de não pagantes no Dashboard. */}
           <label className="relative flex items-center gap-3 px-4 py-4 bg-gray-50 rounded-2xl

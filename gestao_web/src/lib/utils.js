@@ -102,6 +102,43 @@ export const avancarUmMes = (dataStr) => {
   return proxima.toISOString().split('T')[0];
 };
 
+/**
+ * Calcula a data de fim de um ciclo de plano a partir da data de início e
+ * da duração em meses, subtraindo 1 dia do resultado (ILU-30) — assim o
+ * ciclo cobre exatamente `duracaoMeses` meses corridos e o próximo ciclo
+ * pode começar no dia seguinte sem sobrepor nem deixar lacuna. Usada tanto
+ * no cadastro (NovoAluno) quanto na renovação (ModalRenovarPlano), que
+ * antes tinham fórmulas divergentes.
+ */
+export const calcularFimPlano = (dataInicioStr, duracaoMeses) => {
+  const data = new Date(dataInicioStr + 'T12:00:00');
+  data.setMonth(data.getMonth() + (duracaoMeses || 1));
+  data.setDate(data.getDate() - 1);
+  return data.toISOString().split('T')[0];
+};
+
+/**
+ * Dado o histórico de planos (historico_planos) de um aluno, retorna o
+ * ciclo vigente: o que cobre a data de hoje ou, na ausência de um que
+ * cubra (ex.: venceu e ainda não foi renovado), o de início mais recente
+ * entre os não cancelados. Fonte única usada tanto pela tela de perfil
+ * quanto pela sincronização dos campos desnormalizados em `alunos`.
+ */
+export const derivarPlanoVigente = (planos) => {
+  if (!Array.isArray(planos) || planos.length === 0) return null;
+  const hojeStr = hojeBrasilia();
+  const naoCancelados = planos.filter(p => p.status !== 'cancelado');
+
+  const vigentesPorData = naoCancelados
+    .filter(p => p.data_inicio <= hojeStr && p.data_fim >= hojeStr)
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  if (vigentesPorData.length > 0) return vigentesPorData[0];
+
+  const maisRecente = [...naoCancelados]
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  return maisRecente[0] ?? null;
+};
+
 export const validarEmail = (email) => {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);

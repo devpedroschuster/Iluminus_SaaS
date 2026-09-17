@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
 import { showToast } from './shared/showToast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
-import { formatarMoeda, hojeBrasilia } from '../lib/utils';
+import { formatarMoeda, hojeBrasilia, calcularFimPlano } from '../lib/utils';
 
 import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
@@ -17,8 +17,14 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     plano_id: '',
     data_inicio: hojeBrasilia(),
     data_fim: '',
-    valor_pago: ''
+    valor_pago: '',
+    forma_recebimento: 'recorrente'
   });
+
+  // Valor total quando o ciclo é pago de uma vez (preço mensal × duração) —
+  // mesma conta usada no servidor (renovar_plano_aluno), sem desconto.
+  const calcularValorAVista = (planoSelecionado) =>
+    planoSelecionado ? Number(planoSelecionado.preco) * (planoSelecionado.duracao_meses || 1) : '';
 
   useEffect(() => {
     if (isOpen && alunoId) {
@@ -41,33 +47,44 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
           return;
         }
         if (data && data.data_fim_plano) {
-          setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
+          // Novo ciclo começa no dia seguinte ao fim do anterior — reaproveitar
+          // o mesmo dia (sem +1) sobrepunha 1 dia entre os dois ciclos.
+          const proximoDia = new Date(data.data_fim_plano + 'T12:00:00');
+          proximoDia.setDate(proximoDia.getDate() + 1);
+          setForm(prev => ({ ...prev, data_inicio: proximoDia.toISOString().split('T')[0] }));
         }
       });
     }
   }, [isOpen, alunoId]);
 
-  const calcularDataFim = (dataInicioStr, meses) => {
-    const data = new Date(dataInicioStr + 'T12:00:00');
-    data.setMonth(data.getMonth() + meses);
-    return data.toISOString().split('T')[0];
-  };
-
   const handlePlanoChange = (e) => {
   const planoId = e.target.value;
   const planoSelecionado = planos.find(p => p.id === Number(planoId));
-    
+
     if (planoSelecionado) {
     setForm({
       ...form,
       plano_id: planoId,
-      valor_pago: planoSelecionado.preco,
-      data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
+      valor_pago: form.forma_recebimento === 'a_vista'
+        ? calcularValorAVista(planoSelecionado)
+        : planoSelecionado.preco,
+      data_fim: calcularFimPlano(form.data_inicio, planoSelecionado.duracao_meses)
     });
   } else {
     setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
   }
 };
+
+  const handleFormaRecebimentoChange = (formaRecebimento) => {
+    const planoSelecionado = planos.find(p => p.id === Number(form.plano_id));
+    setForm({
+      ...form,
+      forma_recebimento: formaRecebimento,
+      valor_pago: planoSelecionado
+        ? (formaRecebimento === 'a_vista' ? calcularValorAVista(planoSelecionado) : planoSelecionado.preco)
+        : form.valor_pago
+    });
+  };
 
   async function executarRenovacao() {
     setLoading(true);
@@ -76,7 +93,8 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         plano_id: form.plano_id,
         data_inicio: form.data_inicio,
         data_fim: form.data_fim,
-        valor_pago: form.valor_pago
+        valor_pago: form.valor_pago,
+        forma_recebimento: form.forma_recebimento
       });
       showToast.success("Plano renovado com sucesso!");
       onSucesso();
@@ -95,7 +113,9 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     // tabela do plano — evita que um erro de digitação vire permanentemente
     // o valor cobrado e a base de cálculo de comissão, sem nenhum aviso.
     const planoSelecionado = planos.find(p => p.id === Number(form.plano_id));
-    const precoTabela = Number(planoSelecionado?.preco);
+    const precoTabela = form.forma_recebimento === 'a_vista'
+      ? Number(calcularValorAVista(planoSelecionado))
+      : Number(planoSelecionado?.preco);
     const valorInformado = Number(form.valor_pago);
     const desviaSignificativamente =
       Number.isFinite(precoTabela) && precoTabela > 0
@@ -151,7 +171,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     ...form,
     data_inicio: novaDataInicio,
     data_fim: planoSelecionado
-      ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses)
+      ? calcularFimPlano(novaDataInicio, planoSelecionado.duracao_meses)
       : form.data_fim
   });
 }}
@@ -171,7 +191,37 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         </div>
 
         <div>
-          <Label className="block mb-1.5">Valor Negociado (R$)</Label>
+          <Label className="block mb-1.5">Forma de Recebimento</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleFormaRecebimentoChange('recorrente')}
+              className={`py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                form.forma_recebimento === 'recorrente'
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              Recorrente (mensal)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFormaRecebimentoChange('a_vista')}
+              className={`py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                form.forma_recebimento === 'a_vista'
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              À vista
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <Label className="block mb-1.5">
+            {form.forma_recebimento === 'a_vista' ? 'Valor Total à Vista (R$)' : 'Valor Negociado (R$)'}
+          </Label>
           <Input 
             type="number" 
             step="0.01" 

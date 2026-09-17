@@ -286,11 +286,12 @@ export const alunosService = {
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
       const { error } = await supabase.rpc('renovar_plano_aluno', {
-        p_aluno_id:    alunoId,
-        p_plano_id:    dadosRenovacao.plano_id,
-        p_data_inicio: dadosRenovacao.data_inicio,
-        p_data_fim:    dadosRenovacao.data_fim,
-        p_valor_pago:  dadosRenovacao.valor_pago ?? 0,
+        p_aluno_id:          alunoId,
+        p_plano_id:          dadosRenovacao.plano_id,
+        p_data_inicio:       dadosRenovacao.data_inicio,
+        p_data_fim:          dadosRenovacao.data_fim,
+        p_valor_pago:        dadosRenovacao.valor_pago ?? 0,
+        p_forma_recebimento: dadosRenovacao.forma_recebimento ?? 'recorrente',
       });
 
       if (error) throw error;

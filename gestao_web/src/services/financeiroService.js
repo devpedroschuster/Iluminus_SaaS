@@ -78,6 +78,18 @@ async listarModalidadesDoAluno(alunoId) {
 
     const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
 
+    // Alunos com ciclo ativo pago à vista (forma_recebimento = 'a_vista' em
+    // historico_planos) já quitaram o período inteiro na matrícula/renovação
+    // — não geram mensalidade mensal enquanto esse ciclo estiver vigente.
+    const { data: ciclosAVista, error: errCiclos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id')
+      .eq('status', 'ativo')
+      .eq('forma_recebimento', 'a_vista')
+      .in('aluno_id', alunosCobraveis.map(a => a.id));
+    if (errCiclos) throw errCiclos;
+    const idsAVista = new Set((ciclosAVista || []).map(c => c.aluno_id));
+
     // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para o
     // corte de "últimos 3 meses" não errar por um dia perto da meia-noite
     // em Brasília.
@@ -101,6 +113,8 @@ async listarModalidadesDoAluno(alunoId) {
     const novasCobrancas = [];
 
     alunosCobraveis.forEach(aluno => {
+      if (idsAVista.has(aluno.id)) return;
+
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
 
       let proximaData;

@@ -120,10 +120,11 @@ export default function ModalListaPresenca({
           <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
             {listaPresenca.map(aluno => {
               const ausente = aluno.status === 'falta' || aluno.status === 'cancelado';
+              const presente = aluno.status === 'presente';
               return (
               <li key={`${aluno.tipo}-${aluno.aluno_id || aluno.nome}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${ausente ? 'bg-destructive-soft border-destructive/30 opacity-70' : 'bg-card border-border shadow-sm'}`}>
                 <div>
-                  <span className={`font-bold text-sm ${ausente ? 'text-destructive line-through' : 'text-foreground'}`}>
+                  <span className={`font-bold text-sm ${ausente ? 'text-destructive line-through' : presente ? 'text-success' : 'text-foreground'}`}>
                     {aluno.nome}
                   </span>
                   <div className="flex flex-wrap gap-2 mt-1">

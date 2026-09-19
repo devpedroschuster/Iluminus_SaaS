@@ -2,7 +2,7 @@ import React from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Check } from 'lucide-react';
 import { PALETA_CORES } from '../../../lib/constants';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './CalendarioGrade.css';
@@ -104,10 +104,11 @@ const CustomEventCard = ({ event }) => {
           {event.alunosAgendados.slice(0, 2).map((item, idx) => {
             const nome = typeof item === 'string' ? item : item.nome;
             const isLead = typeof item === 'object' && item.isLead;
-            
+            const presente = typeof item === 'object' && item.presente;
+
             return (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`text-[10px] leading-tight flex items-center gap-1.5 font-medium overflow-hidden shrink-0 ${
                   isLead ? 'opacity-100' : 'opacity-90'
                 }`}
@@ -116,10 +117,17 @@ const CustomEventCard = ({ event }) => {
                   <span className="text-[7px] leading-[1] font-black bg-amber-400/90 text-amber-950 px-1 py-0.5 rounded-[3px] shrink-0">
                     LEAD
                   </span>
+                ) : presente ? (
+                  <Check size={9} strokeWidth={3} className="text-success shrink-0" />
                 ) : (
                   <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>
                 )}
-                <span className={`truncate min-w-0 ${isLead ? 'font-bold underline decoration-amber-400/40' : ''}`} title={nome}>
+                <span
+                  className={`truncate min-w-0 ${
+                    isLead ? 'font-bold underline decoration-amber-400/40' : presente ? 'font-bold text-success' : ''
+                  }`}
+                  title={nome}
+                >
                   {nome}
                 </span>
               </div>

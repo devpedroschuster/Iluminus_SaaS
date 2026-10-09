@@ -6,11 +6,12 @@ import {
   ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
   Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
   CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info, CalendarCheck,
-  CalendarX, RotateCcw, Clock,
+  CalendarX, RotateCcw, Clock, KeyRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
+  statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { alunosService } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
@@ -21,7 +22,8 @@ import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
-import Modal from '../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -110,6 +112,92 @@ function BotaoWhatsApp({ aluno }) {
 // ─────────────────────────────────────────────────────────────
 // Modal Editar Cadastro
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ILU-76: Acesso ao app — criar login ou gerar nova senha provisória
+// ─────────────────────────────────────────────────────────────
+const DESCRICAO_ACESSO_APP = {
+  sem_acesso:   'O aluno ainda não tem login no app.',
+  senha_antiga: 'Login criado com a senha padrão antiga. Gere uma senha nova antes de divulgar o acesso ao aluno.',
+  provisoria:   'Senha provisória gerada. Aguardando o aluno entrar e criar a própria senha.',
+  ativo:        'O aluno já entrou e criou a própria senha.',
+};
+
+function CardAcessoApp({ aluno, alunoId, queryClient }) {
+  const [processando, setProcessando] = useState(false);
+  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState(false);
+  const [credenciais, setCredenciais] = useState(null);
+
+  const status = statusAcessoApp(aluno);
+  const info = STATUS_ACESSO_APP[status];
+  const semEmail = !aluno?.email?.trim();
+
+  async function executar(acao) {
+    setProcessando(true);
+    try {
+      const { email, senha } = acao === 'criar'
+        ? await alunosService.criarAcessoApp(aluno.id)
+        : await alunosService.gerarNovaSenhaApp(aluno.id);
+      setCredenciais({ nome: aluno.nome_completo, email, senha, tipo: acao === 'criar' ? 'novo' : 'nova_senha' });
+      queryClient.invalidateQueries(['aluno', alunoId]);
+      queryClient.invalidateQueries({ queryKey: ['alunos'] });
+    } catch (err) {
+      showToast.error(err.message || 'Erro ao gerar o acesso ao app.');
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  return (
+    <Surface variant="card" padding="xl" className="space-y-5 md:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-black text-foreground flex items-center gap-2">
+          <KeyRound size={20} className="text-primary" /> Acesso ao app
+        </h3>
+        <Badge tone={info.tone} variant="soft">{info.label}</Badge>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{DESCRICAO_ACESSO_APP[status]}</p>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <p className="text-sm text-foreground">
+          {semEmail
+            ? 'Cadastre um e-mail em "Editar Cadastro" para criar o acesso.'
+            : <>Login: <strong className="break-all">{aluno.email}</strong></>}
+        </p>
+        {status === 'sem_acesso' ? (
+          <Button variant="brand" size="md" leftIcon={<KeyRound size={16} />}
+            onClick={() => executar('criar')} loading={processando} disabled={processando || semEmail}>
+            Criar acesso
+          </Button>
+        ) : (
+          <Button variant={status === 'senha_antiga' ? 'brand' : 'outline'} size="md" leftIcon={<RotateCcw size={16} />}
+            onClick={() => setConfirmarNovaSenha(true)} loading={processando} disabled={processando}>
+            Gerar nova senha
+          </Button>
+        )}
+      </div>
+
+      <ModalConfirmacao
+        aberto={confirmarNovaSenha}
+        fechar={() => setConfirmarNovaSenha(false)}
+        onConfirm={() => executar('resetar_senha')}
+        titulo="Gerar nova senha?"
+        mensagem={`A senha atual de ${aluno.nome_completo} deixa de funcionar e as sessões abertas no app são encerradas. A nova senha provisória aparece uma única vez para você repassar.`}
+        textoConfirmar="Gerar nova senha"
+        tipo="warning"
+        loading={processando}
+      />
+
+      <ModalCredenciaisAcesso
+        aberto={!!credenciais}
+        fechar={() => setCredenciais(null)}
+        credenciais={credenciais}
+        tipo={credenciais?.tipo}
+      />
+    </Surface>
+  );
+}
+
 function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({
@@ -1763,6 +1851,10 @@ export default function PerfilAluno() {
                 </div>
               </div>
             </Surface>
+            {/* ILU-76: só contas de aluno — admins não são gerenciados por aqui */}
+            {aluno?.role === 'aluno' && (
+              <CardAcessoApp aluno={aluno} alunoId={id} queryClient={queryClient} />
+            )}
           </div>
         )}
 

@@ -3,7 +3,7 @@ import {
   valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes,
   vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
-  ehPlanoLivre, calcularFrequenciaMedia,
+  ehPlanoLivre, calcularFrequenciaMedia, statusAcessoApp, STATUS_ACESSO_APP, montarInstrucoesAcesso,
 } from './utils';
 
 describe('valorDevidoMensalidade', () => {
@@ -302,5 +302,60 @@ describe('calcularFrequenciaMedia (ILU-71)', () => {
   it('retorna 0 quando nenhum aluno tem meta (todos livres ou lista vazia)', () => {
     expect(calcularFrequenciaMedia([{ id: 1, planos: { frequencia_semanal: 999 } }], presencas([]))).toBe(0);
     expect(calcularFrequenciaMedia([], presencas([]))).toBe(0);
+  });
+});
+
+// ILU-76: status do acesso do aluno ao app, usado no Perfil e na lista.
+describe('statusAcessoApp', () => {
+  it('sem login → sem_acesso', () => {
+    expect(statusAcessoApp({ auth_id: null, primeiro_acesso: true })).toBe('sem_acesso');
+    expect(statusAcessoApp(null)).toBe('sem_acesso');
+  });
+
+  it('login criado antes do sistema gerar senhas, ainda no primeiro acesso → senha_antiga (ILU-77)', () => {
+    expect(statusAcessoApp({ auth_id: 'u1', primeiro_acesso: true, acesso_gerado_em: null })).toBe('senha_antiga');
+  });
+
+  it('senha gerada pelo sistema e aluno ainda não entrou → provisoria', () => {
+    expect(statusAcessoApp({ auth_id: 'u1', primeiro_acesso: true, acesso_gerado_em: '2026-10-09T18:00:00Z' }))
+      .toBe('provisoria');
+  });
+
+  it('aluno já criou a própria senha → ativo, com ou sem senha gerada pelo sistema', () => {
+    expect(statusAcessoApp({ auth_id: 'u1', primeiro_acesso: false, acesso_gerado_em: null })).toBe('ativo');
+    expect(statusAcessoApp({ auth_id: 'u1', primeiro_acesso: false, acesso_gerado_em: '2026-10-09T18:00:00Z' }))
+      .toBe('ativo');
+  });
+
+  it('todo status tem rótulo e tom de badge', () => {
+    for (const chave of ['sem_acesso', 'senha_antiga', 'provisoria', 'ativo']) {
+      expect(STATUS_ACESSO_APP[chave]).toEqual({ label: expect.any(String), tone: expect.any(String) });
+    }
+  });
+});
+
+// ILU-76: texto que o admin copia e manda ao aluno (WhatsApp).
+describe('montarInstrucoesAcesso', () => {
+  const base = { nome: 'Maria Souza', email: 'maria@exemplo.com', senha: 'Abc123!@#xyz', origem: 'https://app.exemplo' };
+
+  it('acesso novo: primeiro nome, link, login, senha e aviso de troca no primeiro acesso', () => {
+    const texto = montarInstrucoesAcesso({ ...base, tipo: 'novo' });
+    expect(texto).toContain('Olá Maria!');
+    expect(texto).toContain('Seu acesso ao app do Espaço Iluminus foi criado.');
+    expect(texto).toContain('Acesse: https://app.exemplo');
+    expect(texto).toContain('Login: maria@exemplo.com');
+    expect(texto).toContain('Senha provisória: Abc123!@#xyz');
+    expect(texto).toContain('criar uma nova senha no primeiro acesso');
+  });
+
+  it('nova senha: avisa que a senha anterior deixou de funcionar', () => {
+    const texto = montarInstrucoesAcesso({ ...base, tipo: 'nova_senha' });
+    expect(texto).toContain('Sua senha de acesso ao app do Espaço Iluminus foi redefinida.');
+    expect(texto).toContain('A senha anterior não funciona mais.');
+    expect(texto).toContain('Senha provisória: Abc123!@#xyz');
+  });
+
+  it('sem nome usa saudação neutra', () => {
+    expect(montarInstrucoesAcesso({ ...base, nome: null, tipo: 'novo' })).toMatch(/^Olá!/);
   });
 });

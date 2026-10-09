@@ -278,6 +278,38 @@ export const formatarTelefone = (telefone) => {
   return telefone.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
 };
 
+// ILU-76: status do acesso do aluno ao app.
+// - senha_antiga: login criado antes de o sistema registrar quando gerou a
+//   senha (`acesso_gerado_em` nulo) e ainda no primeiro acesso — são as contas
+//   criadas com a senha fixa pública do ILU-32, que precisam de senha nova (ILU-77).
+// - provisoria: senha gerada pelo sistema, aguardando o aluno entrar e trocar.
+// - ativo: o aluno já definiu a própria senha (primeiro_acesso = false).
+export const STATUS_ACESSO_APP = {
+  sem_acesso:   { label: 'Sem acesso',       tone: 'neutral' },
+  senha_antiga: { label: 'Senha antiga',     tone: 'destructive' },
+  provisoria:   { label: 'Senha provisória', tone: 'warning' },
+  ativo:        { label: 'Ativo',            tone: 'success' },
+};
+
+export const statusAcessoApp = (aluno) => {
+  if (!aluno?.auth_id) return 'sem_acesso';
+  if (aluno.primeiro_acesso === false) return 'ativo';
+  return aluno.acesso_gerado_em ? 'provisoria' : 'senha_antiga';
+};
+
+// ILU-76: texto que o admin copia para mandar ao aluno junto com a senha
+// provisória. `tipo`: 'novo' (acesso criado) ou 'nova_senha' (redefinida).
+export const montarInstrucoesAcesso = ({ nome, email, senha, origem, tipo }) => {
+  const primeiroNome = (nome ?? '').trim().split(/\s+/)[0];
+  const saudacao = primeiroNome ? `Olá ${primeiroNome}!` : 'Olá!';
+  const abertura = tipo === 'nova_senha'
+    ? 'Sua senha de acesso ao app do Espaço Iluminus foi redefinida. A senha anterior não funciona mais.'
+    : 'Seu acesso ao app do Espaço Iluminus foi criado.';
+  return `${saudacao}\n${abertura}\n\n` +
+    `Acesse: ${origem}\nLogin: ${email}\nSenha provisória: ${senha}\n\n` +
+    'O sistema pedirá para você criar uma nova senha no primeiro acesso.';
+};
+
 export const coresStatus = {
   pago:     { bg: 'bg-success-soft', text: 'text-success' },
   pendente: { bg: 'bg-warning-soft', text: 'text-warning' },

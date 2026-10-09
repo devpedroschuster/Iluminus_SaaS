@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
 
 export const agendamentoService = {
 
@@ -48,28 +49,31 @@ async agendarAulaAdmin(dados) {
   }
 
   if (dados.tipo === 'visitante') {
-    // Snapshot do professor responsável pela turma NO MOMENTO do agendamento.
-    // Congela o vínculo aqui — se a turma for reatribuída depois, este lead
-    // continua marcado com o professor que efetivamente deu a experimental.
-    const { data: aulaAtual, error: erroAula } = await supabase
-      .from('agenda')
-      .select('professor_id')
-      .eq('id', dados.aula_id)
-      .single();
-    if (erroAula) throw erroAula;
-
-    const payload = {
-      nome: dados.nome_visitante,
-      telefone: dados.telefone_visitante || null,
-      aula_id: dados.aula_id,
-      data_aula: dados.data_aula,
-      data_checkin: `${dados.data_aula}T12:00:00`,
-      status_conversao: 'pendente',
-      professor_id: aulaAtual?.professor_id ?? null,
-    };
-    const { error } = await supabase.from('leads').insert([payload]);
+    // Aula experimental: cria o lead (com snapshot do professor da turma) e,
+    // se o valor for > 0, o pagamento já quitado no Financeiro — na mesma
+    // transação, via RPC (ver migration 20261009003807).
+    const { data, error } = await supabase.rpc('agendar_aula_experimental', {
+      p_nome: dados.nome_visitante,
+      p_telefone: dados.telefone_visitante || null,
+      p_aula_id: Number(dados.aula_id),
+      p_data_aula: dados.data_aula,
+      p_valor: Number(dados.valor_experimental) || 0,
+      p_forma_pagamento: dados.forma_pagamento_experimental || 'pix',
+    });
     if (error) throw error;
-    return;
+
+    if (data?.mensalidade_id) {
+      // Mesmo padrão não-bloqueante de financeiroService.adicionarPagamentoManual:
+      // o agendamento/pagamento nunca é desfeito por falha no repasse; a
+      // reconciliação de gerar-repasses-mensais cobre o que ficar faltando.
+      try {
+        await gerarRepassesDaMensalidade(data.mensalidade_id);
+      } catch (repasseError) {
+        console.warn('[agendamentoService] Repasse da experimental não gerado automaticamente.', repasseError);
+        return { ...data, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };
+      }
+    }
+    return data;
   }
 
   const payload = {
@@ -85,13 +89,14 @@ async agendarAulaAdmin(dados) {
 },
 
   // Cancela um agendamento. `tipo` indica a origem do id_relacao:
-  // 'lead' -> remove de `leads`. Qualquer outro valor -> trata como
-  // `presencas` (comportamento padrão, mantém histórico via status='cancelado').
+  // 'lead' -> remove o lead e o pagamento automático da experimental (com
+  // os repasses dele). Qualquer outro valor -> trata como `presencas`
+  // (comportamento padrão, mantém histórico via status='cancelado').
   async cancelarAgendamento(id, tipo = 'presenca') {
     if (tipo === 'lead') {
-      const { data, error } = await supabase.from('leads').delete().eq('id', id).select();
+      const { error } = await supabase.rpc('cancelar_aula_experimental', { p_lead_id: id });
       if (error) throw error;
-      return data;
+      return;
     }
 
     const { data: linha, error: errBusca } = await supabase

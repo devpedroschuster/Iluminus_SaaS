@@ -139,6 +139,56 @@ export const derivarPlanoVigente = (planos) => {
   return maisRecente[0] ?? null;
 };
 
+/**
+ * Indica se uma data de vencimento cai dentro de algum ciclo pago à vista
+ * (historico_planos com forma_recebimento 'a_vista') ainda em aberto — ou
+ * seja, se uma mensalidade mensal nessa data seria uma cobrança em
+ * duplicidade, já que o ciclo inteiro foi quitado de uma vez. Considera
+ * ciclos 'ativo' e 'agendado' (nada promove 'agendado' para 'ativo'
+ * automaticamente quando a data de início chega). `data_fim` é o último dia
+ * coberto pelo ciclo, inclusivo (ILU-30, ver calcularFimPlano).
+ * Espelhada em supabase/functions/gerar-mensalidades (cron).
+ */
+export const vencimentoCobertoPorCicloAVista = (ciclos, dataVencimento) =>
+  (ciclos || []).some(c =>
+    c.forma_recebimento === 'a_vista' &&
+    (c.status === 'ativo' || c.status === 'agendado') &&
+    c.data_inicio <= dataVencimento &&
+    dataVencimento <= c.data_fim
+  );
+
+/**
+ * Distribuição de alunos por área (Dança, Funcional, Combo) a partir de
+ * `modalidades_selecionadas` × mapa id → área da modalidade.
+ * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos (somam
+ * o total de alunos). `dancaTotal`/`funcionalTotal` incluem o combo — quem
+ * faz as duas áreas conta tanto em Dança quanto em Funcional. `bolsistas` é
+ * um recorte à parte (ILU-11): um bolsista pode estar em qualquer área.
+ */
+export const contarAlunosPorArea = (alunos, areaById) => {
+  let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
+
+  for (const aluno of alunos || []) {
+    const ids = aluno.modalidades_selecionadas || [];
+    const areas = new Set(ids.map(id => areaById[id]).filter(Boolean));
+    const temDanca     = areas.has('Dança');
+    const temFuncional = areas.has('Funcional');
+
+    if (temDanca && temFuncional) ambos++;
+    else if (temDanca)            danca++;
+    else if (temFuncional)        funcional++;
+    else                          semModalidade++;
+
+    if (aluno.bolsista) bolsistas++;
+  }
+
+  return {
+    danca, funcional, ambos, semModalidade, bolsistas,
+    dancaTotal: danca + ambos,
+    funcionalTotal: funcional + ambos,
+  };
+};
+
 export const validarEmail = (email) => {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);

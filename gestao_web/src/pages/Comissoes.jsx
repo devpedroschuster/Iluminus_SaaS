@@ -65,6 +65,12 @@ function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Repasse de experimental de visitante não tem aluno cadastrado — usa o
+// nome registrado no pagamento (mensalidades.nome_visitante).
+function nomeDoLancamento(lancamento) {
+  return lancamento.alunos?.nome_completo || lancamento.mensalidades?.nome_visitante || 'N/A';
+}
+
 // ─── sub-componentes ──────────────────────────────────────────────────────────
 
 function TipoAulaBadge({ tipo }) {
@@ -178,7 +184,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
           {formatarData(lancamento.data_referencia)}
         </td>
         <td className="p-4 font-bold text-foreground">
-          {lancamento.alunos?.nome_completo || 'N/A'}
+          {nomeDoLancamento(lancamento)}
         </td>
         <td className="p-4">
           <select
@@ -248,7 +254,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       <tr className="bg-destructive/5 border-b border-destructive/20">
         <td colSpan={5} className="p-4">
           <span className="text-sm font-bold text-destructive">
-            Confirma exclusão do lançamento de {lancamento.alunos?.nome_completo}?
+            Confirma exclusão do lançamento de {nomeDoLancamento(lancamento)}?
           </span>
         </td>
         <td className="p-4">
@@ -281,7 +287,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
         {formatarData(lancamento.data_referencia)}
       </td>
       <td className="p-4 font-bold text-foreground">
-        {lancamento.alunos?.nome_completo || 'N/A'}
+        {nomeDoLancamento(lancamento)}
       </td>
       <td className="p-4">
         <TipoAulaBadge tipo={lancamento.tipo_aula} />
@@ -407,7 +413,7 @@ function AbaDetalhe({
       : '';
     const linhas = lancamentosFiltrados.map(l => ({
       Data: formatarData(l.data_referencia),
-      Aluno: l.alunos?.nome_completo || 'Desconhecido',
+      Aluno: l.alunos?.nome_completo || l.mensalidades?.nome_visitante || 'Desconhecido',
       'Tipo de Aula': TIPO_LABELS[l.tipo_aula] ?? l.tipo_aula?.toUpperCase() ?? '—',
       Modalidade: l.modalidade || '-',
       'Valor (R$)': Number(l.valor).toFixed(2).replace('.', ','),

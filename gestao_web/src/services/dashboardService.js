@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { valorDevidoMensalidade } from '../lib/utils';
+import { valorDevidoMensalidade, contarAlunosPorArea } from '../lib/utils';
 
 export const dashboardService = {
   async obterTotalAlunos() {
@@ -36,23 +36,7 @@ export const dashboardService = {
       .eq('role', 'aluno');
     if (errAlunos) throw errAlunos;
 
-    let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
-
-    for (const aluno of alunos || []) {
-      const ids = aluno.modalidades_selecionadas || [];
-      const areas = new Set(ids.map(id => areaById[id]).filter(Boolean));
-      const temDanca     = areas.has('Dança');
-      const temFuncional = areas.has('Funcional');
-
-      if (temDanca && temFuncional) ambos++;
-      else if (temDanca)            danca++;
-      else if (temFuncional)        funcional++;
-      else                          semModalidade++;
-
-      if (aluno.bolsista) bolsistas++;
-    }
-
-    return { danca, funcional, ambos, semModalidade, bolsistas };
+    return contarAlunosPorArea(alunos, areaById);
   },
 
   async obterPagamentosMes(inicioMes) {

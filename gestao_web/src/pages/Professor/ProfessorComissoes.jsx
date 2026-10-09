@@ -70,7 +70,7 @@ function exportarCSV(repasses, mesAno) {
   const cabecalho = ['Data', 'Aluno', 'Modalidade', 'Tipo de Aula', 'Valor', 'Status'];
   const linhas = repasses.map(r => [
     formatarData(r.data_referencia),
-    r.alunos?.nome_completo ?? '—',
+    r.alunos?.nome_completo ?? (r.tipo_aula === 'experimental' ? 'Visitante' : '—'),
     r.modalidade ?? '—',
     tipoAulaLabel(r.tipo_aula),
     String(r.valor ?? 0).replace('.', ','),
@@ -279,7 +279,7 @@ export default function ProfessorComissoes() {
                     </td>
                     <td className="px-8 py-5">
                       <p className="font-bold text-foreground">
-                        {r.alunos?.nome_completo ?? '—'}
+                        {r.alunos?.nome_completo ?? (r.tipo_aula === 'experimental' ? 'Visitante' : '—')}
                       </p>
                     </td>
                     <td className="px-8 py-5">

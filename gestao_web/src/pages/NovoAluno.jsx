@@ -4,7 +4,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
   ArrowLeft, ArrowRight, User, Mail, ShieldCheck, Package,
-  RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin,
+  RefreshCw, Check, CreditCard, Calendar, Phone, MapPin,
   Home, CheckCircle2, CalendarDays, AlertTriangle, Trash2, Plus,
   Info, Lock, AlertCircle, KeyRound,
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/showToast';
 import { hojeBrasilia, calcularFimPlano } from '../lib/utils';
 import Modal from '../components/shared/Modal';
+import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
 
 // CPF helpers
 function formatarCPF(value) {
@@ -160,7 +161,6 @@ export default function NovoAluno() {
 
   const [confirmModal, setConfirmModal] = useState(null);
 
-  const [copiado,                 setCopiado]                 = useState(false);
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
   const [dataVencimento,          setDataVencimento]          = useState(
@@ -650,24 +650,13 @@ export default function NovoAluno() {
     setCriandoAcesso(true);
     setErroAcesso('');
     try {
-      const { data: funcData, error: funcError } = await supabase.functions.invoke(
-        'criar_usuario',
-        { body: { email: alunoSalvoEmail, nome: alunoSalvoNome, role: 'aluno' } }
-      );
-      if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-      if (funcData?.error) throw new Error(
-        funcData.error === 'User already registered'
-          ? 'Este e-mail já possui um acesso.'
-          : funcData.error
-      );
-      const { error: linkError } = await supabase
-        .from('alunos').update({ auth_id: funcData.user.id }).eq('id', alunoSalvoId);
-      if (linkError) throw new Error('Acesso criado, mas falhou ao vincular ao cadastro. Anote o auth_id e contacte o suporte.');
+      // ILU-76: o servidor cria o login e já o vincula a este aluno (tudo ou
+      // nada) — antes o vínculo era um segundo passo aqui no navegador e
+      // podia falhar deixando um login órfão.
+      const { email, senha } = await alunosService.criarAcessoApp(alunoSalvoId);
 
       setAcessoCriado(true);
-      // ILU-32: a senha agora vem gerada pelo servidor a cada chamada —
-      // não existe mais um valor fixo pra repetir aqui.
-      setDadosCriados({ nome: alunoSalvoNome, email: alunoSalvoEmail, senha: funcData.senha_temporaria });
+      setDadosCriados({ nome: alunoSalvoNome, email, senha });
       setModalOpen(true);
     } catch (err) {
       setErroAcesso(err.message || 'Falha ao criar acesso. Tente novamente.');
@@ -675,17 +664,6 @@ export default function NovoAluno() {
       setCriandoAcesso(false);
     }
   }
-
-  const copiarInstrucoes = () => {
-    const texto =
-      `Olá ${dadosCriados.nome}!\nSeu cadastro no Espaço Iluminus foi criado.\n\n` +
-      `Acesse: ${window.location.origin}\nLogin: ${dadosCriados.email}\n` +
-      `Senha Provisória: ${dadosCriados.senha}\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
-    navigator.clipboard.writeText(texto);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-    showToast.success('Instruções copiadas!');
-  };
 
   const modalidadesUnicasIDs   = [...new Set(modalidadesSelecionadas)];
   const listaModalidadesAgenda = modalidadesUnicasIDs
@@ -1529,19 +1507,12 @@ export default function NovoAluno() {
         </div>
       </Modal>
 
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); navigate('/alunos'); }}
-        titulo="Acesso Criado!"
-      >
-        <button
-          onClick={copiarInstrucoes}
-          className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold
-            flex items-center justify-center gap-2 hover:bg-gray-700"
-        >
-          {copiado ? <Check size={20} /> : <Copy size={20} />} Copiar Instruções
-        </button>
-      </Modal>
+      <ModalCredenciaisAcesso
+        aberto={modalOpen}
+        fechar={() => { setModalOpen(false); navigate('/alunos'); }}
+        credenciais={dadosCriados}
+        tipo="novo"
+      />
     </div>
   );
 }

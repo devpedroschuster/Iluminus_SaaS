@@ -12,6 +12,27 @@ function escaparValorFiltroOr(valor) {
   return String(valor).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+// ILU-76: chama a Edge Function `criar_usuario` (só admin) e devolve as
+// credenciais provisórias. Quando a função responde não-2xx, o supabase-js
+// só entrega um FunctionsHttpError — a mensagem real do servidor (ex.: "Este
+// e-mail já possui um acesso.") fica no corpo da resposta e era trocada por
+// um genérico "Falha na comunicação".
+async function invocarCriarUsuario(body) {
+  const { data, error } = await supabase.functions.invoke('criar_usuario', { body });
+  if (error) {
+    let mensagem = null;
+    try {
+      mensagem = (await error.context?.json?.())?.error ?? null;
+    } catch {
+      // corpo ausente ou não-JSON: fica a mensagem genérica
+    }
+    throw new Error(mensagem || 'Falha na comunicação com o servidor seguro.');
+  }
+  if (data?.error) throw new Error(data.error);
+  if (!data?.senha_temporaria) throw new Error('O servidor não devolveu a senha provisória.');
+  return { email: data.email, senha: data.senha_temporaria };
+}
+
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
     try {
@@ -33,6 +54,18 @@ export const alunosService = {
 
       if (filtros.letraInicial)
         query = query.ilike('nome_completo', `${filtros.letraInicial}%`);
+
+      // ILU-76: status de acesso ao app — mesmas regras de statusAcessoApp.
+      if (filtros.acesso === 'sem_acesso') {
+        query = query.is('auth_id', null);
+      } else if (filtros.acesso === 'ativo') {
+        query = query.not('auth_id', 'is', null).eq('primeiro_acesso', false);
+      } else if (filtros.acesso === 'senha_antiga' || filtros.acesso === 'provisoria') {
+        query = query.not('auth_id', 'is', null).eq('primeiro_acesso', true);
+        query = filtros.acesso === 'provisoria'
+          ? query.not('acesso_gerado_em', 'is', null)
+          : query.is('acesso_gerado_em', null);
+      }
 
       const { data, error, count } = await query
         .order('nome_completo')
@@ -398,5 +431,18 @@ export const alunosService = {
       console.error('[alunosService.definirBolsista]', error);
       throw error;
     }
+  },
+
+  // ILU-76: cria o login do app para um aluno já cadastrado. O servidor
+  // vincula o login ao aluno e marca primeiro_acesso; a senha provisória só
+  // existe nesta resposta (mostrar uma única vez ao admin).
+  async criarAcessoApp(alunoId) {
+    return invocarCriarUsuario({ acao: 'criar', aluno_id: alunoId });
+  },
+
+  // ILU-76/ILU-77: gera uma nova senha provisória para quem já tem login — a
+  // senha anterior deixa de valer e as sessões abertas do aluno são derrubadas.
+  async gerarNovaSenhaApp(alunoId) {
+    return invocarCriarUsuario({ acao: 'resetar_senha', aluno_id: alunoId });
   },
 };

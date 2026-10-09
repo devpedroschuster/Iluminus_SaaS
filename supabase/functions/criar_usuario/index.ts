@@ -75,7 +75,115 @@ serve(async (req: Request) => {
 
   // ── A PARTIR DAQUI, SABEMOS QUE QUEM CHAMOU É ADMIN ─────────────────────
   try {
-    const { email, nome, role } = await req.json();
+    const { acao, aluno_id, email, nome, role } = await req.json();
+
+    // As ações por aluno_id só gerenciam contas de aluno: trocar a senha de
+    // um administrador por aqui (a rota /alunos/:id também abre admins)
+    // derrubaria a sessão dele.
+    const MSG_NAO_ALUNO = 'Acesso de administrador não é gerenciado por aqui.';
+
+    // ── ILU-76: CRIAR ACESSO PARA ALUNO JÁ CADASTRADO ────────────────────
+    // O login é criado e vinculado aqui, pelo id do aluno. Os metadados NÃO
+    // levam `role: 'aluno'`: o trigger cria_perfil_automatico só age nesse
+    // caso e vincula por e-mail OU nome (ILU-86 — homônimos dividiriam a
+    // conta; e-mail com maiúscula gerava aluno duplicado).
+    if (acao === 'criar') {
+      if (aluno_id == null) return resp({ error: 'aluno_id é obrigatório' }, 400);
+
+      const { data: aluno, error: alunoErr } = await admin
+        .from('alunos')
+        .select('id, email, nome_completo, auth_id, role')
+        .eq('id', aluno_id)
+        .maybeSingle();
+      if (alunoErr) throw alunoErr;
+      if (!aluno) return resp({ error: 'Aluno não encontrado.' }, 404);
+      if (aluno.role !== 'aluno') return resp({ error: MSG_NAO_ALUNO }, 400);
+      if (aluno.auth_id) {
+        return resp({ error: 'Este aluno já possui acesso ao app. Use "Gerar nova senha".' }, 400);
+      }
+
+      const emailAluno = (aluno.email ?? '').trim().toLowerCase();
+      if (!emailAluno) {
+        return resp({ error: 'Cadastre um e-mail para o aluno antes de criar o acesso.' }, 400);
+      }
+
+      const senhaTemporaria = gerarSenhaTemporaria();
+      const { data: criado, error: criarErr } = await admin.auth.admin.createUser({
+        email: emailAluno,
+        password: senhaTemporaria,
+        email_confirm: true,
+        user_metadata: { nome_completo: aluno.nome_completo },
+      });
+      if (criarErr) {
+        if (criarErr.code === 'email_exists' || /already (been )?registered|already exists/i.test(criarErr.message)) {
+          return resp({ error: 'Este e-mail já possui um acesso.' }, 400);
+        }
+        throw criarErr;
+      }
+
+      // Tudo ou nada: se o vínculo falhar (ou outro admin vinculou no meio
+      // tempo), o login recém-criado é apagado em vez de ficar órfão.
+      const { data: vinculado, error: vincErr } = await admin
+        .from('alunos')
+        .update({ auth_id: criado.user.id, primeiro_acesso: true, acesso_gerado_em: new Date().toISOString() })
+        .eq('id', aluno.id)
+        .is('auth_id', null)
+        .select('id');
+      if (vincErr || !vinculado?.length) {
+        await admin.auth.admin.deleteUser(criado.user.id);
+        if (vincErr) throw vincErr;
+        return resp({ error: 'Este aluno acabou de receber acesso por outra ação. Recarregue a página.' }, 409);
+      }
+
+      // Senha só nesta resposta, para o admin repassar ao aluno.
+      return resp({ email: emailAluno, senha_temporaria: senhaTemporaria });
+    }
+
+    // ── ILU-76/ILU-77: GERAR NOVA SENHA PROVISÓRIA ───────────────────────
+    // A senha anterior deixa de valer e as sessões abertas são derrubadas
+    // (trocar a senha sozinha não desconecta quem já está logado).
+    if (acao === 'resetar_senha') {
+      if (aluno_id == null) return resp({ error: 'aluno_id é obrigatório' }, 400);
+
+      const { data: aluno, error: alunoErr } = await admin
+        .from('alunos')
+        .select('id, auth_id, role')
+        .eq('id', aluno_id)
+        .maybeSingle();
+      if (alunoErr) throw alunoErr;
+      if (!aluno) return resp({ error: 'Aluno não encontrado.' }, 404);
+      if (aluno.role !== 'aluno') return resp({ error: MSG_NAO_ALUNO }, 400);
+      if (!aluno.auth_id) {
+        return resp({ error: 'Este aluno ainda não tem acesso ao app. Use "Criar acesso".' }, 400);
+      }
+
+      const senhaTemporaria = gerarSenhaTemporaria();
+      const { data: atualizado, error: senhaErr } = await admin.auth.admin.updateUserById(aluno.auth_id, {
+        password: senhaTemporaria,
+      });
+      if (senhaErr) throw senhaErr;
+
+      const { error: sessoesErr } = await admin.rpc('revogar_sessoes_usuario', { p_user_id: aluno.auth_id });
+      if (sessoesErr) {
+        console.error('[criar_usuario] revogar sessões:', sessoesErr.message);
+        return resp({
+          error: 'A senha foi trocada, mas não foi possível desconectar as sessões abertas. Gere a senha novamente.',
+        }, 500);
+      }
+
+      const { error: marcarErr } = await admin
+        .from('alunos')
+        .update({ primeiro_acesso: true, acesso_gerado_em: new Date().toISOString() })
+        .eq('id', aluno.id);
+      if (marcarErr) throw marcarErr;
+
+      return resp({ email: atualizado.user.email, senha_temporaria: senhaTemporaria });
+    }
+
+    if (acao !== undefined) return resp({ error: `Ação desconhecida: ${acao}` }, 400);
+
+    // ── LEGADO: { email, nome, role } — front anterior ao ILU-76 ─────────
+    // Mantido só durante a transição (a função é publicada antes do front).
     if (!email) return resp({ error: 'email é obrigatório' }, 400);
 
     const emailNormalizado = email.trim().toLowerCase();

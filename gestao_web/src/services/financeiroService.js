@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
-import { avancarUmMes, hojeBrasilia } from '../lib/utils';
+import { avancarUmMes, hojeBrasilia, vencimentoCobertoPorCicloAVista } from '../lib/utils';
+
+const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
@@ -78,17 +80,23 @@ async listarModalidadesDoAluno(alunoId) {
 
     const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
 
-    // Alunos com ciclo ativo pago à vista (forma_recebimento = 'a_vista' em
+    // Alunos com ciclo pago à vista (forma_recebimento = 'a_vista' em
     // historico_planos) já quitaram o período inteiro na matrícula/renovação
-    // — não geram mensalidade mensal enquanto esse ciclo estiver vigente.
+    // — não geram mensalidade com vencimento dentro desse ciclo. Checa a
+    // data da próxima cobrança contra o período do ciclo (não só o status
+    // 'ativo', que deixava passar ciclos 'agendado'), mesma regra do cron
+    // gerar-mensalidades.
     const { data: ciclosAVista, error: errCiclos } = await supabase
       .from('historico_planos')
-      .select('aluno_id')
-      .eq('status', 'ativo')
+      .select('aluno_id, data_inicio, data_fim, status, forma_recebimento')
+      .in('status', ['ativo', 'agendado'])
       .eq('forma_recebimento', 'a_vista')
       .in('aluno_id', alunosCobraveis.map(a => a.id));
     if (errCiclos) throw errCiclos;
-    const idsAVista = new Set((ciclosAVista || []).map(c => c.aluno_id));
+    const ciclosAVistaPorAluno = new Map();
+    (ciclosAVista || []).forEach(c => {
+      ciclosAVistaPorAluno.set(c.aluno_id, [...(ciclosAVistaPorAluno.get(c.aluno_id) || []), c]);
+    });
 
     // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para o
     // corte de "últimos 3 meses" não errar por um dia perto da meia-noite
@@ -113,8 +121,6 @@ async listarModalidadesDoAluno(alunoId) {
     const novasCobrancas = [];
 
     alunosCobraveis.forEach(aluno => {
-      if (idsAVista.has(aluno.id)) return;
-
       const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
 
       let proximaData;
@@ -133,7 +139,10 @@ async listarModalidadesDoAluno(alunoId) {
 
       const [pAno, pMes] = proximaData.split('-').map(Number);
 
-      if (pAno === ano && pMes === mesNumero) {
+      if (
+        pAno === ano && pMes === mesNumero &&
+        !vencimentoCobertoPorCicloAVista(ciclosAVistaPorAluno.get(aluno.id), proximaData)
+      ) {
         novasCobrancas.push({
           aluno_id: aluno.id,
           plano_id: aluno.plano_id,
@@ -184,7 +193,9 @@ async listarModalidadesDoAluno(alunoId) {
       throw error;
     }
 
-    if (dados.status === 'pago') {
+    // Venda de produto e evento não remuneram professor — não há repasse a
+    // calcular (gerar-repasses não tem regra para esses tipos).
+    if (dados.status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
         await gerarRepassesDaMensalidade(data.id);
       } catch (repasseError) {

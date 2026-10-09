@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes } from './utils';
+import {
+  valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes,
+  vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
+} from './utils';
 
 describe('valorDevidoMensalidade', () => {
   it('usa valor_pago quando a mensalidade está paga', () => {
@@ -142,5 +145,72 @@ describe('avancarUmMes (regressão ILU-17)', () => {
 
   it('mantém dia 30 ao avançar de um mês de 30 dias para um de 31', () => {
     expect(avancarUmMes('2026-04-30')).toBe('2026-05-30');
+  });
+});
+
+describe('vencimentoCobertoPorCicloAVista', () => {
+  const semestralAVista = { data_inicio: '2026-09-12', data_fim: '2027-03-11', forma_recebimento: 'a_vista', status: 'ativo' };
+
+  it('cobre um vencimento no meio de um ciclo semestral pago à vista', () => {
+    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-10-10')).toBe(true);
+  });
+
+  it('cobre os limites do ciclo (data_fim é o último dia inclusivo — ILU-30)', () => {
+    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-09-12')).toBe(true);
+    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2027-03-11')).toBe(true);
+  });
+
+  it('não cobre vencimentos fora do ciclo', () => {
+    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-09-11')).toBe(false);
+    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2027-03-12')).toBe(false);
+  });
+
+  it('ignora ciclos recorrentes (parcelados)', () => {
+    const recorrente = { ...semestralAVista, forma_recebimento: 'recorrente' };
+    expect(vencimentoCobertoPorCicloAVista([recorrente], '2026-10-10')).toBe(false);
+  });
+
+  it('considera ciclos agendados, mas ignora finalizados e cancelados', () => {
+    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'agendado' }], '2026-10-10')).toBe(true);
+    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'finalizado' }], '2026-10-10')).toBe(false);
+    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'cancelado' }], '2026-10-10')).toBe(false);
+  });
+
+  it('retorna false sem ciclos', () => {
+    expect(vencimentoCobertoPorCicloAVista([], '2026-10-10')).toBe(false);
+    expect(vencimentoCobertoPorCicloAVista(undefined, '2026-10-10')).toBe(false);
+  });
+});
+
+describe('contarAlunosPorArea', () => {
+  const areaById = { d1: 'Dança', d2: 'Dança', f1: 'Funcional', x: 'Outra' };
+
+  it('conta o combo à parte e também dentro dos totais de Dança e Funcional', () => {
+    const alunos = [
+      { modalidades_selecionadas: ['d1'] },
+      { modalidades_selecionadas: ['d1', 'd2'] },
+      { modalidades_selecionadas: ['f1'] },
+      { modalidades_selecionadas: ['d1', 'f1'] },
+      { modalidades_selecionadas: ['d2', 'f1'] },
+    ];
+    expect(contarAlunosPorArea(alunos, areaById)).toEqual({
+      danca: 2, funcional: 1, ambos: 2,
+      dancaTotal: 4, funcionalTotal: 3,
+      semModalidade: 0, bolsistas: 0,
+    });
+  });
+
+  it('conta alunos sem modalidade de Dança/Funcional e bolsistas como recortes separados', () => {
+    const alunos = [
+      { modalidades_selecionadas: [] },
+      { modalidades_selecionadas: null },
+      { modalidades_selecionadas: ['x'] },
+      { modalidades_selecionadas: ['d1', 'f1'], bolsista: true },
+    ];
+    expect(contarAlunosPorArea(alunos, areaById)).toEqual({
+      danca: 0, funcional: 0, ambos: 1,
+      dancaTotal: 1, funcionalTotal: 1,
+      semModalidade: 3, bolsistas: 1,
+    });
   });
 });

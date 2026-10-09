@@ -7,7 +7,9 @@
 //   - plano_livre  → valor_pago × pct_prof, dividido igualmente entre modalidades frequentadas no mês.
 //                    Se nenhuma presença → sem repasse (100% fica para o espaço).
 //   - avulsa       → valor_pago × aula_avulsa_pct_prof para o professor vinculado
-//   - experimental → valor_pago × aula_experimental_pct_prof se pct_prof > 0, caso contrário sem repasse
+//   - experimental → valor_pago × aula_experimental_pct_prof se pct_prof > 0, caso contrário sem repasse.
+//                    Única regra que também vale para visitante sem aluno cadastrado (pagamento
+//                    automático do agendamento da experimental — RPC agendar_aula_experimental).
 //
 // Chamada via: supabase.functions.invoke('gerar-repasses', { body: { mensalidadeId } })
 // Também é chamada pela etapa de reconciliação do lote mensal (gerar-repasses-mensais,
@@ -154,8 +156,10 @@ serve(async (req: Request) => {
 
     const mensalidade = mens as Mensalidade;
 
-    // Visitante sem aluno vinculado nunca gera repasse
-    if (!mensalidade.aluno_id) {
+    // Visitante sem aluno vinculado não gera repasse — exceto aula
+    // experimental: quem agenda a experimental quase nunca tem cadastro
+    // ainda, e o professor recebe pela aula dada (aula_experimental_pct_prof).
+    if (!mensalidade.aluno_id && mensalidade.tipo_aula !== 'experimental') {
       return response({ aviso: 'Mensalidade sem aluno vinculado. Nenhum repasse gerado.', gerados: 0 });
     }
 
@@ -190,7 +194,7 @@ serve(async (req: Request) => {
 
     const itens: {
       professor_id: string;
-      aluno_id: string;
+      aluno_id: string | null;
       mensalidade_id: string;
       tipo_aula: string;
       modalidade: string;
@@ -200,18 +204,21 @@ serve(async (req: Request) => {
 
     // ── 3b. Repasses já gerados pelo lote mensal (mensalidade_id IS NULL) ────
     // Usados para não duplicar 'regular'/'plano_livre' já lançados via matrícula.
-    const { data: repassesLote, error: errRepassesLote } = await supabase
-      .from('repasses_lancamentos')
-      .select('id, modalidade, tipo_aula')
-      .eq('aluno_id', mensalidade.aluno_id)
-      .eq('data_referencia', dataReferencia)
-      .is('mensalidade_id', null);
-
-    if (errRepassesLote) throw errRepassesLote;
-
+    // Sem aluno (experimental de visitante) não existe lote a consultar.
     const loteJaGerado = new Map<string, string>(); // chave -> id
-    for (const r of repassesLote ?? []) {
-      loteJaGerado.set(`${r.modalidade}|${r.tipo_aula}`, r.id);
+    if (mensalidade.aluno_id) {
+      const { data: repassesLote, error: errRepassesLote } = await supabase
+        .from('repasses_lancamentos')
+        .select('id, modalidade, tipo_aula')
+        .eq('aluno_id', mensalidade.aluno_id)
+        .eq('data_referencia', dataReferencia)
+        .is('mensalidade_id', null);
+
+      if (errRepassesLote) throw errRepassesLote;
+
+      for (const r of repassesLote ?? []) {
+        loteJaGerado.set(`${r.modalidade}|${r.tipo_aula}`, r.id);
+      }
     }
 
     // ── 4a. PLANO LIVRE ─────────────────────────────────────────────────────
@@ -399,7 +406,7 @@ serve(async (req: Request) => {
 
       itens.push({
         professor_id: mensalidade.professor_id,
-        aluno_id: mensalidade.aluno_id!,
+        aluno_id: mensalidade.aluno_id,
         mensalidade_id: mensalidadeId,
         tipo_aula: 'experimental',
         modalidade: mensalidade.modalidade_nome ?? 'Experimental',

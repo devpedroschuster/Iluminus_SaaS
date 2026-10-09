@@ -123,7 +123,7 @@ export default function Dashboard() {
       listaInadimplentes = [],
       alunosPlanosVencendo = [],
       todosAlunos        = [],
-      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, semModalidade: 0, bolsistas: 0 },
+      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, dancaTotal: 0, funcionalTotal: 0, semModalidade: 0, bolsistas: 0 },
     } = {},
     isLoading,
   } = useQuery({
@@ -223,13 +223,14 @@ export default function Dashboard() {
             }
             {!loadingAlunos && (
               <>
-                {/* ILU-11: Funcional + Dança + Combo (+ sem modalidade, se houver)
-                    somam exatamente o total de alunos ativos exibido acima.
-                    "B" (bolsistas) é um recorte à parte (não paga) — um bolsista
-                    pode estar em qualquer uma das áreas acima, por isso não entra
-                    na soma exclusiva. Só aparece quando houver pelo menos 1. */}
+                {/* F e D incluem os alunos de combo (quem faz as duas áreas
+                    conta em ambas); o combo continua exibido à parte. Por isso
+                    F + D + combo NÃO somam o total acima — o combo entra duas
+                    vezes. "B" (bolsistas) é um recorte à parte (ILU-11) — um
+                    bolsista pode estar em qualquer área. Só aparece quando
+                    houver pelo menos 1. */}
                 <p className="text-[14px] font-medium text-muted-foreground mt-0.5">
-                  {distribuicaoAreas.funcional}F · {distribuicaoAreas.danca}D · {distribuicaoAreas.ambos} combo
+                  {distribuicaoAreas.funcionalTotal}F · {distribuicaoAreas.dancaTotal}D · {distribuicaoAreas.ambos} combo
                   {distribuicaoAreas.semModalidade > 0 && ` · ${distribuicaoAreas.semModalidade} s/ modalidade`}
                   {distribuicaoAreas.bolsistas > 0 && ` · ${distribuicaoAreas.bolsistas} B`}
                 </p>

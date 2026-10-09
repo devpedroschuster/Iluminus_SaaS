@@ -27,6 +27,16 @@
 //           autenticada, podia disparar a geração de mensalidades do mês
 //           antes da data programada. Agora exige o mesmo segredo
 //           compartilhado usado nas demais functions cron-only (ILU-10).
+//
+// AUDITORIA 2026-10 — Correção aplicada:
+//   FIX-06: aluno com ciclo pago à vista (historico_planos.forma_recebimento
+//           = 'a_vista') recebia a cobrança mensal do dia 10 mesmo já tendo
+//           quitado o ciclo inteiro (ex.: semestral/anual à vista) — só o
+//           botão manual do Financeiro (financeiroService.gerarMensalidades)
+//           pulava esses alunos. Agora o vencimento do mês é checado contra
+//           os ciclos à vista 'ativo'/'agendado' do aluno, com a mesma regra
+//           de vencimentoCobertoPorCicloAVista (gestao_web/src/lib/utils.js):
+//           data_inicio <= vencimento <= data_fim (data_fim inclusiva, ILU-30).
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -121,6 +131,28 @@ serve(async (req) => {
       return valido
     })
 
+    // 2b. FIX-06: pula quem tem ciclo pago à vista cobrindo o vencimento
+    //     deste mês — o ciclo inteiro já foi cobrado de uma vez.
+    const { data: ciclosAVista, error: errCiclos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id')
+      .eq('forma_recebimento', 'a_vista')
+      .in('status', ['ativo', 'agendado'])
+      .lte('data_inicio', data_vencimento)
+      .gte('data_fim', data_vencimento)
+
+    if (errCiclos) throw errCiclos
+
+    const idsCobertosAVista = new Set((ciclosAVista || []).map(c => String(c.aluno_id)))
+    const alunosAVista: string[] = []
+    const alunosCobraveis = alunosValidos.filter(a => {
+      if (idsCobertosAVista.has(String(a.id))) {
+        alunosAVista.push(a.nome_completo)
+        return false
+      }
+      return true
+    })
+
     // 3. Verifica duplicatas: (aluno_id, plano_id) que já têm mensalidade
     //    neste mês. FIX-04: inclui plano_id na chave de dedupe.
     // FIX-02: erro agora é checado.
@@ -137,7 +169,7 @@ serve(async (req) => {
     )
 
     // 4. Filtra só quem ainda não tem mensalidade deste plano neste mês
-    const paraGerar = alunosValidos.filter(
+    const paraGerar = alunosCobraveis.filter(
       a => !comMensalidade.has(`${a.id}|${a.plano_id}`)
     )
 
@@ -146,6 +178,7 @@ serve(async (req) => {
         message: 'Mensalidades já geradas para todos os alunos ativos.',
         ignoradosSemPreco: alunosSemPreco,
         ignoradosBolsistas: alunosBolsistas,
+        ignoradosAVista: alunosAVista,
       })
     }
 
@@ -206,6 +239,7 @@ serve(async (req) => {
       data_vencimento,
       ignoradosSemPreco: alunosSemPreco,
       ignoradosBolsistas: alunosBolsistas,
+      ignoradosAVista: alunosAVista,
       avisos,
     })
 

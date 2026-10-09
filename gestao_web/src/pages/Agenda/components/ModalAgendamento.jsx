@@ -1,8 +1,9 @@
 import React from 'react';
-import { UserCheck, RefreshCw, MessageCircle } from 'lucide-react';
+import { UserCheck, RefreshCw, MessageCircle, DollarSign } from 'lucide-react';
 import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
+import SelectFormaPagamento from '../../../components/SelectFormaPagamento';
 
 // Configuração do modal de aviso conforme o tipo de bloqueio.
 function resolverConfigModal(tipo, msg) {
@@ -100,6 +101,35 @@ export default function ModalAgendamento({
               onChange={e => setAgendamentoForm({ ...agendamentoForm, nome_visitante: e.target.value })}
               className="bg-card"
             />
+            {/* Pagamento da experimental — registrado como pago no Financeiro
+                junto com o agendamento (valor padrão: Configurações de Repasse). */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="block mb-1.5">Valor pago (R$)</Label>
+                <Input
+                  required
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  leftIcon={<DollarSign size={18} />}
+                  value={agendamentoForm.valor_experimental ?? ''}
+                  onChange={e => setAgendamentoForm({ ...agendamentoForm, valor_experimental: e.target.value })}
+                  className="bg-card"
+                />
+              </div>
+              <div>
+                <Label className="block mb-1.5">Forma de pagamento</Label>
+                <SelectFormaPagamento
+                  value={agendamentoForm.forma_pagamento_experimental}
+                  onChange={forma => setAgendamentoForm({ ...agendamentoForm, forma_pagamento_experimental: forma })}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] font-medium text-warning-foreground">
+              {Number(agendamentoForm.valor_experimental) > 0
+                ? 'O pagamento será registrado automaticamente como pago no Financeiro. Se o agendamento for cancelado, o pagamento é removido junto.'
+                : 'Experimental gratuita: nenhum pagamento será registrado.'}
+            </p>
           </div>
         )}
 

@@ -53,7 +53,7 @@ function LinhaMensalidade({ mensalidade, onReprocessado }) {
       setResultado(data);
       setStatus('ok');
       showToast.success(
-        `${data.gerados} repasse(s) reprocessado(s) para ${mensalidade.alunos?.nome_completo}.`,
+        `${data.gerados} repasse(s) reprocessado(s) para ${mensalidade.alunos?.nome_completo || mensalidade.nome_visitante}.`,
       );
       onReprocessado?.();
     } catch (err) {
@@ -70,7 +70,7 @@ function LinhaMensalidade({ mensalidade, onReprocessado }) {
         <div className="flex items-center gap-2">
           <User size={14} className="text-muted-foreground shrink-0" />
           <span className="font-bold text-foreground">
-            {mensalidade.alunos?.nome_completo || 'N/A'}
+            {mensalidade.alunos?.nome_completo || mensalidade.nome_visitante || 'N/A'}
           </span>
         </div>
       </td>
@@ -163,11 +163,15 @@ export default function AbaReprocessar({ mesAno }) {
           valor_pago,
           data_pagamento,
           data_vencimento,
+          nome_visitante,
           alunos ( nome_completo ),
           repasses_lancamentos ( id )
         `)
         .eq('status', 'pago')
-        .not('aluno_id', 'is', null)
+        // Visitante sem cadastro só entra se for experimental — único tipo
+        // que gera repasse sem aluno vinculado (pagamento automático do
+        // agendamento da experimental).
+        .or('aluno_id.not.is.null,tipo_aula.eq.experimental')
         .gte('data_pagamento', inicio)
         .lte('data_pagamento', fim)
         .order('data_pagamento', { ascending: false });
@@ -214,7 +218,7 @@ export default function AbaReprocessar({ mesAno }) {
           sucessos++;
         } else {
           const m = lote[idx];
-          falhas.push(m.alunos?.nome_completo || `mensalidade #${m.id}`);
+          falhas.push(m.alunos?.nome_completo || m.nome_visitante || `mensalidade #${m.id}`);
         }
       });
     }

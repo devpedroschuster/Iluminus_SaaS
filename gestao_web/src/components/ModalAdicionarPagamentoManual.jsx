@@ -23,6 +23,11 @@ function traduzirErroRegistro(error) {
   if (code === '23503' || msg.includes('foreign key')) {
     return 'O aluno ou plano selecionado não foi encontrado. Atualize a página e tente de novo.';
   }
+  // CHECK do banco recusou tipo de recebimento / forma de pagamento — antes
+  // caía no fallback genérico (era o caso de toda venda de produto/evento)
+  if (code === '23514' || msg.includes('check constraint')) {
+    return 'Tipo de recebimento ou forma de pagamento não aceito pelo sistema. Avise o suporte.';
+  }
   // Sem permissão
   if (code === '42501' || msg.includes('permission denied')) {
     return 'Você não tem permissão para registrar este pagamento.';

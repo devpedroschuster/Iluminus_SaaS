@@ -3,6 +3,7 @@ import {
   valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes,
   vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
+  ehPlanoLivre, calcularFrequenciaMedia,
 } from './utils';
 
 describe('valorDevidoMensalidade', () => {
@@ -250,5 +251,56 @@ describe('ehCobrancaIntegralDoCiclo (ILU-70)', () => {
   it('não marca mensalidades comuns', () => {
     expect(ehCobrancaIntegralDoCiclo({ descricao: null })).toBe(false);
     expect(ehCobrancaIntegralDoCiclo({ descricao: 'Mensalidade 10/2026' })).toBe(false);
+  });
+});
+
+describe('ehPlanoLivre (ILU-71)', () => {
+  it('reconhece a flag is_plano_livre (usada pelo repasse)', () => {
+    expect(ehPlanoLivre({ is_plano_livre: true, frequencia_semanal: 30 })).toBe(true);
+  });
+
+  it('reconhece a frequência livre (999) mesmo sem a flag', () => {
+    expect(ehPlanoLivre({ is_plano_livre: false, frequencia_semanal: 999 })).toBe(true);
+  });
+
+  it('não marca planos com frequência definida', () => {
+    expect(ehPlanoLivre({ is_plano_livre: false, frequencia_semanal: 3 })).toBe(false);
+  });
+
+  it('não marca aluno sem plano', () => {
+    expect(ehPlanoLivre(null)).toBe(false);
+    expect(ehPlanoLivre(undefined)).toBe(false);
+  });
+});
+
+describe('calcularFrequenciaMedia (ILU-71)', () => {
+  const presencas = (pares) => new Map(pares);
+
+  it('ignora alunos de plano livre, que não têm meta semanal', () => {
+    const alunos = [
+      { id: 1, planos: { frequencia_semanal: 2, is_plano_livre: false } },
+      { id: 2, planos: { frequencia_semanal: 30, is_plano_livre: true } },
+    ];
+    // Aluno 1: 1 de 2 aulas = 50%. Antes, o livre entrava como 0/30 e
+    // derrubava a média para 25%.
+    expect(calcularFrequenciaMedia(alunos, presencas([[1, 1], [2, 3]]))).toBe('50.0');
+  });
+
+  it('limita cada aluno a 100% da própria meta', () => {
+    const alunos = [{ id: 1, planos: { frequencia_semanal: 2 } }];
+    expect(calcularFrequenciaMedia(alunos, presencas([[1, 5]]))).toBe('100.0');
+  });
+
+  it('mantém meta de 1 aula para aluno sem plano', () => {
+    const alunos = [
+      { id: 1, planos: null },
+      { id: 2, planos: { frequencia_semanal: 1 } },
+    ];
+    expect(calcularFrequenciaMedia(alunos, presencas([[2, 1]]))).toBe('50.0');
+  });
+
+  it('retorna 0 quando nenhum aluno tem meta (todos livres ou lista vazia)', () => {
+    expect(calcularFrequenciaMedia([{ id: 1, planos: { frequencia_semanal: 999 } }], presencas([]))).toBe(0);
+    expect(calcularFrequenciaMedia([], presencas([]))).toBe(0);
   });
 });

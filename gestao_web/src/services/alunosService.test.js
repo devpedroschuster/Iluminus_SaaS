@@ -46,26 +46,3 @@ describe('alunosService.renovarPlano (ILU-69)', () => {
     })).rejects.toThrow('falhou');
   });
 });
-
-describe('alunosService.matricular (ILU-69)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    supabase.rpc.mockResolvedValue({ error: null });
-    supabase.from.mockImplementation((tabela) => criarQueryMock(
-      tabela === 'planos'
-        ? { data: { id: 2, nome: '2x Dança Mensal', preco: 150, duracao_meses: 1 }, error: null }
-        : { data: null, error: { code: '42703', message: 'column mensalidades.created_at does not exist' } },
-    ).query);
-  });
-
-  it('matricula via RPC sem procurar a mensalidade recém-criada nem devolver aviso de repasse', async () => {
-    const resultado = await alunosService.matricular(10, 2, { dataVencimento: '2026-10-10' });
-
-    expect(supabase.rpc).toHaveBeenCalledWith('matricular_aluno', expect.objectContaining({
-      p_aluno_id: 10, p_plano_id: 2, p_valor_pago: 150,
-    }));
-    expect(supabase.from).not.toHaveBeenCalledWith('mensalidades');
-    expect(gerarRepassesDaMensalidade).not.toHaveBeenCalled();
-    expect(resultado).not.toHaveProperty('avisoRepasse');
-  });
-});

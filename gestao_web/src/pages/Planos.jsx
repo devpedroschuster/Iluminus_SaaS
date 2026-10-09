@@ -9,7 +9,7 @@ import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
 import Badge from '../components/ui/Badge';
 import Skeleton from '../components/ui/Skeleton';
-import { FREQUENCIA_LIVRE, formatarFrequenciaSemanal } from '../lib/utils';
+import { FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehPlanoLivre } from '../lib/utils';
 
 // ILU-68: `planos.frequencia_semanal` é integer (aulas por semana). O campo
 // era texto livre com placeholder "Ex: Livre" e o insert falhava com 22P02.
@@ -82,7 +82,14 @@ export default function Planos() {
   }
 
   function abrirEdicao(plano) {
-    setPlanoEmEdicao({ ...plano, duracao_meses: plano.duracao_meses || 1, regras_acesso: plano.regras_acesso || [] });
+    setPlanoEmEdicao({
+      ...plano,
+      // ILU-71: plano livre abre como "Livre" mesmo com o valor legado (30) —
+      // salvar mantém is_plano_livre (repasse) em vez de desmarcá-lo.
+      frequencia_semanal: ehPlanoLivre(plano) ? String(FREQUENCIA_LIVRE) : plano.frequencia_semanal,
+      duracao_meses: plano.duracao_meses || 1,
+      regras_acesso: plano.regras_acesso || [],
+    });
     modalEdicao.abrir();
   }
 
@@ -205,7 +212,7 @@ export default function Planos() {
                   <span className="text-success font-black">R$ {plano.preco}</span>
                   <span className="w-1 h-1 bg-border rounded-full" />
                   <span className="flex items-center gap-1">
-                    <Calendar size={12} /> {formatarFrequenciaSemanal(plano.frequencia_semanal)}
+                    <Calendar size={12} /> {ehPlanoLivre(plano) ? 'Livre' : formatarFrequenciaSemanal(plano.frequencia_semanal)}
                   </span>
                   <span className="w-1 h-1 bg-border rounded-full" />
                   <span className="flex items-center gap-1 text-info font-bold">

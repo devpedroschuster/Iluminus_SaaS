@@ -180,6 +180,32 @@ export const formatarFrequenciaSemanal = (frequencia) => {
 };
 
 /**
+ * Plano sem limite semanal (ILU-71). `is_plano_livre` é a flag que o
+ * repasse usa; a frequência 999 é o que o seletor de /planos grava como
+ * "Livre" — os dois andam juntos (planosService.salvar sincroniza).
+ */
+export const ehPlanoLivre = (plano) =>
+  !!plano && (plano.is_plano_livre === true || Number(plano.frequencia_semanal) >= FREQUENCIA_LIVRE);
+
+/**
+ * Frequência média (%) dos alunos na semana: presenças ÷ meta semanal do
+ * plano, limitada a 100% por aluno. Alunos de plano livre não têm meta e
+ * ficam fora da média (ILU-71) — antes entravam como 0/30 ou 0/999 e
+ * derrubavam o número. Sem plano, a meta é 1 aula.
+ * Retorna string com 1 casa (ex.: '66.7') ou 0 quando ninguém tem meta.
+ */
+export const calcularFrequenciaMedia = (alunos, presencasPorAluno) => {
+  const comMeta = (alunos || []).filter(aluno => !ehPlanoLivre(aluno.planos));
+  if (comMeta.length === 0) return 0;
+  const soma = comMeta.reduce((acc, aluno) => {
+    const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
+    const real = presencasPorAluno.get(aluno.id) || 0;
+    return acc + Math.min(real / esperado, 1);
+  }, 0);
+  return ((soma / comMeta.length) * 100).toFixed(1);
+};
+
+/**
  * Distribuição de alunos por área (Dança, Funcional, Combo) a partir de
  * `modalidades_selecionadas` × mapa id → área da modalidade.
  * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos (somam

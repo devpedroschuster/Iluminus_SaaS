@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes,
   vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
+  FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
 } from './utils';
 
 describe('valorDevidoMensalidade', () => {
@@ -212,5 +213,42 @@ describe('contarAlunosPorArea', () => {
       dancaTotal: 1, funcionalTotal: 1,
       semModalidade: 3, bolsistas: 1,
     });
+  });
+});
+
+describe('formatarFrequenciaSemanal (ILU-68)', () => {
+  it('mostra "Livre" para o valor de plano livre', () => {
+    expect(FREQUENCIA_LIVRE).toBe(999);
+    expect(formatarFrequenciaSemanal(999)).toBe('Livre');
+  });
+
+  it('mostra quantas vezes por semana', () => {
+    expect(formatarFrequenciaSemanal(3)).toBe('3x por semana');
+  });
+
+  it('aceita o valor como string (vindo de input/select)', () => {
+    expect(formatarFrequenciaSemanal('2')).toBe('2x por semana');
+  });
+
+  it('retorna vazio quando o plano não tem frequência', () => {
+    expect(formatarFrequenciaSemanal(null)).toBe('');
+    expect(formatarFrequenciaSemanal('')).toBe('');
+  });
+});
+
+describe('ehCobrancaIntegralDoCiclo (ILU-70)', () => {
+  it('reconhece a cobrança integral criada na renovação/cadastro à vista', () => {
+    expect(ehCobrancaIntegralDoCiclo({ descricao: 'Pagamento integral do plano' })).toBe(true);
+  });
+
+  it('reconhece a cobrança integral da matrícula (descrição com prefixo)', () => {
+    expect(ehCobrancaIntegralDoCiclo({
+      descricao: 'Matrícula: 2x Dança Trimestral (3 meses) — Pagamento integral do plano',
+    })).toBe(true);
+  });
+
+  it('não marca mensalidades comuns', () => {
+    expect(ehCobrancaIntegralDoCiclo({ descricao: null })).toBe(false);
+    expect(ehCobrancaIntegralDoCiclo({ descricao: 'Mensalidade 10/2026' })).toBe(false);
   });
 });

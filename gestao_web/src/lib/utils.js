@@ -158,6 +158,28 @@ export const vencimentoCobertoPorCicloAVista = (ciclos, dataVencimento) =>
   );
 
 /**
+ * Indica se a mensalidade é a cobrança única de um ciclo à vista — a que
+ * matricular_aluno / renovar_plano_aluno / NovoAluno criam com a descrição
+ * "Pagamento integral do plano" (a matrícula prefixa o nome do plano). Usado
+ * para não confundi-la com as mensais redundantes ao limpar um ciclo
+ * editado para à vista (ILU-70).
+ */
+export const ehCobrancaIntegralDoCiclo = (mensalidade) =>
+  (mensalidade?.descricao || '').includes('Pagamento integral do plano');
+
+/**
+ * `planos.frequencia_semanal` é integer (aulas por semana). Plano livre usa
+ * 999, o mesmo valor de "Ilimitado (Livre)" em `regras_acesso` (ILU-68).
+ */
+export const FREQUENCIA_LIVRE = 999;
+
+export const formatarFrequenciaSemanal = (frequencia) => {
+  if (frequencia === null || frequencia === undefined || frequencia === '') return '';
+  const n = Number(frequencia);
+  return n === FREQUENCIA_LIVRE ? 'Livre' : `${n}x por semana`;
+};
+
+/**
  * Distribuição de alunos por área (Dança, Funcional, Combo) a partir de
  * `modalidades_selecionadas` × mapa id → área da modalidade.
  * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos (somam

@@ -9,8 +9,11 @@ import {
   CalendarX, RotateCcw, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { hojeBrasilia, derivarPlanoVigente } from '../lib/utils';
+import {
+  hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
+} from '../lib/utils';
 import { alunosService } from '../services/alunosService';
+import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
 import { showToast } from '../components/shared/showToast';
 import ModalRenovarPlano from '../components/ModalRenovarPlano';
@@ -1185,6 +1188,48 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
     forma_recebimento: registro?.forma_recebimento  ?? 'recorrente',
   });
 
+  // ILU-70: editar um ciclo para "À vista" não remove sozinho as cobranças de
+  // plano já geradas dentro do período — a cobrança integral do próprio ciclo
+  // pode estar legitimamente pendente, então não dá para distinguir com
+  // segurança. Listamos as que estão em aberto e o admin marca quais remover.
+  const [idsMarcados, setIdsMarcados] = useState([]);
+  const verificaCobrancas =
+    form.forma_recebimento === 'a_vista' &&
+    !!form.data_inicio && !!form.data_fim && form.data_inicio <= form.data_fim;
+  const { data: cobrancasEmAberto = [], isLoading: carregandoCobrancas } = useQuery({
+    queryKey: ['aluno-cobrancas-em-aberto', alunoId, form.data_inicio, form.data_fim],
+    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, form.data_inicio, form.data_fim),
+    enabled: !!alunoId && verificaCobrancas,
+  });
+  // Só valem as marcações que continuam na lista do período atual.
+  const idsParaRemover = verificaCobrancas
+    ? idsMarcados.filter(id => cobrancasEmAberto.some(c => c.id === id))
+    : [];
+  const idsMensais = cobrancasEmAberto.filter(c => !ehCobrancaIntegralDoCiclo(c)).map(c => c.id);
+  const alternarCobranca = (id) => setIdsMarcados(ids => (
+    ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+  ));
+
+  const removerCobrancasMarcadas = async () => {
+    if (idsParaRemover.length === 0) return null;
+    try {
+      const removidas = await financeiroService.excluirCobrancasEmAberto(idsParaRemover);
+      queryClient.invalidateQueries({ queryKey: ['aluno-cobrancas-em-aberto', alunoId] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      const ignoradas = idsParaRemover.length - removidas;
+      return {
+        sucesso: `${removidas} cobrança(s) removida(s).`,
+        aviso: ignoradas > 0
+          ? `${ignoradas} cobrança(s) não foram removidas porque já não estavam em aberto.`
+          : null,
+      };
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao remover cobranças em aberto:', err);
+      return { aviso: 'O histórico foi salvo, mas as cobranças marcadas não puderam ser removidas. Remova-as pelo Financeiro.' };
+    }
+  };
+
   const handleSalvar = async () => {
     if (!form.plano_id || !form.data_inicio || !form.data_fim) {
       showToast.error('Preencha todos os campos obrigatórios.');
@@ -1220,7 +1265,13 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
       }
       queryClient.invalidateQueries(['aluno-planos', alunoId]);
       queryClient.invalidateQueries(['aluno', alunoId]);
-      showToast.success('Histórico atualizado com sucesso!');
+      // Só depois do histórico salvo: uma falha aqui não desfaz a edição,
+      // vira um aviso.
+      const resultadoCobrancas = await removerCobrancasMarcadas();
+      showToast.success(resultadoCobrancas?.sucesso
+        ? `Histórico atualizado. ${resultadoCobrancas.sucesso}`
+        : 'Histórico atualizado com sucesso!');
+      if (resultadoCobrancas?.aviso) showToast.warning(resultadoCobrancas.aviso);
       onClose();
     } catch (err) {
       console.error('[PerfilAluno] Erro ao editar histórico:', err);
@@ -1304,6 +1355,56 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
               <option value="a_vista">À vista</option>
             </select>
           </div>
+          {verificaCobrancas && (
+            <div className="space-y-3 p-3 rounded-xl bg-warning-soft border border-warning/30">
+              {carregandoCobrancas ? (
+                <p className="text-xs font-medium text-muted-foreground">Verificando cobranças em aberto no período...</p>
+              ) : cobrancasEmAberto.length === 0 ? (
+                <p className="text-xs font-medium text-muted-foreground">Nenhuma cobrança de plano em aberto neste período.</p>
+              ) : (
+                <>
+                  <div className="flex items-start gap-2 text-xs font-medium text-warning-foreground">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
+                    <span>
+                      {cobrancasEmAberto.length === 1
+                        ? 'Há 1 cobrança de plano em aberto dentro deste período.'
+                        : `Há ${cobrancasEmAberto.length} cobranças de plano em aberto dentro deste período.`}
+                      {' '}O ciclo à vista não gera novas mensalidades, mas as já criadas continuam.
+                      Marque as que devem ser removidas ao salvar.
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {cobrancasEmAberto.map(c => (
+                      <li key={c.id}>
+                        <label className="flex items-center gap-3 px-3 py-2 rounded-lg bg-background border border-border text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="accent-primary"
+                            checked={idsParaRemover.includes(c.id)}
+                            onChange={() => alternarCobranca(c.id)}
+                          />
+                          <span className="font-bold text-foreground">{formatarDataBR(c.data_vencimento)}</span>
+                          <span className="text-muted-foreground">{formatarMoeda(valorDevidoMensalidade(c))}</span>
+                          <span className="ml-auto text-[10px] uppercase font-black text-muted-foreground tracking-wider">
+                            {ehCobrancaIntegralDoCiclo(c) ? 'Integral do ciclo' : c.status}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {idsMensais.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-primary hover:underline"
+                      onClick={() => setIdsMarcados(idsMensais)}
+                    >
+                      Marcar todas as mensais
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {form.status === 'ativo' && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-warning-foreground">
               <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
@@ -1315,7 +1416,9 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
           <Button variant="ghost" size="md" onClick={onClose} disabled={salvando}>Cancelar</Button>
           <Button variant="brand" size="md" leftIcon={<Save size={16} />}
             onClick={handleSalvar} disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Salvar'}
+            {salvando
+              ? 'Salvando...'
+              : idsParaRemover.length > 0 ? `Salvar e remover ${idsParaRemover.length}` : 'Salvar'}
           </Button>
         </div>
       </div>

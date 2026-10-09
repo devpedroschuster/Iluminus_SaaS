@@ -35,6 +35,13 @@ export const planoSchema = yup.object().shape({
     .required('A duração é obrigatória.')
     .integer('A duração deve ser um número inteiro de meses.')
     .min(1, 'A duração deve ser de pelo menos 1 mês.'),
+  // ILU-68: a coluna é integer (aulas por semana; 999 = livre). Texto
+  // como "Livre" fazia o insert falhar com 22P02.
+  frequencia_semanal: yup.number()
+    .typeError('Selecione a frequência semanal.')
+    .required('Selecione a frequência semanal.')
+    .integer('A frequência semanal deve ser um número inteiro.')
+    .min(1, 'A frequência semanal deve ser de pelo menos 1x.'),
 });
 
 // ILU-25: as 3 taxas de modalidadeService.salvar alimentam diretamente o

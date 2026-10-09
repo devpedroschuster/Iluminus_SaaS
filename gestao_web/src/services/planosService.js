@@ -16,7 +16,10 @@ export const planosService = {
     const payload = {
       nome: plano.nome,
       preco: plano.preco,
-      frequencia_semanal: plano.frequencia_semanal,
+      // ILU-68: coluna integer — o valor chega como string do <select>.
+      frequencia_semanal: plano.frequencia_semanal === '' || plano.frequencia_semanal == null
+        ? null
+        : Number(plano.frequencia_semanal),
       duracao_meses: Number(plano.duracao_meses),
       regras_acesso: plano.regras_acesso || []
     };

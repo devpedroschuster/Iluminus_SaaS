@@ -1491,9 +1491,11 @@ function ResumoFrequenciaAluno({ alunoId }) {
         Período do plano vigente: {formatarDataBR(periodo_inicio)} – {formatarDataBR(periodo_fim)}
       </p>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* ILU-71: plano livre não tem meta — a função devolve NULL. */}
         <CardMetricaFrequencia
           titulo="Aulas Previstas"
-          valor={aulas_previstas}
+          valor={aulas_previstas ?? 'Livre'}
+          subtitulo={aulas_previstas == null ? 'plano sem limite semanal' : undefined}
           icone={<Clock size={20} />}
           tone="brand"
         />

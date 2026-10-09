@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { planoSchema } from '../lib/validation';
+import { FREQUENCIA_LIVRE } from '../lib/utils';
 
 export const planosService = {
   async listar() {
@@ -23,6 +24,9 @@ export const planosService = {
       duracao_meses: Number(plano.duracao_meses),
       regras_acesso: plano.regras_acesso || []
     };
+    // ILU-71: `is_plano_livre` decide a regra de repasse "Plano Livre" no
+    // Financeiro e nunca foi editável na tela — acompanha a frequência Livre.
+    payload.is_plano_livre = payload.frequencia_semanal === FREQUENCIA_LIVRE;
 
     // ILU-25: valida preço/duração antes de gravar (alimentam a geração
     // mensal de mensalidades).

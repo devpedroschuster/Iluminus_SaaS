@@ -8,7 +8,9 @@ import {
   XCircle, Download, BarChart2, Zap, ChevronRight
 } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
-import { hojeBrasilia } from '../lib/utils';
+import {
+  hojeBrasilia, ehPlanoLivre, calcularFrequenciaMedia, formatarFrequenciaSemanal,
+} from '../lib/utils';
 import Modal from '../components/ui/Modal';
 import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
@@ -118,7 +120,7 @@ export default function Presenca({ isAdmin = false }) {
       // Alunos ativos
       const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
-        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
+        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal, is_plano_livre)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
@@ -297,16 +299,8 @@ export default function Presenca({ isAdmin = false }) {
       }
     }
 
-    const taxasIndividuais = alunosData.map(aluno => {
-      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
-      const real     = presencasPorAluno.get(aluno.id) || 0;
-      return Math.min(real / esperado, 1);
-    });
-
-    const frequenciaMedia =
-      alunosAtivos > 0
-        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
-        : 0;
+    // ILU-71: alunos de plano livre não têm meta semanal e ficam fora da média.
+    const frequenciaMedia = calcularFrequenciaMedia(alunosData, presencasPorAluno);
 
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => ({
@@ -1019,7 +1013,9 @@ export default function Presenca({ isAdmin = false }) {
               <Surface variant="muted" padding="md" className="rounded-2xl">
                 <p className="text-xs font-black text-info uppercase mb-1">Frequência</p>
                 <p className="text-2xl font-black text-info">
-                  {alunoSelecionado.planos?.frequencia_semanal || 0}x/sem
+                  {ehPlanoLivre(alunoSelecionado.planos)
+                    ? 'Livre'
+                    : formatarFrequenciaSemanal(alunoSelecionado.planos?.frequencia_semanal) || '—'}
                 </p>
               </Surface>
             </div>

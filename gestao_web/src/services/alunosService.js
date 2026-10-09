@@ -207,6 +207,10 @@ export const alunosService = {
   // `mensalidades.created_at`, coluna que não existe, e filtrava por uma
   // data_pagamento que a RPC não grava) — só gerava um 400 e um aviso
   // falso. Foi removida.
+  //
+  // ILU-73: o wrapper `matricular` (RPC `matricular_aluno`) foi removido —
+  // não tinha chamadores; o cadastro de aluno (NovoAluno.jsx) grava
+  // histórico e primeira mensalidade por conta própria.
   // ─────────────────────────────────────────────────────────────
 
   /**
@@ -231,74 +235,6 @@ export const alunosService = {
       return { sucesso: true };
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Matricula um aluno em um plano de forma atômica via RPC.
-   * Função SQL correspondente: matricular_aluno()
-   *
-   * @param {string} alunoId
-   * @param {string} planoId
-   * @param {object} opcoes
-   * @param {string}   opcoes.dataVencimento
-   * @param {Array}    opcoes.modalidades
-   * @returns {{ plano, dataInicio, dataFim }}
-   */
-  async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
-    try {
-      // Busca os dados do plano antes de iniciar a transação —
-      // leitura pura, sem efeito colateral, portanto fora do RPC.
-      const { data: plano, error: errPlano } = await supabase
-        .from('planos')
-        .select('id, nome, preco, duracao_meses')
-        .eq('id', planoId)
-        .single();
-
-      if (errPlano) throw errPlano;
-
-      // ILU-19: hojeBrasilia() em vez de UTC — matrícula feita depois das
-      // 21h em Brasília gravava data_inicio_plano (e data_fim_plano) com
-      // um dia a mais.
-      const dataInicio = hojeBrasilia();
-      const dataVencimentoObj = new Date(`${dataVencimento}T12:00:00`);
-      const duracaoMeses = plano.duracao_meses || 1;
-
-      // ILU-21: `setMonth` transborda para o mês seguinte quando o dia do
-      // vencimento (29-31) não existe no mês de destino (ex.: 31/jan + 1 mês
-      // vira 3/mar em vez de 28/fev). Descobrimos o mês de destino usando
-      // dia 1 (nunca transborda) e, se o dia do vencimento não existir nele,
-      // recuamos para o último dia do mês de destino — mesma guarda usada em
-      // despesasService.replicarRecorrentes.
-      const mesDestinoObj = new Date(dataVencimentoObj.getFullYear(), dataVencimentoObj.getMonth() + duracaoMeses, 1);
-      const dataFimObj = new Date(mesDestinoObj.getFullYear(), mesDestinoObj.getMonth(), dataVencimentoObj.getDate(), 12);
-      if (dataFimObj.getMonth() !== mesDestinoObj.getMonth()) {
-        dataFimObj.setDate(0);
-      }
-      dataFimObj.setDate(dataFimObj.getDate() - 1);
-      const dataFim = dataFimObj.toISOString().split('T')[0];
-
-      const descricao = `Matrícula: ${plano.nome} (${plano.duracao_meses} ${
-        plano.duracao_meses === 1 ? 'mês' : 'meses'
-      })`;
-
-      const { error } = await supabase.rpc('matricular_aluno', {
-        p_aluno_id:    alunoId,
-        p_plano_id:    planoId,
-        p_data_inicio: dataInicio,
-        p_data_fim:    dataFim,
-        p_vencimento:  dataVencimento,
-        p_modalidades: modalidades,
-        p_valor_pago:  plano.preco ?? 0,
-        p_descricao:   descricao,
-      });
-
-      if (error) throw error;
-
-      return { plano, dataInicio, dataFim };
-    } catch (error) {
-      console.error('[alunosService.matricular]', error);
       throw error;
     }
   },

@@ -1,5 +1,7 @@
-const CACHE_NAME = 'iluminus-v3';
-const STATIC_CACHE_NAME = 'iluminus-static-v3';
+// ILU-91: v3 → v4 para o `activate` apagar caches v3 que possam ter guardado
+// o index.html no lugar de CSS/JS (ver cacheFirst).
+const CACHE_NAME = 'iluminus-v4';
+const STATIC_CACHE_NAME = 'iluminus-static-v4';
 
 const PRECACHE_URLS = [
   '/',
@@ -116,8 +118,12 @@ async function cacheFirst(request) {
   
   try {
     const networkResponse = await fetch(request);
-    
-    if (networkResponse.status === 200) {
+
+    // ILU-91: o rewrite de SPA pode responder um asset inexistente com o
+    // index.html (200, text/html). Guardar isso como se fosse o CSS/JS
+    // deixava o app sem estilo para sempre naquele navegador.
+    const ehHtml = (networkResponse.headers.get('content-type') || '').includes('text/html');
+    if (networkResponse.status === 200 && !ehHtml) {
       const cache = await caches.open(STATIC_CACHE_NAME);
       cache.put(request, networkResponse.clone()).catch(() => { /* silencia falha se ocorrer */ });
     }

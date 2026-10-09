@@ -258,4 +258,43 @@ async listarModalidadesDoAluno(alunoId) {
       };
     }
   },
+
+  /**
+   * ILU-70: cobranças de plano em aberto do aluno com vencimento dentro do
+   * período — mesmo critério que matricular_aluno / renovar_plano_aluno
+   * usam para limpar as mensais que um ciclo à vista já cobre. Usado ao
+   * editar um ciclo existente para à vista, onde a limpeza não é automática
+   * (a própria cobrança integral do ciclo pode estar legitimamente
+   * pendente), então o admin escolhe o que remover.
+   */
+  async listarCobrancasPlanoEmAberto(alunoId, inicio, fim) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('id, data_vencimento, status, descricao, valor_esperado, planos(preco)')
+      .eq('aluno_id', alunoId)
+      .in('status', ['pendente', 'atrasado'])
+      .in('tipo_aula', ['regular', 'plano_livre'])
+      .gte('data_vencimento', inicio)
+      .lte('data_vencimento', fim)
+      .order('data_vencimento', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * ILU-70: remove as cobranças selecionadas, mas só as que continuam em
+   * aberto — uma que tenha sido paga entre abrir o modal e salvar é
+   * preservada. Retorna quantas foram de fato removidas.
+   */
+  async excluirCobrancasEmAberto(ids) {
+    if (!ids?.length) return 0;
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .delete()
+      .in('id', ids)
+      .in('status', ['pendente', 'atrasado'])
+      .select('id');
+    if (error) throw error;
+    return data?.length ?? 0;
+  },
 };

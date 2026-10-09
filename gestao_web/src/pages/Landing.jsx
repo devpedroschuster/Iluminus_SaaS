@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { formatarFrequenciaSemanal } from '../lib/utils';
 import './landing.css';
 
 export default function Landing() {
@@ -300,7 +301,7 @@ export default function Landing() {
                       {plano.frequencia_semanal && (
                         <div className="plan-feat">
                           <span className="feat-check">✓</span>
-                          <span>{plano.frequencia_semanal}× por semana</span>
+                          <span>Frequência: {formatarFrequenciaSemanal(plano.frequencia_semanal)}</span>
                         </div>
                       )}
                       {regras.map((r, i) => (

@@ -57,6 +57,7 @@ Hoje o agendar e o cancelar do app falham (404 por parâmetros errados, e cancel
   - linhas de A em W, em aulas de modalidade da área R, com `status in ('agendado','presente','falta')`, fora de feriado que bloqueia;
   - somadas às ocorrências de fixos válidos de A em W, em aulas da área R.
   - `cancelado` não conta.
+  - Uma reserva `agendado` numa aula que não acontece mais naquela data (`_aula_ocorre` falso: encerrada, desativada ou com feriado cadastrado depois) **não conta**: o aluno nem a vê na lista para cancelar. `presente` e `falta` contam sempre. (Achado da revisão final.)
 - **Status do aluno na aula (`meu_status`):** o `status` da linha dele em `presencas`; `'fixo'` se ele tem fixo válido sem linha; `null` se nenhum dos dois.
 - **Linha do app:** a coluna nova `presencas.agendado_pelo_app boolean not null default false`. A `origem` mantém o significado atual:
   - `avulso`: reserva comum;
@@ -95,6 +96,7 @@ Regras comuns às três funções:
 - `EXECUTE` só para `authenticated` e `service_role`; `REVOKE` de `PUBLIC` e `anon`.
 - Nenhuma recebe `aluno_id`: o aluno vem de `alunos.auth_id = auth.uid()`.
   - Sem `auth.uid()` ou sem aluno vinculado, a função recusa com "Faça login novamente.".
+  - Se o login estiver ligado a **mais de um** cadastro de aluno (`alunos.auth_id` não é único), recusa com "Seu login está ligado a mais de um cadastro. Fale com a recepção.", em vez de agir num cadastro qualquer. (Achado da revisão final.)
   - Com `ativo = false`, recusa com "Sua conta está desativada. Entre em contato com a gestão do espaço.".
 - Erros saem como `RAISE EXCEPTION '<mensagem>'` (`P0001`), e o front mostra `error.message`.
 
@@ -165,7 +167,7 @@ O intervalo é limitado a `[hoje, hoje+13]`.
 
 `fn_confirmar_presencas_automaticas(p_margem_minutos int default 30)`. A assinatura é a mesma; o corpo é reescrito:
 
-- **Quais linhas:** só `status='agendado' and agendado_pelo_app` com `fim + margem < now()`, calculando `fim` no fuso de Brasília. Hoje a função compara horário local com UTC e confirmaria cerca de 1h30 **antes** de a aula começar.
+- **Quais linhas:** só `status='agendado' and agendado_pelo_app` com `fim + margem < now()`, calculando `fim` no fuso de Brasília, **e só se a aula aconteceu** (`_aula_ocorre`): reserva numa aula que virou feriado, foi encerrada ou desativada depois de agendada não vira `presente` (evita presença falsa na frequência e no repasse do plano livre; achado da revisão final). Hoje a função compara horário local com UTC e confirmaria cerca de 1h30 **antes** de a aula começar.
 - **O que grava:** `status='presente'`, `data_checkin = fim` e `origem='agendamento'`, igual ao check-in manual de uma reserva. Assim "Desmarcar" volta a linha para `agendado` em vez de apagá-la.
 - **Permissões:** `REVOKE EXECUTE` de `PUBLIC`, `anon` e `authenticated`; fica para `service_role` e para o dono, `postgres`. Hoje qualquer visitante pode chamá-la.
 - **Agendamento:** `cron.schedule('confirmar-presencas-app', '*/15 * * * *', 'select public.fn_confirmar_presencas_automaticas()')`. Produção já tem o pg_cron 1.6.4. No staging, a extensão é conferida e habilitada se faltar.
@@ -271,7 +273,9 @@ Em `pages/Agenda/components/ModalListaPresenca.jsx`, a lista da turma aberta pel
    - **Confirmação automática:**
      - confirma a linha do app cuja aula acabou há mais de 30 min (grava `origem` e `data_checkin`);
      - não confirma antes;
-     - não toca reserva do admin, fixo nem `falta`.
+     - não toca reserva do admin, fixo nem `falta`;
+     - não confirma aula que deixou de acontecer (feriado novo, aula desativada).
+   - **Revisão final:** reserva em aula encerrada ou desativada não consome a cota; login ligado a dois cadastros é recusado. Total: 49 casos.
    - **Teste da ILU-74:** é atualizado para a nova assinatura. Os testes da ILU-75 e da ILU-76 continuam passando.
 2. **Down:** executada numa transação revertida, conferindo que tudo foi removido e a `agendar_aula` antiga voltou.
 3. **HTTP real no staging,** com um aluno de teste logado:

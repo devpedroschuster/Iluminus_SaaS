@@ -290,7 +290,7 @@ BEGIN
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem) VALUES
       (a_a, c_dan_ter, v_seg + 1, 'agendado', 'avulso'),   -- conta
       (a_a, c_unica,   v_seg + 3, 'falta',    'avulso'),   -- conta
-      (a_a, c_dan_ter, v_seg + 6, 'agendado', 'avulso'),   -- domingo: conta
+      (a_a, c_dan_ter, v_seg + 6, 'presente', 'avulso'),   -- domingo (presença registrada): conta
       (a_a, c_dan_ter, v_seg + 7, 'agendado', 'avulso'),   -- semana seguinte: não conta
       (a_a, c_dan_ter, v_seg + 4, 'cancelado', 'avulso'),  -- cancelado: não conta
       (a_a, c_fun_seg, v_seg,     'agendado', 'avulso');   -- Funcional: área separada
@@ -301,6 +301,22 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
             WHEN OTHERS THEN v_falhas := v_falhas || ('U2: ' || SQLERRM);
+  END;
+
+  -- U3: reserva 'agendado' numa aula que não acontece mais (encerrada / desativada)
+  --     não consome a cota — o aluno nem a vê na lista para cancelar.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem) VALUES
+      (a_a, c_encerrada, v_seg, 'agendado', 'avulso'),
+      (a_a, c_inativa,   v_seg, 'agendado', 'avulso');
+    IF public._uso_semanal(a_a, 'Dança', v_seg) <> 1 THEN
+      v_falhas := v_falhas || ('U3: reserva em aula encerrada/desativada não deveria contar, veio '
+        || public._uso_semanal(a_a, 'Dança', v_seg));
+    END IF;
+    RAISE EXCEPTION USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+            WHEN OTHERS THEN v_falhas := v_falhas || ('U3: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- AV: avaliação
@@ -782,6 +798,30 @@ BEGIN
             WHEN OTHERS THEN v_falhas := v_falhas || ('R7: ' || SQLERRM);
   END;
 
+  -- R8: login ligado a mais de um cadastro é recusado (não agenda no cadastro errado)
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
+                        modalidades_selecionadas, data_inicio_plano, data_fim_plano)
+    VALUES ('[TESTE ILU-78] Homônimo', 'teste-ilu78-h@iluminus.test', 'aluno', true, false, u_a, v_plano,
+            ARRAY[v_md], v_hoje - 30, v_hoje + 60);
+    PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', u_a)::text, true);
+    SET LOCAL ROLE authenticated;
+    v_txt := NULL;
+    BEGIN
+      v_j := public.agendar_aula(c_dan_ter, v_seg + 1);
+    EXCEPTION WHEN OTHERS THEN v_txt := SQLERRM;
+    END;
+    RESET ROLE;
+    PERFORM set_config('request.jwt.claims', '', true);
+    IF v_txt IS DISTINCT FROM 'Seu login está ligado a mais de um cadastro. Fale com a recepção.' THEN
+      v_falhas := v_falhas || ('R8: login com dois cadastros: ' || coalesce(v_txt, 'aceito'));
+    END IF;
+    RAISE EXCEPTION USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+            WHEN OTHERS THEN v_falhas := v_falhas || ('R8: ' || SQLERRM);
+  END;
+
   ---------------------------------------------------------------- C: cancelar_meu_agendamento
   -- C1
   v_total := v_total + 1;
@@ -875,8 +915,11 @@ BEGIN
   -- CR1 + CR2
   v_total := v_total + 2;
   BEGIN
+    INSERT INTO agenda (atividade, dia_semana, horario, eh_recorrente, data_especifica, modalidade_id, professor_id)
+    VALUES ('[TESTE ILU-78] Ontem', v_dias[extract(isodow FROM v_hoje - 1)::int], '19:00', false, v_hoje - 1, v_md, v_prof)
+    RETURNING id INTO v_tmp;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app)
-    VALUES (a_a, c_dan_ter, v_hoje - 1, 'agendado', 'avulso', true) RETURNING id INTO v_id;
+    VALUES (a_a, v_tmp, v_hoje - 1, 'agendado', 'avulso', true) RETURNING id INTO v_id;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app) VALUES
       (a_b, c_dan_ter, v_hoje - 1, 'agendado', 'avulso', false),
       (a_l, c_dan_ter, v_hoje - 1, 'falta',    'avulso', true),
@@ -919,6 +962,32 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
             WHEN OTHERS THEN v_falhas := v_falhas || ('CR3: ' || SQLERRM);
+  END;
+
+  -- CR4: reserva do app numa aula que deixou de acontecer depois de agendada
+  --      (feriado cadastrado depois / aula desativada) não vira presença.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO agenda (atividade, dia_semana, horario, eh_recorrente, data_especifica, modalidade_id, professor_id)
+    VALUES ('[TESTE ILU-78] Ontem com feriado', v_dias[extract(isodow FROM v_hoje - 1)::int], '19:00', false, v_hoje - 1, v_md, v_prof)
+    RETURNING id INTO v_tmp;
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app)
+    VALUES (a_a, v_tmp, v_hoje - 1, 'agendado', 'avulso', true) RETURNING id INTO v_id;
+    INSERT INTO feriados (data, descricao, bloqueia_agenda) VALUES (v_hoje - 1, '[TESTE ILU-78] Feriado novo', true)
+    ON CONFLICT (data) DO UPDATE SET bloqueia_agenda = true;
+    INSERT INTO agenda (atividade, dia_semana, horario, eh_recorrente, data_especifica, ativa, modalidade_id, professor_id)
+    VALUES ('[TESTE ILU-78] Desativada', v_dias[extract(isodow FROM v_hoje - 2)::int], '19:00', false, v_hoje - 2, false, v_md, v_prof)
+    RETURNING id INTO v_tmp2;
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app)
+    VALUES (a_l, v_tmp2, v_hoje - 2, 'agendado', 'avulso', true) RETURNING id INTO v_id2;
+    PERFORM public.fn_confirmar_presencas_automaticas();
+    IF NOT EXISTS (SELECT 1 FROM presencas WHERE id = v_id AND status = 'agendado')
+       OR NOT EXISTS (SELECT 1 FROM presencas WHERE id = v_id2 AND status = 'agendado') THEN
+      v_falhas := v_falhas || 'CR4: aula que não aconteceu (feriado novo / desativada) não deveria virar presente'::text;
+    END IF;
+    RAISE EXCEPTION USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+            WHEN OTHERS THEN v_falhas := v_falhas || ('CR4: ' || SQLERRM);
   END;
 
   RAISE EXCEPTION 'RESULTADO ILU-78: %',

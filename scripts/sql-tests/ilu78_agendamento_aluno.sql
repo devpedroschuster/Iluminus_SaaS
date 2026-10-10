@@ -621,6 +621,35 @@ BEGIN
             WHEN OTHERS THEN v_falhas := v_falhas || ('L5: ' || SQLERRM);
   END;
 
+  -- L6: a lista avalia cada aula uma vez. Embutida na consulta final, a CTE
+  --     repetia _avaliar_agendamento a cada a.av (~12x por aula: 3,5 s para
+  --     um aluno com 98 aulas em produção). Conta as chamadas trocando a
+  --     função por uma que conta e repassa (desfeito no fim do caso).
+  v_total := v_total + 1;
+  BEGIN
+    ALTER FUNCTION public._avaliar_agendamento(bigint, bigint, date, timestamptz) RENAME TO _avaliar_agendamento_l6;
+    CREATE FUNCTION public._avaliar_agendamento(p_aluno_id bigint, p_aula_id bigint, p_data date, p_agora timestamptz DEFAULT now())
+    RETURNS jsonb LANGUAGE plpgsql STABLE AS $f$
+    BEGIN
+      PERFORM set_config('ilu78.l6_chamadas', (current_setting('ilu78.l6_chamadas')::int + 1)::text, true);
+      RETURN public._avaliar_agendamento_l6(p_aluno_id, p_aula_id, p_data, p_agora);
+    END $f$;
+    PERFORM set_config('ilu78.l6_chamadas', '0', true);
+    PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', u_a)::text, true);
+    SET LOCAL ROLE authenticated;
+    v_j := public.listar_aulas_aluno();
+    RESET ROLE;
+    PERFORM set_config('request.jwt.claims', '', true);
+    v_n := current_setting('ilu78.l6_chamadas')::int;
+    IF jsonb_array_length(v_j->'aulas') = 0 OR v_n <> jsonb_array_length(v_j->'aulas') THEN
+      v_falhas := v_falhas || ('L6: _avaliar_agendamento rodou ' || v_n || ' vez(es) para '
+                               || jsonb_array_length(v_j->'aulas') || ' aula(s) na lista');
+    END IF;
+    RAISE EXCEPTION USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+            WHEN OTHERS THEN v_falhas := v_falhas || ('L6: ' || SQLERRM);
+  END;
+
   ---------------------------------------------------------------- R: agendar_aula (como a aluna A)
   -- R1
   v_total := v_total + 1;

@@ -175,8 +175,10 @@ function CartaoAula({ aula, ocupado, onAgendar, onCancelar }) {
   const lotada = aula.ocupacao >= aula.capacidade;
   const pct = aula.capacidade > 0 ? Math.min((aula.ocupacao / aula.capacidade) * 100, 100) : 100;
 
+  // No celular a ação vai para uma linha própria: lado a lado com o horário e
+  // o nome, o botão ficava cortado na borda do cartão.
   return (
-    <div className={`class-card anim-fade-up ${marcado ? 'booked' : ''}`}>
+    <div className={`class-card anim-fade-up flex-wrap sm:flex-nowrap ${marcado ? 'booked' : ''}`}>
       <div className="class-time-block">
         <div className="class-time">{aula.horario}</div>
         <div className={`class-space ${aula.area === 'Dança' ? 'danca' : 'funcional'}`}>{aula.area}</div>
@@ -193,7 +195,7 @@ function CartaoAula({ aula, ocupado, onAgendar, onCancelar }) {
           </div>
         </div>
       </div>
-      <div className="class-action" style={{ minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+      <div className="class-action w-full sm:w-auto" style={{ minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
         {acao.tipo === 'agendar' && (
           <button onClick={onAgendar} disabled={ocupado} className="btn-book reserve">
             {ocupado ? <RefreshCw className="animate-spin text-white" size={16} /> : acao.texto}

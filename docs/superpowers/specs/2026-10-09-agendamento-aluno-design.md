@@ -275,7 +275,8 @@ Em `pages/Agenda/components/ModalListaPresenca.jsx`, a lista da turma aberta pel
      - não confirma antes;
      - não toca reserva do admin, fixo nem `falta`;
      - não confirma aula que deixou de acontecer (feriado novo, aula desativada).
-   - **Revisão final:** reserva em aula encerrada ou desativada não consome a cota; login ligado a dois cadastros é recusado. Total: 49 casos.
+   - **Revisão final:** reserva em aula encerrada ou desativada não consome a cota; login ligado a dois cadastros é recusado.
+   - **Desempenho:** a lista avalia cada aula uma vez (caso L6, que conta as chamadas de `_avaliar_agendamento`). Medido em produção depois da migration: um aluno com 98 aulas nos 14 dias levava 3,5 s, porque a CTE embutida repetia a avaliação a cada campo lido (~11x por aula). Corrigido com `AS MATERIALIZED` na migration `20261010120000`. Total: 50 casos.
    - **Teste da ILU-74:** é atualizado para a nova assinatura. Os testes da ILU-75 e da ILU-76 continuam passando.
 2. **Down:** executada numa transação revertida, conferindo que tudo foi removido e a `agendar_aula` antiga voltou.
 3. **HTTP real no staging,** com um aluno de teste logado:

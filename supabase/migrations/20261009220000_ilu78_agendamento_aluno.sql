@@ -113,6 +113,8 @@ $$;
 
 -- Aulas da área na semana (p_semana = segunda-feira): agendado, presente e
 -- falta contam; cancelado não; fixos sem linha contam; feriado não conta.
+-- Reserva 'agendado' numa aula que não acontece mais (encerrada, desativada,
+-- feriado cadastrado depois) não conta: o aluno nem a vê na lista.
 CREATE OR REPLACE FUNCTION public._uso_semanal(p_aluno_id bigint, p_area text, p_semana date)
 RETURNS integer
 LANGUAGE sql STABLE
@@ -127,6 +129,7 @@ AS $$
         AND m.area = p_area
         AND pr.data_aula BETWEEN p_semana AND p_semana + 6
         AND pr.status IN ('agendado', 'presente', 'falta')
+        AND (pr.status <> 'agendado' OR public._aula_ocorre(pr.aula_id, pr.data_aula))
         AND NOT EXISTS (SELECT 1 FROM public.feriados f
                          WHERE f.data = pr.data_aula AND f.bloqueia_agenda IS TRUE))
     +
@@ -152,6 +155,11 @@ DECLARE
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Faça login novamente.';
+  END IF;
+  -- alunos.auth_id não é único (o gatilho antigo de cadastro já ligou um login
+  -- a mais de um aluno): nesse caso recusa, em vez de agir num cadastro qualquer.
+  IF (SELECT count(*) FROM public.alunos a WHERE a.auth_id = auth.uid() AND a.role = 'aluno') > 1 THEN
+    RAISE EXCEPTION 'Seu login está ligado a mais de um cadastro. Fale com a recepção.';
   END IF;
   SELECT a.id, a.ativo INTO v_id, v_ativo
     FROM public.alunos a
@@ -498,8 +506,10 @@ END;
 $$;
 
 -- 5. Presença presumida: só o que o aluno agendou pelo app, 30 min depois do
---    fim da aula, no horário de Brasília. origem 'agendamento' = mesmo efeito
---    do check-in manual de uma reserva ("Desmarcar" volta para 'agendado').
+--    fim da aula, no horário de Brasília, e só se a aula aconteceu de fato
+--    (não confirma feriado cadastrado depois, aula encerrada ou desativada).
+--    origem 'agendamento' = mesmo efeito do check-in manual de uma reserva
+--    ("Desmarcar" volta para 'agendado').
 CREATE OR REPLACE FUNCTION public.fn_confirmar_presencas_automaticas(p_margem_minutos integer DEFAULT 30)
 RETURNS TABLE(presencas_confirmadas integer)
 LANGUAGE plpgsql
@@ -517,6 +527,7 @@ BEGIN
    WHERE a.id = p.aula_id
      AND p.status = 'agendado'
      AND p.agendado_pelo_app
+     AND public._aula_ocorre(p.aula_id, p.data_aula)
      AND public._inicio_aula(p.data_aula, a.horario)
          + make_interval(mins => coalesce(a.duracao_minutos, 60) + p_margem_minutos) < now();
   GET DIAGNOSTICS v_n = ROW_COUNT;

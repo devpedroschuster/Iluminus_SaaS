@@ -171,6 +171,13 @@ O intervalo é limitado a `[hoje, hoje+13]`.
 - **Agendamento:** `cron.schedule('confirmar-presencas-app', '*/15 * * * *', 'select public.fn_confirmar_presencas_automaticas()')`. Produção já tem o pg_cron 1.6.4. No staging, a extensão é conferida e habilitada se faltar.
 - **Interação com "Desmarcar":** se alguém desmarcar uma presença presumida depois da aula, a linha volta para `agendado` e o cron a confirma de novo. O caminho certo para registrar ausência é "Falta sem aviso" (seção 6).
 
+### 5.4b Fecha o atalho de apagar a reserva pela API
+
+A política de RLS `aluno_cancela_propria_presenca` (DELETE em `presencas`, para o aluno dono e `status = 'agendado'`) é removida. Hoje ela deixa o aluno apagar a própria reserva direto pela API, a qualquer hora, o que burla o prazo de 1h e a regra "falta sem aviso conta": o aluno falta e apaga a reserva antes do cron confirmar.
+
+- O app não usa esse caminho: o cancelamento é pela RPC.
+- O aluno continua **sem** INSERT e UPDATE em `presencas` (as políticas são só de admin e professor), então as RPCs são o único caminho de escrita do aluno.
+
 ### 5.5 O que não muda
 
 - `verificar_disponibilidade_v2`, a reserva e o check-in do admin, e o "forçar" lotação.
@@ -185,6 +192,7 @@ O intervalo é limitado a `[hoje, hoje+13]`.
 - remove `listar_aulas_aluno`, `agendar_aula(bigint, date)`, `cancelar_meu_agendamento` e as funções internas;
 - recria a `agendar_aula(bigint, bigint, timestamptz)` da ILU-74, com os mesmos grants;
 - recria a `fn_confirmar_presencas_automaticas` original, com os grants originais;
+- recria a política `aluno_cancela_propria_presenca`;
 - remove a coluna `presencas.agendado_pelo_app`.
 
 ## 6. Admin: registrar falta sem aviso
@@ -231,7 +239,7 @@ Em `pages/Agenda/components/ModalListaPresenca.jsx`, a lista da turma aberta pel
 ## 8. Testes (escritos antes do código; RED antes de GREEN)
 
 1. **SQL** `scripts/sql-tests/ilu78_agendamento_aluno.sql`, autodescartável, rodado no staging. O padrão é o mesmo da ILU-74/75/76: um único `DO`, papéis simulados com `SET LOCAL ROLE` e `request.jwt.claims`, e o fim em `RAISE EXCEPTION 'RESULTADO ILU-78: …'`. Casos:
-   - **Permissões:** `anon` não executa as três públicas; `authenticated` não executa as internas; nem `anon` nem `authenticated` executam `fn_confirmar_presencas_automaticas`.
+   - **Permissões:** `anon` não executa as três públicas; `authenticated` não executa as internas; nem `anon` nem `authenticated` executam `fn_confirmar_presencas_automaticas`; a política `aluno_cancela_propria_presenca` não existe mais.
    - **Listagem:**
      - só aparecem as modalidades matriculadas;
      - a janela vai de hoje a hoje+13;
@@ -269,6 +277,8 @@ Em `pages/Agenda/components/ModalListaPresenca.jsx`, a lista da turma aberta pel
 3. **HTTP real no staging,** com um aluno de teste logado:
    - listar, agendar, recusar acima do limite e cancelar;
    - **dois agendamentos em paralelo na última vaga**: exatamente um sucesso;
+   - **o mesmo aluno agendando duas aulas em paralelo com cota 1**: exatamente um sucesso;
+   - um aluno tentando apagar a própria reserva direto pela API (`DELETE /rest/v1/presencas`) não apaga nada;
    - limpeza dos dados `[TESTE ILU-78]`, com zero sobras.
 4. **Vitest:**
    - `areaAlunoService` (parâmetros e mensagens de erro);

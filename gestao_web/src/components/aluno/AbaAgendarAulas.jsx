@@ -163,6 +163,7 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
         textoConfirmar="Cancelar aula"
         textoCancelar="Voltar"
         tipo="warning"
+        loading={!!processando}
       />
     </>
   );

@@ -77,6 +77,20 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
     }
   };
 
+  // ILU-78: não veio e não avisou — conta no limite semanal e impede a
+  // confirmação automática da reserva feita pelo app.
+  const handleRegistrarFaltaSemAviso = async (aluno) => {
+    try {
+      await agendamentoService.registrarFaltaSemAviso(aluno.aluno_id, aulaParaLista.id, dataLista);
+      showToast.success("Falta sem aviso registrada.");
+      queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      setRefreshKey(old => old + 1);
+      if (onAtualizar) onAtualizar();
+    } catch (err) {
+      showToast.error("Erro ao registrar falta: " + err.message);
+    }
+  };
+
   // Marcar/desmarcar presença: admin pode fazer isso a qualquer horário,
   // direto pelo modal de chamada na Agenda (não fica preso à janela de
   // ±30min que existe na Chamada Rápida).
@@ -120,7 +134,7 @@ export function useListaPresenca(aulaParaLista, dataLista, isOpen, onAtualizar) 
 
   return { 
     listaPresenca, loadingLista, removendoId, marcandoId,
-    handleRegistrarFalta, handleDesfazerFalta,
+    handleRegistrarFalta, handleDesfazerFalta, handleRegistrarFaltaSemAviso,
     handleMarcarPresenca, handleDesmarcarPresenca,
     alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao, refreshKey
   };

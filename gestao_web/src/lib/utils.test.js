@@ -4,6 +4,7 @@ import {
   vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
   ehPlanoLivre, calcularFrequenciaMedia, statusAcessoApp, STATUS_ACESSO_APP, montarInstrucoesAcesso,
+  statusMensalidadeAluno,
 } from './utils';
 
 describe('valorDevidoMensalidade', () => {
@@ -124,6 +125,54 @@ describe('hojeBrasilia (regressão ILU-19)', () => {
     vi.setSystemTime(new Date('2026-06-10T15:00:00.000Z'));
 
     expect(hojeBrasilia()).toBe('2026-06-10');
+  });
+});
+
+describe('statusMensalidadeAluno (regressão ILU-96)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('mensalidade que vence hoje fica "Pendente", não "Atrasado"', () => {
+    // 2026-10-11 12:00 em Brasília.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T15:00:00.000Z'));
+
+    expect(statusMensalidadeAluno('pendente', '2026-10-11')).toBe('Pendente');
+  });
+
+  it('às 22h da véspera ainda é "Pendente" (UTC já virou o dia)', () => {
+    // 2026-10-12T01:00Z = 2026-10-11 22:00 em Brasília; vence dia 12.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-12T01:00:00.000Z'));
+
+    expect(statusMensalidadeAluno('pendente', '2026-10-12')).toBe('Pendente');
+  });
+
+  it('mensalidade que venceu ontem fica "Atrasado"', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T15:00:00.000Z'));
+
+    expect(statusMensalidadeAluno('pendente', '2026-10-10')).toBe('Atrasado');
+  });
+
+  it('logo depois da meia-noite em Brasília, o vencimento de ontem já é "Atrasado"', () => {
+    // 2026-10-12T03:30Z = 2026-10-12 00:30 em Brasília; venceu dia 11.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-12T03:30:00.000Z'));
+
+    expect(statusMensalidadeAluno('pendente', '2026-10-11')).toBe('Atrasado');
+  });
+
+  it('paga é "Pago" mesmo com vencimento no passado', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T15:00:00.000Z'));
+
+    expect(statusMensalidadeAluno('pago', '2026-09-10')).toBe('Pago');
+  });
+
+  it('sem data de vencimento fica "Pendente"', () => {
+    expect(statusMensalidadeAluno('pendente', null)).toBe('Pendente');
   });
 });
 

@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { buscarAcesso } from '../services/acessoService';
 
 export function useAuth() {
   const [sessao, setSessao] = useState(null);
   const [perfil, setPerfil] = useState(null);
   const [professorId, setProfessorId] = useState(null);
   const [nomeUsuario, setNomeUsuario] = useState(null); // #18 — novo estado
-  const [professorInativo, setProfessorInativo] = useState(false);
-  const [alunoInativo, setAlunoInativo] = useState(false);
+  // ILU-98: sem nenhum cadastro ativo (aluno e/ou professor inativos).
+  const [contaDesativada, setContaDesativada] = useState(false);
   // ILU-39: conta órfã — sessão válida no Supabase Auth, mas sem linha
   // correspondente em `alunos` nem `professores`.
   const [perfilNaoEncontrado, setPerfilNaoEncontrado] = useState(false);
@@ -19,7 +20,7 @@ export function useAuth() {
   const perfilCarregadoParaId = useRef(null);
   // ILU-64: contador incrementado sempre que uma nova sessão começa a ser
   // processada. Um signOut() disparado em segundo plano (branches
-  // alunoInativo/professorInativo/perfilNaoEncontrado) anota a geração
+  // contaDesativada/perfilNaoEncontrado) anota a geração
   // vigente no momento do disparo; se o SIGNED_OUT correspondente só
   // chegar depois de uma sessão mais nova já ter sido estabelecida, a
   // geração não bate mais e o evento atrasado é ignorado em vez de
@@ -39,8 +40,7 @@ export function useAuth() {
           setPerfil(null);
           setProfessorId(null);
           setNomeUsuario(null); // #18
-          setProfessorInativo(false);
-          setAlunoInativo(false);
+          setContaDesativada(false);
           setPerfilNaoEncontrado(false);
           setLoading(false);
         }
@@ -66,16 +66,29 @@ export function useAuth() {
       const authId = session.user.id;
 
       try {
-        const { data: usuario, error: errAluno } = await supabase
-          .from('alunos').select('id, role, ativo').eq('auth_id', authId).maybeSingle();
-        if (errAluno && errAluno.code !== 'PGRST116') console.error('Erro ao verificar aluno:', errAluno);
+        // ILU-98: os dois cadastros entram na decisão (lib/perfilAcesso.js).
+        // Antes, um cadastro de aluno inativo desconectava um professor ativo.
+        const acesso = await buscarAcesso(authId);
 
         if (cancelled) return;
 
-        if (usuario && usuario.role !== 'admin' && usuario.ativo === false) {
+        if (acesso.perfil) {
           perfilJaCarregado.current = true;
           perfilCarregadoParaId.current = authId;
-          setAlunoInativo(true);
+          setPerfil(acesso.perfil);
+          setProfessorId(acesso.professorId);
+          // #18: só o professor tem o nome exposto aqui.
+          setNomeUsuario(acesso.perfil === 'professor' ? acesso.nome : null);
+          setContaDesativada(false);
+          setPerfilNaoEncontrado(false); // ILU-39
+          setLoading(false);
+          return;
+        }
+
+        if (acesso.bloqueio === 'desativado') {
+          perfilJaCarregado.current = true;
+          perfilCarregadoParaId.current = authId;
+          setContaDesativada(true);
           setPerfil(null);
           setProfessorId(null);
           setNomeUsuario(null);
@@ -85,52 +98,6 @@ export function useAuth() {
           return;
         }
 
-        if (usuario) {
-          perfilJaCarregado.current = true;
-          perfilCarregadoParaId.current = authId;
-          setPerfil(usuario.role === 'admin' ? 'admin' : 'aluno');
-          setProfessorId(null);
-          setNomeUsuario(null); // alunos não têm nome exposto aqui
-          setAlunoInativo(false);
-          setPerfilNaoEncontrado(false); // ILU-39
-          setLoading(false);
-          return;
-        }
-
-        // #18 — busca 'nome' além de 'id'
-        const { data: professor, error: errProf } = await supabase
-          .from('professores').select('id, nome, ativo').eq('auth_id', authId).maybeSingle();
-        if (errProf && errProf.code !== 'PGRST116') console.error('Erro ao verificar professor:', errProf);
-
-        if (cancelled) return;
-
-         if (professor && professor.ativo !== false) {
-          perfilJaCarregado.current = true;
-          perfilCarregadoParaId.current = authId;
-          setPerfil('professor');
-          // Number() garante que o id seja sempre number,
-          // independente do Supabase retornar bigint como string.
-          setProfessorId(professor.id);
-          setNomeUsuario(professor.nome ?? null); // #18
-          setProfessorInativo(false);
-          setPerfilNaoEncontrado(false); // ILU-39
-          setLoading(false);
-          return;
-        }
-
-        if (professor && professor.ativo === false) {
-        perfilJaCarregado.current = true;
-        perfilCarregadoParaId.current = authId;
-        setProfessorInativo(true);
-        setPerfil(null);
-        setProfessorId(null);
-        setNomeUsuario(null);
-        setLoading(false);
-        signOutEmVooRef.current = geracaoRef.current;
-        await supabase.auth.signOut();
-        return;
-      }
-
         perfilJaCarregado.current = true;
         perfilCarregadoParaId.current = authId;
         console.warn('Nenhum perfil encontrado para auth_id:', authId);
@@ -139,7 +106,7 @@ export function useAuth() {
         // /area-aluno (App.jsx manda pra lá quando há sessão, e a rota
         // privada manda de volta pro /login por falta de perfil).
         //
-        // Testado ao vivo: espelhar o branch professorInativo (setLoading(false)
+        // Testado ao vivo: espelhar o branch de conta desativada (setLoading(false)
         // e só then aguardar signOut()) reproduz exatamente esse loop — o
         // React Router alterna entre as duas rotas mais rápido do que o
         // round-trip de rede do signOut(), e o React desiste de renderizar
@@ -196,8 +163,7 @@ export function useAuth() {
         setPerfil(null);
         setProfessorId(null);
         setNomeUsuario(null); // #18
-        setProfessorInativo(false);
-        setAlunoInativo(false);
+        setContaDesativada(false);
         // ILU-39: perfilNaoEncontrado NÃO é resetado aqui de propósito — este
         // SIGNED_OUT é disparado pelo próprio signOut() em segundo plano do
         // branch "nenhum perfil encontrado" acima, e a mensagem só chega a
@@ -232,6 +198,6 @@ export function useAuth() {
 
   return {
     sessao, perfil, professorId, nomeUsuario, loading,
-    professorInativo, alunoInativo, perfilNaoEncontrado,
+    contaDesativada, perfilNaoEncontrado,
   };
 }

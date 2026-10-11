@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { rotaPorPerfil } from '../lib/navigation';
+import { buscarAcesso } from '../services/acessoService';
 import { showToast } from '../components/shared/showToast';
 import { LIMITES } from '../lib/constants';
 
@@ -137,32 +138,15 @@ export default function RedefinirSenha() {
       let rotaDestino = rotaPorPerfil(null);
 
       if (user) {
-        const { data: alunoData } = await supabase
-          .from('alunos')
-          .select('role')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-        if (alunoData) {
+        // ILU-98: limpa o primeiro acesso do cadastro que vale para o login
+        // (lib/perfilAcesso.js) e segue para a tela dele.
+        const acesso = await buscarAcesso(user.id);
+        if (acesso.perfil) {
           await supabase
-            .from('alunos')
+            .from(acesso.perfil === 'professor' ? 'professores' : 'alunos')
             .update({ primeiro_acesso: false })
             .eq('auth_id', user.id);
-          rotaDestino = rotaPorPerfil(alunoData.role);
-        } else {
-          const { data: profData } = await supabase
-            .from('professores')
-            .select('id')
-            .eq('auth_id', user.id)
-            .maybeSingle();
-
-          if (profData) {
-            await supabase
-              .from('professores')
-              .update({ primeiro_acesso: false })
-              .eq('auth_id', user.id);
-            rotaDestino = rotaPorPerfil('professor');
-          }
+          rotaDestino = rotaPorPerfil(acesso.perfil);
         }
       }
 

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
 import { rotaPorPerfil } from '../lib/navigation';
+import { buscarAcesso } from '../services/acessoService';
 import { showToast } from '../components/shared/showToast';
 import Modal from '../components/ui/Modal';
 import { useModal } from '../components/ui/useModal';
@@ -14,7 +15,7 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const { professorInativo, alunoInativo, perfilNaoEncontrado } = useAuth();
+  const { contaDesativada, perfilNaoEncontrado } = useAuth();
 
   const navigate = useNavigate();
   const modalRecuperar = useModal();
@@ -33,68 +34,33 @@ export default function Login() {
 
       if (error) throw error;
 
-      // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
-      const { data: alunoData } = await supabase
-        .from('alunos')
-        .select('primeiro_acesso, nome_completo, role, ativo')
-        .eq('auth_id', authData.user.id)
-        .maybeSingle();
+      // ILU-98: mesma regra do useAuth (lib/perfilAcesso.js). Antes, o
+      // primeiro_acesso de um cadastro de aluno inativo mandava um professor
+      // ativo para a troca de senha, onde a sessão já tinha caído.
+      const acesso = await buscarAcesso(authData.user.id);
 
-      if (alunoData?.primeiro_acesso) {
-        const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
-        navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
-        return;
-      }
-
-      // ILU-40: checa `ativo` aqui mesmo (mesma regra que useAuth aplica) em
-      // vez de mostrar sucesso e deixar só o listener assíncrono de useAuth
-      // barrar depois — antes, uma conta desativada via um toast de "Bem-vindo
-      // de volta!" e chegava a navegar antes do logout forçado acontecer.
-      if (alunoData && alunoData.role !== 'admin' && alunoData.ativo === false) {
+      // ILU-40: checa a conta desativada aqui mesmo, em vez de mostrar sucesso
+      // e deixar só o listener assíncrono de useAuth barrar depois — antes,
+      // uma conta desativada via um toast de "Bem-vindo de volta!" e chegava
+      // a navegar antes do logout forçado acontecer.
+      if (acesso.bloqueio === 'desativado') {
         showToast.error('Sua conta está desativada. Entre em contato com a gestão do espaço.');
         return;
       }
 
-      // ── 2. Verificar primeiro_acesso em professores ───────────────────────
-      if (!alunoData) {
-        const { data: profData } = await supabase
-          .from('professores')
-          .select('primeiro_acesso, nome, ativo')
-          .eq('auth_id', authData.user.id)
-          .maybeSingle();
-
-        if (profData?.primeiro_acesso) {
-          const primeiroNome = (profData.nome || 'Professor').split(' ')[0];
-          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
+      if (acesso.perfil) {
+        const primeiroNome = (acesso.nome || '').split(' ')[0];
+        if (acesso.primeiroAcesso) {
+          const nomePadrao = acesso.perfil === 'professor' ? 'Professor' : 'Usuário';
+          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome || nomePadrao } });
           return;
         }
-
-        if (profData?.ativo === false) {
-          showToast.error('Sua conta está desativada. Entre em contato com a gestão do espaço.');
-          return;
-        }
-
-        if (profData) {
-          const primeiroNome = (profData.nome || '').split(' ')[0];
-          showToast.success(
-            primeiroNome
-              ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-              : 'Login realizado com sucesso!'
-          );
-          navigate('/agenda');
-          return;
-        }
-      }
-
-      // Admin ou aluno com acesso normal
-      if (alunoData) {
-        const primeiroNome = (alunoData.nome_completo || '').split(' ')[0];
         showToast.success(
           primeiroNome
             ? `Bem-vindo de volta, ${primeiroNome}! 👋`
             : 'Login realizado com sucesso!'
         );
-        navigate(rotaPorPerfil(alunoData.role === 'admin' ? 'admin' : 'aluno'));
+        navigate(rotaPorPerfil(acesso.perfil));
         return;
       }
 
@@ -165,7 +131,7 @@ export default function Login() {
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
         </div>
 
-        {(professorInativo || alunoInativo || perfilNaoEncontrado) && (
+        {(contaDesativada || perfilNaoEncontrado) && (
     <div className="p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-destructive text-sm font-medium">
       {perfilNaoEncontrado
         ? 'Conta sem perfil configurado. Contate o suporte.'

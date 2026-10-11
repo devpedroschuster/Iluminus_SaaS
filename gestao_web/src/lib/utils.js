@@ -83,6 +83,18 @@ export const hojeBrasilia = () => {
 };
 
 /**
+ * Texto do status de uma mensalidade na Área do Aluno: "Pago", "Atrasado"
+ * (vencimento antes de hoje em Brasília) ou "Pendente" — mesma regra do
+ * Financeiro (ILU-96). Compara datas 'AAAA-MM-DD', não instantes:
+ * `new Date('AAAA-MM-DD')` é meia-noite UTC (21h da véspera em Brasília),
+ * o que marcava "Atrasado" no próprio dia do vencimento.
+ */
+export const statusMensalidadeAluno = (status, dataVencimento) => {
+  if (status === 'pago') return 'Pago';
+  return dataVencimento && dataVencimento < hojeBrasilia() ? 'Atrasado' : 'Pendente';
+};
+
+/**
  * Soma um mês de calendário a uma data 'AAAA-MM-DD', preservando o dia
  * quando possível (ex.: 2026-01-15 → 2026-02-15) e recuando para o último
  * dia do mês de destino quando o dia original não existir nele (ex.:

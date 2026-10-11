@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Camera } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
 import AbaAgendarAulas from '../components/aluno/AbaAgendarAulas';
+import { statusMensalidadeAluno } from '../lib/utils';
 
 export default function AreaAluno() {
   const navigate = useNavigate();
@@ -122,7 +123,6 @@ export default function AreaAluno() {
     return `${dia}/${mes}/${ano}`;
   };
   const formatarMoeda = (valor) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  const getStatusTexto = (status, dataVencimento) => status === "pago" ? "Pago" : (dataVencimento && new Date(dataVencimento) < new Date() ? "Atrasado" : "Pendente");
 
   if (loadingAluno) return <div className="h-screen w-screen flex items-center justify-center bg-[#FDF8F5]"><RefreshCw className="animate-spin text-orange-600" size={48} /></div>;
   if (erroAluno || !aluno) return <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FDF8F5]"><p className="text-gray-600 mb-4">Erro ao carregar dados do aluno.</p><button onClick={doLogout} className="btn btn-primary">Voltar para o Início</button></div>;
@@ -260,7 +260,7 @@ export default function AreaAluno() {
                       <thead><tr><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
                       <tbody>
                         {mensalidades.map(m => {
-                          const statusTxt = getStatusTexto(m.status, m.data_vencimento);
+                          const statusTxt = statusMensalidadeAluno(m.status, m.data_vencimento);
                           let badgeClass = "badge-warn";
                           if (statusTxt === "Pago") badgeClass = "badge-ok";
                           if (statusTxt === "Atrasado") badgeClass = "badge-err";

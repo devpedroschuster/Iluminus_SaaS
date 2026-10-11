@@ -1,6 +1,45 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
 
+// Linha de presencas do aluno naquela aula e data (chave única), ou null.
+async function buscarLinhaPresenca(alunoId, aulaId, dataAula) {
+  const { data, error } = await supabase
+    .from('presencas')
+    .select('id')
+    .eq('aluno_id', alunoId)
+    .eq('aula_id', aulaId)
+    .eq('data_aula', dataAula)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// ILU-18: mesmo padrão de alunosService.alterarStatus.
+async function atualizarStatusPresenca(id, campos) {
+  const { data, error } = await supabase
+    .from('presencas')
+    .update(campos)
+    .eq('id', id)
+    .select('id, status')
+    .single();
+  if (error) throw error;
+  if (data.status !== campos.status) {
+    throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+  }
+}
+
+// Fixo sem linha: cria a linha já com o status. ILU-95: num toque duplo, o
+// outro toque pode criar a linha entre a busca e o insert (chave única
+// aluno+aula+data) — aí aplica o status nela em vez de mostrar o erro.
+async function criarLinhaPresenca(novaLinha, campos) {
+  const { error } = await supabase.from('presencas').insert(novaLinha);
+  if (!error) return;
+  if (error.code !== '23505') throw error;
+  const criada = await buscarLinhaPresenca(novaLinha.aluno_id, novaLinha.aula_id, novaLinha.data_aula);
+  if (!criada) throw error;
+  await atualizarStatusPresenca(criada.id, campos);
+}
+
 export const agendamentoService = {
 
   async verificarDisponibilidade(aulaId, dataAula, alunoId = null) {
@@ -225,41 +264,14 @@ async agendarAulaAdmin(dados) {
   // Se a linha ainda não existir (fixo sem linha gerada pra hoje), cria com
   // status já 'cancelado'.
   async registrarFalta(alunoId, aulaId, dataEspecifica, motivo = null) {
-    const { data: existente } = await supabase
-      .from('presencas')
-      .select('id, status')
-      .eq('aluno_id', alunoId)
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataEspecifica)
-      .maybeSingle();
+    const campos = { status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo };
+    const existente = await buscarLinhaPresenca(alunoId, aulaId, dataEspecifica);
+    if (existente) return atualizarStatusPresenca(existente.id, campos);
 
-    if (existente) {
-      // ILU-18: mesmo padrão de alunosService.alterarStatus.
-      const { data, error } = await supabase
-        .from('presencas')
-        .update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo })
-        .eq('id', existente.id)
-        .select('id, status')
-        .single();
-      if (error) throw error;
-      if (data.status !== 'cancelado') {
-        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
-      }
-      return;
-    }
-
-    const { error } = await supabase
-      .from('presencas')
-      .insert({
-        aluno_id: alunoId,
-        aula_id: aulaId,
-        data_aula: dataEspecifica,
-        status: 'cancelado',
-        origem: 'fixo',
-        cancelado_em: new Date().toISOString(),
-        cancelado_motivo: motivo,
-      });
-    if (error) throw error;
+    await criarLinhaPresenca(
+      { aluno_id: alunoId, aula_id: aulaId, data_aula: dataEspecifica, origem: 'fixo', ...campos },
+      campos,
+    );
   },
 
   // Falta SEM aviso (ILU-78): o aluno não veio e não avisou. Diferente de
@@ -267,34 +279,14 @@ async agendarAulaAdmin(dados) {
   // no limite semanal do plano e impede que a reserva feita pelo app seja
   // confirmada sozinha (presença presumida) depois da aula.
   async registrarFaltaSemAviso(alunoId, aulaId, dataAula) {
-    const { data: existente, error: errBusca } = await supabase
-      .from('presencas')
-      .select('id')
-      .eq('aluno_id', alunoId)
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataAula)
-      .maybeSingle();
-    if (errBusca) throw errBusca;
+    const campos = { status: 'falta', data_checkin: null };
+    const existente = await buscarLinhaPresenca(alunoId, aulaId, dataAula);
+    if (existente) return atualizarStatusPresenca(existente.id, campos);
 
-    if (existente) {
-      // ILU-18: mesmo padrão de alunosService.alterarStatus.
-      const { data, error } = await supabase
-        .from('presencas')
-        .update({ status: 'falta', data_checkin: null })
-        .eq('id', existente.id)
-        .select('id, status')
-        .single();
-      if (error) throw error;
-      if (data.status !== 'falta') {
-        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
-      }
-      return;
-    }
-
-    const { error } = await supabase
-      .from('presencas')
-      .insert({ aluno_id: alunoId, aula_id: aulaId, data_aula: dataAula, status: 'falta', origem: 'fixo' });
-    if (error) throw error;
+    await criarLinhaPresenca(
+      { aluno_id: alunoId, aula_id: aulaId, data_aula: dataAula, status: 'falta', origem: 'fixo' },
+      campos,
+    );
   },
 
   // Reverte uma falta — com aviso ('cancelado') ou sem aviso ('falta', ILU-78)

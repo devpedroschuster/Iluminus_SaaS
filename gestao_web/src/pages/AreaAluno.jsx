@@ -2,10 +2,18 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Camera } from 'lucide-react';
+import { RefreshCw, Camera, CalendarDays, User, CreditCard, LogOut } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
 import AbaAgendarAulas from '../components/aluno/AbaAgendarAulas';
+import { PWABanners } from '../components/PWABanners';
 import { statusMensalidadeAluno } from '../lib/utils';
+
+// Abas da barra inferior do celular (ILU-81). No computador a sidebar faz esse papel.
+const ABAS_CELULAR = [
+  { id: 'schedule', rotulo: 'Agendar', icone: <CalendarDays size={22} aria-hidden="true" /> },
+  { id: 'profile', rotulo: 'Perfil', icone: <User size={22} aria-hidden="true" /> },
+  { id: 'payments', rotulo: 'Mensalidades', icone: <CreditCard size={22} aria-hidden="true" /> },
+];
 
 export default function AreaAluno() {
   const navigate = useNavigate();
@@ -281,6 +289,25 @@ export default function AreaAluno() {
           </div>
         )}
       </div>
+      <nav className="bottom-nav" aria-label="Menu da Área do Aluno">
+        {ABAS_CELULAR.map(({ id, rotulo, icone }) => (
+          <button
+            key={id}
+            type="button"
+            className={`bottom-nav-item ${abaAtiva === id ? 'active' : ''}`}
+            aria-current={abaAtiva === id ? 'page' : undefined}
+            onClick={() => setAbaAtiva(id)}
+          >
+            <span className="bottom-nav-icon">{icone}</span>
+            {rotulo}
+          </button>
+        ))}
+        <button type="button" className="bottom-nav-item sair" onClick={doLogout}>
+          <span className="bottom-nav-icon"><LogOut size={22} aria-hidden="true" /></span>
+          Sair
+        </button>
+      </nav>
+      <PWABanners oferecerInstalacao tema="claro" />
     </div>
   );
 }

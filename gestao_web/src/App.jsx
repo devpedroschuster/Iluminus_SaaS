@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 import { useAuth } from './hooks/useAuth';
-import { rotaPorPerfil } from './lib/navigation';
+import { rotaPorPerfil, decidirRotaPublica, decidirRotaPrivada } from './lib/navigation';
+import { AuthProvider } from './providers/AuthProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './components/shared/Toast';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -101,88 +102,96 @@ const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
   );
 };
 
-const RotaPrivada = ({ sessao, perfil, loading, allowedRoles }) => {
-  if (loading) return <Spinner />;
-  if (!sessao || perfil === null) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(perfil)) {
-    return <Navigate to={rotaPorPerfil(perfil)} replace />;
-  }
+// ILU-99: as rotas decidem a partir do estado do login (lib/navigation.js). O
+// roteador nunca é desmontado durante o carregamento do perfil: antes, o App
+// trocava a árvore inteira por um spinner a cada login, e o navigate que o
+// Login fazia para /redefinir-senha se perdia.
+const RotaPrivada = ({ allowedRoles }) => {
+  const destino = decidirRotaPrivada(useAuth(), allowedRoles);
+  if (destino === 'carregando') return <Spinner />;
+  if (destino !== 'liberado') return <Navigate to={destino} replace />;
   return <Outlet />;
 };
 
+// "/" e "/login": a própria página para quem não está logado, senão a tela do perfil.
+const RotaPublica = ({ children }) => {
+  const destino = decidirRotaPublica(useAuth());
+  if (destino === 'carregando') return <Spinner />;
+  if (destino !== 'pagina') return <Navigate to={destino} replace />;
+  return children;
+};
+
 export default function App() {
-  const { sessao, perfil, loading, nomeUsuario } = useAuth();
-
-  if (loading) return <Spinner />;
-
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <ThemeProvider>
-          <BrowserRouter>
-            <ToastProvider />
-            <Routes>
-              <Route path="/" element={
-                !sessao
-                  ? <Landing />
-                  : <Navigate to={rotaPorPerfil(perfil)} replace />
-              } />
-              <Route path="/login" element={
-                !sessao
-                  ? <Login />
-                  : <Navigate to={rotaPorPerfil(perfil)} replace />
-              } />
-              <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-
-              {/* Rotas de Aluno */}
-              <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['aluno']} />}>
-                <Route path="/area-aluno" element={<AreaAluno />} />
-              </Route>
-
-              {/* Rotas Compartilhadas (Admin e Professor) */}
-              <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin', 'professor']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
-                  <Route path="/agenda"               element={<Agenda />} />
-                  <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
-                  <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
-                  <Route path="/professor/leads"      element={<ProfessorLeads />} />
-                </Route>
-              </Route>
-
-              {/* Rotas Exclusivas do Admin */}
-              <Route element={<RotaPrivada sessao={sessao} perfil={perfil} loading={loading} allowedRoles={['admin']} />}>
-                <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
-                  <Route path="/dashboard"                  element={<Dashboard />} />
-                  <Route path="/leads"                      element={<Leads />} />
-                  <Route path="/alunos"                     element={<Alunos />} />
-                  <Route path="/alunos/novo"                element={<NovoAluno />} />
-                  <Route path="/alunos/:id"                 element={<PerfilAluno />} />
-                  <Route path="/professores"                element={<Professores />} />
-                  <Route path="/financeiro"                 element={<Financeiro />} />
-                  <Route path="/despesas"                   element={<Despesas />} />
-                  <Route path="/resultado-financeiro"       element={<ResultadoFinanceiro />} />
-                  <Route path="/planos"                     element={<Planos />} />
-                  <Route path="/modalidades"                element={<Modalidades />} />
-                  <Route path="/presenca"                   element={<Presenca />} />
-                  <Route path="/comissoes"                  element={<Comissoes />} />
-                  <Route path="/aniversariantes"            element={<Aniversariantes />} />
-                  <Route path="/configuracoes/feriados"     element={<ConfiguracoesFeriados />} />
-                  <Route path="/notificacoes"               element={<Notificacoes />} />
-                  <Route path="/configuracoes/repasse"      element={<ConfiguracoesRepasse />} />
-                </Route>
-              </Route>
-
-              <Route
-                path="*"
-                element={
-                  <PaginaNaoEncontrada destino={sessao ? rotaPorPerfil(perfil) : '/'} />
-                }
-              />
-            </Routes>
-          </BrowserRouter>
+          <AuthProvider>
+            <BrowserRouter>
+              <ToastProvider />
+              <Rotas />
+            </BrowserRouter>
+          </AuthProvider>
         </ThemeProvider>
       </ErrorBoundary>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
+  );
+}
+
+function Rotas() {
+  const { sessao, perfil, nomeUsuario } = useAuth();
+
+  return (
+    <Routes>
+      <Route path="/" element={<RotaPublica><Landing /></RotaPublica>} />
+      <Route path="/login" element={<RotaPublica><Login /></RotaPublica>} />
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+
+      {/* Rotas de Aluno */}
+      <Route element={<RotaPrivada allowedRoles={['aluno']} />}>
+        <Route path="/area-aluno" element={<AreaAluno />} />
+      </Route>
+
+      {/* Rotas Compartilhadas (Admin e Professor) */}
+      <Route element={<RotaPrivada allowedRoles={['admin', 'professor']} />}>
+        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
+          <Route path="/agenda"               element={<Agenda />} />
+          <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
+          <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
+          <Route path="/professor/leads"      element={<ProfessorLeads />} />
+        </Route>
+      </Route>
+
+      {/* Rotas Exclusivas do Admin */}
+      <Route element={<RotaPrivada allowedRoles={['admin']} />}>
+        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
+          <Route path="/dashboard"                  element={<Dashboard />} />
+          <Route path="/leads"                      element={<Leads />} />
+          <Route path="/alunos"                     element={<Alunos />} />
+          <Route path="/alunos/novo"                element={<NovoAluno />} />
+          <Route path="/alunos/:id"                 element={<PerfilAluno />} />
+          <Route path="/professores"                element={<Professores />} />
+          <Route path="/financeiro"                 element={<Financeiro />} />
+          <Route path="/despesas"                   element={<Despesas />} />
+          <Route path="/resultado-financeiro"       element={<ResultadoFinanceiro />} />
+          <Route path="/planos"                     element={<Planos />} />
+          <Route path="/modalidades"                element={<Modalidades />} />
+          <Route path="/presenca"                   element={<Presenca />} />
+          <Route path="/comissoes"                  element={<Comissoes />} />
+          <Route path="/aniversariantes"            element={<Aniversariantes />} />
+          <Route path="/configuracoes/feriados"     element={<ConfiguracoesFeriados />} />
+          <Route path="/notificacoes"               element={<Notificacoes />} />
+          <Route path="/configuracoes/repasse"      element={<ConfiguracoesRepasse />} />
+        </Route>
+      </Route>
+
+      <Route
+        path="*"
+        element={
+          <PaginaNaoEncontrada destino={sessao ? rotaPorPerfil(perfil) : '/'} />
+        }
+      />
+    </Routes>
   );
 }

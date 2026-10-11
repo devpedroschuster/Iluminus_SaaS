@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { rotaPorPerfil } from '../lib/navigation';
 import { buscarAcesso } from '../services/acessoService';
+import { useAuth } from '../hooks/useAuth';
 import { showToast } from '../components/shared/showToast';
 import { LIMITES } from '../lib/constants';
 
@@ -66,10 +67,10 @@ export default function RedefinirSenha() {
   const [loading, setLoading] = useState(false);
   const [sessaoValida, setSessaoValida] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const primeiroAcesso = location.state?.primeiroAcesso ?? false;
-  const nomeUsuario = location.state?.nome ?? '';
+  // ILU-99: o primeiro acesso vem do estado do login (as rotas mandam para cá),
+  // não de um navigate do Login — e continua valendo se a página recarregar.
+  const { primeiroAcesso, nome, recarregarAcesso } = useAuth();
+  const nomeUsuario = (nome || '').split(' ')[0];
 
   // Valida sessão levando em conta o fluxo do link de redefinição:
   // o Supabase popula a sessão via fragmento de URL (#access_token=...) apenas
@@ -142,16 +143,22 @@ export default function RedefinirSenha() {
         // (lib/perfilAcesso.js) e segue para a tela dele.
         const acesso = await buscarAcesso(user.id);
         if (acesso.perfil) {
-          await supabase
+          const { error: erroFlag } = await supabase
             .from(acesso.perfil === 'professor' ? 'professores' : 'alunos')
             .update({ primeiro_acesso: false })
             .eq('auth_id', user.id);
+          if (erroFlag) throw erroFlag;
           rotaDestino = rotaPorPerfil(acesso.perfil);
         }
       }
 
       showToast.success('Senha definida com sucesso!');
-      setTimeout(() => navigate(rotaDestino), 1000);
+      // ILU-99: atualiza o estado do login antes de sair daqui; com o primeiro
+      // acesso ainda marcado, as rotas mandariam de volta para esta tela.
+      setTimeout(async () => {
+        await recarregarAcesso();
+        navigate(rotaDestino);
+      }, 1000);
 
     } catch (error) {
       showToast.error('Erro ao atualizar: ' + error.message);

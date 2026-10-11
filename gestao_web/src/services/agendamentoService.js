@@ -163,7 +163,7 @@ async agendarAulaAdmin(dados) {
     const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }] = await Promise.all([
       supabase
         .from('presencas')
-        .select('id, status, origem, aluno_id, alunos(id, nome_completo)')
+        .select('id, status, origem, aluno_id, agendado_pelo_app, alunos(id, nome_completo)')
         .eq('aula_id', aulaId)
         .eq('data_aula', dataAula),
       supabase
@@ -210,8 +210,9 @@ async agendarAulaAdmin(dados) {
         id_relacao: p.id,
         aluno_id: p.aluno_id,
         nome: p.alunos?.nome_completo,
-        tipo: p.origem, // 'fixo' | 'avulso'
+        tipo: p.origem, // 'fixo' | 'avulso' | 'agendamento'
         status: p.status, // 'agendado' | 'presente' | 'falta' | 'cancelado'
+        via_app: !!p.agendado_pelo_app, // ILU-78: reserva do próprio aluno (presença presumida)
       });
     });
 
@@ -261,7 +262,43 @@ async agendarAulaAdmin(dados) {
     if (error) throw error;
   },
 
-  // Reverte um aviso de falta (volta para 'agendado').
+  // Falta SEM aviso (ILU-78): o aluno não veio e não avisou. Diferente de
+  // registrarFalta, que grava 'cancelado' (falta COM aviso): 'falta' conta
+  // no limite semanal do plano e impede que a reserva feita pelo app seja
+  // confirmada sozinha (presença presumida) depois da aula.
+  async registrarFaltaSemAviso(alunoId, aulaId, dataAula) {
+    const { data: existente, error: errBusca } = await supabase
+      .from('presencas')
+      .select('id')
+      .eq('aluno_id', alunoId)
+      .eq('aula_id', aulaId)
+      .eq('data_aula', dataAula)
+      .maybeSingle();
+    if (errBusca) throw errBusca;
+
+    if (existente) {
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
+        .from('presencas')
+        .update({ status: 'falta', data_checkin: null })
+        .eq('id', existente.id)
+        .select('id, status')
+        .single();
+      if (error) throw error;
+      if (data.status !== 'falta') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
+      return;
+    }
+
+    const { error } = await supabase
+      .from('presencas')
+      .insert({ aluno_id: alunoId, aula_id: aulaId, data_aula: dataAula, status: 'falta', origem: 'fixo' });
+    if (error) throw error;
+  },
+
+  // Reverte uma falta — com aviso ('cancelado') ou sem aviso ('falta', ILU-78)
+  // — e volta para 'agendado'.
   async removerFalta(alunoId, aulaId, dataEspecifica) {
     // ILU-18: o filtro `.eq('status', 'cancelado')` faz 0 linhas afetadas
     // ser um resultado ESPERADO quando não há falta pra reverter (proteção
@@ -277,7 +314,7 @@ async agendarAulaAdmin(dados) {
       .eq('aluno_id', alunoId)
       .eq('aula_id', aulaId)
       .eq('data_aula', dataEspecifica)
-      .eq('status', 'cancelado')
+      .in('status', ['cancelado', 'falta'])
       .maybeSingle();
     if (errBusca) throw errBusca;
     if (!existente) return; // nada para reverter — comportamento já esperado

@@ -4,6 +4,7 @@ import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
 import { alunosService } from '../../../services/alunosService';
+import { hojeBrasilia } from '../../../lib/utils';
 
 function formatarDataCurta(iso) {
   if (!iso) return '—';
@@ -86,12 +87,14 @@ function SeletorReposicao({ aluno, marcando, onConfirmar }) {
 
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
-  handleRegistrarFalta, handleDesfazerFalta,
+  handleRegistrarFalta, handleDesfazerFalta, handleRegistrarFaltaSemAviso,
   handleMarcarPresenca, handleDesmarcarPresenca, marcandoId,
   alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao,
   isAdmin,
 }) {
   if (!aulaParaLista) return null;
+  // ILU-78: "Falta sem aviso" só faz sentido para aula de hoje ou que já passou.
+  const aulaJaAconteceu = !!dataLista && dataLista <= hojeBrasilia();
   return (
     <div className="space-y-4 pt-2 min-h-[300px]">
       <div className="bg-muted p-4 rounded-xl border border-border">
@@ -130,6 +133,7 @@ export default function ModalListaPresenca({
                   <div className="flex flex-wrap gap-2 mt-1">
                     {aluno.tipo === 'fixo' && <span className="text-[9px] bg-purple-soft text-purple px-2 py-0.5 rounded font-black uppercase tracking-wider">Fixo</span>}
                     {aluno.tipo === 'avulso' && <span className="text-[9px] bg-info-soft text-info px-2 py-0.5 rounded font-black uppercase tracking-wider">Avulso</span>}
+                    {aluno.via_app && <span className="text-[9px] bg-primary-soft text-primary px-2 py-0.5 rounded font-black uppercase tracking-wider" title="Agendado pelo aluno no app — presença presumida depois da aula">App</span>}
                     {aluno.tipo === 'experimental' && ( <span className="ml-1.5 text-[10px] font-black bg-warning/20 text-warning px-1.5 py-0.5 rounded-full border border-warning/30">LEAD</span>
 )}
                     {aluno.status === 'falta' && <span className="text-[9px] bg-destructive-soft text-destructive px-2 py-0.5 rounded font-black uppercase tracking-wider">Falta (sem aviso)</span>}
@@ -155,14 +159,21 @@ export default function ModalListaPresenca({
                     </Button>
                   ) : aluno.status === 'presente' ? (
                     isAdmin && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
-                        onClick={() => handleDesmarcarPresenca(aluno)}
-                      >
-                        Desmarcar
-                      </Button>
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          onClick={() => handleDesmarcarPresenca(aluno)}
+                        >
+                          Desmarcar
+                        </Button>
+                        {aulaJaAconteceu && aluno.aluno_id && (
+                          <Button variant="destructive" size="sm" onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
+                            Falta sem aviso
+                          </Button>
+                        )}
+                      </>
                     )
                   ) : (
                     <>
@@ -184,8 +195,13 @@ export default function ModalListaPresenca({
                         />
                       )}
                       <Button variant="destructive" size="sm" onClick={() => handleRegistrarFalta(aluno)}>
-                        Informar Falta
+                        Falta com aviso
                       </Button>
+                      {isAdmin && aulaJaAconteceu && aluno.aluno_id && (
+                        <Button variant="destructive" size="sm" onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
+                          Falta sem aviso
+                        </Button>
+                      )}
                       {aluno.tipo === 'avulso' && isAdmin && aluno.id_relacao && (
                         <Button
                           variant="ghost"

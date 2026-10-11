@@ -6,7 +6,7 @@ import { showToast } from '../shared/showToast';
 import { ModalConfirmacao } from '../ui/Modal';
 import {
   montarDias, aulasDoDia, consumoDaSemana, acaoDoCartao, avisoDoPlano, rotuloStatus,
-  nomeProfessor, diasComAula, formatarDiaMes, inicioDaSemana, somarDias,
+  nomeProfessor, diasComAula, formatarDiaMes, inicioDaSemana, somarDias, painelDeErro,
 } from '../../lib/agendaAluno';
 
 const QUERY_AULAS_ALUNO = ['aulas-aluno'];
@@ -20,9 +20,12 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
   const [processando, setProcessando] = useState(null); // `${aula_id}-${data}`
   const [aulaParaCancelar, setAulaParaCancelar] = useState(null);
 
-  const { data: dados, isLoading, isError, refetch } = useQuery({
+  // refetchOnWindowFocus (ILU-95): o app reaberto no dia seguinte atualiza o
+  // "hoje" e as vagas (o padrão do app é não recarregar ao voltar).
+  const { data: dados, isLoading, error, refetch } = useQuery({
     queryKey: QUERY_AULAS_ALUNO,
     queryFn: () => areaAlunoService.listarAulas(),
+    refetchOnWindowFocus: true,
   });
 
   const dias = useMemo(() => (dados?.hoje ? montarDias(dados.hoje) : []), [dados?.hoje]);
@@ -41,19 +44,23 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
     } catch (error) {
       showToast.error(error.message);
     } finally {
-      setProcessando(null);
+      // ILU-95: os botões só voltam depois que a lista recarrega — antes,
+      // voltavam com a lista velha e um 2º toque repetia o pedido.
       await queryClient.invalidateQueries({ queryKey: QUERY_AULAS_ALUNO });
+      setProcessando(null);
     }
   };
 
   if (isLoading) {
     return <div className="flex justify-center p-8"><RefreshCw className="animate-spin text-gray-400" /></div>;
   }
-  if (isError || !dados) {
+  const erro = painelDeErro(dados, error);
+  if (erro) {
     return (
       <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
         <AlertCircle className="mx-auto text-gray-300 mb-3" size={40} />
         <p className="text-gray-800 font-bold text-lg mb-1">Não foi possível carregar as aulas</p>
+        {erro.detalhe && <p className="text-gray-500 text-sm px-6">{erro.detalhe}</p>}
         <button className="btn btn-outline btn-sm mt-3" onClick={() => refetch()}>Tentar de novo</button>
       </div>
     );
@@ -93,7 +100,7 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
                 <div key={c.area} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                   <p className="font-bold text-gray-700 text-sm">{c.area}</p>
                   <p className="text-xs text-gray-400 font-medium mt-0.5">
-                    {c.livre ? 'Sem limite' : <>Usado: <span className="text-primary font-bold text-sm">{c.uso}</span> / {c.limite}</>}
+                    {c.livre ? 'Sem limite' : <>Usado: <span className="font-bold text-sm" style={{ color: 'var(--txt)' }}>{c.uso}</span> / {c.limite}</>}
                   </p>
                   {!c.livre && (
                     <div className="bg-gray-200 h-1.5 rounded-full overflow-hidden mt-2">
@@ -145,6 +152,7 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
               key={`${aula.aula_id}-${aula.data}`}
               aula={aula}
               ocupado={processando === `${aula.aula_id}-${aula.data}`}
+              bloqueado={!!processando}
               onAgendar={() => executar(aula, 'agendar')}
               onCancelar={() => setAulaParaCancelar(aula)}
             />
@@ -163,13 +171,17 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
         textoConfirmar="Cancelar aula"
         textoCancelar="Voltar"
         tipo="warning"
+        tema="claro"
         loading={!!processando}
       />
     </>
   );
 }
 
-function CartaoAula({ aula, ocupado, onAgendar, onCancelar }) {
+// ocupado: a ação deste cartão está em andamento (spinner). bloqueado: alguma
+// ação está em andamento — uma por vez, para um cartão não apagar o spinner
+// do outro (ILU-95).
+function CartaoAula({ aula, ocupado, bloqueado, onAgendar, onCancelar }) {
   const acao = acaoDoCartao(aula);
   const status = rotuloStatus(aula.meu_status);
   const marcado = aula.meu_status === 'agendado' || aula.meu_status === 'fixo';
@@ -198,12 +210,12 @@ function CartaoAula({ aula, ocupado, onAgendar, onCancelar }) {
       </div>
       <div className="class-action w-full sm:w-auto" style={{ minWidth: '140px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
         {acao.tipo === 'agendar' && (
-          <button onClick={onAgendar} disabled={ocupado} className="btn-book reserve">
+          <button onClick={onAgendar} disabled={bloqueado} className="btn-book reserve">
             {ocupado ? <RefreshCw className="animate-spin text-white" size={16} /> : acao.texto}
           </button>
         )}
         {acao.tipo === 'cancelar' && (
-          <button onClick={onCancelar} disabled={ocupado} className="btn-book cancel">
+          <button onClick={onCancelar} disabled={bloqueado} className="btn-book cancel">
             {ocupado ? <RefreshCw className="animate-spin" size={16} /> : acao.texto}
           </button>
         )}

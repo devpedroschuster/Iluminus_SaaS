@@ -46,6 +46,39 @@ describe('agendamentoService.registrarFaltaSemAviso', () => {
     await expect(agendamentoService.registrarFaltaSemAviso(3, 9, '2026-10-08'))
       .rejects.toThrow('A atualização não foi aplicada');
   });
+
+  // ILU-95: toque duplo num fixo sem linha — o 2º insert bate na chave única
+  // (aluno, aula, data) porque o 1º acabou de criar a linha.
+  it('toque duplo: se a linha surgiu entre a busca e o insert, marca falta nela', async () => {
+    const [, , busca2, update] = filaDeQueries(
+      { data: null, error: null },
+      { error: { code: '23505', message: 'duplicate key value violates unique constraint' } },
+      { data: { id: 7 }, error: null },
+      { data: { id: 7, status: 'falta' }, error: null },
+    );
+    await agendamentoService.registrarFaltaSemAviso(3, 9, '2026-10-08');
+    expect(busca2).toContainEqual(['eq', 'data_aula', '2026-10-08']);
+    expect(update).toContainEqual(['update', { status: 'falta', data_checkin: null }]);
+    expect(update).toContainEqual(['eq', 'id', 7]);
+  });
+});
+
+describe('agendamentoService.registrarFalta', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // ILU-95: mesmo caso do toque duplo, na falta com aviso.
+  it('toque duplo: se a linha surgiu entre a busca e o insert, marca cancelado nela', async () => {
+    const [, , busca2, update] = filaDeQueries(
+      { data: null, error: null },
+      { error: { code: '23505', message: 'duplicate key value violates unique constraint' } },
+      { data: { id: 7, status: 'cancelado' }, error: null },
+      { data: { id: 7, status: 'cancelado' }, error: null },
+    );
+    await agendamentoService.registrarFalta(3, 9, '2026-10-08');
+    expect(busca2).toContainEqual(['eq', 'data_aula', '2026-10-08']);
+    expect(update).toContainEqual(['update', expect.objectContaining({ status: 'cancelado' })]);
+    expect(update).toContainEqual(['eq', 'id', 7]);
+  });
 });
 
 describe('agendamentoService.removerFalta', () => {

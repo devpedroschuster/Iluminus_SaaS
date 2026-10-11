@@ -1,8 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import {
   somarDias, formatarDiaMes, montarDias, aulasDoDia, inicioDaSemana, consumoDaSemana,
-  acaoDoCartao, avisoDoPlano, rotuloStatus, nomeProfessor, diasComAula,
+  acaoDoCartao, avisoDoPlano, rotuloStatus, nomeProfessor, diasComAula, painelDeErro,
 } from './agendaAluno';
+
+// ILU-95: o painel de erro só substitui a lista quando não há lista; o
+// detalhe é só a recusa do servidor (P0001), nunca erro técnico de rede.
+describe('painelDeErro', () => {
+  const dados = { hoje: '2026-10-11', aulas: [] };
+
+  it('não aparece quando já há lista na tela (recarga em segundo plano falhou)', () => {
+    expect(painelDeErro(dados, { codigo: 'P0001', message: 'Sua conta está desativada.' })).toBeNull();
+  });
+
+  it('sem lista, mostra a recusa do servidor como detalhe', () => {
+    expect(painelDeErro(undefined, { codigo: 'P0001', message: 'Sua conta está desativada.' }))
+      .toEqual({ detalhe: 'Sua conta está desativada.' });
+  });
+
+  it('sem lista e com falha de rede, não mostra o texto técnico', () => {
+    expect(painelDeErro(undefined, { message: 'TypeError: Failed to fetch' })).toEqual({ detalhe: null });
+  });
+});
 
 // ILU-78/79/80: a aba "Agendar Aulas" só organiza o que listar_aulas_aluno
 // devolve — as regras ficam no servidor.

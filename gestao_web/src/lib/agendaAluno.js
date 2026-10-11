@@ -87,3 +87,12 @@ export function diasComAula(aulas = []) {
     aulas.filter((a) => ['agendado', 'fixo', 'presente'].includes(a.meu_status)).map((a) => a.data),
   );
 }
+
+// Painel de erro da aba (ILU-95). Só aparece quando não há lista: se uma
+// recarga em segundo plano falhar, a lista que já está na tela fica. O
+// detalhe é a recusa do servidor (RAISE, código P0001 — ex.: conta
+// desativada); falha de rede fica só no título genérico.
+export function painelDeErro(dados, error) {
+  if (dados) return null;
+  return { detalhe: error?.codigo === 'P0001' ? error.message : null };
+}

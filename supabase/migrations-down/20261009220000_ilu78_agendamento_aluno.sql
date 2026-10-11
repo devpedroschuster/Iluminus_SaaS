@@ -5,6 +5,13 @@
 -- cancelar falhando no app) e reabre o DELETE direto da reserva pelo aluno.
 -- A marca agendado_pelo_app some com a coluna; os status em presencas ficam
 -- como estão.
+--
+-- ORDEM: volte o FRONT primeiro (rollback na Vercel, docs/DEPLOY.md) e só
+-- depois rode isto. O front desta versão chama listar_aulas_aluno,
+-- agendar_aula(aula, data) e cancelar_meu_agendamento, e a lista de presença
+-- do admin lê presencas.agendado_pelo_app — com o banco desfeito antes, a
+-- Área do Aluno e a chamada do admin quebram até o front voltar (ILU-95).
+-- Se 20261010120000 estiver aplicada, desfaça-a antes desta.
 
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'confirmar-presencas-app';
 

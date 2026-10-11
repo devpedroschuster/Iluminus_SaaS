@@ -39,6 +39,10 @@ function Modal({
   tamanho,
   fecharAoClicarFora,
   footer,
+
+  // 'claro': ignora o tema escuro do admin/aparelho (Área do Aluno, que é
+  // sempre clara — ILU-95). Ver .tema-claro no index.css.
+  tema,
 }) {
   const _aberto        = aberto          ?? isOpen              ?? false;
   const _fechar        = fechar          ?? onClose             ?? NOOP;
@@ -69,7 +73,10 @@ function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={_title}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6',
+        tema === 'claro' && 'tema-claro'
+      )}
     >
       {/* Overlay */}
       <div
@@ -154,6 +161,7 @@ export function ModalConfirmacao({
   textoCancelar   = 'Cancelar',
   tipo            = 'danger',
   loading         = false,
+  tema,
 }) {
   const _aberto = aberto ?? isOpen ?? false;
   const _fechar = fechar ?? onClose ?? (() => {});
@@ -191,6 +199,7 @@ export function ModalConfirmacao({
       title=""
       size="sm"
       hideClose
+      tema={tema}
     >
       <div className="text-center space-y-4 py-2">
         {/* Ícone */}

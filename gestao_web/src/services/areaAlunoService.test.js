@@ -33,6 +33,14 @@ describe('areaAlunoService', () => {
     await expect(areaAlunoService.agendar(7, '2026-10-14')).rejects.toThrow('Turma lotada.');
   });
 
+  // ILU-95: a tela só mostra no painel a recusa do servidor (RAISE, P0001),
+  // não falha de rede ("TypeError: Failed to fetch").
+  it('guarda o código do erro para a tela saber se é recusa do servidor', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: 'Sua conta está desativada.' } });
+    await expect(areaAlunoService.listarAulas())
+      .rejects.toMatchObject({ message: 'Sua conta está desativada.', codigo: 'P0001' });
+  });
+
   it('usa uma mensagem genérica quando o erro não traz texto', async () => {
     supabase.rpc.mockResolvedValue({ data: null, error: {} });
     await expect(areaAlunoService.cancelar(7, '2026-10-14')).rejects.toThrow('Não foi possível concluir. Tente novamente.');

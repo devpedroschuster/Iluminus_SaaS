@@ -4,8 +4,12 @@ import { supabase } from '../lib/supabase';
 // cancelado e por quê (listar_aulas_aluno / agendar_aula /
 // cancelar_meu_agendamento resolvem o aluno pelo login). Aqui só se repassa
 // a chamada e a mensagem de recusa do servidor.
+// `codigo` (ex.: 'P0001' = recusa do servidor) deixa a tela distinguir a
+// recusa de uma falha de rede (ILU-95).
 function erroDoServidor(error) {
-  return new Error(error?.message || 'Não foi possível concluir. Tente novamente.');
+  return Object.assign(new Error(error?.message || 'Não foi possível concluir. Tente novamente.'), {
+    codigo: error?.code ?? null,
+  });
 }
 
 export const areaAlunoService = {

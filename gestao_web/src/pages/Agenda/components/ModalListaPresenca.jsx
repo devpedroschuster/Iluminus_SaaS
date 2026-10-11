@@ -88,7 +88,7 @@ function SeletorReposicao({ aluno, marcando, onConfirmar }) {
 export default function ModalListaPresenca({
   aulaParaLista, dataLista, setDataLista, listaPresenca, loadingLista,
   handleRegistrarFalta, handleDesfazerFalta, handleRegistrarFaltaSemAviso,
-  handleMarcarPresenca, handleDesmarcarPresenca, marcandoId,
+  handleMarcarPresenca, handleDesmarcarPresenca, marcandoId, acaoEmAndamento,
   alunoParaRemover, solicitarRemocao, confirmarRemocao, cancelarRemocao,
   isAdmin,
 }) {
@@ -124,6 +124,10 @@ export default function ModalListaPresenca({
             {listaPresenca.map(aluno => {
               const ausente = aluno.status === 'falta' || aluno.status === 'cancelado';
               const presente = aluno.status === 'presente';
+              // ILU-95: enquanto uma ação da linha roda, os botões dela esperam;
+              // o carregamento aparece só no botão tocado.
+              const ocupada = marcandoId === (aluno.id_relacao || aluno.aluno_id);
+              const rodando = (acao) => ocupada && acaoEmAndamento === acao;
               return (
               <li key={`${aluno.tipo}-${aluno.aluno_id || aluno.nome}`} className={`p-3 border rounded-xl flex justify-between items-center transition-all ${ausente ? 'bg-destructive-soft border-destructive/30 opacity-70' : 'bg-card border-border shadow-sm'}`}>
                 <div>
@@ -154,7 +158,7 @@ export default function ModalListaPresenca({
                       </Button>
                     ) : null
                   ) : ausente ? (
-                    <Button variant="secondary" size="sm" onClick={() => handleDesfazerFalta(aluno)}>
+                    <Button variant="secondary" size="sm" disabled={ocupada} loading={rodando('desfazer')} onClick={() => handleDesfazerFalta(aluno)}>
                       Desfazer
                     </Button>
                   ) : aluno.status === 'presente' ? (
@@ -163,13 +167,14 @@ export default function ModalListaPresenca({
                         <Button
                           variant="secondary"
                           size="sm"
-                          loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          disabled={ocupada}
+                          loading={rodando('desmarcar')}
                           onClick={() => handleDesmarcarPresenca(aluno)}
                         >
                           Desmarcar
                         </Button>
                         {aulaJaAconteceu && aluno.aluno_id && (
-                          <Button variant="destructive" size="sm" onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
+                          <Button variant="destructive" size="sm" disabled={ocupada} loading={rodando('falta_sem_aviso')} onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
                             Falta sem aviso
                           </Button>
                         )}
@@ -181,7 +186,8 @@ export default function ModalListaPresenca({
                         <Button
                           variant="success"
                           size="sm"
-                          loading={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          disabled={ocupada}
+                          loading={rodando('presenca')}
                           onClick={() => handleMarcarPresenca(aluno)}
                         >
                           Marcar Presente
@@ -190,15 +196,15 @@ export default function ModalListaPresenca({
                       {isAdmin && aluno.tipo === 'avulso' && aluno.aluno_id && (
                         <SeletorReposicao
                           aluno={aluno}
-                          marcando={marcandoId === (aluno.id_relacao || aluno.aluno_id)}
+                          marcando={ocupada}
                           onConfirmar={(reposicaoDeId) => handleMarcarPresenca(aluno, reposicaoDeId)}
                         />
                       )}
-                      <Button variant="destructive" size="sm" onClick={() => handleRegistrarFalta(aluno)}>
+                      <Button variant="destructive" size="sm" disabled={ocupada} loading={rodando('falta_com_aviso')} onClick={() => handleRegistrarFalta(aluno)}>
                         Falta com aviso
                       </Button>
                       {isAdmin && aulaJaAconteceu && aluno.aluno_id && (
-                        <Button variant="destructive" size="sm" onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
+                        <Button variant="destructive" size="sm" disabled={ocupada} loading={rodando('falta_sem_aviso')} onClick={() => handleRegistrarFaltaSemAviso(aluno)}>
                           Falta sem aviso
                         </Button>
                       )}

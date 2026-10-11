@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
-import { rotaPorPerfil } from '../lib/navigation';
-import { buscarAcesso } from '../services/acessoService';
 import { showToast } from '../components/shared/showToast';
 import Modal from '../components/ui/Modal';
 import { useModal } from '../components/ui/useModal';
@@ -17,7 +14,6 @@ export default function Login() {
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
   const { contaDesativada, perfilNaoEncontrado } = useAuth();
 
-  const navigate = useNavigate();
   const modalRecuperar = useModal();
 
   // LOGIN
@@ -27,54 +23,18 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
       });
 
       if (error) throw error;
 
-      // ILU-98: mesma regra do useAuth (lib/perfilAcesso.js). Antes, o
-      // primeiro_acesso de um cadastro de aluno inativo mandava um professor
-      // ativo para a troca de senha, onde a sessão já tinha caído.
-      const acesso = await buscarAcesso(authData.user.id);
-
-      // ILU-40: checa a conta desativada aqui mesmo, em vez de mostrar sucesso
-      // e deixar só o listener assíncrono de useAuth barrar depois — antes,
-      // uma conta desativada via um toast de "Bem-vindo de volta!" e chegava
-      // a navegar antes do logout forçado acontecer.
-      if (acesso.bloqueio === 'desativado') {
-        showToast.error('Sua conta está desativada. Entre em contato com a gestão do espaço.');
-        return;
-      }
-
-      if (acesso.perfil) {
-        const primeiroNome = (acesso.nome || '').split(' ')[0];
-        if (acesso.primeiroAcesso) {
-          const nomePadrao = acesso.perfil === 'professor' ? 'Professor' : 'Usuário';
-          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome || nomePadrao } });
-          return;
-        }
-        showToast.success(
-          primeiroNome
-            ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-            : 'Login realizado com sucesso!'
-        );
-        navigate(rotaPorPerfil(acesso.perfil));
-        return;
-      }
-
-      // Fallback (sem perfil correspondente) — ILU-39: conta órfã no
-      // Supabase Auth, sem linha correspondente em `alunos` nem
-      // `professores`. Mostrar sucesso e navegar pra Landing como se fosse
-      // uma conta normal escondia o problema por completo — o usuário via
-      // um toast de sucesso e caía na home pública, sem nenhuma pista de
-      // que a conta está quebrada (o mesmo caso que useAuth.js trata ao
-      // carregar uma sessão já existente, mas esta é a checagem própria do
-      // formulário de login, redundante e até agora com esse fallback
-      // silencioso).
-      showToast.error('Conta sem perfil configurado. Contate o suporte.');
-      await supabase.auth.signOut();
+      // ILU-99: daqui em diante é o AuthProvider que carrega o perfil e as
+      // rotas que decidem: troca de senha no primeiro acesso, tela do perfil
+      // com "Bem-vindo de volta", ou o aviso de conta desativada/sem perfil
+      // nesta tela (ILU-39/ILU-40). Antes, o Login repetia essa checagem e
+      // navegava por conta própria, e esse navigate às vezes se perdia.
 
     } catch (err) {
       // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código

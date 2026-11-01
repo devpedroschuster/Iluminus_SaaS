@@ -79,11 +79,13 @@ function SecaoAviso({ tipo, icone, titulo, children }) {
     info:    'text-info',
     brand:   'text-primary',
   };
+  // Âmbar sobre bg-warning-soft não tem contraste para texto; só o ícone fica âmbar.
+  const corTitulo = tipo === 'warning' ? 'text-foreground' : COR_ICONE[tipo];
   return (
     <Surface variant="card" padding="none" className="overflow-hidden">
       <div className={`${ESTILOS[tipo]} px-5 py-4 flex items-center gap-3`}>
         <span className={`shrink-0 ${COR_ICONE[tipo]}`}>{icone}</span>
-        <h3 className={`font-black text-sm ${COR_ICONE[tipo]}`}>{titulo}</h3>
+        <h3 className={`font-black text-sm ${corTitulo}`}>{titulo}</h3>
       </div>
       <div className="p-5">{children}</div>
     </Surface>

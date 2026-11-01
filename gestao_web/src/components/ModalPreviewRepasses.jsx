@@ -135,19 +135,19 @@ function AvisosSection({ avisos }) {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-warning/10 transition-colors"
         onClick={() => setAberto(v => !v)}
       >
-        <div className="flex items-center gap-2 text-warning-foreground">
-          <AlertTriangle size={14} />
+        <div className="flex items-center gap-2 text-foreground">
+          <AlertTriangle size={14} className="text-warning" />
           <span className="text-xs font-bold">
             {avisos.length} aluno{avisos.length !== 1 ? 's' : ''} ignorado{avisos.length !== 1 ? 's' : ''}
           </span>
         </div>
-        {aberto ? <ChevronUp size={14} className="text-warning-foreground" /> : <ChevronDown size={14} className="text-warning-foreground" />}
+        {aberto ? <ChevronUp size={14} className="text-foreground" /> : <ChevronDown size={14} className="text-foreground" />}
       </button>
 
       {aberto && (
         <ul className="px-4 pb-3 space-y-1.5 animate-in slide-in-from-top-1 duration-150 border-t border-warning/20">
           {avisos.map((av, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs text-warning-foreground/80 pt-1.5">
+            <li key={i} className="flex items-start gap-2 text-xs text-foreground/80 pt-1.5">
               <span className="shrink-0 mt-0.5">·</span>
               <span>{av}</span>
             </li>
@@ -302,8 +302,8 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
           {/* ILU-13: mês já teve geração anterior — isto é uma complementação */}
           {preview.jaGerados && (
             <div className="rounded-xl bg-warning/10 border border-warning/20 p-3 flex items-start gap-2.5">
-              <ShieldAlert size={16} className="text-warning-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
+              <ShieldAlert size={16} className="text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-foreground/80">
                 O lote de <strong className="text-foreground">{label}</strong> já foi gerado antes.
                 Os valores abaixo são só os lançamentos que ainda faltam.
               </p>

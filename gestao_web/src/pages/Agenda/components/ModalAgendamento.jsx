@@ -140,7 +140,7 @@ export default function ModalAgendamento({
                 <span className="text-sm font-bold text-foreground">Já foi pago</span>
               </label>
             )}
-            <p className="text-[11px] font-medium text-muted-foreground">
+            <p className="text-[11px] font-medium text-foreground/80">
               {!temCobrancaExperimental
                 ? 'Experimental gratuita: nenhum pagamento será registrado.'
                 : agendamentoForm.experimental_ja_pago

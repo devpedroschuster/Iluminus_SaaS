@@ -284,7 +284,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               ))}
               <option value="">Nenhuma — lançar como novo pagamento</option>
             </Input>
-            <p className="text-[11px] font-medium text-muted-foreground">
+            <p className="text-[11px] font-medium text-foreground/80">
               {cobrancaParaQuitar
                 ? 'O pagamento será registrado nesta mensalidade, sem criar outra.'
                 : 'Será criado um lançamento novo, e as mensalidades acima continuam em aberto.'}

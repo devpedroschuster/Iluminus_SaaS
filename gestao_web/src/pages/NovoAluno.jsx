@@ -561,8 +561,11 @@ export default function NovoAluno() {
 
       // EDIT MODE – unchanged behaviour
       if (alunoParaEditar) {
+        // plano_id fica de fora: a troca de plano passa pelo "Renovar / Alterar
+        // Plano" (ver renderEditForm), que cria histórico e mensalidade.
+        const { plano_id: _plano, ...dadosCadastro } = payloadBase;
         await alunosService.atualizar(alunoParaEditar.id, {
-          ...payloadBase, nome_completo: data.nome_completo,
+          ...dadosCadastro, nome_completo: data.nome_completo,
         });
         showToast.success('Cadastro atualizado com sucesso!');
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
@@ -1185,17 +1188,23 @@ export default function NovoAluno() {
                 <option value="aluno">Aluno</option>
               </select>
             </div>
-            <div className="relative">
-              <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-              <select
-                {...register('plano_id')}
-                disabled={roleAtual !== 'aluno'}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold
-                  text-gray-600 appearance-none cursor-pointer"
+            {/* O plano não se troca aqui: quem fecha o ciclo anterior, grava o
+                histórico e cria a mensalidade é o "Renovar / Alterar Plano".
+                Trocar só o cadastro deixava o Financeiro sem nada. */}
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                <div className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl font-bold text-gray-600">
+                  {planoSelecionadoObj?.nome || 'Sem plano vinculado'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/alunos/${alunoParaEditar.id}`, { state: { abrirRenovarPlano: true } })}
+                className="text-primary font-bold text-xs uppercase tracking-wider hover:underline text-left px-1"
               >
-                <option value="">Vincular Plano...</option>
-                {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
+                Trocar plano em Renovar / Alterar Plano
+              </button>
             </div>
             <PlanoSlots />
           </div>

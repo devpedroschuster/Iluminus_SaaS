@@ -8,6 +8,7 @@ import { formatarMoeda, hojeBrasilia, calcularFimPlano } from '../lib/utils';
 import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
+import SelectFormaPagamento from './SelectFormaPagamento';
 
 export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
   const [planos, setPlanos] = useState([]);
@@ -18,7 +19,10 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     data_inicio: hojeBrasilia(),
     data_fim: '',
     valor_pago: '',
-    forma_recebimento: 'recorrente'
+    forma_recebimento: 'recorrente',
+    ja_recebido: false,
+    forma_pagamento: '',
+    data_pagamento: hojeBrasilia()
   });
 
   // Valor total quando o ciclo é pago de uma vez (preço mensal × duração) —
@@ -28,6 +32,9 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
 
   useEffect(() => {
     if (isOpen && alunoId) {
+      // "Já recebido" nunca vem marcado de uma renovação anterior.
+      setForm(prev => ({ ...prev, ja_recebido: false, forma_pagamento: '', data_pagamento: hojeBrasilia() }));
+
       supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data, error }) => {
         if (error) {
           console.error('[ModalRenovarPlano] Erro ao carregar planos:', error);
@@ -89,14 +96,26 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   async function executarRenovacao() {
     setLoading(true);
     try {
-      await alunosService.renovarPlano(alunoId, {
+      const resultado = await alunosService.renovarPlano(alunoId, {
         plano_id: form.plano_id,
         data_inicio: form.data_inicio,
         data_fim: form.data_fim,
         valor_pago: form.valor_pago,
-        forma_recebimento: form.forma_recebimento
+        forma_recebimento: form.forma_recebimento,
+        ja_recebido: form.ja_recebido,
+        forma_pagamento: form.forma_pagamento,
+        data_pagamento: form.data_pagamento
       });
-      showToast.success("Plano renovado com sucesso!");
+      // O vencimento é o início do novo ciclo, que pode cair em outro mês — a
+      // cobrança aparece no Financeiro do mês do vencimento, não no de hoje.
+      const vencimento = new Date(`${form.data_inicio}T12:00:00`).toLocaleDateString('pt-BR');
+      showToast.success(resultado.pago
+        ? `Plano renovado! Mensalidade registrada como paga no Financeiro (vencimento ${vencimento}).`
+        : `Plano renovado! Mensalidade pendente no Financeiro, com vencimento em ${vencimento}. Dê baixa em "Receber" quando pagarem.`);
+      if (resultado.avisoRepasse) {
+        // Aviso em toast separado — não substitui a confirmação de sucesso
+        setTimeout(() => showToast.warning(`⚠️ ${resultado.avisoRepasse}`), 600);
+      }
       onSucesso();
       onClose();
     } catch (error) {
@@ -230,6 +249,47 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
             onChange={e => setForm({...form, valor_pago: e.target.value})}
             required
           />
+        </div>
+
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 p-4 rounded-xl border border-border cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.ja_recebido}
+              onChange={e => setForm({...form, ja_recebido: e.target.checked})}
+              className="w-5 h-5 mt-0.5 rounded-md accent-primary cursor-pointer"
+            />
+            <span>
+              <span className="block font-bold text-sm text-foreground">Pagamento já recebido</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                {form.ja_recebido
+                  ? 'A mensalidade entra como paga no Financeiro, com o valor informado acima.'
+                  : 'Sem marcar, a mensalidade entra pendente no Financeiro, para dar baixa em "Receber" quando pagarem.'}
+              </span>
+            </span>
+          </label>
+
+          {form.ja_recebido && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="block mb-1.5">Forma de Pagamento</Label>
+                <SelectFormaPagamento
+                  value={form.forma_pagamento}
+                  onChange={forma => setForm({...form, forma_pagamento: forma})}
+                />
+              </div>
+              <div>
+                <Label className="block mb-1.5">Data do Pagamento</Label>
+                <Input
+                  type="date"
+                  leftIcon={<Calendar size={18} />}
+                  value={form.data_pagamento}
+                  onChange={e => setForm({...form, data_pagamento: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <Modal.Footer>

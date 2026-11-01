@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User, CreditCard, Calendar, Activity,
@@ -1632,9 +1632,12 @@ function formatarDataBR(iso) {
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState('resumo');
-  const [modalRenovarAberto, setModalRenovarAberto] = useState(false);
+  // A edição do cadastro (NovoAluno) manda para cá quem quer trocar o plano.
+  const abrirRenovarPlano = !!location.state?.abrirRenovarPlano;
+  const [abaAtiva, setAbaAtiva] = useState(abrirRenovarPlano ? 'planos' : 'resumo');
+  const [modalRenovarAberto, setModalRenovarAberto] = useState(abrirRenovarPlano);
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
@@ -1670,9 +1673,20 @@ export default function PerfilAluno() {
     }
   }, [aluno?.observacoes_medicas]);
 
+  // Consome o pedido de abrir a renovação — o state do histórico sobrevive a
+  // um F5, e o modal não deve reabrir sozinho depois.
+  React.useEffect(() => {
+    if (location.state?.abrirRenovarPlano) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
+
   const handleRenovacaoSucesso = () => {
-    queryClient.invalidateQueries(['aluno', id]);
-    queryClient.invalidateQueries(['aluno-planos', id]);
+    queryClient.invalidateQueries({ queryKey: ['aluno', id] });
+    queryClient.invalidateQueries({ queryKey: ['aluno-planos', id] });
+    // A renovação cria a mensalidade do novo ciclo.
+    queryClient.invalidateQueries({ queryKey: ['financeiro'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   // Lista de planos para o modal de edição

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { buscarTodasAsPaginas } from '../lib/paginacao';
 
 const SELECT_BASE = 'id, nome, telefone, data_checkin, status_conversao, observacao, agenda(atividade)';
 
@@ -6,15 +7,14 @@ export const leadsService = {
   // Usado pelo calendário (useAgendaDadosMes) para indexar leads por
   // aula_id + data_aula no período visível. Diferente das demais funções
   // deste service, que filtram por data_checkin (mês de criação do lead).
+  // Paginado pelo mesmo motivo de agendamentoService.listarPresencasPeriodo.
   async listarLeadsPeriodo(inicio, fim) {
-    const { data, error } = await supabase
+    return buscarTodasAsPaginas(() => supabase
       .from('leads')
       .select('id, nome, aula_id, data_aula')
       .gte('data_aula', inicio)
-      .lte('data_aula', fim);
-
-    if (error) throw error;
-    return data;
+      .lte('data_aula', fim)
+      .order('id'));
   },
 
   async listarLeadsPendentes() {

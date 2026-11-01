@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
+import { gerarRepassesDaMensalidade } from './repasseService';
 
 // ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
 // string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
@@ -231,15 +232,16 @@ export const alunosService = {
   // Postgres — se qualquer etapa falhar, o banco faz rollback
   // automático e nenhuma escrita parcial é persistida.
   //
-  // ILU-69: as RPCs `matricular_aluno` e `renovar_plano_aluno` sempre
-  // criam a mensalidade como 'pendente', sem data_pagamento. O repasse ao
-  // professor é gerado quando o pagamento é confirmado
-  // (financeiroService.confirmarPagamento / adicionarPagamentoManual).
-  // A antiga etapa REP-08, que procurava a mensalidade logo após a RPC para
-  // disparar o repasse, nunca encontrava nada (ordenava por
-  // `mensalidades.created_at`, coluna que não existe, e filtrava por uma
-  // data_pagamento que a RPC não grava) — só gerava um 400 e um aviso
-  // falso. Foi removida.
+  // ILU-69: a RPC `matricular_aluno` sempre cria a mensalidade como
+  // 'pendente', sem data_pagamento. `renovar_plano_aluno` também, a não ser
+  // que o pagamento já tenha sido recebido na renovação (p_ja_recebido). O
+  // repasse ao professor é gerado quando há pagamento confirmado
+  // (financeiroService.confirmarPagamento / adicionarPagamentoManual, ou
+  // aqui em renovarPlano, com o id que a RPC devolve). A antiga etapa REP-08,
+  // que procurava a mensalidade logo após a RPC para disparar o repasse,
+  // nunca encontrava nada (ordenava por `mensalidades.created_at`, coluna que
+  // não existe, e filtrava por uma data_pagamento que a RPC não grava) — só
+  // gerava um 400 e um aviso falso. Foi removida.
   //
   // ILU-73: o wrapper `matricular` (RPC `matricular_aluno`) foi removido —
   // não tinha chamadores; o cadastro de aluno (NovoAluno.jsx) grava
@@ -250,22 +252,39 @@ export const alunosService = {
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
    *
-   * @returns {{ sucesso: true }}
+   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisoRepasse?: string }}
    */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
-      const { error } = await supabase.rpc('renovar_plano_aluno', {
+      const jaRecebido = !!dadosRenovacao.ja_recebido;
+      const { data, error } = await supabase.rpc('renovar_plano_aluno', {
         p_aluno_id:          alunoId,
         p_plano_id:          dadosRenovacao.plano_id,
         p_data_inicio:       dadosRenovacao.data_inicio,
         p_data_fim:          dadosRenovacao.data_fim,
         p_valor_pago:        dadosRenovacao.valor_pago ?? 0,
         p_forma_recebimento: dadosRenovacao.forma_recebimento ?? 'recorrente',
+        p_ja_recebido:       jaRecebido,
+        p_forma_pagamento:   jaRecebido ? dadosRenovacao.forma_pagamento : null,
+        p_data_pagamento:    jaRecebido ? dadosRenovacao.data_pagamento : null,
       });
 
       if (error) throw error;
 
-      return { sucesso: true };
+      const resultado = { sucesso: true, mensalidade_id: data?.mensalidade_id, pago: !!data?.pago };
+
+      // Mesmo padrão não-bloqueante de financeiroService.confirmarPagamento:
+      // a renovação/pagamento nunca é desfeita por falha no repasse.
+      if (resultado.pago) {
+        try {
+          await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+        } catch (repasseError) {
+          console.warn('[alunosService.renovarPlano] Repasse não gerado automaticamente.', repasseError);
+          return { ...resultado, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };
+        }
+      }
+
+      return resultado;
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
       throw error;

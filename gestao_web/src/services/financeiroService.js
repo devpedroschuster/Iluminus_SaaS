@@ -282,6 +282,25 @@ async listarModalidadesDoAluno(alunoId) {
   },
 
   /**
+   * Cobranças de plano em aberto do aluno, da mais recente para a mais
+   * antiga. Usado em "Novo Lançamento": um pagamento de mensalidade deve
+   * quitar a cobrança que a renovação/cadastro já criou, em vez de lançar
+   * outra ao lado dela (que deixava a original atrasada para sempre, ou era
+   * recusada pelo índice único aluno + plano + vencimento).
+   */
+  async listarCobrancasEmAbertoDoAluno(alunoId) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('id, data_vencimento, status, descricao, tipo_aula, valor_esperado, valor_pago, planos(nome, preco)')
+      .eq('aluno_id', alunoId)
+      .in('status', ['pendente', 'atrasado'])
+      .in('tipo_aula', ['regular', 'plano_livre'])
+      .order('data_vencimento', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
    * ILU-70: remove as cobranças selecionadas, mas só as que continuam em
    * aberto — uma que tenha sido paga entre abrir o modal e salvar é
    * preservada. Retorna quantas foram de fato removidas.

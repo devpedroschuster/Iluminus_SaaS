@@ -20,6 +20,23 @@
 //   FIX-04: dedupe agora considera (aluno_id, plano_id), não só aluno_id —
 //           caso o modelo de dados evolua para permitir múltiplos planos
 //           simultâneos por aluno, a checagem continua correta por plano.
+//
+// AUDITORIA 2026-09 — Correção aplicada:
+//   FIX-05 (ILU-50): function rodava com verify_jwt=false e sem nenhuma
+//           checagem no código — qualquer pessoa na internet, sem estar
+//           autenticada, podia disparar a geração de mensalidades do mês
+//           antes da data programada. Agora exige o mesmo segredo
+//           compartilhado usado nas demais functions cron-only (ILU-10).
+//
+// AUDITORIA 2026-10 — Correção aplicada:
+//   FIX-06: aluno com ciclo pago à vista (historico_planos.forma_recebimento
+//           = 'a_vista') recebia a cobrança mensal do dia 10 mesmo já tendo
+//           quitado o ciclo inteiro (ex.: semestral/anual à vista) — só o
+//           botão manual do Financeiro (financeiroService.gerarMensalidades)
+//           pulava esses alunos. Agora o vencimento do mês é checado contra
+//           os ciclos à vista 'ativo'/'agendado' do aluno, com a mesma regra
+//           de vencimentoCobertoPorCicloAVista (gestao_web/src/lib/utils.js):
+//           data_inicio <= vencimento <= data_fim (data_fim inclusiva, ILU-30).
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -32,6 +49,17 @@ function response(body: object, status = 200) {
 }
 
 serve(async (req) => {
+  // ── AUTORIZAÇÃO (ILU-50) ────────────────────────────────────────────────
+  // Função só deve rodar via cron, nunca por chamada direta/anônima (dispara
+  // cobrança do mês para todos os alunos ativos e notifica admins). Exige um
+  // segredo compartilhado que só o job de cron conhece, configurado como
+  // header `x-cron-secret` (mesmo padrão de gerar-presencas-diario,
+  // processar-notificacoes e lembretes-aula — ILU-10).
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return response({ error: 'Não autorizado' }, 401)
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -59,13 +87,25 @@ serve(async (req) => {
     // booleano `ativo`). O filtro `.eq('status', 'ativo')` fazia essa query
     // falhar com 400 (coluna inexistente) em toda execução da function,
     // quebrando a geração automática de mensalidades por completo.
-    const { data: alunos, error: errAlunos } = await supabase
+    // O client sem tipos gerados do schema infere `planos` como array (não
+    // consegue ver que alunos.plano_id -> planos.id é many-to-one); em
+    // runtime o PostgREST sempre devolve um objeto único aqui, nunca array.
+    type AlunoComPlano = {
+      id: string
+      nome_completo: string
+      plano_id: string
+      bolsista: boolean
+      planos: { id: string; preco: number | string | null } | null
+    }
+
+    const { data: alunosRaw, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, nome_completo, plano_id, bolsista, planos(id, preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null) // ignora alunos sem plano
 
     if (errAlunos) throw errAlunos
+    const alunos = alunosRaw as unknown as AlunoComPlano[] | null
     if (!alunos || alunos.length === 0) {
       return response({ message: 'Nenhum aluno ativo com plano.' })
     }
@@ -91,6 +131,28 @@ serve(async (req) => {
       return valido
     })
 
+    // 2b. FIX-06: pula quem tem ciclo pago à vista cobrindo o vencimento
+    //     deste mês — o ciclo inteiro já foi cobrado de uma vez.
+    const { data: ciclosAVista, error: errCiclos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id')
+      .eq('forma_recebimento', 'a_vista')
+      .in('status', ['ativo', 'agendado'])
+      .lte('data_inicio', data_vencimento)
+      .gte('data_fim', data_vencimento)
+
+    if (errCiclos) throw errCiclos
+
+    const idsCobertosAVista = new Set((ciclosAVista || []).map(c => String(c.aluno_id)))
+    const alunosAVista: string[] = []
+    const alunosCobraveis = alunosValidos.filter(a => {
+      if (idsCobertosAVista.has(String(a.id))) {
+        alunosAVista.push(a.nome_completo)
+        return false
+      }
+      return true
+    })
+
     // 3. Verifica duplicatas: (aluno_id, plano_id) que já têm mensalidade
     //    neste mês. FIX-04: inclui plano_id na chave de dedupe.
     // FIX-02: erro agora é checado.
@@ -107,7 +169,7 @@ serve(async (req) => {
     )
 
     // 4. Filtra só quem ainda não tem mensalidade deste plano neste mês
-    const paraGerar = alunosValidos.filter(
+    const paraGerar = alunosCobraveis.filter(
       a => !comMensalidade.has(`${a.id}|${a.plano_id}`)
     )
 
@@ -116,6 +178,7 @@ serve(async (req) => {
         message: 'Mensalidades já geradas para todos os alunos ativos.',
         ignoradosSemPreco: alunosSemPreco,
         ignoradosBolsistas: alunosBolsistas,
+        ignoradosAVista: alunosAVista,
       })
     }
 
@@ -150,27 +213,23 @@ serve(async (req) => {
 
     const geradas = inseridas?.length ?? 0
 
-    // 6. Notifica admins via tabela notificacoes
-    const { data: admins, error: errAdmins } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-
-    if (errAdmins) {
-      console.error('[gerar-mensalidades] Falha ao buscar admins para notificação:', errAdmins.message)
-    } else if (admins && admins.length > 0 && geradas > 0) {
-      const { error: errNotif } = await supabase.from('notificacoes').insert(
-        admins.map(admin => ({
-          user_id: admin.id,
-          tipo: 'cobranca',
-          titulo: '💰 Cobranças geradas',
-          mensagem: `${geradas} mensalidade(s) gerada(s) para ${mesLabel}.`,
-          lida: false,
-        }))
+    // 6. Notifica admins sobre a geração
+    // AUDITORIA 2026-09 (ILU-7): esta etapa consultava `.from('profiles')` e
+    // inseria em `.from('notificacoes')` — NENHUMA das duas tabelas existe no
+    // banco (a tabela real de perfis é `perfis`; não existe `notificacoes`, só
+    // `notificacoes_pendentes`, que é uma fila de push exclusiva para
+    // professores — exige `professor_id` NOT NULL e é consumida por
+    // `processar-notificacoes` com mensagens fixas por `tipo`, não serve para
+    // um aviso genérico de admin). Toda execução falhava 100% das vezes nas
+    // duas queries, e o erro era só logado — a notificação nunca funcionou e
+    // ninguém percebia. Criar uma tabela de notificação para admins é uma
+    // decisão de produto fora do escopo deste fix; até lá, reportamos isso de
+    // forma explícita na resposta em vez de tentar (e falhar) silenciosamente.
+    const avisos: string[] = []
+    if (geradas > 0) {
+      avisos.push(
+        'Notificação de admin sobre cobranças geradas não foi enviada: não existe hoje uma tabela de notificação para admins no banco.'
       )
-      if (errNotif) {
-        console.error('[gerar-mensalidades] Falha ao criar notificações:', errNotif.message)
-      }
     }
 
     return response({
@@ -180,6 +239,8 @@ serve(async (req) => {
       data_vencimento,
       ignoradosSemPreco: alunosSemPreco,
       ignoradosBolsistas: alunosBolsistas,
+      ignoradosAVista: alunosAVista,
+      avisos,
     })
 
   } catch (err) {

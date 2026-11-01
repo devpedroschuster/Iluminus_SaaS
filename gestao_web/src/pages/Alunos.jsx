@@ -5,14 +5,16 @@ import {
   Calendar, Eye, ChevronLeft, ChevronRight, GraduationCap,
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
+import { statusAcessoApp, STATUS_ACESSO_APP } from '../lib/utils';
 import { useDebounce } from '../hooks/useDebounce';
 import { useAlunos, PAGE_SIZE } from '../hooks/useAlunos';
 import Surface from '../components/ui/Surface';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { showToast } from '../components/shared/Toast';
-import { ModalConfirmacao, useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 
@@ -78,6 +80,8 @@ export default function Alunos() {
   const busca      = searchParams.get('busca')  ?? '';
   const filtroRole = searchParams.get('role')   ?? 'aluno';
   const letraAtiva = searchParams.get('letra')  ?? null;
+  // ILU-76: status de acesso ao app (sem_acesso | senha_antiga | provisoria | ativo)
+  const filtroAcesso = searchParams.get('acesso') ?? 'todos';
   const pagina     = Math.max(1, parseInt(searchParams.get('pagina') ?? '1', 10));
 
   // Estado local apenas para modais (não faz sentido persistir na URL)
@@ -109,6 +113,9 @@ export default function Alunos() {
   // Handlers de filtro — sempre resetam para página 1
   const handleBuscaChange  = (e) => setParam({ busca: e.target.value || null, letra: null,      pagina: null });
   const handleRoleChange   = (e) => setParam({ role: e.target.value,          pagina: null });
+  const handleAcessoChange = (e) => setParam({
+    acesso: e.target.value === 'todos' ? null : e.target.value, pagina: null,
+  });
   const handleLetraClick   = (l) => {
     const nova = letraAtiva === l ? null : l;
     setParam({ letra: nova, busca: null, pagina: null });
@@ -132,7 +139,7 @@ export default function Alunos() {
     temAnterior,
     temProximo,
   } = useAlunos(
-    { role: filtroRole, busca: buscaDebounced, letraInicial: letraAtiva },
+    { role: filtroRole, busca: buscaDebounced, letraInicial: letraAtiva, acesso: filtroAcesso },
     pagina,
   );
 
@@ -150,7 +157,8 @@ export default function Alunos() {
       showToast.success(`Aluno ${novoStatus ? 'reativado' : 'desativado'} com sucesso!`);
       modalStatus.fechar();
       refetch();
-    } catch {
+    } catch (err) {
+      console.error('[Alunos] alternarStatus:', err);
       showToast.error('Erro ao alterar status.');
     }
   }, [alunoSelecionado, modalStatus, refetch]);
@@ -194,7 +202,8 @@ export default function Alunos() {
       }
       modalBolsista.fechar();
       refetch();
-    } catch {
+    } catch (err) {
+      console.error('[Alunos] alternarBolsista:', err);
       showToast.error('Erro ao alterar status de bolsista.');
     }
   }, [alunoSelecionado, modalBolsista, refetch]);
@@ -242,6 +251,18 @@ export default function Alunos() {
             <option value="aluno">Alunos</option>
             <option value="admin">Administradores</option>
             <option value="todos">Todos os perfis</option>
+          </select>
+          <select
+            className="w-full md:w-auto bg-muted px-6 py-3 rounded-2xl font-bold text-sm text-muted-foreground outline-none cursor-pointer hover:bg-subtle transition-colors"
+            value={filtroAcesso}
+            onChange={handleAcessoChange}
+            aria-label="Filtrar por acesso ao app"
+          >
+            <option value="todos">Acesso ao app: todos</option>
+            <option value="sem_acesso">{STATUS_ACESSO_APP.sem_acesso.label}</option>
+            <option value="senha_antiga">{STATUS_ACESSO_APP.senha_antiga.label}</option>
+            <option value="provisoria">{STATUS_ACESSO_APP.provisoria.label}</option>
+            <option value="ativo">Acesso ativo</option>
           </select>
         </div>
 
@@ -316,6 +337,11 @@ export default function Alunos() {
                     const statusInfo = STATUS_ATIVO[String(aluno.ativo)]
                       ?? { label: 'Indefinido', tone: 'neutral' };
 
+                    // ILU-76: acesso ao app — só para contas de aluno.
+                    const acessoApp = aluno.role === 'aluno'
+                      ? STATUS_ACESSO_APP[statusAcessoApp(aluno)]
+                      : null;
+
                     return (
                       <tr
                         key={aluno.id}
@@ -378,6 +404,11 @@ export default function Alunos() {
                               <Badge tone="brand" variant="soft" title="Bolsista">B</Badge>
                             )}
                           </div>
+                          {acessoApp && (
+                            <Badge tone={acessoApp.tone} variant="soft" title="Acesso ao app" className="mt-2 text-[10px]">
+                              App: {acessoApp.label}
+                            </Badge>
+                          )}
                         </td>
 
                         {/* Vencimento */}

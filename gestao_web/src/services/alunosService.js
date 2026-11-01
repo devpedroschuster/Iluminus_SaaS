@@ -1,5 +1,38 @@
 import { supabase } from '../lib/supabase';
+import { hojeBrasilia } from '../lib/utils';
 import { gerarRepassesDaMensalidade } from './repasseService';
+
+// ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
+// string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
+// parênteses (ex.: "x,id.neq.0") quebrava a intenção do OR e era
+// interpretado como cláusulas de filtro adicionais. Envolver o valor em
+// aspas duplas (sintaxe de valor escapado do PostgREST) e escapar
+// barra-invertida/aspas internas neutraliza qualquer caractere reservado
+// (`,`, `(`, `)`) do termo de busca do usuário.
+function escaparValorFiltroOr(valor) {
+  return String(valor).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// ILU-76: chama a Edge Function `criar_usuario` (só admin) e devolve as
+// credenciais provisórias. Quando a função responde não-2xx, o supabase-js
+// só entrega um FunctionsHttpError — a mensagem real do servidor (ex.: "Este
+// e-mail já possui um acesso.") fica no corpo da resposta e era trocada por
+// um genérico "Falha na comunicação".
+async function invocarCriarUsuario(body) {
+  const { data, error } = await supabase.functions.invoke('criar_usuario', { body });
+  if (error) {
+    let mensagem = null;
+    try {
+      mensagem = (await error.context?.json?.())?.error ?? null;
+    } catch {
+      // corpo ausente ou não-JSON: fica a mensagem genérica
+    }
+    throw new Error(mensagem || 'Falha na comunicação com o servidor seguro.');
+  }
+  if (data?.error) throw new Error(data.error);
+  if (!data?.senha_temporaria) throw new Error('O servidor não devolveu a senha provisória.');
+  return { email: data.email, senha: data.senha_temporaria };
+}
 
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
@@ -15,11 +48,25 @@ export const alunosService = {
       if (filtros.role && filtros.role !== 'todos')
         query = query.eq('role', filtros.role);
 
-      if (filtros.busca)
-        query = query.or(`nome_completo.ilike.%${filtros.busca}%,email.ilike.%${filtros.busca}%`);
+      if (filtros.busca) {
+        const busca = escaparValorFiltroOr(filtros.busca);
+        query = query.or(`nome_completo.ilike."%${busca}%",email.ilike."%${busca}%"`);
+      }
 
       if (filtros.letraInicial)
         query = query.ilike('nome_completo', `${filtros.letraInicial}%`);
+
+      // ILU-76: status de acesso ao app — mesmas regras de statusAcessoApp.
+      if (filtros.acesso === 'sem_acesso') {
+        query = query.is('auth_id', null);
+      } else if (filtros.acesso === 'ativo') {
+        query = query.not('auth_id', 'is', null).eq('primeiro_acesso', false);
+      } else if (filtros.acesso === 'senha_antiga' || filtros.acesso === 'provisoria') {
+        query = query.not('auth_id', 'is', null).eq('primeiro_acesso', true);
+        query = filtros.acesso === 'provisoria'
+          ? query.not('acesso_gerado_em', 'is', null)
+          : query.is('acesso_gerado_em', null);
+      }
 
       const { data, error, count } = await query
         .order('nome_completo')
@@ -161,6 +208,10 @@ export const alunosService = {
   },
 
   async buscarHistoricoFrequencia(alunoId) {
+    // ILU-37: limitada aos check-ins mais recentes — a tela de perfil só
+    // exibe uma janela de ~90 dias (heatmap de 12 semanas + filtro de data),
+    // então buscar todo o histórico sem limite cresce sem necessidade para
+    // alunos antigos.
     const { data, error } = await supabase
       .from('presencas')
       .select(`
@@ -168,7 +219,8 @@ export const alunosService = {
         agenda (atividade)
       `)
       .eq('aluno_id', alunoId)
-      .order('data_checkin', { ascending: false });
+      .order('data_checkin', { ascending: false })
+      .limit(500);
 
     if (error) throw error;
     return data;
@@ -180,174 +232,61 @@ export const alunosService = {
   // Postgres — se qualquer etapa falhar, o banco faz rollback
   // automático e nenhuma escrita parcial é persistida.
   //
-  // REP-08 FIX (auditoria 2026-07): as RPCs `matricular_aluno` e
-  // `renovar_plano_aluno` inserem a mensalidade diretamente via SQL
-  // (frequentemente já como `status = 'pago'`, quando há valor pago
-  // na hora da matrícula/renovação). Como esse INSERT não passa pelo
-  // fluxo de `financeiroService` (adicionarPagamentoManual /
-  // confirmarPagamento), a Edge Function `gerar-repasses` nunca era
-  // chamada — resultado: aluno matriculado e pago, mas nenhum
-  // lançamento em `repasses_lancamentos` para o professor.
+  // ILU-69: a RPC `matricular_aluno` sempre cria a mensalidade como
+  // 'pendente', sem data_pagamento. `renovar_plano_aluno` também, a não ser
+  // que o pagamento já tenha sido recebido na renovação (p_ja_recebido). O
+  // repasse ao professor é gerado quando há pagamento confirmado
+  // (financeiroService.confirmarPagamento / adicionarPagamentoManual, ou
+  // aqui em renovarPlano, com o id que a RPC devolve). A antiga etapa REP-08,
+  // que procurava a mensalidade logo após a RPC para disparar o repasse,
+  // nunca encontrava nada (ordenava por `mensalidades.created_at`, coluna que
+  // não existe, e filtrava por uma data_pagamento que a RPC não grava) — só
+  // gerava um 400 e um aviso falso. Foi removida.
   //
-  // Correção: após a RPC concluir com sucesso, buscamos a mensalidade
-  // recém-criada (aluno + data de início/pagamento) e, se ela já
-  // nasceu paga, disparamos `gerarRepassesDaMensalidade` explicitamente,
-  // com o mesmo tratamento de erro "não bloqueante" usado em
-  // `adicionarPagamentoManual` (o pagamento/matrícula não é revertido
-  // se o repasse falhar — apenas sinalizamos um aviso ao chamador).
+  // ILU-73: o wrapper `matricular` (RPC `matricular_aluno`) foi removido —
+  // não tinha chamadores; o cadastro de aluno (NovoAluno.jsx) grava
+  // histórico e primeira mensalidade por conta própria.
   // ─────────────────────────────────────────────────────────────
-
-  /**
-   * Busca a mensalidade mais recente gerada para o aluno na data informada.
-   * Usado logo após as RPCs de matrícula/renovação para localizar o registro
-   * que precisa (ou não) disparar a geração de repasse.
-   *
-   * @param {string} alunoId
-   * @param {string} dataReferencia - data no formato 'AAAA-MM-DD' (data_pagamento
-   *                                   esperada da mensalidade recém-criada)
-   */
-  async _buscarMensalidadeRecente(alunoId, dataReferencia) {
-    const { data, error } = await supabase
-      .from('mensalidades')
-      .select('id, status')
-      .eq('aluno_id', alunoId)
-      .eq('data_pagamento', dataReferencia)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('[alunosService._buscarMensalidadeRecente] Falha ao localizar mensalidade.', error);
-      return null;
-    }
-    return data;
-  },
-
-  /**
-   * Dispara a geração de repasse para uma mensalidade recém-criada por RPC,
-   * sem nunca lançar exceção para o chamador (a matrícula/renovação já foi
-   * confirmada no banco — uma falha aqui só deve virar um aviso na UI).
-   *
-   * @param {string} alunoId
-   * @param {string} dataReferencia
-   * @param {number} valorPago
-   * @returns {string|null} mensagem de aviso, ou null se tudo correu bem
-   */
-  async _dispararRepasseSeNecessario(alunoId, dataReferencia, valorPago) {
-    if (!(Number(valorPago) > 0)) return null;
-
-    const mensalidade = await this._buscarMensalidadeRecente(alunoId, dataReferencia);
-
-    if (!mensalidade?.id) {
-      console.warn('[alunosService] Mensalidade recém-criada não localizada; repasse não pôde ser verificado.');
-      return 'Não foi possível localizar a mensalidade gerada para conferir o repasse. Verifique manualmente na aba "Reprocessar".';
-    }
-
-    if (mensalidade.status !== 'pago') {
-      // Mensalidade ainda pendente: o repasse será disparado normalmente
-      // quando o pagamento for confirmado via financeiroService.confirmarPagamento.
-      return null;
-    }
-
-    try {
-      await gerarRepassesDaMensalidade(mensalidade.id);
-      return null;
-    } catch (repasseError) {
-      console.warn('[alunosService] Repasse não gerado automaticamente.', repasseError);
-      return 'Concluído com sucesso, mas o repasse ao professor não pôde ser gerado automaticamente. Verifique manualmente na aba "Reprocessar".';
-    }
-  },
 
   /**
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
    *
-   * @returns {{ avisoRepasse: string|null }}
+   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisoRepasse?: string }}
    */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
-      const { error } = await supabase.rpc('renovar_plano_aluno', {
-        p_aluno_id:    alunoId,
-        p_plano_id:    dadosRenovacao.plano_id,
-        p_data_inicio: dadosRenovacao.data_inicio,
-        p_data_fim:    dadosRenovacao.data_fim,
-        p_valor_pago:  dadosRenovacao.valor_pago ?? 0,
+      const jaRecebido = !!dadosRenovacao.ja_recebido;
+      const { data, error } = await supabase.rpc('renovar_plano_aluno', {
+        p_aluno_id:          alunoId,
+        p_plano_id:          dadosRenovacao.plano_id,
+        p_data_inicio:       dadosRenovacao.data_inicio,
+        p_data_fim:          dadosRenovacao.data_fim,
+        p_valor_pago:        dadosRenovacao.valor_pago ?? 0,
+        p_forma_recebimento: dadosRenovacao.forma_recebimento ?? 'recorrente',
+        p_ja_recebido:       jaRecebido,
+        p_forma_pagamento:   jaRecebido ? dadosRenovacao.forma_pagamento : null,
+        p_data_pagamento:    jaRecebido ? dadosRenovacao.data_pagamento : null,
       });
 
       if (error) throw error;
 
-      // REP-08 FIX: garante que o repasse seja gerado quando a renovação
-      // já nasce como mensalidade paga.
-      const avisoRepasse = await this._dispararRepasseSeNecessario(
-        alunoId,
-        dadosRenovacao.data_inicio,
-        dadosRenovacao.valor_pago ?? 0,
-      );
+      const resultado = { sucesso: true, mensalidade_id: data?.mensalidade_id, pago: !!data?.pago };
 
-      return { sucesso: true, avisoRepasse };
+      // Mesmo padrão não-bloqueante de financeiroService.confirmarPagamento:
+      // a renovação/pagamento nunca é desfeita por falha no repasse.
+      if (resultado.pago) {
+        try {
+          await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+        } catch (repasseError) {
+          console.warn('[alunosService.renovarPlano] Repasse não gerado automaticamente.', repasseError);
+          return { ...resultado, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };
+        }
+      }
+
+      return resultado;
     } catch (error) {
       console.error('[alunosService.renovarPlano]', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Matricula um aluno em um plano de forma atômica via RPC.
-   * Função SQL correspondente: matricular_aluno()
-   *
-   * @param {string} alunoId
-   * @param {string} planoId
-   * @param {object} opcoes
-   * @param {string}   opcoes.dataVencimento
-   * @param {Array}    opcoes.modalidades
-   * @returns {{ plano, dataInicio, dataFim, avisoRepasse: string|null }}
-   */
-  async matricular(alunoId, planoId, { dataVencimento, modalidades = [] }) {
-    try {
-      // Busca os dados do plano antes de iniciar a transação —
-      // leitura pura, sem efeito colateral, portanto fora do RPC.
-      const { data: plano, error: errPlano } = await supabase
-        .from('planos')
-        .select('id, nome, preco, duracao_meses')
-        .eq('id', planoId)
-        .single();
-
-      if (errPlano) throw errPlano;
-
-      const dataInicio = new Date().toISOString().split('T')[0];
-      const dataFimObj = new Date(`${dataVencimento}T12:00:00`);
-      dataFimObj.setMonth(dataFimObj.getMonth() + (plano.duracao_meses || 1));
-      dataFimObj.setDate(dataFimObj.getDate() - 1);
-      const dataFim = dataFimObj.toISOString().split('T')[0];
-
-      const descricao = `Matrícula: ${plano.nome} (${plano.duracao_meses} ${
-        plano.duracao_meses === 1 ? 'mês' : 'meses'
-      })`;
-
-      const { error } = await supabase.rpc('matricular_aluno', {
-        p_aluno_id:    alunoId,
-        p_plano_id:    planoId,
-        p_data_inicio: dataInicio,
-        p_data_fim:    dataFim,
-        p_vencimento:  dataVencimento,
-        p_modalidades: modalidades,
-        p_valor_pago:  plano.preco ?? 0,
-        p_descricao:   descricao,
-      });
-
-      if (error) throw error;
-
-      // REP-08 FIX: garante que o repasse seja gerado quando a matrícula
-      // já nasce como mensalidade paga (fluxo mais comum na recepção).
-      const avisoRepasse = await this._dispararRepasseSeNecessario(
-        alunoId,
-        dataInicio,
-        plano.preco ?? 0,
-      );
-
-      return { plano, dataInicio, dataFim, avisoRepasse };
-    } catch (error) {
-      console.error('[alunosService.matricular]', error);
       throw error;
     }
   },
@@ -415,9 +354,11 @@ export const alunosService = {
 
     const comHistorico = new Set(historicosAtivos?.map(h => h.aluno_id));
 
-    const hoje = new Date();
     const calcularDataFimFallback = () => {
-      const fallback = new Date(hoje);
+      // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para
+      // que o fallback de 30 dias não erre por um dia perto da meia-noite
+      // em Brasília.
+      const fallback = new Date(`${hojeBrasilia()}T12:00:00`);
       fallback.setDate(fallback.getDate() + 30);
       return fallback.toISOString().split('T')[0];
     };
@@ -493,7 +434,8 @@ export const alunosService = {
             valor_pago: 0,
             status: 'pago',
             forma_pagamento: 'bolsa',
-            data_pagamento: new Date().toISOString().split('T')[0],
+            // ILU-19: hojeBrasilia() em vez de UTC.
+            data_pagamento: hojeBrasilia(),
           })
           .eq('aluno_id', alunoId)
           .in('status', ['pendente', 'atrasado'])
@@ -508,5 +450,18 @@ export const alunosService = {
       console.error('[alunosService.definirBolsista]', error);
       throw error;
     }
+  },
+
+  // ILU-76: cria o login do app para um aluno já cadastrado. O servidor
+  // vincula o login ao aluno e marca primeiro_acesso; a senha provisória só
+  // existe nesta resposta (mostrar uma única vez ao admin).
+  async criarAcessoApp(alunoId) {
+    return invocarCriarUsuario({ acao: 'criar', aluno_id: alunoId });
+  },
+
+  // ILU-76/ILU-77: gera uma nova senha provisória para quem já tem login — a
+  // senha anterior deixa de valer e as sessões abertas do aluno são derrubadas.
+  async gerarNovaSenhaApp(alunoId) {
+    return invocarCriarUsuario({ acao: 'resetar_senha', aluno_id: alunoId });
   },
 };

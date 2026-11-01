@@ -2,13 +2,13 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
+import { guardarConvite, descartarConvite } from './lib/conviteInstalacao'
 
 console.log('[main.jsx] v2 carregado ✅');
 
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  window.__pwaInstallPrompt = e;
-}, { once: true });
+// Guarda o convite de instalação antes de qualquer tela montar (ILU-81).
+window.addEventListener('beforeinstallprompt', guardarConvite);
+window.addEventListener('appinstalled', descartarConvite);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

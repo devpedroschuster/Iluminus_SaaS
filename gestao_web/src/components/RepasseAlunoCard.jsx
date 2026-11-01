@@ -18,6 +18,15 @@ const TIPO_AULA_LABELS = {
   reposicao: 'Reposição',
 };
 
+// ILU-36: escapa valores de texto livre antes de interpolar no HTML do
+// recibo impresso (document.write), evitando XSS armazenado via campos como
+// nome do aluno, plano, professor ou modalidade.
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
 // UX-05: mensagem contextual quando não há itens de repasse
 function MensagemSemRepasse({ tipoAula }) {
   if (tipoAula === 'experimental') {
@@ -111,17 +120,17 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
           <div class="icone-ok">✅</div>
           <div class="valor-destaque">${formatarMoeda(valorPago)}</div>
           <table>
-            <tr><td>Aluno</td><td>${nomeAluno}</td></tr>
-            ${planoNome ? `<tr><td>Plano</td><td>${planoNome}</td></tr>` : ''}
-            ${tipoAula ? `<tr><td>Tipo de Aula</td><td>${TIPO_AULA_LABELS[tipoAula] || tipoAula}</td></tr>` : ''}
-            <tr><td>Forma de Pagamento</td><td>${FORMA_LABELS[formaPagamento] || formaPagamento || '—'}</td></tr>
-            <tr><td>Data / Hora</td><td>${dataFormatada}</td></tr>
+            <tr><td>Aluno</td><td>${escapeHtml(nomeAluno)}</td></tr>
+            ${planoNome ? `<tr><td>Plano</td><td>${escapeHtml(planoNome)}</td></tr>` : ''}
+            ${tipoAula ? `<tr><td>Tipo de Aula</td><td>${escapeHtml(TIPO_AULA_LABELS[tipoAula] || tipoAula)}</td></tr>` : ''}
+            <tr><td>Forma de Pagamento</td><td>${escapeHtml(FORMA_LABELS[formaPagamento] || formaPagamento || '—')}</td></tr>
+            <tr><td>Data / Hora</td><td>${escapeHtml(dataFormatada)}</td></tr>
           </table>
           <div class="secao-titulo">Repasses a Professores</div>
           ${resultado.itens?.length > 0
             ? resultado.itens.map(it => `
                 <div class="repasse-item">
-                  <span>${it.professor_nome || 'Professor'}${it.modalidade ? ` (${it.modalidade})` : ''}</span>
+                  <span>${escapeHtml(it.professor_nome || 'Professor')}${it.modalidade ? ` (${escapeHtml(it.modalidade)})` : ''}</span>
                   <span>${formatarMoeda(it.valor)}</span>
                 </div>
               `).join('')
@@ -136,9 +145,9 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
             <span>${formatarMoeda(resultado.retencao_casa)}</span>
           </div>
           ${resultado.avisos?.length > 0 ? `
-            <div class="aviso">${resultado.avisos.map(a => `⚠ ${a}`).join('<br/>')}</div>
+            <div class="aviso">${resultado.avisos.map(a => `⚠ ${escapeHtml(a)}`).join('<br/>')}</div>
           ` : ''}
-          <div class="rodape">Gerado em ${dataFormatada} · Espaço Iluminus</div>
+          <div class="rodape">Gerado em ${escapeHtml(dataFormatada)} · Espaço Iluminus</div>
         </div>
       </body>
       </html>

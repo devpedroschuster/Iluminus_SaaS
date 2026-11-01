@@ -2,9 +2,10 @@ import React from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Check } from 'lucide-react';
 import { PALETA_CORES } from '../../../lib/constants';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import './CalendarioGrade.css';
 
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales: { 'pt-BR': ptBR } });
 
@@ -103,10 +104,11 @@ const CustomEventCard = ({ event }) => {
           {event.alunosAgendados.slice(0, 2).map((item, idx) => {
             const nome = typeof item === 'string' ? item : item.nome;
             const isLead = typeof item === 'object' && item.isLead;
-            
+            const presente = typeof item === 'object' && item.presente;
+
             return (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`text-[10px] leading-tight flex items-center gap-1.5 font-medium overflow-hidden shrink-0 ${
                   isLead ? 'opacity-100' : 'opacity-90'
                 }`}
@@ -115,10 +117,17 @@ const CustomEventCard = ({ event }) => {
                   <span className="text-[7px] leading-[1] font-black bg-amber-400/90 text-amber-950 px-1 py-0.5 rounded-[3px] shrink-0">
                     LEAD
                   </span>
+                ) : presente ? (
+                  <Check size={9} strokeWidth={3} className="text-success shrink-0" />
                 ) : (
                   <div className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0"></div>
                 )}
-                <span className={`truncate min-w-0 ${isLead ? 'font-bold underline decoration-amber-400/40' : ''}`} title={nome}>
+                <span
+                  className={`truncate min-w-0 ${
+                    isLead ? 'font-bold underline decoration-amber-400/40' : presente ? 'font-bold text-success' : ''
+                  }`}
+                  title={nome}
+                >
                   {nome}
                 </span>
               </div>
@@ -143,6 +152,10 @@ const CustomEventCard = ({ event }) => {
   );
 };
 
+// Objeto estável (escopo de módulo) — evitar recriar a cada render, senão
+// anula a memoização interna do react-big-calendar (ver ILU-47).
+const CALENDAR_COMPONENTS = { toolbar: CustomToolbar, event: CustomEventCard };
+
 function eventPropGetter(event) {
   const corDB = event.dadosOriginais?.cor || 'laranja';
   const corTema = PALETA_CORES.find((c) => c.id === corDB) || PALETA_CORES[0];
@@ -163,7 +176,10 @@ function eventPropGetter(event) {
   };
 }
 
-export default function CalendarioGrade({
+// ILU-47: memoizado para não recalcular a grade inteira a cada render do
+// pai (Agenda.jsx tem bastante estado não relacionado — formulários,
+// modais — que re-renderiza a cada tecla digitada).
+const CalendarioGrade = React.memo(function CalendarioGrade({
   eventos,
   currentDate,
   setCurrentDate,
@@ -175,53 +191,6 @@ export default function CalendarioGrade({
 }) {
   return (
     <div className="h-full style-calendar-wrapper">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-          .rbc-calendar { font-family: inherit; }
-          .rbc-header {
-            padding: 16px 0;
-            font-weight: 800;
-            color: hsl(var(--muted-foreground));
-            text-transform: capitalize;
-            font-size: 13px;
-            border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
-          }
-          .rbc-header + .rbc-header { border-left: 1px dashed hsl(var(--border) / 0.3); }
-          .rbc-today { background-color: hsl(var(--primary-soft) / 0.3); }
-          .rbc-time-view {
-            border-radius: calc(var(--radius) + 12px);
-            border: 1px solid hsl(var(--border) / 0.5);
-            background-color: hsl(var(--card));
-          }
-          .rbc-timeslot-group {
-            border-color: hsl(var(--border) / 0.3);
-            min-height: 85px; 
-          }
-          .rbc-time-slot { border-color: hsl(var(--border) / 0.2); }
-          .rbc-time-gutter .rbc-timeslot-group {
-            font-size: 11px;
-            font-weight: 700;
-            color: hsl(var(--muted-foreground));
-            padding-right: 8px;
-          }
-          .rbc-month-view {
-            border: 1px solid hsl(var(--border) / 0.5);
-            border-radius: calc(var(--radius) + 12px);
-            overflow: hidden;
-            background-color: hsl(var(--card));
-          }
-          .rbc-off-range-bg { background-color: hsl(var(--muted) / 0.3); }
-          .rbc-date-cell { color: hsl(var(--foreground)); font-weight: 800; padding: 8px; font-size: 12px; }
-          .rbc-event-content { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-          .rbc-toolbar { display: none; }
-          @media (max-width: 768px) {
-            .rbc-month-view { min-width: 600px; }
-            .style-calendar-wrapper { overflow-x: auto; padding-bottom: 20px; }
-          }
-        `,
-        }}
-      />
       <Calendar
         localizer={localizer}
         formats={formatosCalendario}
@@ -238,7 +207,7 @@ export default function CalendarioGrade({
         onSelectEvent={handleSelectEvent}
         eventPropGetter={eventPropGetter}
         style={{ height: '100%' }}
-        components={{ toolbar: CustomToolbar, event: CustomEventCard }}
+        components={CALENDAR_COMPONENTS}
         step={30}
         timeslots={2}
         min={new Date(0, 0, 0, 6, 0, 0)}
@@ -247,4 +216,6 @@ export default function CalendarioGrade({
       />
     </div>
   );
-}
+});
+
+export default CalendarioGrade;

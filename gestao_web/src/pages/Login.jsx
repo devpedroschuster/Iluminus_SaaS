@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 
-import { rotaPorPerfil } from '../lib/navigation';
-import { showToast } from '../components/shared/Toast';
-import Modal, { useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const { professorInativo, alunoInativo } = useAuth();
+  const { contaDesativada, perfilNaoEncontrado } = useAuth();
 
-  const navigate = useNavigate();
   const modalRecuperar = useModal();
 
   // LOGIN
@@ -25,67 +23,18 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
       });
 
       if (error) throw error;
 
-      // ── 1. Verificar primeiro_acesso em alunos ────────────────────────────
-      const { data: alunoData } = await supabase
-        .from('alunos')
-        .select('primeiro_acesso, nome_completo, role')
-        .eq('auth_id', authData.user.id)
-        .maybeSingle();
-
-      if (alunoData?.primeiro_acesso) {
-        const primeiroNome = (alunoData.nome_completo || 'Usuário').split(' ')[0];
-        navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
-        return;
-      }
-
-      // ── 2. Verificar primeiro_acesso em professores ───────────────────────
-      if (!alunoData) {
-        const { data: profData } = await supabase
-          .from('professores')
-          .select('primeiro_acesso, nome, id')
-          .eq('auth_id', authData.user.id)
-          .maybeSingle();
-
-        if (profData?.primeiro_acesso) {
-          const primeiroNome = (profData.nome || 'Professor').split(' ')[0];
-          navigate('/redefinir-senha', { state: { primeiroAcesso: true, nome: primeiroNome } });
-          return;
-        }
-
-        if (profData) {
-          const primeiroNome = (profData.nome || '').split(' ')[0];
-          showToast.success(
-            primeiroNome
-              ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-              : 'Login realizado com sucesso!'
-          );
-          navigate('/agenda');
-          return;
-        }
-      }
-
-      // Admin ou aluno com acesso normal
-      if (alunoData) {
-        const primeiroNome = (alunoData.nome_completo || '').split(' ')[0];
-        showToast.success(
-          primeiroNome
-            ? `Bem-vindo de volta, ${primeiroNome}! 👋`
-            : 'Login realizado com sucesso!'
-        );
-        navigate(rotaPorPerfil(alunoData.role === 'admin' ? 'admin' : 'aluno'));
-        return;
-      }
-
-      // Fallback (sem perfil correspondente)
-      showToast.success('Login realizado com sucesso!');
-      navigate('/');
+      // ILU-99: daqui em diante é o AuthProvider que carrega o perfil e as
+      // rotas que decidem: troca de senha no primeiro acesso, tela do perfil
+      // com "Bem-vindo de volta", ou o aviso de conta desativada/sem perfil
+      // nesta tela (ILU-39/ILU-40). Antes, o Login repetia essa checagem e
+      // navegava por conta própria, e esse navigate às vezes se perdia.
 
     } catch (err) {
       // Guard primário por código; fallback por mensagem caso a versão do SDK não exponha o código
@@ -142,9 +91,11 @@ export default function Login() {
           <p className="text-gray-400 font-medium">Gestão de Espaço & Movimento</p>
         </div>
 
-        {(professorInativo || alunoInativo) && (
+        {(contaDesativada || perfilNaoEncontrado) && (
     <div className="p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-destructive text-sm font-medium">
-      Sua conta está desativada. Entre em contato com a gestão do espaço.
+      {perfilNaoEncontrado
+        ? 'Conta sem perfil configurado. Contate o suporte.'
+        : 'Sua conta está desativada. Entre em contato com a gestão do espaço.'}
     </div>
   )}
 

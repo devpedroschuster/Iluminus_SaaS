@@ -2,7 +2,10 @@
 @config "../tailwind.config.js";
 
 @layer base {
-  :root {
+  /* .tema-claro: mesmas cores claras no modal e no banner de instalação da Área
+     do Aluno (sempre clara), mesmo com o tema escuro ligado no <html> (ILU-95). */
+  :root,
+  .tema-claro {
     /* Superfícies */
     --background: 30 33% 98%;
     --foreground: 220 13% 18%;

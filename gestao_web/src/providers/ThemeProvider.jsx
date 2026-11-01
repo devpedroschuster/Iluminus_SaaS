@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ThemeContext } from './ThemeContext';
 
-const ThemeContext = createContext(null);
 const STORAGE_KEY = 'iluminus-theme';
 
 export function ThemeProvider({ children, defaultTheme = 'system' }) {
@@ -58,10 +58,4 @@ export function ThemeProvider({ children, defaultTheme = 'system' }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme deve ser usado dentro de um ThemeProvider');
-  return ctx;
 }

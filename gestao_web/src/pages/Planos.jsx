@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { planosService } from '../services/planosService';
 import { Plus, Trash2, Package, RefreshCw, Calendar, Edit2, Clock } from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
-import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import Input, { Label } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Surface from '../components/ui/Surface';
 import Badge from '../components/ui/Badge';
 import Skeleton from '../components/ui/Skeleton';
+import { FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehPlanoLivre } from '../lib/utils';
+
+// ILU-68: `planos.frequencia_semanal` é integer (aulas por semana). O campo
+// era texto livre com placeholder "Ex: Livre" e o insert falhava com 22P02.
+const OPCOES_FREQUENCIA = [1, 2, 3, 4, 5, 6, 7, FREQUENCIA_LIVRE].map(String);
+
+// Erros de validação (yup) já vêm com mensagem para o usuário; os demais
+// (rede, PostgREST) mantêm o texto genérico.
+const mensagemErroPlano = (err, padrao) => (err?.name === 'ValidationError' ? err.message : padrao);
 
 export default function Planos() {
   const [planos, setPlanos] = useState([]);
@@ -32,7 +42,7 @@ export default function Planos() {
     try {
       const data = await planosService.listar();
       setPlanos(data || []);
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao carregar planos.");
     } finally {
       setLoadingList(false);
@@ -49,7 +59,7 @@ export default function Planos() {
       setNovoPlano({ nome: '', preco: '', frequencia_semanal: '', duracao_meses: 1, regras_acesso: [] });
       fetchPlanos();
     } catch (err) {
-      showToast.error("Erro ao criar plano.");
+      showToast.error(mensagemErroPlano(err, "Erro ao criar plano."));
     } finally {
       setCreating(false);
     }
@@ -63,7 +73,7 @@ export default function Planos() {
       await planosService.excluir(planoParaExcluir.id);
       showToast.success("Plano removido.");
       fetchPlanos();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao excluir. Verifique se há alunos vinculados a ele.");
     } finally {
       setDeletingId(null);
@@ -72,7 +82,14 @@ export default function Planos() {
   }
 
   function abrirEdicao(plano) {
-    setPlanoEmEdicao({ ...plano, duracao_meses: plano.duracao_meses || 1, regras_acesso: plano.regras_acesso || [] });
+    setPlanoEmEdicao({
+      ...plano,
+      // ILU-71: plano livre abre como "Livre" mesmo com o valor legado (30) —
+      // salvar mantém is_plano_livre (repasse) em vez de desmarcá-lo.
+      frequencia_semanal: ehPlanoLivre(plano) ? String(FREQUENCIA_LIVRE) : plano.frequencia_semanal,
+      duracao_meses: plano.duracao_meses || 1,
+      regras_acesso: plano.regras_acesso || [],
+    });
     modalEdicao.abrir();
   }
 
@@ -86,7 +103,7 @@ export default function Planos() {
       modalEdicao.fechar();
       fetchPlanos();
     } catch (err) {
-      showToast.error("Erro ao atualizar plano.");
+      showToast.error(mensagemErroPlano(err, "Erro ao atualizar plano."));
     } finally {
       setSavingEdit(false);
     }
@@ -133,13 +150,11 @@ export default function Planos() {
             </div>
 
             {/* Frequência */}
-            <div className="w-full md:w-36 space-y-1.5">
-              <Label>Freq. Visível</Label>
-              <Input
-                required
-                placeholder="Ex: Livre"
+            <div className="w-full md:w-40 space-y-1.5">
+              <Label>Frequência</Label>
+              <SeletorFrequencia
                 value={novoPlano.frequencia_semanal}
-                onChange={e => setNovoPlano({ ...novoPlano, frequencia_semanal: e.target.value })}
+                onChange={valor => setNovoPlano({ ...novoPlano, frequencia_semanal: valor })}
               />
             </div>
 
@@ -197,7 +212,7 @@ export default function Planos() {
                   <span className="text-success font-black">R$ {plano.preco}</span>
                   <span className="w-1 h-1 bg-border rounded-full" />
                   <span className="flex items-center gap-1">
-                    <Calendar size={12} /> {plano.frequencia_semanal}
+                    <Calendar size={12} /> {ehPlanoLivre(plano) ? 'Livre' : formatarFrequenciaSemanal(plano.frequencia_semanal)}
                   </span>
                   <span className="w-1 h-1 bg-border rounded-full" />
                   <span className="flex items-center gap-1 text-info font-bold">
@@ -261,10 +276,9 @@ export default function Planos() {
               </div>
               <div className="space-y-1.5">
                 <Label>Frequência</Label>
-                <Input
-                  required
+                <SeletorFrequencia
                   value={planoEmEdicao.frequencia_semanal}
-                  onChange={e => setPlanoEmEdicao({ ...planoEmEdicao, frequencia_semanal: e.target.value })}
+                  onChange={valor => setPlanoEmEdicao({ ...planoEmEdicao, frequencia_semanal: valor })}
                 />
               </div>
               <div className="space-y-1.5">
@@ -307,6 +321,29 @@ export default function Planos() {
         tipo="danger"
       />
     </div>
+  );
+}
+
+function SeletorFrequencia({ value, onChange }) {
+  const atual = value === null || value === undefined ? '' : String(value);
+  // Planos antigos podem ter um valor fora da lista (ex.: 30); ele continua
+  // selecionável para que editar outro campo não o altere sem querer.
+  const opcoes = atual && !OPCOES_FREQUENCIA.includes(atual)
+    ? [...OPCOES_FREQUENCIA, atual]
+    : OPCOES_FREQUENCIA;
+
+  return (
+    <Input
+      as="select"
+      required
+      value={atual}
+      onChange={e => onChange(e.target.value)}
+    >
+      <option value="">Selecione...</option>
+      {opcoes.map(opcao => (
+        <option key={opcao} value={opcao}>{formatarFrequenciaSemanal(opcao)}</option>
+      ))}
+    </Input>
   );
 }
 

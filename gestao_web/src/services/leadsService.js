@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { buscarTodasAsPaginas } from '../lib/paginacao';
 
 const SELECT_BASE = 'id, nome, telefone, data_checkin, status_conversao, observacao, agenda(atividade)';
 
@@ -6,15 +7,14 @@ export const leadsService = {
   // Usado pelo calendário (useAgendaDadosMes) para indexar leads por
   // aula_id + data_aula no período visível. Diferente das demais funções
   // deste service, que filtram por data_checkin (mês de criação do lead).
+  // Paginado pelo mesmo motivo de agendamentoService.listarPresencasPeriodo.
   async listarLeadsPeriodo(inicio, fim) {
-    const { data, error } = await supabase
+    return buscarTodasAsPaginas(() => supabase
       .from('leads')
       .select('id, nome, aula_id, data_aula')
       .gte('data_aula', inicio)
-      .lte('data_aula', fim);
-
-    if (error) throw error;
-    return data;
+      .lte('data_aula', fim)
+      .order('id'));
   },
 
   async listarLeadsPendentes() {
@@ -115,12 +115,18 @@ export const leadsService = {
   },
 
   async atualizarStatusLead(leadId, novoStatus) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const { data, error } = await supabase
       .from('leads')
       .update({ status_conversao: novoStatus })
-      .eq('id', leadId);
+      .eq('id', leadId)
+      .select('id, status_conversao')
+      .single();
 
     if (error) throw error;
+    if (data.status_conversao !== novoStatus) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 
@@ -129,12 +135,19 @@ export const leadsService = {
    * (ex: "não fechou por preço", "aguardando dinheiro").
    */
   async atualizarObservacaoLead(leadId, observacao) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const novaObservacao = observacao || null;
+    const { data, error } = await supabase
       .from('leads')
-      .update({ observacao: observacao || null })
-      .eq('id', leadId);
+      .update({ observacao: novaObservacao })
+      .eq('id', leadId)
+      .select('id, observacao')
+      .single();
 
     if (error) throw error;
+    if (data.observacao !== novaObservacao) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 

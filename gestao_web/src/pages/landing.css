@@ -321,7 +321,7 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 6
 .modal-footer a { color: var(--pri); font-weight: 700; cursor: pointer; }
 
 /* DASHBOARD LAYOUT */
-#page-dashboard { display: flex; height: 100vh; overflow: hidden; }
+#page-dashboard { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 :is(#page-landing, #page-dashboard) .sidebar { width: 268px; background: var(--white); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 14px; flex-shrink: 0; overflow-y: auto; }
 :is(#page-landing, #page-dashboard) .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 28px; }
 :is(#page-landing, #page-dashboard) .sidebar-logo .logo-mark { width: 32px; height: 32px; font-size: 14px; }
@@ -342,6 +342,16 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 6
 :is(#page-landing, #page-dashboard) .main-header-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
 :is(#page-landing, #page-dashboard) .main-header-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 :is(#page-landing, #page-dashboard) .main-body { padding: 36px 40px; }
+
+/* Barra inferior da Área do Aluno: só no celular, onde a sidebar some (ILU-81).
+   Rótulos em --txt/#5F5F5F e Sair em #DC2626 para passar de 4,5:1 sobre o branco
+   (--muted, --pri-d e --err ficam abaixo disso). */
+#page-dashboard .bottom-nav { display: none; }
+#page-dashboard .bottom-nav-item { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 2px; border: none; background: none; cursor: pointer; font-family: var(--font-body); font-size: 12px; font-weight: 600; color: #5F5F5F; }
+#page-dashboard .bottom-nav-icon { display: flex; align-items: center; justify-content: center; width: 52px; height: 30px; border-radius: var(--r-pill); transition: background .15s; }
+#page-dashboard .bottom-nav-item.active { color: var(--txt); font-weight: 800; }
+#page-dashboard .bottom-nav-item.active .bottom-nav-icon { background: rgba(217,142,115,.18); color: var(--pri-d); }
+#page-dashboard .bottom-nav-item.sair { color: #DC2626; }
 
 .day-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
 .day-tab { padding: 10px 22px; border-radius: var(--r-sm); border: 1.5px solid var(--border); font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; background: var(--white); transition: all .18s; }
@@ -422,6 +432,14 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 6
   .cta-strip-title { font-size: 28px; }
   footer { padding: 48px 24px 28px; }
   :is(#page-landing, #page-dashboard) .sidebar { display: none; }
+  /* Coluna: só o conteúdo rola e a barra fica embaixo, sem cobrir nada. A
+     faixa de cima ocupa a área da barra de status do iPhone com o app instalado
+     (status bar translúcida, texto branco), por isso a terracota. */
+  #page-dashboard { flex-direction: column; padding-top: env(safe-area-inset-top); background: var(--pri-d); }
+  #page-dashboard .main-content { min-height: 0; }
+  #page-dashboard .bottom-nav { display: flex; flex-shrink: 0; background: var(--white); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+  /* Banner de instalação (PWABanners) acima da barra: 56px dela + 16px de folga. */
+  #page-dashboard .pwa-banner { bottom: calc(72px + env(safe-area-inset-bottom)); }
   :is(#page-landing, #page-dashboard) .main-body { padding: 24px 20px; }
   :is(#page-landing, #page-dashboard) .main-header { padding: 18px 20px; }
   .profile-top { grid-template-columns: 1fr; }

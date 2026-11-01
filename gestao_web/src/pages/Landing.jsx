@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { formatarFrequenciaSemanal } from '../lib/utils';
 import './landing.css';
 
 export default function Landing() {
@@ -25,7 +26,7 @@ export default function Landing() {
           .select('id, nome, preco, duracao_meses, frequencia_semanal, regras_acesso')
           .order('preco', { ascending: true });
         if (!error && data) setPlanos(data);
-      } catch (_) {
+      } catch {
         // Silently fail — planos section will be hidden
       } finally {
         setPlanosLoading(false);
@@ -276,7 +277,7 @@ export default function Landing() {
               style={planos.length === 1 ? { gridTemplateColumns: '1fr', maxWidth: '360px' } :
                      planos.length === 2 ? { gridTemplateColumns: 'repeat(2,1fr)', maxWidth: '660px' } : {}}
             >
-              {planos.map((plano, idx) => {
+              {planos.map((plano) => {
                 const featured = isFeatured(plano, planos);
                 const regras = Array.isArray(plano.regras_acesso) ? plano.regras_acesso : [];
                 return (
@@ -300,7 +301,7 @@ export default function Landing() {
                       {plano.frequencia_semanal && (
                         <div className="plan-feat">
                           <span className="feat-check">✓</span>
-                          <span>{plano.frequencia_semanal}× por semana</span>
+                          <span>Frequência: {formatarFrequenciaSemanal(plano.frequencia_semanal)}</span>
                         </div>
                       )}
                       {regras.map((r, i) => (

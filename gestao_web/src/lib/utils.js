@@ -1,8 +1,43 @@
+/**
+ * Valor que uma mensalidade representa, considerando o congelamento do
+ * ILU-29: `valor_pago` só é preenchido por ação explícita (pagamento
+ * confirmado ou lançamento manual), nunca derivado automaticamente — por
+ * isso ele vale independente do `status`. Na ausência dele, usa o
+ * `valor_esperado` congelado no momento da criação da mensalidade (imune a
+ * edições posteriores no preço do plano) e só cai para o preço vigente do
+ * plano em linhas legadas que ainda não têm esse campo.
+ */
+export const valorDevidoMensalidade = (mensalidade) => {
+  if (!mensalidade) return 0;
+  if (mensalidade.valor_pago != null) return Number(mensalidade.valor_pago);
+  return Number(mensalidade.valor_esperado ?? mensalidade.planos?.preco ?? 0);
+};
+
 export const formatarMoeda = (valor) => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
   }).format(valor || 0);
+};
+
+/**
+ * Converte uma string em formato brasileiro (ex.: "1.500,90") para número.
+ * Contraparte de `formatarValorInput` — os campos de valor pago sempre
+ * pré-preenchem via `formatarValorInput`, então o texto chega aqui sempre
+ * no mesmo formato, mesmo quando o usuário não edita o campo (ILU-28).
+ */
+export const parseValorMoeda = (texto) => {
+  return parseFloat(String(texto ?? '').replace(/\./g, '').replace(',', '.'));
+};
+
+/**
+ * Formata um número para exibição em um campo de texto editável (sem o
+ * prefixo "R$" de `formatarMoeda`), sempre em formato brasileiro — para que
+ * o texto pré-preenchido seja compatível com o parse de `parseValorMoeda`.
+ */
+export const formatarValorInput = (valor) => {
+  if (valor == null || valor === '') return '';
+  return Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export const formatarData = (data, comHora = false) => {
@@ -25,6 +60,193 @@ export const formatarData = (data, comHora = false) => {
 
 export const paraUTC = (ano, mes, dia = 1) => {
   return new Date(Date.UTC(ano, mes, dia)).toISOString().split('T')[0];
+};
+
+/**
+ * Data de "hoje" no formato 'AAAA-MM-DD', calculada no fuso de Brasília
+ * (America/Sao_Paulo) em vez de UTC (ILU-19). `new Date().toISOString()`
+ * sempre usa UTC — como o Brasil é UTC-3, entre ~21h e meia-noite no
+ * horário de Brasília a data-calendário em UTC já virou o dia seguinte,
+ * fazendo comparações/gravações de "hoje" errarem por um dia nesse
+ * intervalo (vencimento marcado como atrasado cedo demais, data de
+ * matrícula/pagamento gravada com um dia a mais, etc).
+ */
+export const hojeBrasilia = () => {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const mapa = Object.fromEntries(partes.map((p) => [p.type, p.value]));
+  return `${mapa.year}-${mapa.month}-${mapa.day}`;
+};
+
+/**
+ * Texto do status de uma mensalidade na Área do Aluno: "Pago", "Atrasado"
+ * (vencimento antes de hoje em Brasília) ou "Pendente" — mesma regra do
+ * Financeiro (ILU-96). Compara datas 'AAAA-MM-DD', não instantes:
+ * `new Date('AAAA-MM-DD')` é meia-noite UTC (21h da véspera em Brasília),
+ * o que marcava "Atrasado" no próprio dia do vencimento.
+ */
+export const statusMensalidadeAluno = (status, dataVencimento) => {
+  if (status === 'pago') return 'Pago';
+  return dataVencimento && dataVencimento < hojeBrasilia() ? 'Atrasado' : 'Pendente';
+};
+
+/**
+ * Soma um mês de calendário a uma data 'AAAA-MM-DD', preservando o dia
+ * quando possível (ex.: 2026-01-15 → 2026-02-15) e recuando para o último
+ * dia do mês de destino quando o dia original não existir nele (ex.:
+ * 2026-01-31 → 2026-02-28) — mesmo approach usado em
+ * despesasService.replicarRecorrentes. Evita o desvio de "+30 dias fixos"
+ * (ILU-17), que desalinha com o calendário real (meses têm 28-31 dias) e
+ * pode pular um mês inteiro para vencimentos perto do fim do mês.
+ */
+export const avancarUmMes = (dataStr) => {
+  const d = new Date(dataStr + 'T12:00:00');
+  const dia = d.getDate();
+  const mesAlvo = d.getMonth() + 1; // 0-indexed; pode "estourar" para 12 (Date normaliza para janeiro do ano seguinte)
+  const proxima = new Date(d.getFullYear(), mesAlvo, dia, 12);
+  if (proxima.getMonth() !== mesAlvo % 12) {
+    proxima.setDate(0); // recua para o último dia do mês de destino
+  }
+  return proxima.toISOString().split('T')[0];
+};
+
+/**
+ * Calcula a data de fim de um ciclo de plano a partir da data de início e
+ * da duração em meses, subtraindo 1 dia do resultado (ILU-30) — assim o
+ * ciclo cobre exatamente `duracaoMeses` meses corridos e o próximo ciclo
+ * pode começar no dia seguinte sem sobrepor nem deixar lacuna. Usada tanto
+ * no cadastro (NovoAluno) quanto na renovação (ModalRenovarPlano), que
+ * antes tinham fórmulas divergentes.
+ */
+export const calcularFimPlano = (dataInicioStr, duracaoMeses) => {
+  const data = new Date(dataInicioStr + 'T12:00:00');
+  data.setMonth(data.getMonth() + (duracaoMeses || 1));
+  data.setDate(data.getDate() - 1);
+  return data.toISOString().split('T')[0];
+};
+
+/**
+ * Dado o histórico de planos (historico_planos) de um aluno, retorna o
+ * ciclo vigente: o que cobre a data de hoje ou, na ausência de um que
+ * cubra (ex.: venceu e ainda não foi renovado), o de início mais recente
+ * entre os não cancelados. Fonte única usada tanto pela tela de perfil
+ * quanto pela sincronização dos campos desnormalizados em `alunos`.
+ */
+export const derivarPlanoVigente = (planos) => {
+  if (!Array.isArray(planos) || planos.length === 0) return null;
+  const hojeStr = hojeBrasilia();
+  const naoCancelados = planos.filter(p => p.status !== 'cancelado');
+
+  const vigentesPorData = naoCancelados
+    .filter(p => p.data_inicio <= hojeStr && p.data_fim >= hojeStr)
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  if (vigentesPorData.length > 0) return vigentesPorData[0];
+
+  const maisRecente = [...naoCancelados]
+    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
+  return maisRecente[0] ?? null;
+};
+
+/**
+ * Indica se uma data de vencimento cai dentro de algum ciclo pago à vista
+ * (historico_planos com forma_recebimento 'a_vista') ainda em aberto — ou
+ * seja, se uma mensalidade mensal nessa data seria uma cobrança em
+ * duplicidade, já que o ciclo inteiro foi quitado de uma vez. Considera
+ * ciclos 'ativo' e 'agendado' (nada promove 'agendado' para 'ativo'
+ * automaticamente quando a data de início chega). `data_fim` é o último dia
+ * coberto pelo ciclo, inclusivo (ILU-30, ver calcularFimPlano).
+ * Espelhada em supabase/functions/gerar-mensalidades (cron).
+ */
+export const vencimentoCobertoPorCicloAVista = (ciclos, dataVencimento) =>
+  (ciclos || []).some(c =>
+    c.forma_recebimento === 'a_vista' &&
+    (c.status === 'ativo' || c.status === 'agendado') &&
+    c.data_inicio <= dataVencimento &&
+    dataVencimento <= c.data_fim
+  );
+
+/**
+ * Indica se a mensalidade é a cobrança única de um ciclo à vista — a que
+ * matricular_aluno / renovar_plano_aluno / NovoAluno criam com a descrição
+ * "Pagamento integral do plano" (a matrícula prefixa o nome do plano). Usado
+ * para não confundi-la com as mensais redundantes ao limpar um ciclo
+ * editado para à vista (ILU-70).
+ */
+export const ehCobrancaIntegralDoCiclo = (mensalidade) =>
+  (mensalidade?.descricao || '').includes('Pagamento integral do plano');
+
+/**
+ * `planos.frequencia_semanal` é integer (aulas por semana). Plano livre usa
+ * 999, o mesmo valor de "Ilimitado (Livre)" em `regras_acesso` (ILU-68).
+ */
+export const FREQUENCIA_LIVRE = 999;
+
+export const formatarFrequenciaSemanal = (frequencia) => {
+  if (frequencia === null || frequencia === undefined || frequencia === '') return '';
+  const n = Number(frequencia);
+  return n === FREQUENCIA_LIVRE ? 'Livre' : `${n}x por semana`;
+};
+
+/**
+ * Plano sem limite semanal (ILU-71). `is_plano_livre` é a flag que o
+ * repasse usa; a frequência 999 é o que o seletor de /planos grava como
+ * "Livre" — os dois andam juntos (planosService.salvar sincroniza).
+ */
+export const ehPlanoLivre = (plano) =>
+  !!plano && (plano.is_plano_livre === true || Number(plano.frequencia_semanal) >= FREQUENCIA_LIVRE);
+
+/**
+ * Frequência média (%) dos alunos na semana: presenças ÷ meta semanal do
+ * plano, limitada a 100% por aluno. Alunos de plano livre não têm meta e
+ * ficam fora da média (ILU-71) — antes entravam como 0/30 ou 0/999 e
+ * derrubavam o número. Sem plano, a meta é 1 aula.
+ * Retorna string com 1 casa (ex.: '66.7') ou 0 quando ninguém tem meta.
+ */
+export const calcularFrequenciaMedia = (alunos, presencasPorAluno) => {
+  const comMeta = (alunos || []).filter(aluno => !ehPlanoLivre(aluno.planos));
+  if (comMeta.length === 0) return 0;
+  const soma = comMeta.reduce((acc, aluno) => {
+    const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
+    const real = presencasPorAluno.get(aluno.id) || 0;
+    return acc + Math.min(real / esperado, 1);
+  }, 0);
+  return ((soma / comMeta.length) * 100).toFixed(1);
+};
+
+/**
+ * Distribuição de alunos por área (Dança, Funcional, Combo) a partir de
+ * `modalidades_selecionadas` × mapa id → área da modalidade.
+ * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos (somam
+ * o total de alunos). `dancaTotal`/`funcionalTotal` incluem o combo — quem
+ * faz as duas áreas conta tanto em Dança quanto em Funcional. `bolsistas` é
+ * um recorte à parte (ILU-11): um bolsista pode estar em qualquer área.
+ */
+export const contarAlunosPorArea = (alunos, areaById) => {
+  let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
+
+  for (const aluno of alunos || []) {
+    const ids = aluno.modalidades_selecionadas || [];
+    const areas = new Set(ids.map(id => areaById[id]).filter(Boolean));
+    const temDanca     = areas.has('Dança');
+    const temFuncional = areas.has('Funcional');
+
+    if (temDanca && temFuncional) ambos++;
+    else if (temDanca)            danca++;
+    else if (temFuncional)        funcional++;
+    else                          semModalidade++;
+
+    if (aluno.bolsista) bolsistas++;
+  }
+
+  return {
+    danca, funcional, ambos, semModalidade, bolsistas,
+    dancaTotal: danca + ambos,
+    funcionalTotal: funcional + ambos,
+  };
 };
 
 export const validarEmail = (email) => {
@@ -66,6 +288,38 @@ export const formatarTelefone = (telefone) => {
     return telefone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
   }
   return telefone.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+};
+
+// ILU-76: status do acesso do aluno ao app.
+// - senha_antiga: login criado antes de o sistema registrar quando gerou a
+//   senha (`acesso_gerado_em` nulo) e ainda no primeiro acesso — são as contas
+//   criadas com a senha fixa pública do ILU-32, que precisam de senha nova (ILU-77).
+// - provisoria: senha gerada pelo sistema, aguardando o aluno entrar e trocar.
+// - ativo: o aluno já definiu a própria senha (primeiro_acesso = false).
+export const STATUS_ACESSO_APP = {
+  sem_acesso:   { label: 'Sem acesso',       tone: 'neutral' },
+  senha_antiga: { label: 'Senha antiga',     tone: 'destructive' },
+  provisoria:   { label: 'Senha provisória', tone: 'warning' },
+  ativo:        { label: 'Ativo',            tone: 'success' },
+};
+
+export const statusAcessoApp = (aluno) => {
+  if (!aluno?.auth_id) return 'sem_acesso';
+  if (aluno.primeiro_acesso === false) return 'ativo';
+  return aluno.acesso_gerado_em ? 'provisoria' : 'senha_antiga';
+};
+
+// ILU-76: texto que o admin copia para mandar ao aluno junto com a senha
+// provisória. `tipo`: 'novo' (acesso criado) ou 'nova_senha' (redefinida).
+export const montarInstrucoesAcesso = ({ nome, email, senha, origem, tipo }) => {
+  const primeiroNome = (nome ?? '').trim().split(/\s+/)[0];
+  const saudacao = primeiroNome ? `Olá ${primeiroNome}!` : 'Olá!';
+  const abertura = tipo === 'nova_senha'
+    ? 'Sua senha de acesso ao app do Espaço Iluminus foi redefinida. A senha anterior não funciona mais.'
+    : 'Seu acesso ao app do Espaço Iluminus foi criado.';
+  return `${saudacao}\n${abertura}\n\n` +
+    `Acesse: ${origem}\nLogin: ${email}\nSenha provisória: ${senha}\n\n` +
+    'O sistema pedirá para você criar uma nova senha no primeiro acesso.';
 };
 
 export const coresStatus = {

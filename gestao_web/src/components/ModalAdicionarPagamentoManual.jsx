@@ -4,23 +4,31 @@ import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
 import { supabase } from '../lib/supabase';
 import { financeiroService } from '../services/financeiroService';
-import { showToast } from './shared/Toast';
+import { showToast } from './shared/showToast';
+import { formatarMoeda, hojeBrasilia, valorDevidoMensalidade } from '../lib/utils';
 import { User, DollarSign, Calendar, BookOpen, GraduationCap, Package, CreditCard, LayoutList, Loader2 } from 'lucide-react';
 
 /**
  * Traduz erros técnicos do Supabase/Postgres para mensagens humanas.
  */
-function traduzirErroRegistro(error, nomeAluno) {
+function traduzirErroRegistro(error) {
   const msg = error?.message || '';
   const code = error?.code || '';
 
   // Pagamento duplicado (unique constraint)
+  // (o índice é aluno + plano + vencimento — não tem a ver com outros
+  // lançamentos do aluno, como aula experimental ou avulsa)
   if (code === '23505' || msg.includes('duplicate key') || msg.includes('unique constraint')) {
-    return 'Esse aluno já tem um pagamento registrado para este mês.';
+    return 'Esse aluno já tem um lançamento deste plano com esse mesmo vencimento. Confira no Financeiro ou use outra data de vencimento.';
   }
   // Foreign key — aluno ou plano não existe mais
   if (code === '23503' || msg.includes('foreign key')) {
     return 'O aluno ou plano selecionado não foi encontrado. Atualize a página e tente de novo.';
+  }
+  // CHECK do banco recusou tipo de recebimento / forma de pagamento — antes
+  // caía no fallback genérico (era o caso de toda venda de produto/evento)
+  if (code === '23514' || msg.includes('check constraint')) {
+    return 'Tipo de recebimento ou forma de pagamento não aceito pelo sistema. Avise o suporte.';
   }
   // Sem permissão
   if (code === '42501' || msg.includes('permission denied')) {
@@ -34,15 +42,8 @@ function traduzirErroRegistro(error, nomeAluno) {
   return 'Não foi possível registrar o pagamento. Verifique os dados e tente de novo.';
 }
 
-export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso }) {
-  const [alunos, setAlunos] = useState([]);
-  const [planos, setPlanos] = useState([]);
-  const [professores, setProfessores] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isVisitante, setIsVisitante] = useState(false);
-  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
-
-  const initialForm = {
+function getInitialForm() {
+  return {
     aluno_id: '',
     nome_visitante: '',
     tipo_aula: 'regular',
@@ -50,21 +51,72 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     modalidade_id: '',
     valor_pago: '',
     forma_pagamento: 'pix',
-    data_pagamento: new Date().toISOString().split('T')[0],
-    data_vencimento: new Date().toISOString().split('T')[0],
+    data_pagamento: hojeBrasilia(),
+    data_vencimento: hojeBrasilia(),
     professor_id: '',
     modalidade_nome: '',
   };
-  const [form, setForm] = useState(initialForm);
+}
+
+export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso }) {
+  const [alunos, setAlunos] = useState([]);
+  const [planos, setPlanos] = useState([]);
+  const [professores, setProfessores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isVisitante, setIsVisitante] = useState(false);
+  const [modalidadesDoAluno, setModalidadesDoAluno] = useState([]);
+  // Cobranças de plano em aberto do aluno. A selecionada é quitada por este
+  // lançamento, em vez de criar outra mensalidade ao lado dela.
+  const [cobrancasEmAberto, setCobrancasEmAberto] = useState([]);
+  const [cobrancaId, setCobrancaId] = useState('');
+
+  const [form, setForm] = useState(getInitialForm);
+
+  const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante
+    ? cobrancasEmAberto.find(c => String(c.id) === cobrancaId)
+    : null;
 
   useEffect(() => {
     if (isOpen) {
       carregarDados();
     } else {
-      setForm(initialForm);
+      setForm(getInitialForm());
       setIsVisitante(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    setCobrancasEmAberto([]);
+    setCobrancaId('');
+    if (!isOpen || isVisitante || !form.aluno_id) return;
+
+    // Ignora resposta obsoleta se o aluno mudar antes de resolver.
+    let cancelado = false;
+    financeiroService.listarCobrancasEmAbertoDoAluno(form.aluno_id)
+      .then(cobrancas => {
+        if (cancelado) return;
+        setCobrancasEmAberto(cobrancas);
+        // Vem da mais recente para a mais antiga: a do ciclo atual é a que
+        // normalmente está sendo paga.
+        const maisRecente = cobrancas[0];
+        if (maisRecente) {
+          setCobrancaId(String(maisRecente.id));
+          setForm(f => ({ ...f, valor_pago: valorDevidoMensalidade(maisRecente) }));
+        }
+      })
+      .catch(error => {
+        if (cancelado) return;
+        console.error('[ModalAdicionarPagamentoManual] Erro ao buscar cobranças em aberto:', error);
+        showToast.warning('Não foi possível verificar as cobranças em aberto deste aluno. Confira no Financeiro antes de lançar.');
+      });
+    return () => { cancelado = true; };
+  }, [isOpen, isVisitante, form.aluno_id]);
+
+  const handleCobrancaChange = (id) => {
+    setCobrancaId(id);
+    const cobranca = cobrancasEmAberto.find(c => String(c.id) === id);
+    if (cobranca) setForm(f => ({ ...f, valor_pago: valorDevidoMensalidade(cobranca) }));
+  };
 
   async function carregarDados() {
     const { data: a } = await supabase.from('alunos').select('id, nome_completo, plano_id').order('nome_completo');
@@ -80,6 +132,28 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     setLoading(true);
 
     try {
+      const nomeAluno = alunos.find(a => String(a.id) === String(form.aluno_id))?.nome_completo?.split(' ')[0] || 'Aluno';
+
+      if (cobrancaParaQuitar) {
+        const { resultado } = await financeiroService.confirmarPagamento(cobrancaParaQuitar.id, {
+          valor_pago: Number(form.valor_pago),
+          forma_pagamento: form.forma_pagamento,
+          tipo_aula: cobrancaParaQuitar.tipo_aula,
+          modalidade_id: form.modalidade_id || null,
+          data_pagamento: form.data_pagamento,
+        });
+
+        showToast.success(`✅ Pagamento de ${nomeAluno} registrado na mensalidade em aberto!`);
+        if (resultado?.aviso) {
+          // Aviso em toast separado — não substitui a confirmação de sucesso
+          setTimeout(() => showToast.warning(`⚠️ ${resultado.aviso}`), 600);
+        }
+
+        onSucesso();
+        onClose();
+        return;
+      }
+
       const payload = {
         aluno_id: isVisitante ? null : form.aluno_id,
         nome_visitante: isVisitante ? form.nome_visitante : null,
@@ -103,9 +177,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       const resultado = await financeiroService.adicionarPagamentoManual(payload);
 
       // Toast contextual de sucesso
-      const nomeExibicao = isVisitante
-        ? form.nome_visitante
-        : alunos.find(a => a.id === form.aluno_id)?.nome_completo?.split(' ')[0] || 'Aluno';
+      const nomeExibicao = isVisitante ? form.nome_visitante : nomeAluno;
 
       showToast.success(`✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
 
@@ -117,8 +189,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       onSucesso();
       onClose();
     } catch (error) {
-      const nomeAluno = alunos.find(a => a.id === form.aluno_id)?.nome_completo || '';
-      showToast.error(traduzirErroRegistro(error, nomeAluno));
+      showToast.error(traduzirErroRegistro(error));
     } finally {
       setLoading(false);
     }
@@ -153,7 +224,8 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               leftIcon={<User size={18} />}
               value={form.aluno_id}
               onChange={async e => {
-                const selectedAluno = alunos.find(a => a.id === e.target.value);
+                // O id vem como número da API e como texto do <select>.
+                const selectedAluno = alunos.find(a => String(a.id) === e.target.value);
                 const defaultPlano = selectedAluno?.plano_id || '';
                 const planoObj = planos.find(p => p.id === defaultPlano);
                 setForm({
@@ -195,8 +267,33 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           </Input>
         </div>
 
+        {/* Mensalidade que este lançamento vai quitar */}
+        {form.tipo_aula === 'regular' && !isVisitante && cobrancasEmAberto.length > 0 && (
+          <div className="space-y-2 bg-warning-soft p-4 rounded-2xl border border-warning/20">
+            <Label className="block">Mensalidade em aberto deste aluno</Label>
+            <Input
+              as="select"
+              value={cobrancaId}
+              onChange={e => handleCobrancaChange(e.target.value)}
+              className="bg-card"
+            >
+              {cobrancasEmAberto.map(c => (
+                <option key={c.id} value={c.id}>
+                  Venc. {new Date(`${c.data_vencimento}T12:00:00`).toLocaleDateString('pt-BR')} — {formatarMoeda(valorDevidoMensalidade(c))}{c.planos?.nome ? ` — ${c.planos.nome}` : ''}
+                </option>
+              ))}
+              <option value="">Nenhuma — lançar como novo pagamento</option>
+            </Input>
+            <p className="text-[11px] font-medium text-muted-foreground">
+              {cobrancaParaQuitar
+                ? 'O pagamento será registrado nesta mensalidade, sem criar outra.'
+                : 'Será criado um lançamento novo, e as mensalidades acima continuam em aberto.'}
+            </p>
+          </div>
+        )}
+
         {/* Campos Plano Regular */}
-        {form.tipo_aula === 'regular' && (
+        {form.tipo_aula === 'regular' && !cobrancaParaQuitar && (
           <div>
             <Label className="block mb-1.5">Plano Referente</Label>
             <Input
@@ -204,7 +301,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               leftIcon={<Package size={18} />}
               value={form.plano_id}
               onChange={e => {
-                const p = planos.find(pl => pl.id === e.target.value);
+                const p = planos.find(pl => String(pl.id) === e.target.value);
                 setForm({ ...form, plano_id: e.target.value, valor_pago: p ? p.preco : '' });
               }}
               required
@@ -289,16 +386,18 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     required
   />
 </div>
-          <div>
-            <Label className="block mb-1.5">Data do Vencimento</Label>
-            <Input
-              type="date"
-              leftIcon={<Calendar size={18} />}
-              value={form.data_vencimento}
-              onChange={e => setForm({ ...form, data_vencimento: e.target.value })}
-              required
-            />
-          </div>
+          {!cobrancaParaQuitar && (
+            <div>
+              <Label className="block mb-1.5">Data do Vencimento</Label>
+              <Input
+                type="date"
+                leftIcon={<Calendar size={18} />}
+                value={form.data_vencimento}
+                onChange={e => setForm({ ...form, data_vencimento: e.target.value })}
+                required
+              />
+            </div>
+          )}
         </div>
 
         <div>

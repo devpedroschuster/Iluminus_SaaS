@@ -1,25 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { alunosService } from '../services/alunosService';
-import { showToast } from './shared/Toast';
+import { showToast } from './shared/showToast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
+import { formatarMoeda, hojeBrasilia, calcularFimPlano } from '../lib/utils';
 
-import Modal from './ui/Modal';
+import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
+import SelectFormaPagamento from './SelectFormaPagamento';
 
 export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
   const [planos, setPlanos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmandoValor, setConfirmandoValor] = useState(false);
   const [form, setForm] = useState({
     plano_id: '',
-    data_inicio: new Date().toISOString().split('T')[0], 
+    data_inicio: hojeBrasilia(),
     data_fim: '',
-    valor_pago: ''
+    valor_pago: '',
+    forma_recebimento: 'recorrente',
+    ja_recebido: false,
+    forma_pagamento: '',
+    data_pagamento: hojeBrasilia()
   });
+
+  // Valor total quando o ciclo é pago de uma vez (preço mensal × duração) —
+  // mesma conta usada no servidor (renovar_plano_aluno), sem desconto.
+  const calcularValorAVista = (planoSelecionado) =>
+    planoSelecionado ? Number(planoSelecionado.preco) * (planoSelecionado.duracao_meses || 1) : '';
 
   useEffect(() => {
     if (isOpen && alunoId) {
+      // "Já recebido" nunca vem marcado de uma renovação anterior.
+      setForm(prev => ({ ...prev, ja_recebido: false, forma_pagamento: '', data_pagamento: hojeBrasilia() }));
+
       supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data, error }) => {
         if (error) {
           console.error('[ModalRenovarPlano] Erro ao carregar planos:', error);
@@ -39,45 +54,68 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
           return;
         }
         if (data && data.data_fim_plano) {
-          setForm(prev => ({ ...prev, data_inicio: data.data_fim_plano }));
+          // Novo ciclo começa no dia seguinte ao fim do anterior — reaproveitar
+          // o mesmo dia (sem +1) sobrepunha 1 dia entre os dois ciclos.
+          const proximoDia = new Date(data.data_fim_plano + 'T12:00:00');
+          proximoDia.setDate(proximoDia.getDate() + 1);
+          setForm(prev => ({ ...prev, data_inicio: proximoDia.toISOString().split('T')[0] }));
         }
       });
     }
   }, [isOpen, alunoId]);
 
-  const calcularDataFim = (dataInicioStr, meses) => {
-    const data = new Date(dataInicioStr + 'T12:00:00');
-    data.setMonth(data.getMonth() + meses);
-    return data.toISOString().split('T')[0];
-  };
-
   const handlePlanoChange = (e) => {
   const planoId = e.target.value;
   const planoSelecionado = planos.find(p => p.id === Number(planoId));
-    
+
     if (planoSelecionado) {
     setForm({
       ...form,
       plano_id: planoId,
-      valor_pago: planoSelecionado.preco,
-      data_fim: calcularDataFim(form.data_inicio, planoSelecionado.duracao_meses)
+      valor_pago: form.forma_recebimento === 'a_vista'
+        ? calcularValorAVista(planoSelecionado)
+        : planoSelecionado.preco,
+      data_fim: calcularFimPlano(form.data_inicio, planoSelecionado.duracao_meses)
     });
   } else {
     setForm({ ...form, plano_id: planoId, valor_pago: '', data_fim: '' });
   }
 };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleFormaRecebimentoChange = (formaRecebimento) => {
+    const planoSelecionado = planos.find(p => p.id === Number(form.plano_id));
+    setForm({
+      ...form,
+      forma_recebimento: formaRecebimento,
+      valor_pago: planoSelecionado
+        ? (formaRecebimento === 'a_vista' ? calcularValorAVista(planoSelecionado) : planoSelecionado.preco)
+        : form.valor_pago
+    });
+  };
+
+  async function executarRenovacao() {
     setLoading(true);
     try {
-      await alunosService.renovarPlano(alunoId, {
+      const resultado = await alunosService.renovarPlano(alunoId, {
         plano_id: form.plano_id,
         data_inicio: form.data_inicio,
         data_fim: form.data_fim,
-        valor_pago: form.valor_pago
+        valor_pago: form.valor_pago,
+        forma_recebimento: form.forma_recebimento,
+        ja_recebido: form.ja_recebido,
+        forma_pagamento: form.forma_pagamento,
+        data_pagamento: form.data_pagamento
       });
-      showToast.success("Plano renovado com sucesso!");
+      // O vencimento é o início do novo ciclo, que pode cair em outro mês — a
+      // cobrança aparece no Financeiro do mês do vencimento, não no de hoje.
+      const vencimento = new Date(`${form.data_inicio}T12:00:00`).toLocaleDateString('pt-BR');
+      showToast.success(resultado.pago
+        ? `Plano renovado! Mensalidade registrada como paga no Financeiro (vencimento ${vencimento}).`
+        : `Plano renovado! Mensalidade pendente no Financeiro, com vencimento em ${vencimento}. Dê baixa em "Receber" quando pagarem.`);
+      if (resultado.avisoRepasse) {
+        // Aviso em toast separado — não substitui a confirmação de sucesso
+        setTimeout(() => showToast.warning(`⚠️ ${resultado.avisoRepasse}`), 600);
+      }
       onSucesso();
       onClose();
     } catch (error) {
@@ -85,7 +123,38 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     } finally {
       setLoading(false);
     }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // ILU-33: confirma quando o valor negociado desviar >20% do preço de
+    // tabela do plano — evita que um erro de digitação vire permanentemente
+    // o valor cobrado e a base de cálculo de comissão, sem nenhum aviso.
+    const planoSelecionado = planos.find(p => p.id === Number(form.plano_id));
+    const precoTabela = form.forma_recebimento === 'a_vista'
+      ? Number(calcularValorAVista(planoSelecionado))
+      : Number(planoSelecionado?.preco);
+    const valorInformado = Number(form.valor_pago);
+    const desviaSignificativamente =
+      Number.isFinite(precoTabela) && precoTabela > 0
+      && Number.isFinite(valorInformado)
+      && Math.abs(valorInformado - precoTabela) / precoTabela > 0.2;
+
+    if (desviaSignificativamente) {
+      setConfirmandoValor(true);
+      return;
+    }
+
+    executarRenovacao();
   };
+
+  const confirmarValorEEnviar = () => {
+    setConfirmandoValor(false);
+    return executarRenovacao();
+  };
+
+  const planoSelecionadoAtual = planos.find(p => p.id === Number(form.plano_id));
 
   return (
     <Modal aberto={isOpen} fechar={onClose} title="Renovar Plano do Aluno" size="md">
@@ -121,7 +190,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
     ...form,
     data_inicio: novaDataInicio,
     data_fim: planoSelecionado
-      ? calcularDataFim(novaDataInicio, planoSelecionado.duracao_meses)
+      ? calcularFimPlano(novaDataInicio, planoSelecionado.duracao_meses)
       : form.data_fim
   });
 }}
@@ -141,7 +210,37 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         </div>
 
         <div>
-          <Label className="block mb-1.5">Valor Negociado (R$)</Label>
+          <Label className="block mb-1.5">Forma de Recebimento</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleFormaRecebimentoChange('recorrente')}
+              className={`py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                form.forma_recebimento === 'recorrente'
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              Recorrente (mensal)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFormaRecebimentoChange('a_vista')}
+              className={`py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                form.forma_recebimento === 'a_vista'
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/50'
+              }`}
+            >
+              À vista
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <Label className="block mb-1.5">
+            {form.forma_recebimento === 'a_vista' ? 'Valor Total à Vista (R$)' : 'Valor Negociado (R$)'}
+          </Label>
           <Input 
             type="number" 
             step="0.01" 
@@ -150,6 +249,47 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
             onChange={e => setForm({...form, valor_pago: e.target.value})}
             required
           />
+        </div>
+
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 p-4 rounded-xl border border-border cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.ja_recebido}
+              onChange={e => setForm({...form, ja_recebido: e.target.checked})}
+              className="w-5 h-5 mt-0.5 rounded-md accent-primary cursor-pointer"
+            />
+            <span>
+              <span className="block font-bold text-sm text-foreground">Pagamento já recebido</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                {form.ja_recebido
+                  ? 'A mensalidade entra como paga no Financeiro, com o valor informado acima.'
+                  : 'Sem marcar, a mensalidade entra pendente no Financeiro, para dar baixa em "Receber" quando pagarem.'}
+              </span>
+            </span>
+          </label>
+
+          {form.ja_recebido && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="block mb-1.5">Forma de Pagamento</Label>
+                <SelectFormaPagamento
+                  value={form.forma_pagamento}
+                  onChange={forma => setForm({...form, forma_pagamento: forma})}
+                />
+              </div>
+              <div>
+                <Label className="block mb-1.5">Data do Pagamento</Label>
+                <Input
+                  type="date"
+                  leftIcon={<Calendar size={18} />}
+                  value={form.data_pagamento}
+                  onChange={e => setForm({...form, data_pagamento: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <Modal.Footer>
@@ -175,6 +315,17 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
           </Button>
         </Modal.Footer>
       </form>
+
+      <ModalConfirmacao
+        isOpen={confirmandoValor}
+        onClose={() => setConfirmandoValor(false)}
+        onConfirm={confirmarValorEEnviar}
+        tipo="warning"
+        titulo="Confirmar valor fora do padrão"
+        mensagem={`O valor negociado (${formatarMoeda(form.valor_pago)}) difere em mais de 20% do preço de tabela do plano ${planoSelecionadoAtual ? `(${formatarMoeda(planoSelecionadoAtual.preco)})` : ''}. Confirma a renovação com este valor?`}
+        textoConfirmar="Confirmar valor"
+        loading={loading}
+      />
     </Modal>
   );
 }

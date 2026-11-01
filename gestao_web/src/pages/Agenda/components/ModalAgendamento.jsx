@@ -1,8 +1,9 @@
 import React from 'react';
-import { UserCheck, RefreshCw, MessageCircle } from 'lucide-react';
+import { UserCheck, RefreshCw, MessageCircle, DollarSign } from 'lucide-react';
 import { ModalConfirmacao } from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import Input, { Label } from '../../../components/ui/Input';
+import SelectFormaPagamento from '../../../components/SelectFormaPagamento';
 
 // Configuração do modal de aviso conforme o tipo de bloqueio.
 function resolverConfigModal(tipo, msg) {
@@ -27,6 +28,7 @@ export default function ModalAgendamento({
   modalLotacao, confirmarAgendamentoLotado, cancelarAgendamentoLotado
 }) {
   const configModal = resolverConfigModal(modalLotacao?.tipo, modalLotacao?.msg);
+  const temCobrancaExperimental = Number(agendamentoForm.valor_experimental) > 0;
 
   return (
     <>
@@ -100,6 +102,51 @@ export default function ModalAgendamento({
               onChange={e => setAgendamentoForm({ ...agendamentoForm, nome_visitante: e.target.value })}
               className="bg-card"
             />
+            {/* Cobrança da experimental — entra pendente no Financeiro junto
+                com o agendamento (valor padrão: Configurações de Repasse),
+                a não ser que o visitante já tenha pago. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="block mb-1.5">Valor da aula (R$)</Label>
+                <Input
+                  required
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  leftIcon={<DollarSign size={18} />}
+                  value={agendamentoForm.valor_experimental ?? ''}
+                  onChange={e => setAgendamentoForm({ ...agendamentoForm, valor_experimental: e.target.value })}
+                  className="bg-card"
+                />
+              </div>
+              {temCobrancaExperimental && agendamentoForm.experimental_ja_pago && (
+                <div>
+                  <Label className="block mb-1.5">Forma de pagamento</Label>
+                  <SelectFormaPagamento
+                    value={agendamentoForm.forma_pagamento_experimental}
+                    onChange={forma => setAgendamentoForm({ ...agendamentoForm, forma_pagamento_experimental: forma })}
+                  />
+                </div>
+              )}
+            </div>
+            {temCobrancaExperimental && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!agendamentoForm.experimental_ja_pago}
+                  onChange={e => setAgendamentoForm({ ...agendamentoForm, experimental_ja_pago: e.target.checked })}
+                  className="w-4 h-4 rounded accent-primary cursor-pointer"
+                />
+                <span className="text-sm font-bold text-foreground">Já foi pago</span>
+              </label>
+            )}
+            <p className="text-[11px] font-medium text-muted-foreground">
+              {!temCobrancaExperimental
+                ? 'Experimental gratuita: nenhum pagamento será registrado.'
+                : agendamentoForm.experimental_ja_pago
+                  ? 'O pagamento será registrado como pago no Financeiro. Se o agendamento for cancelado, ele é removido junto.'
+                  : 'A cobrança entra como pendente no Financeiro, com vencimento no dia da aula. Dê baixa em "Receber" quando pagarem. Se o agendamento for cancelado, ela é removida junto.'}
+            </p>
           </div>
         )}
 

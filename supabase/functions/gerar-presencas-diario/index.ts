@@ -18,12 +18,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 // =========================================================
 
 serve(async (req) => {
+  // ── AUTORIZAÇÃO (ILU-10) ───────────────────────────────────────────────────
+  // Função só deve rodar via cron, nunca por chamada direta de um usuário
+  // autenticado (acao: 'detectar_faltas' pode marcar faltas prematuramente,
+  // o que impacta comissão em plano_livre). Exige um segredo compartilhado
+  // que só o job de cron conhece, configurado como header `x-cron-secret`.
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? '';
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let body = {};
+    let body: { acao?: string } = {};
     try {
       body = await req.json();
     } catch {
@@ -63,6 +76,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error("❌ Erro fatal:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 })

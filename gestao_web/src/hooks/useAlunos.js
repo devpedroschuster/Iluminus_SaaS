@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { alunosService } from '../services/alunosService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 
 export const PAGE_SIZE = 25;
 

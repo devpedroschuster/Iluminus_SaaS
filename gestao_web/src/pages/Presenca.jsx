@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { agendamentoService } from '../services/agendamentoService';
@@ -7,9 +7,12 @@ import {
   Clock, Award, AlertCircle, Users, CheckCircle2,
   XCircle, Download, BarChart2, Zap, ChevronRight
 } from 'lucide-react';
-import { showToast } from '../components/shared/Toast';
-import { formatarData } from '../lib/utils';
-import Modal, { useModal } from '../components/ui/Modal';
+import { showToast } from '../components/shared/showToast';
+import {
+  hojeBrasilia, ehPlanoLivre, calcularFrequenciaMedia, formatarFrequenciaSemanal,
+} from '../lib/utils';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
@@ -76,7 +79,6 @@ function sanitizarCelulaCSV(valor) {
 // FIX 2: helper central para log + mensagem amigável, evita
 // catch(e) genérico espalhado e silencioso pelo arquivo inteiro.
 function tratarErro(err, { contexto, mensagemPadrao }) {
-  // eslint-disable-next-line no-console
   console.error(`[Presenca] ${contexto} falhou:`, err);
   if (err?.code === '42501' || err?.status === 403) {
     return 'Você não tem permissão para executar esta ação.';
@@ -103,9 +105,8 @@ export default function Presenca({ isAdmin = false }) {
     presencaSemana: [], mediaDiaria: 0
   });
   const [filtros, setFiltros]         = useState({ periodo: 'hoje', aluno: 'todos', aula: 'todas' });
-  const [busca, setBusca]             = useState('');
   const [aulaSelecionada, setAulaSelecionada] = useState(null);
-  const [dataManual, setDataManual] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataManual, setDataManual] = useState(() => hojeBrasilia());
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const modalQRCode   = useModal();
   const modalDetalhes = useModal();
@@ -119,7 +120,7 @@ export default function Presenca({ isAdmin = false }) {
       // Alunos ativos
       const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
-        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal)')
+        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal, is_plano_livre)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
@@ -173,7 +174,7 @@ export default function Presenca({ isAdmin = false }) {
       setAulaAtiva(aulaEmCurso);
 
       if (aulaEmCurso) {
-        const hojeDateStr = new Date().toISOString().split('T')[0];
+        const hojeDateStr = hojeBrasilia();
         const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
           await Promise.all([
             supabase
@@ -218,7 +219,6 @@ export default function Presenca({ isAdmin = false }) {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.periodo, modoInicializado]);
 
   useEffect(() => { fetchDados(); }, [filtros.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -239,7 +239,7 @@ export default function Presenca({ isAdmin = false }) {
     let ativo = true;
 
     async function buscarDadosAulaSelecionada() {
-      const hojeDateStr = new Date().toISOString().split('T')[0];
+      const hojeDateStr = hojeBrasilia();
       try {
         const [{ data: todasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
           await Promise.all([
@@ -278,7 +278,7 @@ export default function Presenca({ isAdmin = false }) {
   }, [aulaSelecionada, aulaAtiva]);
 
   function calcularMetricas(presencasData, alunosData) {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = hojeBrasilia();
     const alunosAtivos = alunosData.length;
     const semanaAtras = new Date();
     semanaAtras.setDate(semanaAtras.getDate() - 7);
@@ -299,16 +299,8 @@ export default function Presenca({ isAdmin = false }) {
       }
     }
 
-    const taxasIndividuais = alunosData.map(aluno => {
-      const esperado = Number(aluno.planos?.frequencia_semanal) || 1;
-      const real     = presencasPorAluno.get(aluno.id) || 0;
-      return Math.min(real / esperado, 1);
-    });
-
-    const frequenciaMedia =
-      alunosAtivos > 0
-        ? ((taxasIndividuais.reduce((acc, taxa) => acc + taxa, 0) / alunosAtivos) * 100).toFixed(1)
-        : 0;
+    // ILU-71: alunos de plano livre não têm meta semanal e ficam fora da média.
+    const frequenciaMedia = calcularFrequenciaMedia(alunosData, presencasPorAluno);
 
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => ({
@@ -329,7 +321,7 @@ export default function Presenca({ isAdmin = false }) {
     }
     setLoadingCheckin(aluno.id);
     // dataAula: 'YYYY-MM-DD' — hoje por padrão, ou data retroativa/manual
-    const dataAula = dataRef ?? new Date().toISOString().split('T')[0];
+    const dataAula = dataRef ?? hojeBrasilia();
     const dataCheckin = dataRef
       ? `${dataRef}T12:00:00.000Z`
       : new Date().toISOString();
@@ -401,7 +393,7 @@ export default function Presenca({ isAdmin = false }) {
       return;
     }
     try {
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = hojeBrasilia();
       const aulaIdAtual = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
       const { data: reg, error: errBusca } = await supabase
         .from('presencas')
@@ -449,7 +441,7 @@ export default function Presenca({ isAdmin = false }) {
     }
     if (!presencaId) return;
     try {
-      const dataRef = aulaAtiva ? new Date().toISOString().split('T')[0] : dataManual;
+      const dataRef = aulaAtiva ? hojeBrasilia() : dataManual;
       await agendamentoService.registrarFalta(aluno.id, aulaEmUso, dataRef);
       setAgendadosDaAula(prev => {
         const next = new Map(prev);
@@ -468,7 +460,7 @@ export default function Presenca({ isAdmin = false }) {
 
   async function visualizarDetalhes(aluno) {
     try {
-      const trintaDiasAtras = new Date();
+      const trintaDiasAtras = new Date(`${hojeBrasilia()}T12:00:00`);
       trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
       const trintaDiasAtrasStr = trintaDiasAtras.toISOString().split('T')[0];
       const { data, error } = await supabase
@@ -725,7 +717,7 @@ export default function Presenca({ isAdmin = false }) {
                 <Input
                   type="date"
                   value={dataManual}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={hojeBrasilia()}
                   onChange={e => setDataManual(e.target.value)}
                   className="bg-card w-auto"
                 />
@@ -1021,7 +1013,9 @@ export default function Presenca({ isAdmin = false }) {
               <Surface variant="muted" padding="md" className="rounded-2xl">
                 <p className="text-xs font-black text-info uppercase mb-1">Frequência</p>
                 <p className="text-2xl font-black text-info">
-                  {alunoSelecionado.planos?.frequencia_semanal || 0}x/sem
+                  {ehPlanoLivre(alunoSelecionado.planos)
+                    ? 'Livre'
+                    : formatarFrequenciaSemanal(alunoSelecionado.planos?.frequencia_semanal) || '—'}
                 </p>
               </Surface>
             </div>

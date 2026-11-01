@@ -8,12 +8,13 @@ import {
 } from 'lucide-react';
 import { addDays, format, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatarMoeda } from '../lib/utils';
+import { formatarMoeda, hojeBrasilia } from '../lib/utils';
 import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Modal, { useModal } from '../components/ui/Modal';
+import Modal from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import { Link } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,7 +111,7 @@ export default function Dashboard() {
   const modalInadimplencia = useModal();
 
   const agora        = new Date();
-  const hojeIso      = agora.toISOString().split('T')[0];
+  const hojeIso      = hojeBrasilia();
   const inicioMes    = startOfMonth(agora).toISOString();
   const limite7Dias  = format(addDays(agora, 7), 'yyyy-MM-dd');
 
@@ -122,7 +123,7 @@ export default function Dashboard() {
       listaInadimplentes = [],
       alunosPlanosVencendo = [],
       todosAlunos        = [],
-      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, semModalidade: 0, bolsistas: 0 },
+      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, dancaTotal: 0, funcionalTotal: 0, semModalidade: 0, bolsistas: 0 },
     } = {},
     isLoading,
   } = useQuery({
@@ -144,7 +145,7 @@ export default function Dashboard() {
   );
 
   const inadimplenciaTotal = useMemo(
-    () => listaInadimplentes.reduce((acc, m) => acc + Number(m.valor_pago), 0),
+    () => listaInadimplentes.reduce((acc, m) => acc + Number(m.valor_devido || 0), 0),
     [listaInadimplentes]
   );
 
@@ -222,13 +223,14 @@ export default function Dashboard() {
             }
             {!loadingAlunos && (
               <>
-                {/* ILU-11: Funcional + Dança + Combo (+ sem modalidade, se houver)
-                    somam exatamente o total de alunos ativos exibido acima.
-                    "B" (bolsistas) é um recorte à parte (não paga) — um bolsista
-                    pode estar em qualquer uma das áreas acima, por isso não entra
-                    na soma exclusiva. Só aparece quando houver pelo menos 1. */}
+                {/* F e D incluem os alunos de combo (quem faz as duas áreas
+                    conta em ambas); o combo continua exibido à parte. Por isso
+                    F + D + combo NÃO somam o total acima — o combo entra duas
+                    vezes. "B" (bolsistas) é um recorte à parte (ILU-11) — um
+                    bolsista pode estar em qualquer área. Só aparece quando
+                    houver pelo menos 1. */}
                 <p className="text-[14px] font-medium text-muted-foreground mt-0.5">
-                  {distribuicaoAreas.funcional}F · {distribuicaoAreas.danca}D · {distribuicaoAreas.ambos} combo
+                  {distribuicaoAreas.funcionalTotal}F · {distribuicaoAreas.dancaTotal}D · {distribuicaoAreas.ambos} combo
                   {distribuicaoAreas.semModalidade > 0 && ` · ${distribuicaoAreas.semModalidade} s/ modalidade`}
                   {distribuicaoAreas.bolsistas > 0 && ` · ${distribuicaoAreas.bolsistas} B`}
                 </p>
@@ -276,11 +278,11 @@ export default function Dashboard() {
                   <CardAluno
                     key={item.id}
                     nome={item.alunos?.nome_completo}
-                    info={`Venc: ${format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')} · ${formatarMoeda(item.valor_pago)}`}
+                    info={`Venc: ${format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')} · ${formatarMoeda(item.valor_devido)}`}
                     acao={
                       item.alunos?.telefone && (
                         <button
-                          onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_pago)}
+                          onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_devido)}
                           className="text-xs bg-[#25D366] text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 hover:bg-[#20bd5a] transition-colors"
                         >
                           <MessageCircle size={13} /> Cobrar
@@ -485,12 +487,12 @@ export default function Dashboard() {
                     Venc: {format(new Date(item.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}
                   </span>
                   <span className="text-xs font-black text-destructive">
-                    {formatarMoeda(item.valor_pago)}
+                    {formatarMoeda(item.valor_devido)}
                   </span>
                 </div>
               </div>
               <button
-                onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_pago)}
+                onClick={() => handleCobranca(item.alunos, item.data_vencimento, item.valor_devido)}
                 className="w-full sm:w-auto bg-[#25D366] text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-colors"
               >
                 <MessageCircle size={16} /> Cobrar via WhatsApp

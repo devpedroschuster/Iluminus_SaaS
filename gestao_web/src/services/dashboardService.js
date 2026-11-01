@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { valorDevidoMensalidade, contarAlunosPorArea } from '../lib/utils';
 
 export const dashboardService = {
   async obterTotalAlunos() {
@@ -16,8 +17,6 @@ export const dashboardService = {
    * Usa modalidades_selecionadas (array de IDs) cruzado com a tabela modalidades.
    */
   async obterDistribuicaoPorArea() {
-    const { supabase: sb } = await import('../lib/supabase');
-
     // Busca todas as modalidades para montar o mapa id → area
     const { data: mods, error: errMods } = await supabase
       .from('modalidades')
@@ -37,23 +36,7 @@ export const dashboardService = {
       .eq('role', 'aluno');
     if (errAlunos) throw errAlunos;
 
-    let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
-
-    for (const aluno of alunos || []) {
-      const ids = aluno.modalidades_selecionadas || [];
-      const areas = new Set(ids.map(id => areaById[id]).filter(Boolean));
-      const temDanca     = areas.has('Dança');
-      const temFuncional = areas.has('Funcional');
-
-      if (temDanca && temFuncional) ambos++;
-      else if (temDanca)            danca++;
-      else if (temFuncional)        funcional++;
-      else                          semModalidade++;
-
-      if (aluno.bolsista) bolsistas++;
-    }
-
-    return { danca, funcional, ambos, semModalidade, bolsistas };
+    return contarAlunosPorArea(alunos, areaById);
   },
 
   async obterPagamentosMes(inicioMes) {
@@ -69,23 +52,30 @@ export const dashboardService = {
   async obterInadimplentes(hojeIso) {
     const { data, error } = await supabase
       .from('mensalidades')
-      .select('id, valor_pago, data_vencimento, alunos(nome_completo, telefone)')
+      .select('id, valor_pago, valor_esperado, status, data_vencimento, alunos(nome_completo, telefone), planos(preco)')
       .in('status', ['pendente', 'atrasado'])
       .lt('data_vencimento', hojeIso)
       .order('data_vencimento', { ascending: true });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(m => ({ ...m, valor_devido: valorDevidoMensalidade(m) }));
   },
 
 async obterComissoes(inicioMes) {
-  const [ano, mes] = inicioMes.substring(0, 7).split('-');
-  const fim = new Date(Number(ano), Number(mes), 0).toISOString().split('T')[0];
+  // ILU-20: `created_at` é timestamptz — comparar com strings sem timezone
+  // (`T00:00:00`) faz o Postgres interpretar em UTC, não em
+  // America/Sao_Paulo, deslocando lançamentos de fim/início de mês para o
+  // mês vizinho. Construímos os limites como Date reais (mesmo padrão de
+  // leadsService.listarLeadsPendentesPorMes) e usamos limite superior
+  // exclusivo.
+  const [ano, mes] = inicioMes.substring(0, 7).split('-').map(Number);
+  const inicio = new Date(ano, mes - 1, 1).toISOString();
+  const fim = new Date(ano, mes, 1).toISOString();
 
   const { data, error } = await supabase
     .from('repasses_lancamentos')
     .select('id, valor, professor_id, professores(nome)')
-    .gte('created_at', `${inicioMes.substring(0, 7)}-01T00:00:00`)
-    .lte('created_at', `${fim}T23:59:59`);
+    .gte('created_at', inicio)
+    .lt('created_at', fim);
 
   if (error) throw error;
   return data || [];
@@ -140,8 +130,11 @@ async obterComissoes(inicioMes) {
         .eq('ativo', true)
         .eq('role', 'aluno')
         .not('data_nascimento', 'is', null)
-        .then(({ data }) => data || []),
-        this.obterDistribuicaoPorArea(),
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data || [];
+        }),
+      this.obterDistribuicaoPorArea(),
     ]);
 
     return { totalAlunos, pagamentosMes, listaInadimplentes, alunosPlanosVencendo, todosAlunos, distribuicaoAreas };

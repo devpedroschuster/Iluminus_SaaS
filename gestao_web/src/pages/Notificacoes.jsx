@@ -5,12 +5,32 @@ import { TableSkeleton } from '../components/shared/Loading';
 import Surface from '../components/ui/Surface';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
+import EmptyState from '../components/ui/EmptyState';
 import { cn } from '../lib/cn';
 
 export default function Notificacoes() {
-  const { ativas, concluidas, loading, marcarComoResolvida, desfazerResolvida } = useNotificacoes();
+  const { ativas, concluidas, loading, isError, refetch, marcarComoResolvida, desfazerResolvida } = useNotificacoes();
 
   if (loading) return <div className="p-8"><TableSkeleton /></div>;
+
+  // ILU-42: falha na query é distinta de "nenhuma notificação" — sem isso,
+  // um erro de RLS/rede fazia a página mostrar "Tudo em dia!" indevidamente.
+  if (isError) {
+    return (
+      <div className="p-4 md:p-8 max-w-5xl mx-auto">
+        <EmptyState
+          icon={<AlertCircle size={28} />}
+          title="Erro ao carregar notificações"
+          description="Não foi possível buscar vencimentos e aniversários. Verifique sua conexão e tente novamente."
+          action={
+            <button onClick={refetch} className="text-sm font-bold text-primary hover:underline">
+              Tentar novamente
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">

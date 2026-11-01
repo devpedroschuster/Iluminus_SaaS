@@ -1,23 +1,29 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User, CreditCard, Calendar, Activity,
   ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
   Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
   CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info, CalendarCheck,
-  CalendarX, RotateCcw, Clock,
+  CalendarX, RotateCcw, Clock, KeyRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
+  statusAcessoApp, STATUS_ACESSO_APP,
+} from '../lib/utils';
 import { alunosService } from '../services/alunosService';
+import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import ModalRenovarPlano from '../components/ModalRenovarPlano';
 import Surface from '../components/ui/Surface';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
-import Modal from '../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -106,6 +112,92 @@ function BotaoWhatsApp({ aluno }) {
 // ─────────────────────────────────────────────────────────────
 // Modal Editar Cadastro
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ILU-76: Acesso ao app — criar login ou gerar nova senha provisória
+// ─────────────────────────────────────────────────────────────
+const DESCRICAO_ACESSO_APP = {
+  sem_acesso:   'O aluno ainda não tem login no app.',
+  senha_antiga: 'Login criado com a senha padrão antiga. Gere uma senha nova antes de divulgar o acesso ao aluno.',
+  provisoria:   'Senha provisória gerada. Aguardando o aluno entrar e criar a própria senha.',
+  ativo:        'O aluno já entrou e criou a própria senha.',
+};
+
+function CardAcessoApp({ aluno, alunoId, queryClient }) {
+  const [processando, setProcessando] = useState(false);
+  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState(false);
+  const [credenciais, setCredenciais] = useState(null);
+
+  const status = statusAcessoApp(aluno);
+  const info = STATUS_ACESSO_APP[status];
+  const semEmail = !aluno?.email?.trim();
+
+  async function executar(acao) {
+    setProcessando(true);
+    try {
+      const { email, senha } = acao === 'criar'
+        ? await alunosService.criarAcessoApp(aluno.id)
+        : await alunosService.gerarNovaSenhaApp(aluno.id);
+      setCredenciais({ nome: aluno.nome_completo, email, senha, tipo: acao === 'criar' ? 'novo' : 'nova_senha' });
+      queryClient.invalidateQueries(['aluno', alunoId]);
+      queryClient.invalidateQueries({ queryKey: ['alunos'] });
+    } catch (err) {
+      showToast.error(err.message || 'Erro ao gerar o acesso ao app.');
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  return (
+    <Surface variant="card" padding="xl" className="space-y-5 md:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-black text-foreground flex items-center gap-2">
+          <KeyRound size={20} className="text-primary" /> Acesso ao app
+        </h3>
+        <Badge tone={info.tone} variant="soft">{info.label}</Badge>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{DESCRICAO_ACESSO_APP[status]}</p>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <p className="text-sm text-foreground">
+          {semEmail
+            ? 'Cadastre um e-mail em "Editar Cadastro" para criar o acesso.'
+            : <>Login: <strong className="break-all">{aluno.email}</strong></>}
+        </p>
+        {status === 'sem_acesso' ? (
+          <Button variant="brand" size="md" leftIcon={<KeyRound size={16} />}
+            onClick={() => executar('criar')} loading={processando} disabled={processando || semEmail}>
+            Criar acesso
+          </Button>
+        ) : (
+          <Button variant={status === 'senha_antiga' ? 'brand' : 'outline'} size="md" leftIcon={<RotateCcw size={16} />}
+            onClick={() => setConfirmarNovaSenha(true)} loading={processando} disabled={processando}>
+            Gerar nova senha
+          </Button>
+        )}
+      </div>
+
+      <ModalConfirmacao
+        aberto={confirmarNovaSenha}
+        fechar={() => setConfirmarNovaSenha(false)}
+        onConfirm={() => executar('resetar_senha')}
+        titulo="Gerar nova senha?"
+        mensagem={`A senha atual de ${aluno.nome_completo} deixa de funcionar e as sessões abertas no app são encerradas. A nova senha provisória aparece uma única vez para você repassar.`}
+        textoConfirmar="Gerar nova senha"
+        tipo="warning"
+        loading={processando}
+      />
+
+      <ModalCredenciaisAcesso
+        aberto={!!credenciais}
+        fechar={() => setCredenciais(null)}
+        credenciais={credenciais}
+        tipo={credenciais?.tipo}
+      />
+    </Surface>
+  );
+}
+
 function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({
@@ -168,7 +260,9 @@ function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
           cidade: data.localidade || f.cidade,
         }));
       }
-    } catch {}
+    } catch (err) {
+      console.error('[PerfilAluno] buscarCep:', err);
+    }
   };
   const labelClass = 'text-[10px] uppercase font-black text-muted-foreground tracking-widest block mb-1.5';
   const inputClass = 'w-full border border-border rounded-xl px-4 py-2.5 text-sm font-medium text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground';
@@ -357,7 +451,10 @@ function CardUsoPlan({ aluno, planos, frequencia }) {
 // Heatmap Frequência
 // ─────────────────────────────────────────────────────────────
 function HeatmapFrequencia({ frequencia, planoAtivo }) {
-  const hoje      = new Date();
+  // ILU-66: ancorado em hojeBrasilia() ao meio-dia (em vez de `new Date()`
+  // "agora", que perto da meia-noite em Brasília já pode ser o dia
+  // seguinte em UTC) para que a célula "hoje" não fique errada à noite.
+  const hoje      = new Date(`${hojeBrasilia()}T12:00:00`);
   const SEMANAS   = 12;
   const totalDias = SEMANAS * 7;
   const ancor = new Date(hoje);
@@ -373,7 +470,7 @@ function HeatmapFrequencia({ frequencia, planoAtivo }) {
     return {
       iso,
       hasPresence: datasComPresenca.has(iso),
-      isToday:     iso === hoje.toISOString().split('T')[0],
+      isToday:     iso === hojeBrasilia(),
       isFuture:    d > hoje,
     };
   });
@@ -856,11 +953,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   // Filtro de dia da semana dentro do modal ('todos' | nome do dia)
   const [diaFiltro, setDiaFiltro]              = useState('todos');
  
-  React.useEffect(() => {
-    carregarAgendaFixa();
-  }, [alunoId]);
- 
-  async function carregarAgendaFixa() {
+  const carregarAgendaFixa = React.useCallback(async () => {
     setLoading(true);
     try {
       const { data: aulas } = await supabase
@@ -890,7 +983,11 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [alunoId]);
+
+  React.useEffect(() => {
+    carregarAgendaFixa();
+  }, [carregarAgendaFixa]);
  
   // Conta quantas vezes uma modalidade (id) aparece em modalidades_selecionadas do aluno
   const getCountModEspecifica = (modId) =>
@@ -908,9 +1005,12 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       if (error) throw error;
       showToast.success('Aluno matriculado na turma!');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao matricular na turma.'); }
+    } catch (err) {
+      console.error('[PerfilAluno] executarMatricula:', err);
+      showToast.error('Erro ao matricular na turma.');
+    }
   }
- 
+
   async function executarRemocao(aula) {
     try {
       const { error } = await supabase.from('agenda_fixa')
@@ -918,7 +1018,10 @@ function AbaAgendaFixa({ aluno, alunoId }) {
       if (error) throw error;
       showToast.success('Aluno removido da turma.');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao remover da turma.'); }
+    } catch (err) {
+      console.error('[PerfilAluno] executarRemocao:', err);
+      showToast.error('Erro ao remover da turma.');
+    }
   }
  
   function toggleMatriculaFixa(aula) {
@@ -1165,12 +1268,55 @@ function AbaAgendaFixa({ aluno, alunoId }) {
 function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient, onClose }) {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({
-    plano_id:    registro?.plano_id    ?? '',
-    data_inicio: registro?.data_inicio ?? '',
-    data_fim:    registro?.data_fim    ?? '',
-    valor_pago:  registro?.valor_pago  ?? '',
-    status:      registro?.status      ?? 'finalizado',
+    plano_id:          registro?.plano_id          ?? '',
+    data_inicio:       registro?.data_inicio        ?? '',
+    data_fim:          registro?.data_fim           ?? '',
+    valor_pago:        registro?.valor_pago         ?? '',
+    status:            registro?.status             ?? 'finalizado',
+    forma_recebimento: registro?.forma_recebimento  ?? 'recorrente',
   });
+
+  // ILU-70: editar um ciclo para "À vista" não remove sozinho as cobranças de
+  // plano já geradas dentro do período — a cobrança integral do próprio ciclo
+  // pode estar legitimamente pendente, então não dá para distinguir com
+  // segurança. Listamos as que estão em aberto e o admin marca quais remover.
+  const [idsMarcados, setIdsMarcados] = useState([]);
+  const verificaCobrancas =
+    form.forma_recebimento === 'a_vista' &&
+    !!form.data_inicio && !!form.data_fim && form.data_inicio <= form.data_fim;
+  const { data: cobrancasEmAberto = [], isLoading: carregandoCobrancas } = useQuery({
+    queryKey: ['aluno-cobrancas-em-aberto', alunoId, form.data_inicio, form.data_fim],
+    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, form.data_inicio, form.data_fim),
+    enabled: !!alunoId && verificaCobrancas,
+  });
+  // Só valem as marcações que continuam na lista do período atual.
+  const idsParaRemover = verificaCobrancas
+    ? idsMarcados.filter(id => cobrancasEmAberto.some(c => c.id === id))
+    : [];
+  const idsMensais = cobrancasEmAberto.filter(c => !ehCobrancaIntegralDoCiclo(c)).map(c => c.id);
+  const alternarCobranca = (id) => setIdsMarcados(ids => (
+    ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+  ));
+
+  const removerCobrancasMarcadas = async () => {
+    if (idsParaRemover.length === 0) return null;
+    try {
+      const removidas = await financeiroService.excluirCobrancasEmAberto(idsParaRemover);
+      queryClient.invalidateQueries({ queryKey: ['aluno-cobrancas-em-aberto', alunoId] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      const ignoradas = idsParaRemover.length - removidas;
+      return {
+        sucesso: `${removidas} cobrança(s) removida(s).`,
+        aviso: ignoradas > 0
+          ? `${ignoradas} cobrança(s) não foram removidas porque já não estavam em aberto.`
+          : null,
+      };
+    } catch (err) {
+      console.error('[PerfilAluno] Erro ao remover cobranças em aberto:', err);
+      return { aviso: 'O histórico foi salvo, mas as cobranças marcadas não puderam ser removidas. Remova-as pelo Financeiro.' };
+    }
+  };
 
   const handleSalvar = async () => {
     if (!form.plano_id || !form.data_inicio || !form.data_fim) {
@@ -1182,25 +1328,38 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
       const { error } = await supabase
         .from('historico_planos')
         .update({
-          plano_id:    Number(form.plano_id),
-          data_inicio: form.data_inicio,
-          data_fim:    form.data_fim,
-          valor_pago:  Number(form.valor_pago) || 0,
-          status:      form.status,
+          plano_id:          Number(form.plano_id),
+          data_inicio:       form.data_inicio,
+          data_fim:          form.data_fim,
+          valor_pago:        Number(form.valor_pago) || 0,
+          status:            form.status,
+          forma_recebimento: form.forma_recebimento,
         })
         .eq('id', registro.id);
       if (error) throw error;
-      // Se status virou 'ativo', sincroniza o campo alunos.plano_id / data_fim_plano
-      if (form.status === 'ativo') {
+      // Recalcula o ciclo vigente com o histórico já atualizado e sincroniza
+      // alunos.plano_id/data_fim_plano com ele — em vez de assumir que o
+      // registro editado é o vigente só porque seu status é 'ativo' (podia
+      // deixar a lista/perfil desatualizados ao editar um registro antigo,
+      // ou não atualizar quando a edição tirava o registro da vigência).
+      const historicoAtualizado = await alunosService.buscarHistoricoPlanos(alunoId);
+      const vigente = derivarPlanoVigente(historicoAtualizado);
+      if (vigente) {
         await supabase.from('alunos').update({
-          plano_id:        Number(form.plano_id),
-          data_inicio_plano: form.data_inicio,
-          data_fim_plano:  form.data_fim,
+          plano_id:          vigente.plano_id,
+          data_inicio_plano: vigente.data_inicio,
+          data_fim_plano:    vigente.data_fim,
         }).eq('id', alunoId);
       }
       queryClient.invalidateQueries(['aluno-planos', alunoId]);
       queryClient.invalidateQueries(['aluno', alunoId]);
-      showToast.success('Histórico atualizado com sucesso!');
+      // Só depois do histórico salvo: uma falha aqui não desfaz a edição,
+      // vira um aviso.
+      const resultadoCobrancas = await removerCobrancasMarcadas();
+      showToast.success(resultadoCobrancas?.sucesso
+        ? `Histórico atualizado. ${resultadoCobrancas.sucesso}`
+        : 'Histórico atualizado com sucesso!');
+      if (resultadoCobrancas?.aviso) showToast.warning(resultadoCobrancas.aviso);
       onClose();
     } catch (err) {
       console.error('[PerfilAluno] Erro ao editar histórico:', err);
@@ -1275,6 +1434,65 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
               </select>
             </div>
           </div>
+          <div>
+            <label className={labelClass}>Forma de Recebimento</label>
+            <select className={inputClass}
+              value={form.forma_recebimento}
+              onChange={e => setForm(f => ({ ...f, forma_recebimento: e.target.value }))}>
+              <option value="recorrente">Recorrente (mensal)</option>
+              <option value="a_vista">À vista</option>
+            </select>
+          </div>
+          {verificaCobrancas && (
+            <div className="space-y-3 p-3 rounded-xl bg-warning-soft border border-warning/30">
+              {carregandoCobrancas ? (
+                <p className="text-xs font-medium text-muted-foreground">Verificando cobranças em aberto no período...</p>
+              ) : cobrancasEmAberto.length === 0 ? (
+                <p className="text-xs font-medium text-muted-foreground">Nenhuma cobrança de plano em aberto neste período.</p>
+              ) : (
+                <>
+                  <div className="flex items-start gap-2 text-xs font-medium text-warning-foreground">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
+                    <span>
+                      {cobrancasEmAberto.length === 1
+                        ? 'Há 1 cobrança de plano em aberto dentro deste período.'
+                        : `Há ${cobrancasEmAberto.length} cobranças de plano em aberto dentro deste período.`}
+                      {' '}O ciclo à vista não gera novas mensalidades, mas as já criadas continuam.
+                      Marque as que devem ser removidas ao salvar.
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {cobrancasEmAberto.map(c => (
+                      <li key={c.id}>
+                        <label className="flex items-center gap-3 px-3 py-2 rounded-lg bg-background border border-border text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="accent-primary"
+                            checked={idsParaRemover.includes(c.id)}
+                            onChange={() => alternarCobranca(c.id)}
+                          />
+                          <span className="font-bold text-foreground">{formatarDataBR(c.data_vencimento)}</span>
+                          <span className="text-muted-foreground">{formatarMoeda(valorDevidoMensalidade(c))}</span>
+                          <span className="ml-auto text-[10px] uppercase font-black text-muted-foreground tracking-wider">
+                            {ehCobrancaIntegralDoCiclo(c) ? 'Integral do ciclo' : c.status}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {idsMensais.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-primary hover:underline"
+                      onClick={() => setIdsMarcados(idsMensais)}
+                    >
+                      Marcar todas as mensais
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {form.status === 'ativo' && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-warning-foreground">
               <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
@@ -1286,7 +1504,9 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
           <Button variant="ghost" size="md" onClick={onClose} disabled={salvando}>Cancelar</Button>
           <Button variant="brand" size="md" leftIcon={<Save size={16} />}
             onClick={handleSalvar} disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Salvar'}
+            {salvando
+              ? 'Salvando...'
+              : idsParaRemover.length > 0 ? `Salvar e remover ${idsParaRemover.length}` : 'Salvar'}
           </Button>
         </div>
       </div>
@@ -1359,9 +1579,11 @@ function ResumoFrequenciaAluno({ alunoId }) {
         Período do plano vigente: {formatarDataBR(periodo_inicio)} – {formatarDataBR(periodo_fim)}
       </p>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* ILU-71: plano livre não tem meta — a função devolve NULL. */}
         <CardMetricaFrequencia
           titulo="Aulas Previstas"
-          valor={aulas_previstas}
+          valor={aulas_previstas ?? 'Livre'}
+          subtitulo={aulas_previstas == null ? 'plano sem limite semanal' : undefined}
           icone={<Clock size={20} />}
           tone="brand"
         />
@@ -1407,32 +1629,15 @@ function formatarDataBR(iso) {
 // ficar dessincronizado se uma renovação não finalizar corretamente
 // o ciclo anterior (ver correção de renovar_plano_aluno / ILU-8).
 // ─────────────────────────────────────────────────────────────
-function derivarPlanoVigente(planos) {
-  if (!Array.isArray(planos) || planos.length === 0) return null;
-  const hojeStr = new Date().toISOString().split('T')[0];
-  const naoCancelados = planos.filter(p => p.status !== 'cancelado');
-
-  // 1) Prioridade: o ciclo cuja janela [data_inicio, data_fim] contém hoje.
-  //    Se houver mais de um (dado inconsistente), fica com o de data_inicio
-  //    mais recente.
-  const vigentesPorData = naoCancelados
-    .filter(p => p.data_inicio <= hojeStr && p.data_fim >= hojeStr)
-    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
-  if (vigentesPorData.length > 0) return vigentesPorData[0];
-
-  // 2) Nenhum ciclo cobre hoje (ex: venceu e ainda não foi renovado) —
-  //    usa o de data_inicio mais recente entre os não cancelados.
-  const maisRecente = [...naoCancelados]
-    .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
-  return maisRecente[0] ?? null;
-}
-
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState('resumo');
-  const [modalRenovarAberto, setModalRenovarAberto] = useState(false);
+  // A edição do cadastro (NovoAluno) manda para cá quem quer trocar o plano.
+  const abrirRenovarPlano = !!location.state?.abrirRenovarPlano;
+  const [abaAtiva, setAbaAtiva] = useState(abrirRenovarPlano ? 'planos' : 'resumo');
+  const [modalRenovarAberto, setModalRenovarAberto] = useState(abrirRenovarPlano);
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
@@ -1440,7 +1645,7 @@ export default function PerfilAluno() {
   const [confirmDeleteId, setConfirmDeleteId]   = useState(null);
   const [deletando, setDeletando]               = useState(false);
 
-  const hoje = new Date();
+  const hoje = new Date(`${hojeBrasilia()}T12:00:00`);
   const noventa = new Date(hoje);
   noventa.setDate(hoje.getDate() - 90);
   const fmt = (d) => d.toISOString().split('T')[0];
@@ -1468,9 +1673,20 @@ export default function PerfilAluno() {
     }
   }, [aluno?.observacoes_medicas]);
 
+  // Consome o pedido de abrir a renovação — o state do histórico sobrevive a
+  // um F5, e o modal não deve reabrir sozinho depois.
+  React.useEffect(() => {
+    if (location.state?.abrirRenovarPlano) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
+
   const handleRenovacaoSucesso = () => {
-    queryClient.invalidateQueries(['aluno', id]);
-    queryClient.invalidateQueries(['aluno-planos', id]);
+    queryClient.invalidateQueries({ queryKey: ['aluno', id] });
+    queryClient.invalidateQueries({ queryKey: ['aluno-planos', id] });
+    // A renovação cria a mensalidade do novo ciclo.
+    queryClient.invalidateQueries({ queryKey: ['financeiro'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   // Lista de planos para o modal de edição
@@ -1649,6 +1865,10 @@ export default function PerfilAluno() {
                 </div>
               </div>
             </Surface>
+            {/* ILU-76: só contas de aluno — admins não são gerenciados por aqui */}
+            {aluno?.role === 'aluno' && (
+              <CardAcessoApp aluno={aluno} alunoId={id} queryClient={queryClient} />
+            )}
           </div>
         )}
 
@@ -1762,7 +1982,12 @@ export default function PerfilAluno() {
                   {planos?.map(p => (
                     <tr key={p.id} className={`hover:bg-muted/30 transition-colors ${confirmDeleteId === p.id ? 'bg-destructive-soft/30' : ''}`}>
                       <td className="p-5">
-                        <p className="font-bold text-foreground">{p.planos?.nome}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-foreground">{p.planos?.nome}</p>
+                          <Badge tone={p.forma_recebimento === 'a_vista' ? 'brand' : 'neutral'} variant="soft">
+                            {p.forma_recebimento === 'a_vista' ? 'À vista' : 'Recorrente'}
+                          </Badge>
+                        </div>
                         <p className="text-xs font-medium text-muted-foreground">R$ {p.valor_pago}</p>
                       </td>
                       <td className="p-5">

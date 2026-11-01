@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Plus, Trash2, Edit2, DollarSign, Calendar, 
   TrendingDown, AlertCircle, Filter, Download,
@@ -8,16 +8,17 @@ import {
 import * as XLSX from 'xlsx';
 
 import { despesasService } from '../services/despesasService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { TableSkeleton, CardSkeleton } from '../components/shared/Loading';
-import { formatarMoeda, formatarData } from '../lib/utils';
+import { formatarMoeda } from '../lib/utils';
 
 import Button from '../components/ui/Button';
 import Input, { Label } from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import Surface from '../components/ui/Surface';
 import EmptyState from '../components/ui/EmptyState';
-import Modal, { useModal, ModalConfirmacao } from '../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 
 const CATEGORIAS_DESPESA = [
   { valor: 'energia',      label: 'Energia Elétrica',    icone: <Zap size={16} /> },
@@ -74,23 +75,23 @@ export default function Despesas() {
   const modalNova    = useModal();
   const modalExcluir = useModal();
 
-  useEffect(() => {
-    fetchDespesas();
-  }, [filtros.mes, filtros.ano]);
-
-  async function fetchDespesas() {
+  const fetchDespesas = useCallback(async () => {
     setLoading(true);
     try {
       await despesasService.replicarRecorrentes(filtros.mes, filtros.ano);
       const dados = await despesasService.listar(filtros.mes, filtros.ano);
       setDespesas(dados || []);
       calcularMetricas(dados || []);
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao carregar despesas.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [filtros.mes, filtros.ano]);
+
+  useEffect(() => {
+    fetchDespesas();
+  }, [fetchDespesas]);
 
   function calcularMetricas(dados) {
     const totalMes = dados
@@ -122,7 +123,7 @@ export default function Despesas() {
       modalNova.fechar();
       resetForm();
       fetchDespesas();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao salvar despesa.");
     } finally {
       setSalvando(false);
@@ -138,7 +139,7 @@ export default function Despesas() {
       modalExcluir.fechar();
       setDespesaExcluir(null);
       fetchDespesas();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao excluir despesa.");
     } finally {
       setProcessandoAcao(false);
@@ -152,7 +153,7 @@ export default function Despesas() {
       await despesasService.registrarPagamento(despesa.id);
       showToast.success("Despesa marcada como paga!");
       fetchDespesas();
-    } catch (err) {
+    } catch {
       showToast.error("Erro ao atualizar status.");
     } finally {
       setProcessandoAcao(false);

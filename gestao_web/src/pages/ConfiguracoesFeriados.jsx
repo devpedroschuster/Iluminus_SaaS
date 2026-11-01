@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar, DownloadCloud, AlertCircle, CheckCircle } from 'lucide-react';
 import { feriadosService } from '../services/feriadosService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Surface from '../components/ui/Surface';

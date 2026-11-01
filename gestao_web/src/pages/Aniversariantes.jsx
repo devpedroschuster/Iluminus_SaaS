@@ -7,7 +7,7 @@ import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import Skeleton from '../components/ui/Skeleton';
 import Surface from '../components/ui/Surface';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',

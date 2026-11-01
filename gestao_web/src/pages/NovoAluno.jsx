@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
   ArrowLeft, ArrowRight, User, Mail, ShieldCheck, Package,
-  RefreshCw, Copy, Check, CreditCard, Calendar, Phone, MapPin,
+  RefreshCw, Check, CreditCard, Calendar, Phone, MapPin,
   Home, CheckCircle2, CalendarDays, AlertTriangle, Trash2, Plus,
   Info, Lock, AlertCircle, KeyRound,
 } from 'lucide-react';
@@ -13,8 +13,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
+import { hojeBrasilia, calcularFimPlano } from '../lib/utils';
 import Modal from '../components/shared/Modal';
+import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
 
 // CPF helpers
 function formatarCPF(value) {
@@ -159,11 +161,10 @@ export default function NovoAluno() {
 
   const [confirmModal, setConfirmModal] = useState(null);
 
-  const [copiado,                 setCopiado]                 = useState(false);
   const [dadosCriados,            setDadosCriados]            = useState(null);
   const [buscandoCep,             setBuscandoCep]             = useState(false);
   const [dataVencimento,          setDataVencimento]          = useState(
-    new Date().toISOString().split('T')[0]
+    hojeBrasilia()
   );
 
   const [stepAtual, setStepAtual] = useState(1);
@@ -192,11 +193,12 @@ export default function NovoAluno() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(alunoSchema),
-    defaultValues: { role: 'aluno', bolsista: false },
+    defaultValues: { role: 'aluno', bolsista: false, forma_recebimento: 'recorrente' },
   });
 
   const roleAtual          = watch('role');
   const planoSelecionado   = watch('plano_id');
+  const formaRecebimentoAtual = watch('forma_recebimento');
   const dataInicioPlano    = useWatch({ control, name: 'data_inicio_plano' });
   const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
   const regrasPlano         = planoSelecionadoObj?.regras_acesso || [];
@@ -213,6 +215,14 @@ export default function NovoAluno() {
     }
   }, [location.pathname, reset, alunoParaEditar, leadParaConversao]);
 
+  // ILU-30: em modo de CRIAÇÃO, "Início do Contrato" espelha "Data do 1º
+  // Pagamento" — assim o preview "Fim (Calculado)" abaixo (e o valor de fato
+  // salvo no submit) sempre partem da mesma origem e do mesmo cálculo
+  // calendarizado (setMonth), eliminando a divergência entre tela e valor persistido.
+  useEffect(() => {
+    if (!alunoParaEditar) setValue('data_inicio_plano', dataVencimento);
+  }, [dataVencimento, alunoParaEditar, setValue]);
+
   useEffect(() => {
     if (!planoSelecionadoObj || !dataInicioPlano) return;
     // O browser envia YYYY-MM-DD mesmo com ano incompleto (ex: 0002, 0020, 0202).
@@ -222,11 +232,8 @@ export default function NovoAluno() {
     if (!ano || ano < 1900) return;
     const dataInicio = new Date(dataInicioPlano + 'T12:00:00');
     if (isNaN(dataInicio.getTime())) return;
-    const meses   = planoSelecionadoObj.duracao_meses || 1;
-    const dataFim = new Date(dataInicio);
-    dataFim.setMonth(dataFim.getMonth() + meses);
-    dataFim.setDate(dataFim.getDate() - 1);
-    setValue('data_fim_plano', dataFim.toISOString().split('T')[0]);
+    const meses = planoSelecionadoObj.duracao_meses || 1;
+    setValue('data_fim_plano', calcularFimPlano(dataInicioPlano, meses));
   }, [planoSelecionadoObj, dataInicioPlano, setValue]);
 
   useEffect(() => {
@@ -275,14 +282,10 @@ export default function NovoAluno() {
       }
     }
     carregarFichaCompleta();
-  }, [alunoParaEditar, reset]);
-
-  useEffect(() => {
-    if (abaAtiva === 'agenda' && alunoParaEditar) carregarAgendaFixa();
-  }, [abaAtiva, alunoParaEditar]);
+  }, [alunoParaEditar, reset, leadParaConversao]);
 
   // agenda fixa
-  async function carregarAgendaFixa() {
+  const carregarAgendaFixa = useCallback(async () => {
     setLoadingAgenda(true);
     try {
       const { data: aulas } = await supabase
@@ -306,7 +309,11 @@ export default function NovoAluno() {
     } finally {
       setLoadingAgenda(false);
     }
-  }
+  }, [alunoParaEditar]);
+
+  useEffect(() => {
+    if (abaAtiva === 'agenda' && alunoParaEditar) carregarAgendaFixa();
+  }, [abaAtiva, alunoParaEditar, carregarAgendaFixa]);
 
   const buscarCep = async (cep) => {
     const cepLimpo = cep.replace(/\D/g, '');
@@ -398,7 +405,10 @@ export default function NovoAluno() {
       if (error) throw error;
       showToast.success('Aluno matriculado na turma!');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao matricular na turma.'); }
+    } catch (err) {
+      console.error('[NovoAluno] executarMatricula:', err);
+      showToast.error('Erro ao matricular na turma.');
+    }
   }
 
   async function executarRemocao(aula) {
@@ -408,7 +418,10 @@ export default function NovoAluno() {
       if (error) throw error;
       showToast.success('Aluno removido da turma.');
       carregarAgendaFixa();
-    } catch { showToast.error('Erro ao remover da turma.'); }
+    } catch (err) {
+      console.error('[NovoAluno] executarRemocao:', err);
+      showToast.error('Erro ao remover da turma.');
+    }
   }
 
   function toggleMatriculaFixa(aula) {
@@ -432,12 +445,77 @@ export default function NovoAluno() {
     }
   }
 
-  const calcularDataFim = (dataVencimentoStr, mesesAdicionais) => {
-    if (!dataVencimentoStr || !mesesAdicionais) return '';
-    const d = new Date(dataVencimentoStr + 'T12:00:00');
-    d.setDate(d.getDate() + Number(mesesAdicionais) * 30);
-    return d.toISOString().split('T')[0];
-  };
+  // ILU-31: histórico do plano + primeira mensalidade, extraídos para uma
+  // função própria para que a mesma lógica possa ser chamada de novo em
+  // caso de retry (ver avisarFalhaFinanceira abaixo). Cada insert só roda
+  // se ainda não existir um registro equivalente — assim um retry depois de
+  // uma falha parcial (ex.: histórico foi criado mas a mensalidade falhou)
+  // não duplica o que já tinha sido salvo com sucesso na tentativa anterior.
+  async function criarRegistrosFinanceiros(alunoId, planoId, planoInfo, dataInicio, dataFim, vencimento, formaRecebimento = 'recorrente') {
+    // 'a_vista': o ciclo inteiro é cobrado de uma vez (preço mensal ×
+    // duração, congelado) — mesma conta usada nas RPCs matricular_aluno /
+    // renovar_plano_aluno para manter os dois caminhos consistentes.
+    const valorIntegral = Number(planoInfo.preco || 0) * (planoInfo.duracao_meses || 1);
+    const valorCiclo = formaRecebimento === 'a_vista' ? valorIntegral : (planoInfo.preco || 0);
+
+    const { data: histExistente } = await supabase
+      .from('historico_planos')
+      .select('id')
+      .match({ aluno_id: alunoId, plano_id: planoId, data_inicio: dataInicio, status: 'ativo' })
+      .maybeSingle();
+
+    if (!histExistente) {
+      const { error: errHist } = await supabase.from('historico_planos').insert([{
+        aluno_id:          alunoId,
+        plano_id:          planoId,
+        data_inicio:       dataInicio,
+        data_fim:          dataFim,
+        status:            'ativo',
+        valor_pago:        valorCiclo,
+        forma_recebimento: formaRecebimento,
+      }]);
+      if (errHist) throw errHist;
+    }
+
+    const { data: mensExistente } = await supabase
+      .from('mensalidades')
+      .select('id')
+      .match({ aluno_id: alunoId, plano_id: planoId, data_vencimento: vencimento })
+      .maybeSingle();
+
+    if (!mensExistente) {
+      const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
+        aluno_id:        alunoId,
+        plano_id:        planoId,
+        data_vencimento: vencimento,
+        status:          'pendente',
+        valor_esperado:  valorCiclo,
+        descricao:       formaRecebimento === 'a_vista' ? 'Pagamento integral do plano' : null,
+      }]);
+      if (errMensalidade) throw errMensalidade;
+    }
+  }
+
+  // ILU-31: aviso persistente (com botão de retry) quando o histórico do
+  // plano/primeira mensalidade falha depois que o aluno já foi salvo.
+  function avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento = 'recorrente') {
+    async function tentarNovamente() {
+      try {
+        await criarRegistrosFinanceiros(
+          alunoId, planoId, planoInfo,
+          payload.data_inicio_plano, payload.data_fim_plano, vencimento, formaRecebimento,
+        );
+        showToast.success('Registro financeiro criado com sucesso!');
+      } catch (novoErro) {
+        console.error('[NovoAluno] Nova falha ao registrar histórico/mensalidade:', novoErro);
+        avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento);
+      }
+    }
+    showToast.custom(
+      `Cadastro de ${nomeAluno} salvo, mas falhou o registro do histórico do plano e da 1ª mensalidade.`,
+      tentarNovamente, 'Tentar novamente', 15000,
+    );
+  }
 
   // ─────────────────────────────────────────────────────────
   // Fix #4 – Phase 1: save aluno WITHOUT creating auth.
@@ -472,23 +550,22 @@ export default function NovoAluno() {
 
       if (planoFinal) {
         planoInfos = planos.find(p => String(p.id) === String(planoFinal));
-        // ILU-13: em modo de EDIÇÃO, `data_inicio_plano`/`data_fim_plano` já
-        // vêm corretos do formulário (payloadBase acima), incluindo qualquer
-        // ajuste manual do staff no campo "Fim (Calculado)". Recalcular aqui
-        // a partir de "hoje" + duração do plano sobrescrevia silenciosamente
-        // essa edição manual — vencimento alterado na tela nunca persistia,
-        // sempre recaindo em hoje+30d. Em modo de CRIAÇÃO o contrato começa
-        // de fato na data do 1º pagamento, então o recálculo continua válido.
-        if (planoInfos && !alunoParaEditar) {
-          payloadBase.data_inicio_plano = new Date().toISOString().split('T')[0];
-          payloadBase.data_fim_plano    = calcularDataFim(dataVencimento, planoInfos.duracao_meses || 1);
-        }
+        // ILU-13/ILU-30: data_inicio_plano/data_fim_plano já vêm corretos do
+        // formulário (payloadBase acima) tanto em criação quanto em edição —
+        // em criação, "Início do Contrato" é mantido sincronizado com "Data
+        // do 1º Pagamento" (ver efeito acima), e "Fim (Calculado)" é sempre
+        // derivado dele via cálculo calendarizado (setMonth), o mesmo do
+        // preview da tela. Recalcular aqui com outra fórmula reintroduziria
+        // a divergência entre o que a equipe vê e o que é salvo.
       }
 
       // EDIT MODE – unchanged behaviour
       if (alunoParaEditar) {
+        // plano_id fica de fora: a troca de plano passa pelo "Renovar / Alterar
+        // Plano" (ver renderEditForm), que cria histórico e mensalidade.
+        const { plano_id: _plano, ...dadosCadastro } = payloadBase;
         await alunosService.atualizar(alunoParaEditar.id, {
-          ...payloadBase, nome_completo: data.nome_completo,
+          ...dadosCadastro, nome_completo: data.nome_completo,
         });
         showToast.success('Cadastro atualizado com sucesso!');
         await queryClient.invalidateQueries({ queryKey: ['alunos'] });
@@ -532,24 +609,21 @@ export default function NovoAluno() {
       }
 
       // Financial records
+      // ILU-31: uma falha aqui não pode passar batido — o aluno já foi
+      // criado, então em vez de só logar no console e seguir direto pra
+      // tela de sucesso como se nada tivesse acontecido, avisamos o admin
+      // com uma ação de retry (o toast fica na tela mesmo que o fluxo
+      // navegue para outra rota logo em seguida).
       if (novoAlunoId && planoFinal && planoInfos) {
-        const { error: errHist } = await supabase.from('historico_planos').insert([{
-          aluno_id:    novoAlunoId,
-          plano_id:    planoFinal,
-          data_inicio: payloadBase.data_inicio_plano,
-          data_fim:    payloadBase.data_fim_plano,
-          status:      'ativo',
-          valor_pago:  planoInfos.preco || 0,
-        }]);
-        if (errHist) console.error('Erro no histórico:', errHist);
-
-        const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
-          aluno_id:        novoAlunoId,
-          plano_id:        planoFinal,
-          data_vencimento: dataVencimento,
-          status:          'pendente',
-        }]);
-        if (errMensalidade) console.error('Erro na mensalidade:', errMensalidade);
+        try {
+          await criarRegistrosFinanceiros(
+            novoAlunoId, planoFinal, planoInfos,
+            payloadBase.data_inicio_plano, payloadBase.data_fim_plano, dataVencimento, data.forma_recebimento,
+          );
+        } catch (errFinanceiro) {
+          console.error('[NovoAluno] Falha ao registrar histórico/mensalidade:', errFinanceiro);
+          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, planoFinal, planoInfos, payloadBase, dataVencimento, data.forma_recebimento);
+        }
       }
 
       // Lead conversion
@@ -579,22 +653,13 @@ export default function NovoAluno() {
     setCriandoAcesso(true);
     setErroAcesso('');
     try {
-      const { data: funcData, error: funcError } = await supabase.functions.invoke(
-        'criar_usuario',
-        { body: { email: alunoSalvoEmail, nome: alunoSalvoNome, role: 'aluno' } }
-      );
-      if (funcError) throw new Error('Falha na comunicação com o servidor seguro.');
-      if (funcData?.error) throw new Error(
-        funcData.error === 'User already registered'
-          ? 'Este e-mail já possui um acesso.'
-          : funcData.error
-      );
-      const { error: linkError } = await supabase
-        .from('alunos').update({ auth_id: funcData.user.id }).eq('id', alunoSalvoId);
-      if (linkError) throw new Error('Acesso criado, mas falhou ao vincular ao cadastro. Anote o auth_id e contacte o suporte.');
+      // ILU-76: o servidor cria o login e já o vincula a este aluno (tudo ou
+      // nada) — antes o vínculo era um segundo passo aqui no navegador e
+      // podia falhar deixando um login órfão.
+      const { email, senha } = await alunosService.criarAcessoApp(alunoSalvoId);
 
       setAcessoCriado(true);
-      setDadosCriados({ nome: alunoSalvoNome, email: alunoSalvoEmail });
+      setDadosCriados({ nome: alunoSalvoNome, email, senha });
       setModalOpen(true);
     } catch (err) {
       setErroAcesso(err.message || 'Falha ao criar acesso. Tente novamente.');
@@ -602,17 +667,6 @@ export default function NovoAluno() {
       setCriandoAcesso(false);
     }
   }
-
-  const copiarInstrucoes = () => {
-    const texto =
-      `Olá ${dadosCriados.nome}!\nSeu cadastro no Espaço Iluminus foi criado.\n\n` +
-      `Acesse: ${window.location.origin}\nLogin: ${dadosCriados.email}\n` +
-      `Senha Provisória: Iluminus576\n\nO sistema pedirá para você criar uma nova senha no primeiro acesso.`;
-    navigator.clipboard.writeText(texto);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-    showToast.success('Instruções copiadas!');
-  };
 
   const modalidadesUnicasIDs   = [...new Set(modalidadesSelecionadas)];
   const listaModalidadesAgenda = modalidadesUnicasIDs
@@ -630,7 +684,7 @@ export default function NovoAluno() {
             <input
               type="date"
               value={dataVencimento}
-              min={new Date().toISOString().split('T')[0]}
+              min={hojeBrasilia()}
               onChange={e => setDataVencimento(e.target.value)}
               className="w-full bg-white border-none rounded-xl px-4 py-3 font-bold text-gray-700
                 focus:ring-2 focus:ring-blue-500/20 outline-none"
@@ -957,6 +1011,33 @@ export default function NovoAluno() {
             </select>
           </div>
           <PlanoSlots />
+          {/* Forma de recebimento do plano: mensalidade recorrente (padrão,
+              1 cobrança por mês) ou pagamento integral do ciclo inteiro de
+              uma vez (ex.: plano semestral/anual pago à vista). */}
+          <div className="grid grid-cols-2 gap-4 md:col-span-2">
+            <label className={`relative flex items-center gap-3 px-4 py-4 rounded-2xl cursor-pointer border-2 ${
+              formaRecebimentoAtual === 'recorrente' ? 'border-primary bg-gray-50' : 'border-transparent bg-gray-50'
+            }`}>
+              <input
+                type="radio"
+                value="recorrente"
+                {...register('forma_recebimento')}
+                className="w-5 h-5 accent-primary cursor-pointer"
+              />
+              <span className="font-bold text-gray-600">Recorrente (mensal)</span>
+            </label>
+            <label className={`relative flex items-center gap-3 px-4 py-4 rounded-2xl cursor-pointer border-2 ${
+              formaRecebimentoAtual === 'a_vista' ? 'border-primary bg-gray-50' : 'border-transparent bg-gray-50'
+            }`}>
+              <input
+                type="radio"
+                value="a_vista"
+                {...register('forma_recebimento')}
+                className="w-5 h-5 accent-primary cursor-pointer"
+              />
+              <span className="font-bold text-gray-600">À vista</span>
+            </label>
+          </div>
           {/* ILU-11: marcador de bolsista — aluno matriculado que não paga.
               Usado para separar pagantes de não pagantes no Dashboard. */}
           <label className="relative flex items-center gap-3 px-4 py-4 bg-gray-50 rounded-2xl
@@ -1107,17 +1188,23 @@ export default function NovoAluno() {
                 <option value="aluno">Aluno</option>
               </select>
             </div>
-            <div className="relative">
-              <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-              <select
-                {...register('plano_id')}
-                disabled={roleAtual !== 'aluno'}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold
-                  text-gray-600 appearance-none cursor-pointer"
+            {/* O plano não se troca aqui: quem fecha o ciclo anterior, grava o
+                histórico e cria a mensalidade é o "Renovar / Alterar Plano".
+                Trocar só o cadastro deixava o Financeiro sem nada. */}
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
+                <div className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl font-bold text-gray-600">
+                  {planoSelecionadoObj?.nome || 'Sem plano vinculado'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/alunos/${alunoParaEditar.id}`, { state: { abrirRenovarPlano: true } })}
+                className="text-primary font-bold text-xs uppercase tracking-wider hover:underline text-left px-1"
               >
-                <option value="">Vincular Plano...</option>
-                {planos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
+                Trocar plano em Renovar / Alterar Plano
+              </button>
             </div>
             <PlanoSlots />
           </div>
@@ -1429,19 +1516,12 @@ export default function NovoAluno() {
         </div>
       </Modal>
 
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); navigate('/alunos'); }}
-        titulo="Acesso Criado!"
-      >
-        <button
-          onClick={copiarInstrucoes}
-          className="w-full bg-gray-800 text-white py-4 rounded-2xl font-bold
-            flex items-center justify-center gap-2 hover:bg-gray-700"
-        >
-          {copiado ? <Check size={20} /> : <Copy size={20} />} Copiar Instruções
-        </button>
-      </Modal>
+      <ModalCredenciaisAcesso
+        aberto={modalOpen}
+        fechar={() => { setModalOpen(false); navigate('/alunos'); }}
+        credenciais={dadosCriados}
+        tipo="novo"
+      />
     </div>
   );
 }

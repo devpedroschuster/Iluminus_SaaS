@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
+import { avancarUmMes, hojeBrasilia, vencimentoCobertoPorCicloAVista } from '../lib/utils';
+
+const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
@@ -69,7 +72,7 @@ async listarModalidadesDoAluno(alunoId) {
     // está isento, independente do plano vinculado.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, plano_id, bolsista')
+      .select('id, plano_id, bolsista, planos(preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null);
 
@@ -77,7 +80,28 @@ async listarModalidadesDoAluno(alunoId) {
 
     const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
 
-    const tresMesesAtras = new Date();
+    // Alunos com ciclo pago à vista (forma_recebimento = 'a_vista' em
+    // historico_planos) já quitaram o período inteiro na matrícula/renovação
+    // — não geram mensalidade com vencimento dentro desse ciclo. Checa a
+    // data da próxima cobrança contra o período do ciclo (não só o status
+    // 'ativo', que deixava passar ciclos 'agendado'), mesma regra do cron
+    // gerar-mensalidades.
+    const { data: ciclosAVista, error: errCiclos } = await supabase
+      .from('historico_planos')
+      .select('aluno_id, data_inicio, data_fim, status, forma_recebimento')
+      .in('status', ['ativo', 'agendado'])
+      .eq('forma_recebimento', 'a_vista')
+      .in('aluno_id', alunosCobraveis.map(a => a.id));
+    if (errCiclos) throw errCiclos;
+    const ciclosAVistaPorAluno = new Map();
+    (ciclosAVista || []).forEach(c => {
+      ciclosAVistaPorAluno.set(c.aluno_id, [...(ciclosAVistaPorAluno.get(c.aluno_id) || []), c]);
+    });
+
+    // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para o
+    // corte de "últimos 3 meses" não errar por um dia perto da meia-noite
+    // em Brasília.
+    const tresMesesAtras = new Date(`${hojeBrasilia()}T12:00:00`);
     tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
     const filtroData = tresMesesAtras.toISOString().split('T')[0];
 
@@ -101,9 +125,13 @@ async listarModalidadesDoAluno(alunoId) {
 
       let proximaData;
       if (ultimaDataStr) {
-        const d = new Date(ultimaDataStr + 'T12:00:00');
-        d.setDate(d.getDate() + 30);
-        proximaData = d.toISOString().split('T')[0];
+        // ILU-17: antes somava 30 dias fixos, o que desalinha com o
+        // calendário real (meses têm 28-31 dias) e podia pular um mês
+        // inteiro para vencimentos perto do fim do mês (ex.: 31/jan + 30
+        // dias = 2/mar, nunca cai em fevereiro). `avancarUmMes` avança pro
+        // mesmo dia do mês seguinte, recuando ao último dia do mês de
+        // destino quando necessário.
+        proximaData = avancarUmMes(ultimaDataStr);
       } else {
         // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
         proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
@@ -111,12 +139,16 @@ async listarModalidadesDoAluno(alunoId) {
 
       const [pAno, pMes] = proximaData.split('-').map(Number);
 
-      if (pAno === ano && pMes === mesNumero) {
+      if (
+        pAno === ano && pMes === mesNumero &&
+        !vencimentoCobertoPorCicloAVista(ciclosAVistaPorAluno.get(aluno.id), proximaData)
+      ) {
         novasCobrancas.push({
           aluno_id: aluno.id,
           plano_id: aluno.plano_id,
           data_vencimento: proximaData,
-          status: 'pendente'
+          status: 'pendente',
+          valor_esperado: aluno.planos?.preco ?? null,
         });
       }
     });
@@ -161,7 +193,9 @@ async listarModalidadesDoAluno(alunoId) {
       throw error;
     }
 
-    if (dados.status === 'pago') {
+    // Venda de produto e evento não remuneram professor — não há repasse a
+    // calcular (gerar-repasses não tem regra para esses tipos).
+    if (dados.status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
         await gerarRepassesDaMensalidade(data.id);
       } catch (repasseError) {
@@ -199,7 +233,9 @@ async listarModalidadesDoAluno(alunoId) {
     // NOVO: referência explícita da modalidade quando tipo_aula === 'regular'
     // e o pagamento cobre só uma delas. Nulo preserva o rateio de sempre.
     modalidade_id: dados.tipo_aula === 'regular' ? (dados.modalidade_id || null) : null,
-    data_pagamento: dados.data_pagamento || new Date().toISOString().split('T')[0],
+    // ILU-19: `hojeBrasilia()` em vez de UTC — perto da meia-noite em
+    // Brasília, `toISOString()` já rendia o dia seguinte.
+    data_pagamento: dados.data_pagamento || hojeBrasilia(),
   };
 
     const { error } = await supabase
@@ -221,5 +257,63 @@ async listarModalidadesDoAluno(alunoId) {
         },
       };
     }
+  },
+
+  /**
+   * ILU-70: cobranças de plano em aberto do aluno com vencimento dentro do
+   * período — mesmo critério que matricular_aluno / renovar_plano_aluno
+   * usam para limpar as mensais que um ciclo à vista já cobre. Usado ao
+   * editar um ciclo existente para à vista, onde a limpeza não é automática
+   * (a própria cobrança integral do ciclo pode estar legitimamente
+   * pendente), então o admin escolhe o que remover.
+   */
+  async listarCobrancasPlanoEmAberto(alunoId, inicio, fim) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('id, data_vencimento, status, descricao, valor_esperado, planos(preco)')
+      .eq('aluno_id', alunoId)
+      .in('status', ['pendente', 'atrasado'])
+      .in('tipo_aula', ['regular', 'plano_livre'])
+      .gte('data_vencimento', inicio)
+      .lte('data_vencimento', fim)
+      .order('data_vencimento', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Cobranças de plano em aberto do aluno, da mais recente para a mais
+   * antiga. Usado em "Novo Lançamento": um pagamento de mensalidade deve
+   * quitar a cobrança que a renovação/cadastro já criou, em vez de lançar
+   * outra ao lado dela (que deixava a original atrasada para sempre, ou era
+   * recusada pelo índice único aluno + plano + vencimento).
+   */
+  async listarCobrancasEmAbertoDoAluno(alunoId) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('id, data_vencimento, status, descricao, tipo_aula, valor_esperado, valor_pago, planos(nome, preco)')
+      .eq('aluno_id', alunoId)
+      .in('status', ['pendente', 'atrasado'])
+      .in('tipo_aula', ['regular', 'plano_livre'])
+      .order('data_vencimento', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * ILU-70: remove as cobranças selecionadas, mas só as que continuam em
+   * aberto — uma que tenha sido paga entre abrir o modal e salvar é
+   * preservada. Retorna quantas foram de fato removidas.
+   */
+  async excluirCobrancasEmAberto(ids) {
+    if (!ids?.length) return 0;
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .delete()
+      .in('id', ids)
+      .in('status', ['pendente', 'atrasado'])
+      .select('id');
+    if (error) throw error;
+    return data?.length ?? 0;
   },
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CheckCircle, Users, DollarSign, FileSpreadsheet,
   PieChart, Calendar, Wallet, RefreshCw, AlertTriangle,
@@ -8,16 +8,17 @@ import {
 import * as XLSX from 'xlsx';
 
 import { comissoesService } from '../services/comissoesService';
-import { gerarRepassesMensais, previewRepassesMensais } from '../services/repasseService';
+import { gerarRepassesMensais } from '../services/repasseService';
 import {
   useComissoesProfessor,
   useResumoMensal,
   useInvalidarComissoes,
 } from '../hooks/useComissoesProfessor';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
-import Modal, { ModalConfirmacao, useModal } from '../components/ui/Modal';
+import Modal, { ModalConfirmacao } from '../components/ui/Modal';
+import { useModal } from '../components/ui/useModal';
 import ModalPreviewRepasses from '../components/ModalPreviewRepasses';
 import { formatarMoeda } from '../lib/utils';
 import Badge from '../components/ui/Badge';
@@ -64,6 +65,12 @@ function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Repasse de experimental de visitante não tem aluno cadastrado — usa o
+// nome registrado no pagamento (mensalidades.nome_visitante).
+function nomeDoLancamento(lancamento) {
+  return lancamento.alunos?.nome_completo || lancamento.mensalidades?.nome_visitante || 'N/A';
+}
+
 // ─── sub-componentes ──────────────────────────────────────────────────────────
 
 function TipoAulaBadge({ tipo }) {
@@ -80,6 +87,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [confirmandoDelete, setConfirmandoDelete] = useState(false);
+  const [confirmandoValor, setConfirmandoValor] = useState(false);
 
   const [camposEdit, setCamposEdit] = useState({
     valor: '',
@@ -104,6 +112,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
   function cancelarEdicao() {
     setEditando(false);
     setConfirmandoDelete(false);
+    setConfirmandoValor(false);
   }
 
   async function salvar() {
@@ -112,6 +121,21 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       showToast.error('Valor inválido.');
       return;
     }
+
+    // ILU-33: confirma quando o valor editado desviar >20% do valor original
+    // do lançamento — um erro de digitação não deve virar permanentemente o
+    // valor registrado (e a base de comissão) sem nenhum aviso.
+    const valorOriginal = Number(lancamento.valor);
+    const desviaSignificativamente =
+      Number.isFinite(valorOriginal) && valorOriginal > 0
+      && Math.abs(valor - valorOriginal) / valorOriginal > 0.2;
+
+    if (desviaSignificativamente && !confirmandoValor) {
+      setConfirmandoValor(true);
+      return;
+    }
+    setConfirmandoValor(false);
+
     setSalvando(true);
     try {
       const atualizado = await comissoesService.updateLancamento(lancamento.id, {
@@ -154,12 +178,13 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
 
   if (editando) {
     return (
+      <>
       <tr className="bg-primary/5 border-b border-primary/20">
         <td className="p-4 text-muted-foreground font-medium">
           {formatarData(lancamento.data_referencia)}
         </td>
         <td className="p-4 font-bold text-foreground">
-          {lancamento.alunos?.nome_completo || 'N/A'}
+          {nomeDoLancamento(lancamento)}
         </td>
         <td className="p-4">
           <select
@@ -210,6 +235,17 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
           </div>
         </td>
       </tr>
+      <ModalConfirmacao
+        isOpen={confirmandoValor}
+        onClose={() => setConfirmandoValor(false)}
+        onConfirm={salvar}
+        tipo="warning"
+        titulo="Confirmar valor fora do padrão"
+        mensagem={`O novo valor (${formatarMoeda(parseFloat(camposEdit.valor.replace(',', '.')) || 0)}) difere em mais de 20% do valor original (${formatarMoeda(lancamento.valor)}). Confirma a alteração?`}
+        textoConfirmar="Confirmar valor"
+        loading={salvando}
+      />
+      </>
     );
   }
 
@@ -218,7 +254,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       <tr className="bg-destructive/5 border-b border-destructive/20">
         <td colSpan={5} className="p-4">
           <span className="text-sm font-bold text-destructive">
-            Confirma exclusão do lançamento de {lancamento.alunos?.nome_completo}?
+            Confirma exclusão do lançamento de {nomeDoLancamento(lancamento)}?
           </span>
         </td>
         <td className="p-4">
@@ -251,7 +287,7 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
         {formatarData(lancamento.data_referencia)}
       </td>
       <td className="p-4 font-bold text-foreground">
-        {lancamento.alunos?.nome_completo || 'N/A'}
+        {nomeDoLancamento(lancamento)}
       </td>
       <td className="p-4">
         <TipoAulaBadge tipo={lancamento.tipo_aula} />
@@ -290,7 +326,6 @@ function AbaDetalhe({
   professores,
   filtros,
   setFiltros,
-  loading: loadingProfs,
 }) {
   const invalidarComissoes = useInvalidarComissoes();
   const modalFechamento = useModal();
@@ -317,7 +352,10 @@ function AbaDetalhe({
   }, [erroDados]);
 
   // Lançamentos efetivos = locais (com edições) ou os do servidor
-  const lancamentosEfetivos = lancamentosLocais ?? dados?.lancamentos ?? [];
+  const lancamentosEfetivos = useMemo(
+    () => lancamentosLocais ?? dados?.lancamentos ?? [],
+    [lancamentosLocais, dados?.lancamentos]
+  );
 
   // Filtra por tipo_aula no client
   const lancamentosFiltrados = useMemo(() => {
@@ -375,7 +413,7 @@ function AbaDetalhe({
       : '';
     const linhas = lancamentosFiltrados.map(l => ({
       Data: formatarData(l.data_referencia),
-      Aluno: l.alunos?.nome_completo || 'Desconhecido',
+      Aluno: l.alunos?.nome_completo || l.mensalidades?.nome_visitante || 'Desconhecido',
       'Tipo de Aula': TIPO_LABELS[l.tipo_aula] ?? l.tipo_aula?.toUpperCase() ?? '—',
       Modalidade: l.modalidade || '-',
       'Valor (R$)': Number(l.valor).toFixed(2).replace('.', ','),
@@ -757,7 +795,7 @@ export default function Comissoes() {
     tipoAula: '',
   });
   const [aba, setAba] = useState('geral');
-  const [gerando, setGerando] = useState(false);
+  const [, setGerando] = useState(false);
   const [resultadoGeracao, setResultadoGeracao] = useState(null);
   const [resumoExpandido, setResumoExpandido] = useState(false);
 
@@ -813,8 +851,6 @@ export default function Comissoes() {
     setFiltros(f => ({ ...f, professorId }));
     setAba('detalhe');
   };
-
-  const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in max-w-7xl mx-auto">

@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { despesaSchema } from '../lib/validation';
+import { hojeBrasilia } from '../lib/utils';
 
 export const despesasService = {
   async listar(mes, ano) {
@@ -14,7 +16,10 @@ export const despesasService = {
 
     if (error) throw error;
 
-    const hoje = new Date().toISOString().split('T')[0];
+    // ILU-19: hojeBrasilia() em vez de UTC — perto da meia-noite em
+    // Brasília, uma despesa vencendo "hoje" era marcada como atrasada
+    // horas antes da hora real.
+    const hoje = hojeBrasilia();
     const despesasAtualizadas = data.map(d => {
       if (d.status === 'pendente' && d.data_vencimento < hoje) {
         return { ...d, status: 'atrasado' };
@@ -70,6 +75,7 @@ export const despesasService = {
     // Montar novas despesas avançando a data de vencimento para o mês atual
     const novas = recorrentes
       .filter(d => !chaveExistente.has(`${d.descricao}|${d.categoria}`))
+      // eslint-disable-next-line no-unused-vars -- destructuring para excluir estas chaves do `...rest`
       .map(({ id, created_at, data_pagamento, status, ...rest }) => {
         const dataOriginal = new Date(rest.data_vencimento + 'T12:00:00');
         const novaData = new Date(ano, mes - 1, dataOriginal.getDate());
@@ -104,6 +110,9 @@ export const despesasService = {
       delete payload.id;
     }
 
+    // ILU-25: valor/data_vencimento não eram validados antes do insert.
+    await despesaSchema.validate(payload);
+
     if (despesa.id) {
       const { data, error } = await supabase
         .from('despesas')
@@ -134,13 +143,25 @@ export const despesasService = {
   },
 
   async registrarPagamento(id) {
-    const hoje = new Date().toISOString();
-    const { error } = await supabase
+    // ILU-34: data-apenas ('YYYY-MM-DD'), mesma convenção usada em data_vencimento
+    // e lida pela UI (Despesas.jsx concatena 'T12:00:00' ao exibir).
+    // ILU-19: hojeBrasilia() em vez de UTC.
+    const hoje = hojeBrasilia();
+    // ILU-18: mesmo padrão de alunosService.alterarStatus — sem `.select()`,
+    // um `.update()` que afeta 0 linhas (RLS bloqueando silenciosamente, id
+    // obsoleto etc.) retornava sucesso mesmo com a despesa nunca marcada
+    // como paga de fato.
+    const { data, error } = await supabase
       .from('despesas')
       .update({ status: 'pago', data_pagamento: hoje })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, status')
+      .single();
 
     if (error) throw error;
+    if (data.status !== 'pago') {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   }
 };

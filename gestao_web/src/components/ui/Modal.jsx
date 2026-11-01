@@ -1,16 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Trash2, CheckCircle, Info } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import Button from './Button';
-
-export function useModal(initial = false) {
-  const [aberto, setAberto] = useState(initial);
-  const abrir  = useCallback(() => setAberto(true),          []);
-  const fechar = useCallback(() => setAberto(false),         []);
-  const toggle = useCallback(() => setAberto((v) => !v),     []);
-  return { aberto, isOpen: aberto, abrir, fechar, toggle };
-}
 
 const SIZES = {
   sm:   'max-w-md',
@@ -27,6 +19,8 @@ const SIZES_LEGACY = {
   xl:   'max-w-xl',
   '2xl':'max-w-2xl',
 };
+
+const NOOP = () => {};
 
 function Modal({
   aberto,
@@ -45,9 +39,13 @@ function Modal({
   tamanho,
   fecharAoClicarFora,
   footer,
+
+  // 'claro': ignora o tema escuro do admin/aparelho (Área do Aluno, que é
+  // sempre clara — ILU-95). Ver .tema-claro no index.css.
+  tema,
 }) {
   const _aberto        = aberto          ?? isOpen              ?? false;
-  const _fechar        = fechar          ?? onClose             ?? (() => {});
+  const _fechar        = fechar          ?? onClose             ?? NOOP;
   const _title         = title           ?? titulo;
   const _closeOnOverlay= fecharAoClicarFora !== undefined
                            ? fecharAoClicarFora
@@ -75,7 +73,10 @@ function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={_title}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6',
+        tema === 'claro' && 'tema-claro'
+      )}
     >
       {/* Overlay */}
       <div
@@ -160,6 +161,7 @@ export function ModalConfirmacao({
   textoCancelar   = 'Cancelar',
   tipo            = 'danger',
   loading         = false,
+  tema,
 }) {
   const _aberto = aberto ?? isOpen ?? false;
   const _fechar = fechar ?? onClose ?? (() => {});
@@ -197,6 +199,7 @@ export function ModalConfirmacao({
       title=""
       size="sm"
       hideClose
+      tema={tema}
     >
       <div className="text-center space-y-4 py-2">
         {/* Ícone */}

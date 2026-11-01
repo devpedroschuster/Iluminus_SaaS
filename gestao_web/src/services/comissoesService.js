@@ -26,7 +26,7 @@ export const comissoesService = {
 
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
-      .select('id, valor, tipo_aula, modalidade, data_referencia, pago_em, status, alunos(nome_completo)')
+      .select('id, valor, tipo_aula, modalidade, data_referencia, pago_em, status, alunos(nome_completo), mensalidades(nome_visitante)')
       .eq('professor_id', professorId)
       .gte('data_referencia', inicio)
       .lte('data_referencia', fim)

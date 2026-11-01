@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { agendamentoService } from '../../../services/agendamentoService';
-import { showToast } from '../../../components/shared/Toast';
+import { showToast } from '../../../components/shared/showToast';
+import { useConfiguracoesRepasse } from '../../../hooks/useConfiguracoesRepasse';
+import { formatarMoeda } from '../../../lib/utils';
 
 // Classifica o motivo do bloqueio a partir da mensagem de erro do service/RPC.
 // Retorna 'lotacao' | 'plano' | null
@@ -27,20 +29,42 @@ function classificarMotivoAviso(msgErro) {
   return null;
 }
 
-export function useAgendamento(onSucesso, feriados = []) {
-  const queryClient = useQueryClient();
-
-  const [agendamentoForm, setAgendamentoForm] = useState({
+// Valor da experimental vem de Configurações de Repasse
+// (aula_experimental_valor) e pode ser ajustado no modal antes de agendar.
+function formInicial(valorExperimentalPadrao = '') {
+  return {
     tipo: 'cadastrado',
     aluno_id: '',
     nome_visitante: '',
     aula_id: '',
     data_aula: '',
+    // Cobrança registrada automaticamente ao agendar uma experimental —
+    // pendente, a não ser que o visitante já tenha pago no agendamento.
+    valor_experimental: valorExperimentalPadrao,
+    experimental_ja_pago: false,
+    forma_pagamento_experimental: 'pix',
     // Campos de exibição — preenchidos pelo modal ao selecionar aluno/aula.
     // Não são enviados ao banco; apenas enriquecem o toast de sucesso.
     _nomeAluno: '',
     _nomeAtividade: '',
-  });
+  };
+}
+
+export function useAgendamento(onSucesso, feriados = []) {
+  const queryClient = useQueryClient();
+  const { data: configRepasse } = useConfiguracoesRepasse();
+  const valorExperimentalPadrao = configRepasse?.aula_experimental_valor != null
+    ? String(Number(configRepasse.aula_experimental_valor))
+    : '';
+
+  const [agendamentoForm, setAgendamentoForm] = useState(() => formInicial());
+
+  // A config chega depois da montagem — preenche o valor padrão só enquanto
+  // o campo ainda estiver vazio (não sobrescreve o que o usuário digitou).
+  useEffect(() => {
+    if (!valorExperimentalPadrao) return;
+    setAgendamentoForm(f => (f.valor_experimental === '' ? { ...f, valor_experimental: valorExperimentalPadrao } : f));
+  }, [valorExperimentalPadrao]);
 
   const [savingAgendamento, setSavingAgendamento] = useState(false);
   const [infoVaga, setInfoVaga] = useState(null);
@@ -51,6 +75,11 @@ export function useAgendamento(onSucesso, feriados = []) {
   const [modalLotacao, setModalLotacao] = useState({ isOpen: false, msg: '', tipo: '' });
 
   useEffect(() => {
+    // ILU-46: ignora resposta obsoleta se aula/data/aluno mudarem antes de
+    // resolver — sem isso, a UI podia piscar "vaga disponível"/"limite
+    // atingido" errado por um instante (o agendamento final ainda é validado
+    // via RPC server-side, então isso só afeta o display).
+    let cancelado = false;
     async function checarDisponibilidadeLive() {
       if (agendamentoForm.aula_id && agendamentoForm.data_aula) {
         setVerificandoVaga(true);
@@ -61,13 +90,16 @@ export function useAgendamento(onSucesso, feriados = []) {
           agendamentoForm.data_aula,
           alunoIdParaChecar
         );
-        setInfoVaga(info);
-        setVerificandoVaga(false);
-      } else {
+        if (!cancelado) {
+          setInfoVaga(info);
+          setVerificandoVaga(false);
+        }
+      } else if (!cancelado) {
         setInfoVaga(null);
       }
     }
     checarDisponibilidadeLive();
+    return () => { cancelado = true; };
   }, [agendamentoForm.aula_id, agendamentoForm.data_aula, agendamentoForm.aluno_id, agendamentoForm.tipo]);
 
   const handleAgendarAluno = async (e, ignorarAvisos = false) => {
@@ -87,7 +119,7 @@ export function useAgendamento(onSucesso, feriados = []) {
     setSavingAgendamento(true);
 
     try {
-      await agendamentoService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
+      const resultado = await agendamentoService.agendarAulaAdmin({ ...agendamentoForm, ignorarAvisos });
 
       // ── Toast contextual ───────────────────────────────────────────────
       const nome =
@@ -105,20 +137,24 @@ export function useAgendamento(onSucesso, feriados = []) {
         ? `✅ ${nome} agendado para ${atividade} em ${dataFormatada}. Tudo certo!`
         : `✅ ${nome} agendado para ${atividade}. Tudo certo!`;
 
-      showToast.success(msgSucesso);
+      const valorExperimental = formatarMoeda(Number(agendamentoForm.valor_experimental));
+      const msgPagamento = !resultado?.mensalidade_id
+        ? ''
+        : resultado.pago
+          ? ` Pagamento de ${valorExperimental} registrado no Financeiro.`
+          : ` Cobrança de ${valorExperimental} pendente no Financeiro.`;
+
+      showToast.success(msgSucesso + msgPagamento);
+      if (resultado?.avisoRepasse) {
+        // Aviso em toast separado — não substitui a confirmação de sucesso
+        setTimeout(() => showToast.warning(`⚠️ ${resultado.avisoRepasse}`), 600);
+      }
       // ──────────────────────────────────────────────────────────────────
 
-      setAgendamentoForm({
-        tipo: 'cadastrado',
-        aluno_id: '',
-        nome_visitante: '',
-        aula_id: '',
-        data_aula: '',
-        _nomeAluno: '',
-        _nomeAtividade: '',
-      });
+      setAgendamentoForm(formInicial(valorExperimentalPadrao));
 
       queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+      if (resultado?.mensalidade_id) queryClient.invalidateQueries({ queryKey: ['financeiro'] });
       if (onSucesso) onSucesso();
       return true;
     } catch (err) {

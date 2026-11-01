@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
-import { useTheme } from '../../providers/ThemeProvider';
+import { useTheme } from '../../providers/useTheme';
 import { cn } from '../../lib/cn';
 
 export default function ThemeToggle({ className }) {
@@ -21,7 +21,8 @@ export default function ThemeToggle({ className }) {
         className
       )}
     >
-      {opts.map(({ value, icon: Icon, label }) => {
+      {opts.map(({ value, icon, label }) => {
+        const Icon = icon;
         const active = theme === value;
         return (
           <button

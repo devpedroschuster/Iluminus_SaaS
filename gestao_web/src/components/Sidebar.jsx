@@ -9,7 +9,7 @@ import {
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
 import { usePWA } from '../hooks/usePWA';
-import { showToast } from './shared/Toast';
+import { showToast } from './shared/showToast';
 
 function resolverPerfil(perfil) {
   if (!perfil) return 'admin';

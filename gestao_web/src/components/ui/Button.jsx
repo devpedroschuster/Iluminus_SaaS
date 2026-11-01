@@ -29,7 +29,7 @@ const SIZES = {
 
 const Button = React.forwardRef(function Button(
   {
-    as: Tag = 'button',
+    as = 'button',
     variant = 'brand',
     size = 'md',
     fullWidth = false,
@@ -43,6 +43,7 @@ const Button = React.forwardRef(function Button(
   },
   ref
 ) {
+  const Tag = as;
   return (
     <Tag
       ref={ref}

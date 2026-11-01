@@ -54,6 +54,7 @@ export function buildPresencasIndex(presencasCalendario) {
           nome: nomeExibicao,
           isLead: false,
          alunoId: p.aluno_id,
+         presente: p.status === 'presente',
         });
       }
     }

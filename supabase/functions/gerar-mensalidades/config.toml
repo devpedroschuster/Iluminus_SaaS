@@ -1,5 +1,9 @@
 [functions.gerar-mensalidades]
-verify_jwt = false  # Permite chamada do cron sem auth
+# ILU-50: verify_jwt=false permitia chamada por qualquer um, mesmo deslogado.
+# A autorização real agora é feita no código via header `x-cron-secret`
+# (ver AUTORIZAÇÃO (ILU-50) em index.ts) — o cron que dispara esta function
+# precisa enviar esse header, não apenas um JWT válido.
+verify_jwt = true
 
 [[cron]]
 name = "cobrancas-mensais"

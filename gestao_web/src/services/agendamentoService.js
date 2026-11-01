@@ -1,4 +1,45 @@
 import { supabase } from '../lib/supabase';
+import { buscarTodasAsPaginas } from '../lib/paginacao';
+import { gerarRepassesDaMensalidade } from './repasseService';
+
+// Linha de presencas do aluno naquela aula e data (chave única), ou null.
+async function buscarLinhaPresenca(alunoId, aulaId, dataAula) {
+  const { data, error } = await supabase
+    .from('presencas')
+    .select('id')
+    .eq('aluno_id', alunoId)
+    .eq('aula_id', aulaId)
+    .eq('data_aula', dataAula)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// ILU-18: mesmo padrão de alunosService.alterarStatus.
+async function atualizarStatusPresenca(id, campos) {
+  const { data, error } = await supabase
+    .from('presencas')
+    .update(campos)
+    .eq('id', id)
+    .select('id, status')
+    .single();
+  if (error) throw error;
+  if (data.status !== campos.status) {
+    throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+  }
+}
+
+// Fixo sem linha: cria a linha já com o status. ILU-95: num toque duplo, o
+// outro toque pode criar a linha entre a busca e o insert (chave única
+// aluno+aula+data) — aí aplica o status nela em vez de mostrar o erro.
+async function criarLinhaPresenca(novaLinha, campos) {
+  const { error } = await supabase.from('presencas').insert(novaLinha);
+  if (!error) return;
+  if (error.code !== '23505') throw error;
+  const criada = await buscarLinhaPresenca(novaLinha.aluno_id, novaLinha.aula_id, novaLinha.data_aula);
+  if (!criada) throw error;
+  await atualizarStatusPresenca(criada.id, campos);
+}
 
 export const agendamentoService = {
 
@@ -40,32 +81,44 @@ async agendarAulaAdmin(dados) {
       dados.data_aula,
       dados.tipo === 'visitante' ? null : dados.aluno_id
     );
-    if (!checagem.podeAgendarLivremente) throw new Error(checagem.avisoCritico);
+    // ILU-22: `verificarDisponibilidade` retorna `null` (não o objeto de
+    // fallback usado em falha de rede/API) quando `dados.aula_id` é falsy —
+    // acessar `checagem.podeAgendarLivremente` direto lançava um TypeError
+    // não tratado em vez da mensagem de validação esperada.
+    if (!checagem?.podeAgendarLivremente) throw new Error(checagem?.avisoCritico ?? 'Selecione uma turma.');
   }
 
   if (dados.tipo === 'visitante') {
-    // Snapshot do professor responsável pela turma NO MOMENTO do agendamento.
-    // Congela o vínculo aqui — se a turma for reatribuída depois, este lead
-    // continua marcado com o professor que efetivamente deu a experimental.
-    const { data: aulaAtual, error: erroAula } = await supabase
-      .from('agenda')
-      .select('professor_id')
-      .eq('id', dados.aula_id)
-      .single();
-    if (erroAula) throw erroAula;
-
-    const payload = {
-      nome: dados.nome_visitante,
-      telefone: dados.telefone_visitante || null,
-      aula_id: dados.aula_id,
-      data_aula: dados.data_aula,
-      data_checkin: `${dados.data_aula}T12:00:00`,
-      status_conversao: 'pendente',
-      professor_id: aulaAtual?.professor_id ?? null,
-    };
-    const { error } = await supabase.from('leads').insert([payload]);
+    // Aula experimental: cria o lead (com snapshot do professor da turma) e,
+    // se o valor for > 0, a cobrança no Financeiro — na mesma transação, via
+    // RPC. A cobrança entra pendente (vence no dia da aula), a não ser que o
+    // visitante já tenha pago no agendamento (ver migration 20261031145808).
+    const jaPago = !!dados.experimental_ja_pago;
+    const { data, error } = await supabase.rpc('agendar_aula_experimental', {
+      p_nome: dados.nome_visitante,
+      p_telefone: dados.telefone_visitante || null,
+      p_aula_id: Number(dados.aula_id),
+      p_data_aula: dados.data_aula,
+      p_valor: Number(dados.valor_experimental) || 0,
+      p_forma_pagamento: jaPago ? (dados.forma_pagamento_experimental || 'pix') : null,
+      p_ja_pago: jaPago,
+    });
     if (error) throw error;
-    return;
+
+    // Repasse só sai quando há pagamento — a cobrança pendente gera o dela
+    // ao ser recebida no Financeiro (financeiroService.confirmarPagamento).
+    if (data?.mensalidade_id && data?.pago) {
+      // Mesmo padrão não-bloqueante de financeiroService.adicionarPagamentoManual:
+      // o agendamento/pagamento nunca é desfeito por falha no repasse; a
+      // reconciliação de gerar-repasses-mensais cobre o que ficar faltando.
+      try {
+        await gerarRepassesDaMensalidade(data.mensalidade_id);
+      } catch (repasseError) {
+        console.warn('[agendamentoService] Repasse da experimental não gerado automaticamente.', repasseError);
+        return { ...data, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };
+      }
+    }
+    return data;
   }
 
   const payload = {
@@ -81,13 +134,14 @@ async agendarAulaAdmin(dados) {
 },
 
   // Cancela um agendamento. `tipo` indica a origem do id_relacao:
-  // 'lead' -> remove de `leads`. Qualquer outro valor -> trata como
-  // `presencas` (comportamento padrão, mantém histórico via status='cancelado').
+  // 'lead' -> remove o lead e o pagamento automático da experimental (com
+  // os repasses dele). Qualquer outro valor -> trata como `presencas`
+  // (comportamento padrão, mantém histórico via status='cancelado').
   async cancelarAgendamento(id, tipo = 'presenca') {
     if (tipo === 'lead') {
-      const { data, error } = await supabase.from('leads').delete().eq('id', id).select();
+      const { error } = await supabase.rpc('cancelar_aula_experimental', { p_lead_id: id });
       if (error) throw error;
-      return data;
+      return;
     }
 
     const { data: linha, error: errBusca } = await supabase
@@ -112,14 +166,32 @@ async agendarAulaAdmin(dados) {
     return data;
   },
 
-  async listarPresencasPeriodo(inicio, fim) {
-    const { data, error } = await supabase
-      .from('presencas')
-      .select('id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )')
-      .gte('data_aula', inicio)
-      .lte('data_aula', fim);
-    if (error) throw error;
-    return data;
+  // professorId (opcional): quando informado, filtra no servidor só pelas
+  // presenças de aulas daquele professor (join via agenda.professor_id) —
+  // evita mandar pro cliente nomes/presença de alunos de outros professores
+  // (ver ILU-45). Admin não passa professorId e continua vendo tudo.
+  //
+  // O período do calendário são 3 meses — passa fácil das 1000 linhas que a
+  // API devolve por requisição, e o excedente sumia da grade (o aluno só
+  // aparecia ao abrir a aula, que busca por conta própria). Por isso pagina.
+  async listarPresencasPeriodo(inicio, fim, professorId = null) {
+    return buscarTodasAsPaginas(() => {
+      let query = supabase
+        .from('presencas')
+        .select(
+          professorId
+            ? 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo ), agenda!inner ( professor_id )'
+            : 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )'
+        )
+        .gte('data_aula', inicio)
+        .lte('data_aula', fim);
+
+      if (professorId) {
+        query = query.eq('agenda.professor_id', professorId);
+      }
+
+      return query.order('id');
+    });
   },
 
   async listarPresencas(aulaId, dataAula) {
@@ -140,7 +212,7 @@ async agendarAulaAdmin(dados) {
     const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }] = await Promise.all([
       supabase
         .from('presencas')
-        .select('id, status, origem, aluno_id, alunos(id, nome_completo)')
+        .select('id, status, origem, aluno_id, agendado_pelo_app, alunos(id, nome_completo)')
         .eq('aula_id', aulaId)
         .eq('data_aula', dataAula),
       supabase
@@ -187,8 +259,9 @@ async agendarAulaAdmin(dados) {
         id_relacao: p.id,
         aluno_id: p.aluno_id,
         nome: p.alunos?.nome_completo,
-        tipo: p.origem, // 'fixo' | 'avulso'
+        tipo: p.origem, // 'fixo' | 'avulso' | 'agendamento'
         status: p.status, // 'agendado' | 'presente' | 'falta' | 'cancelado'
+        via_app: !!p.agendado_pelo_app, // ILU-78: reserva do próprio aluno (presença presumida)
       });
     });
 
@@ -201,47 +274,63 @@ async agendarAulaAdmin(dados) {
   // Se a linha ainda não existir (fixo sem linha gerada pra hoje), cria com
   // status já 'cancelado'.
   async registrarFalta(alunoId, aulaId, dataEspecifica, motivo = null) {
-    const { data: existente } = await supabase
-      .from('presencas')
-      .select('id, status')
-      .eq('aluno_id', alunoId)
-      .eq('aula_id', aulaId)
-      .eq('data_aula', dataEspecifica)
-      .maybeSingle();
+    const campos = { status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo };
+    const existente = await buscarLinhaPresenca(alunoId, aulaId, dataEspecifica);
+    if (existente) return atualizarStatusPresenca(existente.id, campos);
 
-    if (existente) {
-      const { error } = await supabase
-        .from('presencas')
-        .update({ status: 'cancelado', cancelado_em: new Date().toISOString(), cancelado_motivo: motivo })
-        .eq('id', existente.id);
-      if (error) throw error;
-      return;
-    }
-
-    const { error } = await supabase
-      .from('presencas')
-      .insert({
-        aluno_id: alunoId,
-        aula_id: aulaId,
-        data_aula: dataEspecifica,
-        status: 'cancelado',
-        origem: 'fixo',
-        cancelado_em: new Date().toISOString(),
-        cancelado_motivo: motivo,
-      });
-    if (error) throw error;
+    await criarLinhaPresenca(
+      { aluno_id: alunoId, aula_id: aulaId, data_aula: dataEspecifica, origem: 'fixo', ...campos },
+      campos,
+    );
   },
 
-  // Reverte um aviso de falta (volta para 'agendado').
+  // Falta SEM aviso (ILU-78): o aluno não veio e não avisou. Diferente de
+  // registrarFalta, que grava 'cancelado' (falta COM aviso): 'falta' conta
+  // no limite semanal do plano e impede que a reserva feita pelo app seja
+  // confirmada sozinha (presença presumida) depois da aula.
+  async registrarFaltaSemAviso(alunoId, aulaId, dataAula) {
+    const campos = { status: 'falta', data_checkin: null };
+    const existente = await buscarLinhaPresenca(alunoId, aulaId, dataAula);
+    if (existente) return atualizarStatusPresenca(existente.id, campos);
+
+    await criarLinhaPresenca(
+      { aluno_id: alunoId, aula_id: aulaId, data_aula: dataAula, status: 'falta', origem: 'fixo' },
+      campos,
+    );
+  },
+
+  // Reverte uma falta — com aviso ('cancelado') ou sem aviso ('falta', ILU-78)
+  // — e volta para 'agendado'.
   async removerFalta(alunoId, aulaId, dataEspecifica) {
-    const { error } = await supabase
+    // ILU-18: o filtro `.eq('status', 'cancelado')` faz 0 linhas afetadas
+    // ser um resultado ESPERADO quando não há falta pra reverter (proteção
+    // original) — diferente dos outros casos deste arquivo, aqui não dá pra
+    // simplesmente exigir 1 linha sempre. Por isso primeiro localizamos a
+    // linha (se existir, ainda cancelada) e só então aplicamos o mesmo
+    // padrão de alunosService.alterarStatus na atualização por id, que
+    // distingue "nada para reverter" (ok, retorna cedo) de "a linha existia
+    // mas a atualização não pegou" (RLS/permissão — deve virar erro).
+    const { data: existente, error: errBusca } = await supabase
       .from('presencas')
-      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
+      .select('id')
       .eq('aluno_id', alunoId)
       .eq('aula_id', aulaId)
       .eq('data_aula', dataEspecifica)
-      .eq('status', 'cancelado'); // só reverte se ainda estava cancelado (proteção)
+      .in('status', ['cancelado', 'falta'])
+      .maybeSingle();
+    if (errBusca) throw errBusca;
+    if (!existente) return; // nada para reverter — comportamento já esperado
+
+    const { data, error } = await supabase
+      .from('presencas')
+      .update({ status: 'agendado', cancelado_em: null, cancelado_motivo: null })
+      .eq('id', existente.id)
+      .select('id, status')
+      .single();
     if (error) throw error;
+    if (data.status !== 'agendado') {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
   },
 
   // Marca presença manualmente (uso do admin, a qualquer horário — antes,
@@ -259,7 +348,8 @@ async agendarAulaAdmin(dados) {
       // origem 'agendamento' sinaliza que essa presença veio de um registro
       // que já existia como 'agendado' — assim desmarcarPresenca sabe que
       // deve reverter para 'agendado' em vez de apagar a linha.
-      const { error } = await supabase
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
         .from('presencas')
         .update({
           status: 'presente',
@@ -267,8 +357,13 @@ async agendarAulaAdmin(dados) {
           origem: 'agendamento',
           reposicao_de_id: reposicaoDeId,
         })
-        .eq('id', idRelacao);
+        .eq('id', idRelacao)
+        .select('id, status')
+        .single();
       if (error) throw error;
+      if (data.status !== 'presente') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return;
     }
 
@@ -295,11 +390,17 @@ async agendarAulaAdmin(dados) {
     if (!idRelacao) return;
 
     if (tipo === 'agendamento') {
-      const { error } = await supabase
+      // ILU-18: mesmo padrão de alunosService.alterarStatus.
+      const { data, error } = await supabase
         .from('presencas')
         .update({ status: 'agendado', data_checkin: null })
-        .eq('id', idRelacao);
+        .eq('id', idRelacao)
+        .select('id, status')
+        .single();
       if (error) throw error;
+      if (data.status !== 'agendado') {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
       return;
     }
 

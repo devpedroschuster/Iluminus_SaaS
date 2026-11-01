@@ -9,7 +9,7 @@ import { RefreshCw, CheckCircle, AlertTriangle, User, Calendar } from 'lucide-re
 
 import { supabase } from '../lib/supabase'; // ajuste o caminho se necessário
 import { reprocessarRepasse } from '../services/repasseService';
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
 import Surface from '../components/ui/Surface';
@@ -53,7 +53,7 @@ function LinhaMensalidade({ mensalidade, onReprocessado }) {
       setResultado(data);
       setStatus('ok');
       showToast.success(
-        `${data.gerados} repasse(s) reprocessado(s) para ${mensalidade.alunos?.nome_completo}.`,
+        `${data.gerados} repasse(s) reprocessado(s) para ${mensalidade.alunos?.nome_completo || mensalidade.nome_visitante}.`,
       );
       onReprocessado?.();
     } catch (err) {
@@ -70,7 +70,7 @@ function LinhaMensalidade({ mensalidade, onReprocessado }) {
         <div className="flex items-center gap-2">
           <User size={14} className="text-muted-foreground shrink-0" />
           <span className="font-bold text-foreground">
-            {mensalidade.alunos?.nome_completo || 'N/A'}
+            {mensalidade.alunos?.nome_completo || mensalidade.nome_visitante || 'N/A'}
           </span>
         </div>
       </td>
@@ -163,11 +163,15 @@ export default function AbaReprocessar({ mesAno }) {
           valor_pago,
           data_pagamento,
           data_vencimento,
+          nome_visitante,
           alunos ( nome_completo ),
           repasses_lancamentos ( id )
         `)
         .eq('status', 'pago')
-        .not('aluno_id', 'is', null)
+        // Visitante sem cadastro só entra se for experimental — único tipo
+        // que gera repasse sem aluno vinculado (pagamento automático do
+        // agendamento da experimental).
+        .or('aluno_id.not.is.null,tipo_aula.eq.experimental')
         .gte('data_pagamento', inicio)
         .lte('data_pagamento', fim)
         .order('data_pagamento', { ascending: false });
@@ -193,28 +197,42 @@ export default function AbaReprocessar({ mesAno }) {
     carregarMensalidades();
   }, [carregarMensalidades]);
 
+  // ILU-35: reprocessa em lotes paralelos (Promise.allSettled) em vez de um
+  // await sequencial por mensalidade, e reporta especificamente quais
+  // mensalidades falharam em vez de só uma contagem agregada.
   async function handleReprocessarTodos() {
     if (mensalidades.length === 0) return;
     setReprocessandoTodos(true);
 
+    const CONCORRENCIA = 5;
     let sucessos = 0;
-    let falhas = 0;
+    const falhas = [];
 
-    for (const m of mensalidades) {
-      try {
-        await reprocessarRepasse(String(m.id));
-        sucessos++;
-      } catch {
-        falhas++;
-      }
+    for (let i = 0; i < mensalidades.length; i += CONCORRENCIA) {
+      const lote = mensalidades.slice(i, i + CONCORRENCIA);
+      const resultados = await Promise.allSettled(
+        lote.map(m => reprocessarRepasse(String(m.id)))
+      );
+      resultados.forEach((resultado, idx) => {
+        if (resultado.status === 'fulfilled') {
+          sucessos++;
+        } else {
+          const m = lote[idx];
+          falhas.push(m.alunos?.nome_completo || m.nome_visitante || `mensalidade #${m.id}`);
+        }
+      });
     }
 
     setReprocessandoTodos(false);
 
-    if (falhas === 0) {
+    if (falhas.length === 0) {
       showToast.success(`${sucessos} mensalidade(s) reprocessada(s) com sucesso.`);
     } else {
-      showToast.error(`${sucessos} ok, ${falhas} com erro. Reprocesse individualmente os que falharam.`);
+      const nomesFalhas = falhas.slice(0, 5).join(', ')
+        + (falhas.length > 5 ? ` e mais ${falhas.length - 5}` : '');
+      showToast.error(
+        `${sucessos} ok, ${falhas.length} com erro (${nomesFalhas}). Reprocesse individualmente os que falharam.`
+      );
     }
 
     // Recarrega para atualizar contagens

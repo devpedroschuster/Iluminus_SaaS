@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { hojeBrasilia } from '../lib/utils';
 
 export const gradeService = {
   async listarProfessores() {
@@ -75,8 +76,24 @@ export const gradeService = {
 
   async salvarAula(aula) {
     if (aula.id) {
-      const { error } = await supabase.from('agenda').update(aula).eq('id', aula.id);
+      // ILU-18: mesmo padrão de alunosService.alterarStatus — sem
+      // `.select()`, um `.update()` que afeta 0 linhas (RLS bloqueando
+      // silenciosamente, id obsoleto etc.) retornava sucesso mesmo com a
+      // aula nunca alterada de fato.
+      const { data, error } = await supabase
+        .from('agenda')
+        .update(aula)
+        .eq('id', aula.id)
+        .select('id, horario')
+        .single();
       if (error) throw error;
+      // `horario` é `time without time zone` no Postgres — o PostgREST
+      // devolve "HH:MM:SS" (com segundos), enquanto o formulário (input
+      // type="time") manda "HH:MM" — por isso a comparação normaliza para
+      // os 5 primeiros caracteres em vez de `!==` direto.
+      if (data.horario?.substring(0, 5) !== aula.horario) {
+        throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+      }
     } else {
       const { error } = await supabase.from('agenda').insert([aula]);
       if (error) throw error;
@@ -86,14 +103,25 @@ export const gradeService = {
 
   async excluirAula(id) {
     try {
-      await supabase.from('agenda_fixa').delete().eq('aula_id', id);
-      await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      // ILU-23: cada passo da cascata precisa ter seu erro checado — antes
+      // só o delete final em `agenda` era conferido, então um bloqueio de
+      // RLS num passo anterior passava silenciosamente, podendo deixar
+      // linhas órfãs ou só falhar mais tarde com um erro de FK sem indicar
+      // qual passo realmente falhou.
+      const { error: errFixa } = await supabase.from('agenda_fixa').delete().eq('aula_id', id);
+      if (errFixa) throw errFixa;
+
+      const { error: errExcecoes } = await supabase.from('agenda_excecoes').delete().eq('aula_id', id);
+      if (errExcecoes) throw errExcecoes;
+
       // IMPORTANTE: não apagamos as presenças. O histórico de frequência do
       // aluno é dado real e deve sobreviver à exclusão da grade/aula — só
       // desvinculamos a referência (aula_id = null), preservando a linha.
       // Requer que presencas.aula_id aceite NULL e que a FK use
       // ON DELETE SET NULL (ver migration fix_presencas_old_fk.sql).
-      await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
+      const { error: errPresencas } = await supabase.from('presencas').update({ aula_id: null }).eq('aula_id', id);
+      if (errPresencas) throw errPresencas;
+
       const { error } = await supabase.from('agenda').delete().eq('id', id);
       if (error) throw error;
       return true;
@@ -104,19 +132,26 @@ export const gradeService = {
   },
 
   async encerrarAula(id, dataEncerramento) {
-    const { error } = await supabase
+    // ILU-18: mesmo padrão de alunosService.alterarStatus.
+    const { data, error } = await supabase
       .from('agenda')
       .update({ data_fim: dataEncerramento })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, data_fim')
+      .single();
     if (error) throw error;
+    if (data.data_fim !== dataEncerramento) {
+      throw new Error('A atualização não foi aplicada. Verifique suas permissões.');
+    }
     return true;
   },
 
   async listarFeriados() {
+    // ILU-19: hojeBrasilia() em vez de UTC.
     const { data, error } = await supabase
       .from('feriados')
       .select('*')
-      .gte('data', new Date().toISOString().split('T')[0])
+      .gte('data', hojeBrasilia())
       .order('data', { ascending: true });
     if (error) throw error;
     return data;

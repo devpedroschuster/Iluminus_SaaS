@@ -82,21 +82,77 @@ function distribuirCentavos(total: number, n: number): number[] {
   return parcelas;
 }
 
+// ILU-11: mesma correção de gerar-repasses-mensais — `max_rows = 1000`
+// (supabase/config.toml) trunca silenciosamente consultas sem paginação, o
+// que faria este preview subestimar o total (e não servir como conferência
+// real do lote que gerar-repasses-mensais vai gerar).
+async function buscarTodasPaginas<T>(
+  montarQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>,
+  tamanhoPagina = 1000,
+): Promise<T[]> {
+  const todas: T[] = [];
+  let pagina = 0;
+  for (;;) {
+    const from = pagina * tamanhoPagina;
+    const to = from + tamanhoPagina - 1;
+    const { data, error } = await montarQuery(from, to);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    todas.push(...data);
+    if (data.length < tamanhoPagina) break;
+    pagina++;
+  }
+  return todas;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // ── AUTORIZAÇÃO (ILU-10) ─────────────────────────────────────────────────
+    // Embora não escreva dados, este preview expõe o valor exato de comissão
+    // projetada de CADA professor para qualquer mês — vazamento de
+    // remuneração de terceiros para qualquer aluno/professor autenticado.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return response({ error: 'Não autenticado: token ausente' }, 401);
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) {
+      return response({ error: 'Não autenticado: token inválido' }, 401);
+    }
+
+    const { data: solicitante, error: perfilErr } = await supabase
+      .from('alunos')
+      .select('role')
+      .eq('auth_id', userData.user.id)
+      .maybeSingle();
+
+    if (perfilErr) {
+      console.error('[preview-repasses-mensais] erro ao checar perfil:', perfilErr.message);
+      return response({ error: 'Erro ao validar permissões' }, 500);
+    }
+
+    if (solicitante?.role !== 'admin') {
+      return response({ error: 'Acesso negado: apenas administradores podem executar esta ação' }, 403);
+    }
+
     const { mes, ano } = await req.json();
 
     if (!mes || !ano || mes < 1 || mes > 12) {
       return response({ error: 'Parâmetros inválidos. Informe mes (1–12) e ano.' }, 400);
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const mesStr = String(mes).padStart(2, '0');
     const dataReferencia = `${ano}-${mesStr}-01`;
@@ -109,21 +165,25 @@ serve(async (req: Request) => {
     // ainda houvesse alunos elegíveis faltando no lote (ver mesma correção em
     // gerar-repasses-mensais). Agora o preview sempre calcula o que falta;
     // `jaGerados` só indica que o mês já teve alguma geração anterior.
-    const { data: jaExistem } = await supabase
+    const { data: jaExistem, error: errJaExistem } = await supabase
       .from('repasses_lancamentos')
       .select('id')
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null)
       .limit(1);
 
+    if (errJaExistem) throw errJaExistem;
+
     const loteJaGeradoAntes = !!(jaExistem && jaExistem.length > 0);
 
     // ── 2. Repasses já gerados via pagamento individual (deduplicação) ───────
-    const { data: repassesPagamento } = await supabase
+    const { data: repassesPagamento, error: errRepassesPagamento } = await supabase
       .from('repasses_lancamentos')
       .select('aluno_id, modalidade, tipo_aula')
       .eq('data_referencia', dataReferencia)
       .not('mensalidade_id', 'is', null);
+
+    if (errRepassesPagamento) throw errRepassesPagamento;
 
     const repassesJaPagos = new Set<string>();
     for (const r of repassesPagamento ?? []) {
@@ -133,11 +193,13 @@ serve(async (req: Request) => {
     // ── 2b. Repasses do lote mensal já existentes (mesma chave do índice único
     // uq_repasse_lote_mensal) — para o preview não contar de novo o que já
     // seria ignorado pelo upsert de gerar-repasses-mensais.
-    const { data: loteExistente } = await supabase
+    const { data: loteExistente, error: errLoteExistente } = await supabase
       .from('repasses_lancamentos')
       .select('aluno_id, modalidade, tipo_aula')
       .eq('data_referencia', dataReferencia)
       .is('mensalidade_id', null);
+
+    if (errLoteExistente) throw errLoteExistente;
 
     const loteJaExistente = new Set<string>();
     for (const r of loteExistente ?? []) {
@@ -193,30 +255,39 @@ serve(async (req: Request) => {
     for (const p of (profsRaw ?? []) as Professor[]) mapaProfs.set(p.id, p.nome);
 
     // ── 6. Planos ───────────────────────────────────────────────────────────
-    const { data: planosRaw } = await supabase.from('planos').select('id, is_plano_livre');
+    const { data: planosRaw, error: errPlanos } = await supabase.from('planos').select('id, is_plano_livre');
+
+    if (errPlanos) throw errPlanos;
+
     const mapaPlanos = new Map<string, boolean>();
     for (const p of (planosRaw ?? []) as Plano[]) {
       mapaPlanos.set(p.id, p.is_plano_livre === true);
     }
 
     // Pré-carrega preços dos planos livres para evitar N queries dentro do loop
-    const { data: planosPreco } = await supabase
+    const { data: planosPreco, error: errPlanosPreco } = await supabase
       .from('planos')
       .select('id, preco')
       .eq('is_plano_livre', true);
+
+    if (errPlanosPreco) throw errPlanosPreco;
+
     const mapaPrecosPlano = new Map<string, number>();
     for (const p of planosPreco ?? []) mapaPrecosPlano.set(p.id, Number(p.preco));
 
     // ── 7. Alunos ativos ────────────────────────────────────────────────────
-    const { data: alunosRaw, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, nome_completo, plano_id, modalidades_selecionadas')
-      .eq('ativo', true)
-      .not('modalidades_selecionadas', 'is', null);
+    // ILU-11: pagina via buscarTodasPaginas — ver comentário na definição.
+    const alunosRaw = await buscarTodasPaginas<Aluno>((from, to) =>
+      supabase
+        .from('alunos')
+        .select('id, nome_completo, plano_id, modalidades_selecionadas')
+        .eq('ativo', true)
+        .not('modalidades_selecionadas', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
 
-    if (errAlunos) throw errAlunos;
-
-    const alunosComMods = ((alunosRaw ?? []) as Aluno[]).filter(
+    const alunosComMods = alunosRaw.filter(
       (a) => Array.isArray(a.modalidades_selecionadas) && a.modalidades_selecionadas.length > 0,
     );
 
@@ -230,18 +301,56 @@ serve(async (req: Request) => {
       });
     }
 
+    const avisos: string[] = [];
+
+    // ── 7b. Filtra só alunos adimplentes no mês de referência (ILU-13) ──────
+    // Este preview precisa espelhar exatamente a mesma regra usada no lote real
+    // (`gerar-repasses-mensais`) — caso contrário mostraria comissão para um
+    // aluno que a geração de verdade acabaria excluindo. Alinhado com o time:
+    // comissão do lote mensal exige a mensalidade `regular` do mês de
+    // referência com `status = 'pago'`, igual à regra do pagamento individual.
+    const { data: mensalidadesPagas, error: errMensalidadesPagas } = await supabase
+      .from('mensalidades')
+      .select('aluno_id')
+      .eq('tipo_aula', 'regular')
+      .eq('status', 'pago')
+      .gte('data_vencimento', inicioPeriodo)
+      .lte('data_vencimento', fimPeriodo);
+
+    if (errMensalidadesPagas) throw errMensalidadesPagas;
+
+    const alunosAdimplentes = new Set((mensalidadesPagas ?? []).map((m) => m.aluno_id as string));
+    const alunosComModsAdimplentes = alunosComMods.filter((a) => {
+      const adimplente = alunosAdimplentes.has(a.id);
+      if (!adimplente) {
+        avisos.push(`"${a.nome_completo}": mensalidade do mês não está paga — sem repasse.`);
+      }
+      return adimplente;
+    });
+
+    interface PresencaComAgenda {
+      aluno_id: string;
+      agenda: { modalidade_id: string } | null;
+    }
+
     // ── 8. Presenças do mês (para plano livre) ──────────────────────────────
     //    IMPORTANTE: status='presente' — exclui 'agendado'/'falta'/'cancelado'.
-    const { data: presencasRaw } = await supabase
-      .from('presencas')
-      .select('aluno_id, agenda(modalidade_id)')
-      .eq('status', 'presente')
-      .gte('data_checkin', `${inicioPeriodo}T00:00:00`)
-      .lte('data_checkin', `${fimPeriodo}T23:59:59`)
-      .not('aula_id', 'is', null);
+    // ILU-11: pagina via buscarTodasPaginas — ver comentário na definição.
+    const presencasRaw = await buscarTodasPaginas<PresencaComAgenda>((from, to) =>
+      supabase
+        .from('presencas')
+        .select('aluno_id, agenda(modalidade_id)')
+        .eq('status', 'presente')
+        .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
+        .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
+        .not('aula_id', 'is', null)
+        .order('aluno_id', { ascending: true })
+        .range(from, to)
+        .returns<PresencaComAgenda[]>(),
+    );
 
     const presencasPorAluno = new Map<string, Set<string>>();
-    for (const p of presencasRaw ?? []) {
+    for (const p of presencasRaw) {
       const modId = p.agenda?.modalidade_id;
       if (!p.aluno_id || !modId) continue;
       if (!presencasPorAluno.has(p.aluno_id)) presencasPorAluno.set(p.aluno_id, new Set());
@@ -256,9 +365,8 @@ serve(async (req: Request) => {
     }
 
     const itens: ItemPreview[] = [];
-    const avisos: string[] = [];
 
-    for (const aluno of alunosComMods) {
+    for (const aluno of alunosComModsAdimplentes) {
       const isLivre = aluno.plano_id ? (mapaPlanos.get(aluno.plano_id) ?? false) : false;
 
       if (isLivre) {

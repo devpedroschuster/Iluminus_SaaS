@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Trash2, Activity, RefreshCw, Edit2, Users, Clock, DollarSign, Calendar, AlertCircle, Tag } from 'lucide-react'; 
-import { showToast } from '../components/shared/Toast';
+import { showToast } from '../components/shared/showToast';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -62,7 +62,7 @@ export default function Modalidades() {
     try {
       const dados = await modalidadeService.buscarPerfil(mod.id, mod.nome);
       setDadosPerfil(dados);
-    } catch (error) {
+    } catch {
       showToast.error("Erro ao carregar Raio-X da modalidade.");
     } finally {
       setLoadingPerfil(false);
@@ -83,7 +83,7 @@ export default function Modalidades() {
         showToast.success("Modalidade adicionada com sucesso!");
         setNovaModalidade({ nome: '', area: 'Dança', professor_id: '', capacidade_padrao: 15, taxa_professor: 50, taxa_espaco: 50, taxa_direcao: 0 });
         fetchDados();
-    } catch (err) {
+    } catch {
         showToast.error("Erro ao adicionar modalidade. Verifique se o nome já existe.");
     } finally {
         setCreating(false); 
@@ -98,7 +98,7 @@ export default function Modalidades() {
         await modalidadeService.excluir(id);
         showToast.success("Modalidade removida.");
         fetchDados();
-    } catch (err) {
+    } catch {
         showToast.error("Erro ao excluir. Pode haver aulas atreladas a ela.");
     } finally {
         setDeletingId(null);
@@ -136,8 +136,8 @@ export default function Modalidades() {
       if (modPerfil && modPerfil.id === modalidadeEmEdicao.id) {
           setModPerfil({...modPerfil, ...modalidadeEmEdicao});
       }
-      fetchDados(); 
-    } catch (err) {
+      fetchDados();
+    } catch {
       showToast.error("Erro ao atualizar modalidade.");
     } finally {
       setSavingEdit(false);

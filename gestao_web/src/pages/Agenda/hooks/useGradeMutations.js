@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { gradeService } from '../../../services/gradeService';
-import { showToast } from '../../../components/shared/Toast';
+import { showToast } from '../../../components/shared/showToast';
 
 export function useGradeMutations({ onSuccess }) {
   const [savingAula, setSavingAula] = useState(false);

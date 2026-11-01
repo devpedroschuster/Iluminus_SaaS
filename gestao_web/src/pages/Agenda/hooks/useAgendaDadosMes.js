@@ -4,17 +4,19 @@ import { leadsService } from '../../../services/leadsService';
 import { useAuth } from '../../../hooks/useAuth';
 
 export function useAgendaDadosMes(currentDate) {
-  const { perfil } = useAuth();
+  const { perfil, professorId } = useAuth();
   const inicio = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString().split('T')[0];
   const fim = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString().split('T')[0];
+  // ILU-45: professor só recebe presenças das próprias turmas — admin vê tudo.
+  const professorIdFiltro = perfil === 'admin' ? null : professorId;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agenda', 'dadosMes', inicio, fim],
+    queryKey: ['agenda', 'dadosMes', inicio, fim, professorIdFiltro],
     // A6: aguarda o perfil estar resolvido antes de disparar queries
     enabled: perfil !== null,
     queryFn: async () => {
       const [dadosPresencas, dadosLeads] = await Promise.all([
-        agendamentoService.listarPresencasPeriodo(inicio, fim),
+        agendamentoService.listarPresencasPeriodo(inicio, fim, professorIdFiltro),
         leadsService.listarLeadsPeriodo(inicio, fim),
       ]);
 

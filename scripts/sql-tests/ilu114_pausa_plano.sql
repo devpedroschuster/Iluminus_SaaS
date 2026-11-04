@@ -5,8 +5,8 @@
 --      tabela sem escrita direta).
 --   P: pausar — validações, ciclo registrado, cobranças em aberto da pausa
 --      removidas (só as permitidas), reservas canceladas.
---   R: retomar — dias devolvidos no aluno e no ciclo, cobrança do dia 10 que
---      vence da volta em diante, nada para à vista/bolsista/plano sem preço.
+--   R: retomar — dias devolvidos no aluno e no ciclo, sem gerar cobrança (o que
+--      precisar é lançado à mão), cobranças que venceram na pausa removidas.
 --   A: agenda e app — fixo some e libera a vaga nas datas da pausa, aluno não
 --      agenda, resumo de frequência sem falta nem aula prevista da pausa,
 --      renovação bloqueada, professor só vê datas das próprias turmas.
@@ -28,8 +28,8 @@
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 --
 -- Datas: v_seg é a segunda-feira da semana que vem (sempre entre hoje+1 e
--- hoje+7), dentro da janela de 14 dias do app. v_mes é o dia 1 do mês atual:
--- os casos de cobrança usam voltas retroativas para não depender do dia de hoje.
+-- hoje+7), dentro da janela de 14 dias do app. v_mes é o dia 1 do mês atual: a
+-- volta nesse dia é sempre antes do dia 10, o caso em que o cron pulou a cobrança.
 
 DO $test$
 DECLARE
@@ -42,7 +42,7 @@ DECLARE
   v_admin uuid;
   c_admin text; c_aluno text; c_prof text; c_prof2 text; c_nada text;
   v_prof uuid; v_prof2 uuid; v_mod uuid;
-  v_plano int; v_plano_livre int; v_plano_gratis int;
+  v_plano int;
   a_a bigint; a_b bigint; a_v bigint; a_n bigint; a_s bigint; a_i bigint;
   v_aula bigint; v_ciclo uuid;
   v_falhas text[] := '{}';
@@ -50,9 +50,7 @@ DECLARE
   v_j jsonb;
   v_p pausas_plano%ROWTYPE;
   v_al alunos%ROWTYPE;
-  v_m mensalidades%ROWTYPE;
   v_n int; v_id bigint; v_id2 bigint; v_id3 bigint; v_txt text; v_recusado boolean;
-  v_d date;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
   IF v_admin IS NULL THEN
@@ -84,17 +82,12 @@ BEGIN
 
   INSERT INTO planos (nome, preco, duracao_meses, frequencia_semanal, regras_acesso)
   VALUES ('[TESTE ILU-114] Mensal', 100, 1, 2, '[{"modalidade":"Dança","limite":2}]') RETURNING id INTO v_plano;
-  INSERT INTO planos (nome, preco, duracao_meses, is_plano_livre, regras_acesso)
-  VALUES ('[TESTE ILU-114] Livre', 200, 1, true, '[{"modalidade":"Dança","limite":999}]') RETURNING id INTO v_plano_livre;
-  INSERT INTO planos (nome, preco, duracao_meses, regras_acesso)
-  VALUES ('[TESTE ILU-114] Definir', 0, 1, '[]') RETURNING id INTO v_plano_gratis;
 
   -- Início em hoje-90: as pausas retroativas dos casos cabem sempre dentro do ciclo.
   INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
                       modalidades_selecionadas, data_inicio_plano, data_fim_plano)
   VALUES ('[TESTE ILU-114] Aluna A', 'teste-ilu114-a@iluminus.test', 'aluno', true, false, u_a, v_plano,
           ARRAY[v_mod], v_hoje - 90, v_hoje + 60) RETURNING id INTO a_a;
-  -- O valor negociado do ciclo (120) é diferente do preço de tabela (100).
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
   VALUES (a_a, v_plano, v_hoje - 90, v_hoje + 60, 'ativo', 120, 'recorrente') RETURNING id INTO v_ciclo;
 
@@ -577,8 +570,8 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('R6: ' || SQLERRM);
   END;
 
-  -- R7: volta no dia 1 — o dia 10 do mês é gerado com o valor negociado; o dia
-  -- 10 do mês passado, que caiu dentro da pausa, não
+  -- R7: volta antes do dia 10, depois de o cron ter pulado o aluno — não gera
+  -- cobrança: a gestão lança à mão o que precisar
   v_total := v_total + 1;
   BEGIN
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -586,77 +579,19 @@ BEGIN
     v_j := public.pausar_plano_aluno(a_a, v_mes - 25, v_mes, 'Atestado');
     v_j := public.retomar_plano_aluno(a_a, v_mes);
     RESET ROLE;
-    SELECT count(*) INTO v_n FROM mensalidades WHERE aluno_id = a_a;
-    SELECT * INTO v_m FROM mensalidades WHERE aluno_id = a_a;
-    IF v_n <> 1 OR v_m.data_vencimento IS DISTINCT FROM v_mes + 9 OR v_m.status IS DISTINCT FROM 'pendente'
-       OR v_m.valor_esperado IS DISTINCT FROM 120::numeric OR v_m.tipo_aula IS DISTINCT FROM 'regular'
-       OR v_m.plano_id IS DISTINCT FROM v_plano THEN
-      v_falhas := v_falhas || ('R7: cobrança errada (' || v_n || '): ' || row_to_json(v_m)::text);
+    IF EXISTS (SELECT 1 FROM mensalidades WHERE aluno_id = a_a) THEN
+      v_falhas := v_falhas || 'R7: a volta gerou cobrança'::text;
     END IF;
-    IF jsonb_array_length(v_j->'cobrancas_geradas') <> 1
-       OR (v_j->'cobrancas_geradas'->0->>'data_vencimento')::date IS DISTINCT FROM v_mes + 9 THEN
-      v_falhas := v_falhas || ('R7: resposta errada: ' || v_j::text);
+    IF v_j ? 'cobrancas_geradas' THEN
+      v_falhas := v_falhas || ('R7: resposta ainda fala em cobranças geradas: ' || v_j::text);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('R7: ' || SQLERRM);
   END;
 
-  -- R8: volta retroativa no mês passado depois do dia 10 — só o dia 10 deste mês
-  v_total := v_total + 1;
-  BEGIN
-    v_d := (v_mes - interval '1 month')::date + 10;
-    PERFORM set_config('request.jwt.claims', c_admin, true);
-    SET LOCAL ROLE authenticated;
-    v_j := public.pausar_plano_aluno(a_a, v_d - 20, v_d, 'Atestado');
-    v_j := public.retomar_plano_aluno(a_a, v_d);
-    RESET ROLE;
-    SELECT count(*) INTO v_n FROM mensalidades WHERE aluno_id = a_a;
-    IF v_n <> 1 OR NOT EXISTS (SELECT 1 FROM mensalidades WHERE aluno_id = a_a AND data_vencimento = v_mes + 9) THEN
-      v_falhas := v_falhas || ('R8: esperava só o dia 10 deste mês, veio ' || v_n);
-    END IF;
-    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
-  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R8: ' || SQLERRM);
-  END;
-
-  -- R9: volta hoje — só cobra se o dia 10 deste mês ainda não passou
-  v_total := v_total + 1;
-  BEGIN
-    PERFORM set_config('request.jwt.claims', c_admin, true);
-    SET LOCAL ROLE authenticated;
-    v_j := public.pausar_plano_aluno(a_a, v_hoje - 5, v_hoje, 'Atestado');
-    v_j := public.retomar_plano_aluno(a_a, v_hoje);
-    RESET ROLE;
-    SELECT count(*) INTO v_n FROM mensalidades WHERE aluno_id = a_a;
-    IF v_n <> (v_hoje <= v_mes + 9)::int THEN
-      v_falhas := v_falhas || ('R9: cobranças erradas para volta hoje: ' || v_n);
-    END IF;
-    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
-  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R9: ' || SQLERRM);
-  END;
-
-  -- R10: já existe cobrança do plano neste mês — não duplica
-  v_total := v_total + 1;
-  BEGIN
-    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, data_pagamento, forma_pagamento)
-    VALUES (a_a, v_plano, v_mes + 4, 'pago', 'regular', 120, v_mes + 4, 'pix');
-    PERFORM set_config('request.jwt.claims', c_admin, true);
-    SET LOCAL ROLE authenticated;
-    v_j := public.pausar_plano_aluno(a_a, v_mes - 25, v_mes, 'Atestado');
-    v_j := public.retomar_plano_aluno(a_a, v_mes);
-    RESET ROLE;
-    SELECT count(*) INTO v_n FROM mensalidades WHERE aluno_id = a_a;
-    IF v_n <> 1 THEN
-      v_falhas := v_falhas || ('R10: duplicou a cobrança do mês: ' || v_n);
-    END IF;
-    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
-  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R10: ' || SQLERRM);
-  END;
-
-  -- R11: ciclo à vista não gera cobrança, e o vencimento do ciclo é estendido
+  -- R8: ciclo à vista recebe os dias no histórico: é isso que mantém o cron sem
+  -- cobrar o período estendido
   v_total := v_total + 1;
   BEGIN
     UPDATE historico_planos SET forma_recebimento = 'a_vista' WHERE id = v_ciclo;
@@ -665,62 +600,15 @@ BEGIN
     v_j := public.pausar_plano_aluno(a_a, v_mes - 25, v_mes, 'Atestado');
     v_j := public.retomar_plano_aluno(a_a, v_mes);
     RESET ROLE;
-    IF EXISTS (SELECT 1 FROM mensalidades WHERE aluno_id = a_a) THEN
-      v_falhas := v_falhas || 'R11: ciclo à vista gerou cobrança na volta'::text;
-    END IF;
     IF (SELECT data_fim FROM historico_planos WHERE id = v_ciclo) IS DISTINCT FROM v_hoje + 60 + 25 THEN
-      v_falhas := v_falhas || 'R11: o ciclo à vista não recebeu os dias'::text;
+      v_falhas := v_falhas || 'R8: o ciclo à vista não recebeu os dias'::text;
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R11: ' || SQLERRM);
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R8: ' || SQLERRM);
   END;
 
-  -- R12: bolsista, plano sem preço e aluno desativado durante a pausa não geram cobrança
-  v_total := v_total + 1;
-  FOR v_txt IN SELECT unnest(ARRAY['bolsista', 'sem_preco', 'desativado']) LOOP
-    BEGIN
-      PERFORM set_config('request.jwt.claims', c_admin, true);
-      SET LOCAL ROLE authenticated;
-      v_j := public.pausar_plano_aluno(a_a, v_mes - 25, v_mes, 'Atestado');
-      RESET ROLE;
-      IF v_txt = 'bolsista' THEN UPDATE alunos SET bolsista = true WHERE id = a_a;
-      ELSIF v_txt = 'sem_preco' THEN UPDATE alunos SET plano_id = v_plano_gratis WHERE id = a_a;
-      ELSE UPDATE alunos SET ativo = false WHERE id = a_a;
-      END IF;
-      PERFORM set_config('request.jwt.claims', c_admin, true);
-      SET LOCAL ROLE authenticated;
-      v_j := public.retomar_plano_aluno(a_a, v_mes);
-      RESET ROLE;
-      IF EXISTS (SELECT 1 FROM mensalidades WHERE aluno_id = a_a) THEN
-        v_falhas := v_falhas || ('R12: ' || v_txt || ' gerou cobrança na volta');
-      END IF;
-      RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
-    EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-    WHEN OTHERS THEN v_falhas := v_falhas || ('R12 ' || v_txt || ': ' || SQLERRM);
-    END;
-  END LOOP;
-
-  -- R13: plano livre sem valor negociado usa tipo plano_livre e o preço de tabela
-  v_total := v_total + 1;
-  BEGIN
-    UPDATE alunos SET plano_id = v_plano_livre WHERE id = a_a;
-    UPDATE historico_planos SET plano_id = v_plano_livre, valor_pago = 0 WHERE id = v_ciclo;
-    PERFORM set_config('request.jwt.claims', c_admin, true);
-    SET LOCAL ROLE authenticated;
-    v_j := public.pausar_plano_aluno(a_a, v_mes - 25, v_mes, 'Atestado');
-    v_j := public.retomar_plano_aluno(a_a, v_mes);
-    RESET ROLE;
-    SELECT * INTO v_m FROM mensalidades WHERE aluno_id = a_a;
-    IF v_m.tipo_aula IS DISTINCT FROM 'plano_livre' OR v_m.valor_esperado IS DISTINCT FROM 200::numeric THEN
-      v_falhas := v_falhas || ('R13: cobrança errada: ' || row_to_json(v_m)::text);
-    END IF;
-    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
-  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R13: ' || SQLERRM);
-  END;
-
-  -- R14: na volta, só sai o que venceu entre o início da pausa e a volta
+  -- R9: na volta, só sai o que venceu entre o início da pausa e a volta
   v_total := v_total + 1;
   BEGIN
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -738,21 +626,21 @@ BEGIN
     v_j := public.retomar_plano_aluno(a_a, v_hoje - 5, ARRAY[v_id, v_id2, v_id3]);
     RESET ROLE;
     IF EXISTS (SELECT 1 FROM mensalidades WHERE id = v_id) THEN
-      v_falhas := v_falhas || 'R14: a cobrança dentro da pausa não foi removida'::text;
+      v_falhas := v_falhas || 'R9: a cobrança dentro da pausa não foi removida'::text;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM mensalidades WHERE id = v_id2) OR NOT EXISTS (SELECT 1 FROM mensalidades WHERE id = v_id3) THEN
-      v_falhas := v_falhas || 'R14: removeu cobrança fora da pausa'::text;
+      v_falhas := v_falhas || 'R9: removeu cobrança fora da pausa'::text;
     END IF;
     IF (v_j->>'cobrancas_removidas')::int IS DISTINCT FROM 1
        OR jsonb_array_length((SELECT cobrancas_removidas FROM pausas_plano WHERE aluno_id = a_a)) <> 1 THEN
-      v_falhas := v_falhas || ('R14: registro da remoção errado: ' || v_j::text);
+      v_falhas := v_falhas || ('R9: registro da remoção errado: ' || v_j::text);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R14: ' || SQLERRM);
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R9: ' || SQLERRM);
   END;
 
-  -- R15: volta antes da reserva — a linha cancelada pela pausa some e o fixo
+  -- R10: volta antes da reserva — a linha cancelada pela pausa some e o fixo
   -- volta; a que já virou origem de uma reposição fica
   v_total := v_total + 1;
   BEGIN
@@ -771,20 +659,20 @@ BEGIN
     v_j := public.retomar_plano_aluno(a_a, v_hoje);
     RESET ROLE;
     IF EXISTS (SELECT 1 FROM presencas WHERE id = v_id) THEN
-      v_falhas := v_falhas || 'R15: a linha cancelada pela pausa não saiu'::text;
+      v_falhas := v_falhas || 'R10: a linha cancelada pela pausa não saiu'::text;
     END IF;
     IF NOT public._fixo_valido(a_a, v_aula, v_seg) THEN
-      v_falhas := v_falhas || 'R15: o fixo não voltou depois da retomada'::text;
+      v_falhas := v_falhas || 'R10: o fixo não voltou depois da retomada'::text;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM presencas WHERE id = v_id2) THEN
-      v_falhas := v_falhas || 'R15: apagou a linha ligada a uma reposição'::text;
+      v_falhas := v_falhas || 'R10: apagou a linha ligada a uma reposição'::text;
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R15: ' || SQLERRM);
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R10: ' || SQLERRM);
   END;
 
-  -- R16: presença marcada durante a pausa — a volta não pode ser depois dela,
+  -- R11: presença marcada durante a pausa — a volta não pode ser depois dela,
   -- senão devolveria dias que o aluno usou
   v_total := v_total + 1;
   BEGIN
@@ -804,18 +692,18 @@ BEGIN
     WHEN OTHERS THEN v_recusado := SQLERRM LIKE '%presença marcada%';
     END;
     IF NOT v_recusado THEN
-      v_falhas := v_falhas || 'R16: devolveu dias depois de uma presença na pausa'::text;
+      v_falhas := v_falhas || 'R11: devolveu dias depois de uma presença na pausa'::text;
     END IF;
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     v_j := public.retomar_plano_aluno(a_a, v_hoje - 4);
     RESET ROLE;
     IF (v_j->>'dias_devolvidos')::int IS DISTINCT FROM 6 THEN
-      v_falhas := v_falhas || ('R16: volta no dia da presença deveria devolver 6 dias: ' || v_j::text);
+      v_falhas := v_falhas || ('R11: volta no dia da presença deveria devolver 6 dias: ' || v_j::text);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
-  WHEN OTHERS THEN v_falhas := v_falhas || ('R16: ' || SQLERRM);
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R11: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- A: agenda, app e demais telas

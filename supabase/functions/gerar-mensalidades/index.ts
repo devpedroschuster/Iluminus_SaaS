@@ -39,8 +39,8 @@
 //           data_inicio <= vencimento <= data_fim (data_fim inclusiva, ILU-30).
 //
 // ILU-114 — plano pausado (alunos.plano_pausado_desde) não é cobrado enquanto a
-// pausa estiver aberta. Na volta, a RPC retomar_plano_aluno gera a cobrança do
-// dia 10 que vence da volta em diante e que esta função pulou.
+// pausa estiver aberta. A volta não gera cobrança: ele entra de novo na geração
+// do mês seguinte, e a gestão lança à mão o que precisar antes disso.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'

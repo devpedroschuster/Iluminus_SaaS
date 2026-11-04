@@ -35,7 +35,7 @@ describe('alunosService — pausa do plano (ILU-114)', () => {
   });
 
   it('retomarPlano manda a data da volta e devolve os dias', async () => {
-    supabase.rpc.mockResolvedValue({ data: { dias_devolvidos: 20, data_fim_plano: '2027-01-20', cobrancas_removidas: 0, cobrancas_geradas: [] }, error: null });
+    supabase.rpc.mockResolvedValue({ data: { dias_devolvidos: 20, data_fim_plano: '2027-01-20', cobrancas_removidas: 0 }, error: null });
     const resultado = await alunosService.retomarPlano(10, { data_retorno: '2026-11-30', cobrancas_remover: [] });
     expect(supabase.rpc).toHaveBeenCalledWith('retomar_plano_aluno', {
       p_aluno_id: 10, p_data_retorno: '2026-11-30', p_cobrancas_remover: [],

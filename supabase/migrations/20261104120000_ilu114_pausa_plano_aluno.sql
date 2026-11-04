@@ -11,8 +11,9 @@
 --     Central de Notificações quando passa).
 --   - Sem limite de duração nem de quantidade; uma pausa aberta por vez.
 --   - Vencimento que cai dentro da pausa não é cobrado. O cron pula quem está
---     pausado; na volta, retomar_plano_aluno gera o dia 10 que vence da volta em
---     diante e que o cron pulou. A tela escolhe quais cobranças em aberto remover.
+--     pausado, e a volta não gera cobrança: a automática retorna na geração do mês
+--     seguinte e a gestão lança à mão o que precisar antes disso. A tela escolhe
+--     quais cobranças em aberto remover.
 --   - O fixo some e a vaga fica livre nas datas da pausa (agenda_fixa fica
 --     intacta: ele volta aos mesmos horários, acima da capacidade se encher).
 --   - Reservas dentro da pausa são canceladas e não contam como falta.
@@ -987,12 +988,6 @@ DECLARE
   v_dias      integer;
   v_fim_novo  date;
   v_removidas jsonb;
-  v_preco     numeric;
-  v_tipo      text;
-  v_negociado numeric;
-  v_venc      date;
-  v_nova      record;
-  v_geradas   jsonb := '[]'::jsonb;
 BEGIN
   IF NOT (auth.role() = 'service_role' OR public.is_admin()) THEN
     RAISE EXCEPTION 'Usuário sem permissão para retomar plano.';
@@ -1027,7 +1022,7 @@ BEGIN
       to_char(v_presenca, 'DD/MM/YYYY');
   END IF;
 
-  SELECT a.ativo, a.bolsista, a.plano_id, a.data_inicio_plano, a.data_fim_plano
+  SELECT a.data_inicio_plano, a.data_fim_plano
     INTO v_aluno
     FROM public.alunos a
    WHERE a.id = p_aluno_id
@@ -1070,50 +1065,6 @@ BEGIN
      AND pr.data_aula >= v_retorno
      AND NOT EXISTS (SELECT 1 FROM public.presencas r WHERE r.reposicao_de_id = pr.id);
 
-  -- O cron (dia 1) pulou o aluno enquanto estava pausado: gera aqui o dia 10
-  -- que vence da volta em diante. Mesmas regras do cron gerar-mensalidades:
-  -- ativo, não bolsista, plano com preço, fora de ciclo à vista e sem outra
-  -- cobrança do plano no mês. Valor: o negociado do ciclo, como na renovação.
-  IF v_aluno.ativo IS NOT FALSE AND v_aluno.plano_id IS NOT NULL AND v_aluno.bolsista IS NOT TRUE THEN
-    SELECT p.preco, CASE WHEN p.is_plano_livre THEN 'plano_livre' ELSE 'regular' END
-      INTO v_preco, v_tipo
-      FROM public.planos p
-     WHERE p.id = v_aluno.plano_id;
-
-    SELECT hp.valor_pago INTO v_negociado
-      FROM public.historico_planos hp
-     WHERE hp.id = v_pausa.historico_plano_id AND hp.plano_id = v_aluno.plano_id;
-
-    IF coalesce(v_preco, 0) > 0 THEN
-      FOR v_venc IN
-        SELECT g.mes::date + 9
-          FROM generate_series(date_trunc('month', v_retorno::timestamp),
-                               date_trunc('month', v_hoje::timestamp),
-                               interval '1 month') AS g(mes)
-      LOOP
-        CONTINUE WHEN v_venc < v_retorno;
-        CONTINUE WHEN EXISTS (
-          SELECT 1 FROM public.historico_planos hp
-           WHERE hp.aluno_id = p_aluno_id
-             AND hp.forma_recebimento = 'a_vista'
-             AND hp.status IN ('ativo', 'agendado')
-             AND hp.data_inicio <= v_venc AND v_venc <= hp.data_fim);
-        CONTINUE WHEN EXISTS (
-          SELECT 1 FROM public.mensalidades m
-           WHERE m.aluno_id = p_aluno_id
-             AND m.plano_id = v_aluno.plano_id
-             AND date_trunc('month', m.data_vencimento::timestamp) = date_trunc('month', v_venc::timestamp));
-
-        INSERT INTO public.mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_esperado)
-        VALUES (p_aluno_id, v_aluno.plano_id, v_venc, 'pendente', v_tipo, coalesce(nullif(v_negociado, 0), v_preco))
-        RETURNING id, data_vencimento, valor_esperado INTO v_nova;
-
-        v_geradas := v_geradas || jsonb_build_object(
-          'id', v_nova.id, 'data_vencimento', v_nova.data_vencimento, 'valor', v_nova.valor_esperado);
-      END LOOP;
-    END IF;
-  END IF;
-
   UPDATE public.pausas_plano
      SET data_retorno = v_retorno,
          dias_devolvidos = v_dias,
@@ -1126,8 +1077,7 @@ BEGIN
   RETURN jsonb_build_object(
     'dias_devolvidos', v_dias,
     'data_fim_plano', v_fim_novo,
-    'cobrancas_removidas', jsonb_array_length(v_removidas),
-    'cobrancas_geradas', v_geradas);
+    'cobrancas_removidas', jsonb_array_length(v_removidas));
 END;
 $$;
 

@@ -195,9 +195,6 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
         cobrancas_remover: lista.idsParaRemover,
       });
       showToast.success(`Plano retomado: ${plural(r.dias_devolvidos, 'dia')} de volta, novo vencimento em ${formatarData(r.data_fim_plano)}.`);
-      (r.cobrancas_geradas || []).forEach((c) => {
-        showToast.info(`Mensalidade com vencimento em ${formatarData(c.data_vencimento)} lançada no Financeiro.`);
-      });
       onSucesso();
       onClose();
     } catch (error) {
@@ -233,7 +230,7 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
               {plural(retomada.dias, 'dia')} de volta: vencimento passa de {formatarData(aluno.data_fim_plano)} para {formatarData(retomada.novoFim)}.
             </p>
             <p className="text-xs font-medium text-muted-foreground mt-1">
-              A cobrança volta no próximo dia 10, e o aluno volta aos mesmos horários fixos.
+              O aluno volta aos mesmos horários fixos. A volta não gera cobrança: a automática retorna na geração do mês seguinte, e o que precisar antes disso é lançado à mão no Financeiro.
             </p>
           </div>
         )}

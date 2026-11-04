@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { startOfDay } from 'date-fns';
+import { hojeBrasilia } from '../lib/utils';
+import { notificacoesDePausa } from '../lib/pausaPlano';
 
 export function useNotificacoes() {
   const [resolvidas, setResolvidas] = useState(() => {
@@ -30,17 +32,27 @@ export function useNotificacoes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alunos')
-        .select('id, nome_completo, telefone, data_nascimento, data_fim_plano, planos(nome)')
+        .select('id, nome_completo, telefone, data_nascimento, data_fim_plano, plano_pausado_desde, planos(nome)')
         .eq('ativo', true);
 
       if (error) throw error;
 
+      // ILU-114: a previsão de volta de uma pausa é só um lembrete; quando chega,
+      // a gestão precisa retomar o plano ou ajustar a data.
+      const { data: pausasAbertas, error: errPausas } = await supabase
+        .from('pausas_plano')
+        .select('data_prevista_volta, alunos(id, nome_completo, ativo)')
+        .is('data_retorno', null);
+
+      if (errPausas) throw errPausas;
+
       const hoje = startOfDay(new Date());
       const anoAtual = hoje.getFullYear();
-      const notificacoes = [];
+      const notificacoes = notificacoesDePausa(pausasAbertas, hojeBrasilia());
 
       data.forEach(aluno => {
-        if (aluno.data_fim_plano) {
+        // ILU-114: o vencimento fica parado durante a pausa.
+        if (aluno.data_fim_plano && !aluno.plano_pausado_desde) {
           const dataFim = startOfDay(new Date(aluno.data_fim_plano + 'T12:00:00'));
           const diasFaltando = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
           

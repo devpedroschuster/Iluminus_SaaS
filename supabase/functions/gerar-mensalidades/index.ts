@@ -37,6 +37,10 @@
 //           os ciclos à vista 'ativo'/'agendado' do aluno, com a mesma regra
 //           de vencimentoCobertoPorCicloAVista (gestao_web/src/lib/utils.js):
 //           data_inicio <= vencimento <= data_fim (data_fim inclusiva, ILU-30).
+//
+// ILU-114 — plano pausado (alunos.plano_pausado_desde) não é cobrado enquanto a
+// pausa estiver aberta. A volta não gera cobrança: ele entra de novo na geração
+// do mês seguinte, e a gestão lança à mão o que precisar antes disso.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -95,12 +99,13 @@ serve(async (req) => {
       nome_completo: string
       plano_id: string
       bolsista: boolean
+      plano_pausado_desde: string | null
       planos: { id: string; preco: number | string | null } | null
     }
 
     const { data: alunosRaw, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, nome_completo, plano_id, bolsista, planos(id, preco)')
+      .select('id, nome_completo, plano_id, bolsista, plano_pausado_desde, planos(id, preco)')
       .eq('ativo', true)
       .not('plano_id', 'is', null) // ignora alunos sem plano
 
@@ -114,9 +119,14 @@ serve(async (req) => {
     // não gera mensalidade nenhuma para ele (em vez de gerar com valor e
     // depender de alguém zerar manualmente todo mês).
     const alunosBolsistas: string[] = []
+    const alunosPausados: string[] = []
     const alunosNaoBolsistas = alunos.filter(a => {
       if (a.bolsista) {
         alunosBolsistas.push(a.nome_completo)
+        return false
+      }
+      if (a.plano_pausado_desde) {
+        alunosPausados.push(a.nome_completo)
         return false
       }
       return true
@@ -179,6 +189,7 @@ serve(async (req) => {
         ignoradosSemPreco: alunosSemPreco,
         ignoradosBolsistas: alunosBolsistas,
         ignoradosAVista: alunosAVista,
+        ignoradosPausados: alunosPausados,
       })
     }
 
@@ -240,6 +251,7 @@ serve(async (req) => {
       ignoradosSemPreco: alunosSemPreco,
       ignoradosBolsistas: alunosBolsistas,
       ignoradosAVista: alunosAVista,
+      ignoradosPausados: alunosPausados,
       avisos,
     })
 

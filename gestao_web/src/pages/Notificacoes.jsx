@@ -1,6 +1,7 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotificacoes } from '../hooks/useNotificacoes';
-import { Bell, Cake, Package, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
+import { Bell, Cake, Package, Pause, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
 import { TableSkeleton } from '../components/shared/Loading';
 import Surface from '../components/ui/Surface';
 import Badge from '../components/ui/Badge';
@@ -8,7 +9,24 @@ import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import { cn } from '../lib/cn';
 
+const ICONE_POR_TIPO = { aniversario: Cake, pausa: Pause, vencimento: Package };
+const ROTULO_POR_TIPO = { aniversario: 'Aniversário', pausa: 'Previsão de volta', vencimento: 'Vencimento' };
+
+function textoDoPrazo(notif) {
+  if (notif.tipo === 'pausa') {
+    return notif.diasFaltando === 0
+      ? 'Previsão de volta é HOJE!'
+      : `Previsão de volta passou há ${Math.abs(notif.diasFaltando)} dias`;
+  }
+  const inicio = notif.tipo === 'aniversario' ? 'Aniversário ' : 'Plano ';
+  if (notif.diasFaltando === 0) return `${inicio}HOJE!`;
+  return notif.diasFaltando > 0
+    ? `${inicio}vence em ${notif.diasFaltando} dias`
+    : `${inicio}vencido há ${Math.abs(notif.diasFaltando)} dias`;
+}
+
 export default function Notificacoes() {
+  const navigate = useNavigate();
   const { ativas, concluidas, loading, isError, refetch, marcarComoResolvida, desfazerResolvida } = useNotificacoes();
 
   if (loading) return <div className="p-8"><TableSkeleton /></div>;
@@ -42,7 +60,7 @@ export default function Notificacoes() {
           Central de Notificações
         </h1>
         <p className="text-muted-foreground font-medium text-sm mt-1">
-          Acompanhe vencimentos e aniversários. Dê o "OK" para limpá-los da lista.
+          Acompanhe vencimentos, aniversários e voltas de pausa. Dê o "OK" para limpá-los da lista.
         </p>
       </div>
 
@@ -67,6 +85,7 @@ export default function Notificacoes() {
               const isAtrasado = notif.diasFaltando < 0;
               const isHoje = notif.diasFaltando === 0;
               const isAniversario = notif.tipo === 'aniversario';
+              const Icone = ICONE_POR_TIPO[notif.tipo];
 
               return (
                 <Surface
@@ -88,7 +107,7 @@ export default function Notificacoes() {
                         ? 'bg-purple-soft text-purple'
                         : 'bg-primary-soft text-primary'
                     )}>
-                      {isAniversario ? <Cake size={24} /> : <Package size={24} />}
+                      <Icone size={24} />
                     </div>
 
                     {/* Conteúdo */}
@@ -105,12 +124,7 @@ export default function Notificacoes() {
                             : 'text-muted-foreground'
                       )}>
                         {isAtrasado && <AlertCircle size={14} className="shrink-0" />}
-                        {isAniversario ? 'Aniversário ' : 'Plano '}
-                        {isHoje
-                          ? 'HOJE!'
-                          : notif.diasFaltando > 0
-                            ? `vence em ${notif.diasFaltando} dias`
-                            : `vencido há ${Math.abs(notif.diasFaltando)} dias`}
+                        {textoDoPrazo(notif)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Data oficial:{' '}
@@ -119,15 +133,22 @@ export default function Notificacoes() {
                     </div>
                   </div>
 
-                  <Button
-                    variant="success"
-                    size="md"
-                    fullWidth
-                    leftIcon={<CheckCircle2 size={18} />}
-                    onClick={() => marcarComoResolvida(notif.idUnico)}
-                  >
-                    Resolvido
-                  </Button>
+                  <div className="space-y-2">
+                    {notif.tipo === 'pausa' && (
+                      <Button variant="outline" size="md" fullWidth onClick={() => navigate(`/alunos/${notif.aluno.id}`)}>
+                        Retomar ou ajustar
+                      </Button>
+                    )}
+                    <Button
+                      variant="success"
+                      size="md"
+                      fullWidth
+                      leftIcon={<CheckCircle2 size={18} />}
+                      onClick={() => marcarComoResolvida(notif.idUnico)}
+                    >
+                      Resolvido
+                    </Button>
+                  </div>
                 </Surface>
               );
             })}
@@ -141,7 +162,9 @@ export default function Notificacoes() {
             Resolvidas recentemente
           </h2>
           <div className="space-y-2">
-            {concluidas.map(notif => (
+            {concluidas.map(notif => {
+              const Icone = ICONE_POR_TIPO[notif.tipo];
+              return (
               <Surface
                 key={notif.idUnico}
                 variant="muted"
@@ -150,14 +173,14 @@ export default function Notificacoes() {
               >
                 <div className="flex items-center gap-3">
                   <div className="text-muted-foreground shrink-0">
-                    {notif.tipo === 'aniversario' ? <Cake size={18} /> : <Package size={18} />}
+                    <Icone size={18} />
                   </div>
                   <div>
                     <span className="font-black text-foreground text-sm">
                       {notif.aluno.nome_completo}
                     </span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      ({notif.tipo === 'aniversario' ? 'Aniversário' : 'Vencimento'})
+                      ({ROTULO_POR_TIPO[notif.tipo]})
                     </span>
                   </div>
                 </div>
@@ -171,7 +194,8 @@ export default function Notificacoes() {
                   Desfazer
                 </Button>
               </Surface>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

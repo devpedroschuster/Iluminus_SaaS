@@ -172,7 +172,30 @@ describe('agendamentoService.removerFalta', () => {
 });
 
 describe('agendamentoService.listarChamadaCompleta', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    supabase.rpc.mockResolvedValue({ data: [], error: null });
+  });
+
+  // ILU-114: a chamada de um dia dentro da pausa não lista o fixo pausado.
+  it('deixa fora da chamada o fixo com o plano pausado na data', async () => {
+    const porTabela = {
+      presencas: { data: [], error: null },
+      agenda_fixa: {
+        data: [
+          { id: 1, aluno_id: 3, alunos: { id: 3, nome_completo: 'Ana' } },
+          { id: 2, aluno_id: 4, alunos: { id: 4, nome_completo: 'Bia' } },
+        ],
+        error: null,
+      },
+      leads: { data: [], error: null },
+    };
+    supabase.from.mockImplementation((tabela) => criarQueryMock(porTabela[tabela]).query);
+    supabase.rpc.mockResolvedValue({ data: [{ aluno_id: 3, data_inicio: '2026-10-01', data_retorno: null }], error: null });
+    const lista = await agendamentoService.listarChamadaCompleta(9, '2026-10-08');
+    expect(supabase.rpc).toHaveBeenCalledWith('listar_periodos_pausa');
+    expect(lista.map((a) => a.nome)).toEqual(['Bia']);
+  });
 
   it('marca as reservas feitas pelo próprio aluno no app (via_app)', async () => {
     const porTabela = {

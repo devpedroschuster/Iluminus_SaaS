@@ -1,4 +1,5 @@
 import { format, eachDayOfInterval, addMinutes } from 'date-fns';
+import { emPausaNaData } from '../lib/pausaPlano';
 
 export const DIAS_MAPA = {
   'domingo': 0,
@@ -88,7 +89,8 @@ export function buildFixosIndex(matriculasFixas) {
         id: m.alunos.id,
         nome: m.alunos.nome_completo,
         inicio: extrairDataLocal(m.alunos.data_inicio_plano),
-        fim: extrairDataLocal(m.alunos.data_fim_plano)
+        fim: extrairDataLocal(m.alunos.data_fim_plano),
+        pausas: m.alunos.pausas || []
       });
     }
   });
@@ -120,6 +122,7 @@ function compilarAlunosAgendados(aulaId, dataStr, todosFixosDaTurma, indexes) {
   const fixosSemLinhaAinda = todosFixosDaTurma.filter(aluno => {
     if (alunoIdsComLinha.has(aluno.id)) return false; // já coberto pela linha real em presencas
     if (aluno.inicio && dataStr < aluno.inicio) return false;
+    if (emPausaNaData(aluno.pausas, dataStr)) return false; // ILU-114
     return true;
   }).map(aluno => {
     const isVencido = aluno.fim && dataStr > aluno.fim;

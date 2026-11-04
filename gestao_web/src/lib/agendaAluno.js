@@ -43,6 +43,14 @@ export function aulasDoDia(aulas = [], data) {
   return aulas.filter((a) => a.data === data);
 }
 
+// ILU-114: com o plano pausado não há o que agendar; fica só o que já tem
+// registro ativo (ex.: a gestão agendou o aluno mesmo pausado).
+export function aulasParaMostrar(aulas, plano, data) {
+  const doDia = aulasDoDia(aulas, data);
+  if (!plano?.pausado_desde) return doDia;
+  return doDia.filter((a) => a.meu_status && a.meu_status !== 'cancelado');
+}
+
 // Segunda-feira da semana (mesma regra do servidor: date_trunc('week')).
 export function inicioDaSemana(iso) {
   const diaSemana = paraData(iso).getUTCDay(); // 0 = domingo
@@ -63,6 +71,10 @@ export function acaoDoCartao(aula) {
 }
 
 export function avisoDoPlano(plano, hoje) {
+  // ILU-114: o vencimento fica parado durante a pausa, então vem antes dele.
+  if (plano?.pausado_desde) {
+    return { tom: 'pausa', texto: `Seu plano está pausado desde ${formatarDiaMes(plano.pausado_desde)}. Para voltar às aulas, fale com a recepção.` };
+  }
   if (!plano?.data_fim || !plano.bloqueia_a_partir_de) return null;
   if (hoje >= plano.bloqueia_a_partir_de) {
     return { tom: 'bloqueio', texto: `Seu plano venceu em ${formatarDiaMes(plano.data_fim)}. Renove para voltar a agendar.` };

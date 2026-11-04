@@ -70,11 +70,14 @@ async listarModalidadesDoAluno(alunoId) {
     // botão "Gerar Mensalidades" era usado manualmente.
     // ILU-11: também busca `bolsista` para nunca gerar cobrança para quem
     // está isento, independente do plano vinculado.
+    // ILU-114: plano pausado não é cobrado; retomar_plano_aluno gera o que vence
+    // da volta em diante.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
       .select('id, plano_id, bolsista, planos(preco)')
       .eq('ativo', true)
-      .not('plano_id', 'is', null);
+      .not('plano_id', 'is', null)
+      .is('plano_pausado_desde', null);
 
     if (errAlunos) throw errAlunos;
 

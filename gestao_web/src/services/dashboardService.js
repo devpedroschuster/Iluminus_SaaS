@@ -151,6 +151,7 @@ async obterComissoes(inicioMes) {
       .eq('ativo', true)
       .eq('role', 'aluno')
       .not('data_fim_plano', 'is', null)
+      .is('plano_pausado_desde', null) // ILU-114: o vencimento fica parado durante a pausa
       .gte('data_fim_plano', hojeIso)
       .lte('data_fim_plano', limiteIso)
       .order('data_fim_plano', { ascending: true });

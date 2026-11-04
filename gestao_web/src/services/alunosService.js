@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
+import { MOTIVO_CANCELAMENTO_PAUSA } from '../lib/pausaPlano';
 import { gerarRepassesDaMensalidade } from './repasseService';
 
 // ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
@@ -314,7 +315,7 @@ export const alunosService = {
 
     const { data: faltas, error } = await supabase
       .from('presencas')
-      .select('id, data_aula, status, agenda ( atividade )')
+      .select('id, data_aula, status, cancelado_motivo, agenda ( atividade )')
       .eq('aluno_id', alunoId)
       .in('status', ['falta', 'cancelado'])
       .gte('data_aula', resumo.periodo_inicio)
@@ -323,16 +324,77 @@ export const alunosService = {
 
     if (error) throw error;
 
+    // ILU-114: reserva cancelada pela pausa não foi falta: os dias já voltam na
+    // retomada, e não há o que repor.
+    const faltasReais = (faltas ?? []).filter(f => f.cancelado_motivo !== MOTIVO_CANCELAMENTO_PAUSA);
+
     const { data: reposicoesExistentes, error: errRep } = await supabase
       .from('presencas')
       .select('reposicao_de_id')
       .not('reposicao_de_id', 'is', null)
-      .in('reposicao_de_id', (faltas ?? []).map(f => f.id));
+      .in('reposicao_de_id', faltasReais.map(f => f.id));
 
     if (errRep) throw errRep;
 
     const jaRepostaIds = new Set((reposicoesExistentes ?? []).map(r => r.reposicao_de_id));
-    return (faltas ?? []).filter(f => !jaRepostaIds.has(f.id));
+    return faltasReais.filter(f => !jaRepostaIds.has(f.id));
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // ILU-114: pausa do plano. As regras ficam no servidor: quem pode, datas
+  // válidas, quais cobranças podem sair e os dias devolvidos na volta.
+  // ─────────────────────────────────────────────────────────────
+
+  async pausarPlano(alunoId, dados) {
+    try {
+      const { data, error } = await supabase.rpc('pausar_plano_aluno', {
+        p_aluno_id:            alunoId,
+        p_data_inicio:         dados.data_inicio,
+        p_data_prevista_volta: dados.data_prevista_volta,
+        p_motivo:              dados.motivo,
+        p_cobrancas_remover:   dados.cobrancas_remover ?? [],
+      });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('[alunosService.pausarPlano]', error);
+      throw error;
+    }
+  },
+
+  async retomarPlano(alunoId, dados) {
+    try {
+      const { data, error } = await supabase.rpc('retomar_plano_aluno', {
+        p_aluno_id:          alunoId,
+        p_data_retorno:      dados.data_retorno,
+        p_cobrancas_remover: dados.cobrancas_remover ?? [],
+      });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('[alunosService.retomarPlano]', error);
+      throw error;
+    }
+  },
+
+  async ajustarPrevisaoPausa(alunoId, dataPrevista) {
+    const { data, error } = await supabase.rpc('ajustar_previsao_pausa', {
+      p_aluno_id:            alunoId,
+      p_data_prevista_volta: dataPrevista,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async listarPausas(alunoId) {
+    const { data, error } = await supabase
+      .from('pausas_plano')
+      .select('*')
+      .eq('aluno_id', alunoId)
+      .order('data_inicio', { ascending: false });
+
+    if (error) throw error;
+    return data;
   },
 
   async normalizarHistoricoPlanos() {

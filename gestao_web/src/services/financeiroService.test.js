@@ -7,6 +7,23 @@ vi.mock('./repasseService', () => ({ gerarRepassesDaMensalidade: vi.fn() }));
 import { supabase } from '../lib/supabase';
 import { financeiroService } from './financeiroService';
 
+// ILU-114: mesma regra do cron gerar-mensalidades — quem está com o plano
+// pausado não recebe cobrança enquanto a pausa estiver aberta.
+describe('financeiroService.gerarMensalidades (ILU-114)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('busca só alunos sem pausa aberta', async () => {
+    const chamadas = {};
+    supabase.from.mockImplementation((tabela) => {
+      const mock = criarQueryMock({ data: [], error: null });
+      chamadas[tabela] = mock.chamadas;
+      return mock.query;
+    });
+    await financeiroService.gerarMensalidades(11, 2026);
+    expect(chamadas.alunos).toContainEqual(['is', 'plano_pausado_desde', null]);
+  });
+});
+
 // ILU-70: ao editar um ciclo existente para "À vista", o modal lista as
 // cobranças de plano em aberto dentro do período para o admin escolher quais
 // remover — mesmo critério das RPCs matricular_aluno/renovar_plano_aluno à

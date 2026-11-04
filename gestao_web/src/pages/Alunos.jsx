@@ -415,6 +415,14 @@ export default function Alunos() {
                         <td className="px-6 md:px-8 py-4 md:py-6">
                           {aluno.role === 'admin' || !aluno.plano_id ? (
                             <Badge tone="neutral" variant="soft">—</Badge>
+                          ) : aluno.plano_pausado_desde ? (
+                            // ILU-114: o vencimento fica parado durante a pausa.
+                            <div className="flex flex-col gap-0.5">
+                              <Badge tone="info" variant="soft">Pausado</Badge>
+                              <span className="text-[10px] font-black text-muted-foreground">
+                                desde {aluno.plano_pausado_desde.split('-').reverse().join('/')}
+                              </span>
+                            </div>
                           ) : (
                             <div className="flex flex-col gap-0.5">
                               <Badge tone={vencimento.tone} variant="soft">

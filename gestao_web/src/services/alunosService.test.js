@@ -8,6 +8,73 @@ import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
 import { alunosService } from './alunosService';
 
+// ILU-114: pausar e retomar passam pelo servidor, que valida as regras, remove
+// as cobranças escolhidas e devolve os dias.
+describe('alunosService — pausa do plano (ILU-114)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('pausarPlano manda datas, motivo e as cobranças escolhidas', async () => {
+    supabase.rpc.mockResolvedValue({ data: { pausa_id: 'p1', reservas_canceladas: 2, cobrancas_removidas: 1 }, error: null });
+    const resultado = await alunosService.pausarPlano(10, {
+      data_inicio: '2026-11-04', data_prevista_volta: '2026-11-24', motivo: 'Atestado', cobrancas_remover: [5],
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith('pausar_plano_aluno', {
+      p_aluno_id: 10,
+      p_data_inicio: '2026-11-04',
+      p_data_prevista_volta: '2026-11-24',
+      p_motivo: 'Atestado',
+      p_cobrancas_remover: [5],
+    });
+    expect(resultado.reservas_canceladas).toBe(2);
+  });
+
+  it('pausarPlano repassa a recusa do servidor', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'Há presença marcada em 03/11/2026.' } });
+    await expect(alunosService.pausarPlano(10, {})).rejects.toMatchObject({ message: 'Há presença marcada em 03/11/2026.' });
+  });
+
+  it('retomarPlano manda a data da volta e devolve os dias', async () => {
+    supabase.rpc.mockResolvedValue({ data: { dias_devolvidos: 20, data_fim_plano: '2027-01-20', cobrancas_removidas: 0 }, error: null });
+    const resultado = await alunosService.retomarPlano(10, { data_retorno: '2026-11-30', cobrancas_remover: [] });
+    expect(supabase.rpc).toHaveBeenCalledWith('retomar_plano_aluno', {
+      p_aluno_id: 10, p_data_retorno: '2026-11-30', p_cobrancas_remover: [],
+    });
+    expect(resultado.dias_devolvidos).toBe(20);
+  });
+
+  it('ajustarPrevisaoPausa chama a RPC', async () => {
+    supabase.rpc.mockResolvedValue({ data: { data_prevista_volta: '2026-12-15' }, error: null });
+    await alunosService.ajustarPrevisaoPausa(10, '2026-12-15');
+    expect(supabase.rpc).toHaveBeenCalledWith('ajustar_previsao_pausa', { p_aluno_id: 10, p_data_prevista_volta: '2026-12-15' });
+  });
+
+  it('listarPausas traz as pausas do aluno, da mais recente para a mais antiga', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 'p1' }], error: null });
+    supabase.from.mockReturnValue(query);
+    expect(await alunosService.listarPausas(10)).toEqual([{ id: 'p1' }]);
+    expect(supabase.from).toHaveBeenCalledWith('pausas_plano');
+    expect(chamadas).toContainEqual(['eq', 'aluno_id', 10]);
+    expect(chamadas).toContainEqual(['order', 'data_inicio', { ascending: false }]);
+  });
+
+  // Reserva cancelada pela pausa não foi falta: não pede reposição.
+  it('listarFaltasPendentesReposicao ignora o que foi cancelado pela pausa', async () => {
+    supabase.rpc.mockReturnValue({
+      single: () => Promise.resolve({ data: { periodo_inicio: '2026-10-01', periodo_fim: '2026-11-04' }, error: null }),
+    });
+    const faltas = [
+      { id: 1, status: 'falta', cancelado_motivo: null },
+      { id: 2, status: 'cancelado', cancelado_motivo: 'Plano pausado' },
+      { id: 3, status: 'cancelado', cancelado_motivo: 'avisou que está doente' },
+    ];
+    const respostas = [{ data: faltas, error: null }, { data: [], error: null }];
+    supabase.from.mockImplementation(() => criarQueryMock(respostas.shift()).query);
+    const resultado = await alunosService.listarFaltasPendentesReposicao(10);
+    expect(resultado.map((f) => f.id)).toEqual([1, 3]);
+  });
+});
+
 // ILU-69: a RPC `renovar_plano_aluno` cria a mensalidade como 'pendente' por
 // padrão — o repasse nasce quando o pagamento é confirmado
 // (financeiroService.confirmarPagamento). A antiga etapa REP-08, que procurava

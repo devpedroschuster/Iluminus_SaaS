@@ -8,6 +8,7 @@ import {
   XCircle, Download, BarChart2, Zap, ChevronRight
 } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
+import { fixosForaDePausa } from '../lib/pausaPlano';
 import {
   hojeBrasilia, ehPlanoLivre, calcularFrequenciaMedia, formatarFrequenciaSemanal,
 } from '../lib/utils';
@@ -120,7 +121,7 @@ export default function Presenca({ isAdmin = false }) {
       // Alunos ativos
       const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
-        .select('id, nome_completo, email, plano_id, planos(frequencia_semanal, is_plano_livre)')
+        .select('id, nome_completo, email, plano_id, plano_pausado_desde, planos(frequencia_semanal, is_plano_livre)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
@@ -184,7 +185,7 @@ export default function Presenca({ isAdmin = false }) {
               .eq('data_aula', hojeDateStr),
             supabase
               .from('agenda_fixa')
-              .select('aluno_id')
+              .select('aluno_id, alunos(plano_pausado_desde)')
               .eq('aula_id', aulaEmCurso.id),
           ]);
         if (errHoje) throw errHoje;
@@ -197,7 +198,8 @@ export default function Presenca({ isAdmin = false }) {
 
         setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
         setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+        // ILU-114: aluno com o plano pausado não entra como fixo da aula.
+        setAlunosFixosDaAula(fixosForaDePausa(fixosDaAula));
       } else {
         setCheckinsDaAula(new Set());
         setAlunosFixosDaAula(new Set());
@@ -250,7 +252,7 @@ export default function Presenca({ isAdmin = false }) {
               .eq('data_aula', hojeDateStr),
             supabase
               .from('agenda_fixa')
-              .select('aluno_id')
+              .select('aluno_id, alunos(plano_pausado_desde)')
               .eq('aula_id', aulaSelecionada),
           ]);
         if (errHoje) throw errHoje;
@@ -263,7 +265,8 @@ export default function Presenca({ isAdmin = false }) {
         );
         setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
         setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-        setAlunosFixosDaAula(new Set((fixosDaAula || []).map(f => f.aluno_id)));
+        // ILU-114: aluno com o plano pausado não entra como fixo da aula.
+        setAlunosFixosDaAula(fixosForaDePausa(fixosDaAula));
       } catch (err) {
         if (!ativo) return;
         showToast.error(tratarErro(err, {
@@ -1129,6 +1132,9 @@ function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, o
             <p className="font-bold text-foreground">{aluno.nome_completo}</p>
             {isDaAula && (
               <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
+            )}
+            {aluno.plano_pausado_desde && (
+              <Badge tone="neutral" variant="soft" size="sm">Plano pausado</Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">{aluno.email}</p>

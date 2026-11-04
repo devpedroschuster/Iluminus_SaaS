@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
+import { anexarPausas } from '../lib/pausaPlano';
 
 export const gradeService = {
   async listarProfessores() {
@@ -186,6 +187,11 @@ export const gradeService = {
     console.error('Erro ao buscar alunos fixos:', error);
     return [];
   }
-  return data;
+
+  // ILU-114: datas de pausa de cada fixo, para a grade esconder quem está
+  // pausado. Uma falha aqui não derruba a grade: os fixos só aparecem como antes.
+  const { data: periodos, error: errPausas } = await supabase.rpc('listar_periodos_pausa');
+  if (errPausas) console.error('Erro ao buscar pausas de plano:', errPausas);
+  return anexarPausas(data, periodos || []);
 },
 };

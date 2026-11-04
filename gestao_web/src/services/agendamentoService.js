@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { buscarTodasAsPaginas } from '../lib/paginacao';
+import { removerFixosEmPausa } from '../lib/pausaPlano';
 import { gerarRepassesDaMensalidade } from './repasseService';
 
 // Linha de presencas do aluno naquela aula e data (chave única), ou null.
@@ -209,7 +210,7 @@ async agendarAulaAdmin(dados) {
   // (ex: chamada aberta antes do job noturno rodar, ou matrícula criada
   // depois da geração). Evita duplicar quem já tem linha em presencas.
   async listarChamadaCompleta(aulaId, dataAula) {
-    const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }] = await Promise.all([
+    const [{ data: presencasDia }, { data: fixos }, { data: leadsDia }, { data: periodosPausa }] = await Promise.all([
       supabase
         .from('presencas')
         .select('id, status, origem, aluno_id, agendado_pelo_app, alunos(id, nome_completo)')
@@ -224,6 +225,7 @@ async agendarAulaAdmin(dados) {
         .select('id, nome, status_conversao')
         .eq('aula_id', aulaId)
         .eq('data_aula', dataAula),
+      supabase.rpc('listar_periodos_pausa'),
     ]);
 
     const alunoIdsComLinha = new Set((presencasDia || []).map(p => p.aluno_id));
@@ -231,7 +233,8 @@ async agendarAulaAdmin(dados) {
 
     // Fixos que ainda não têm linha gerada pra hoje — mostra como 'agendado'
     // (estado padrão, ainda não houve check-in nem job de falta rodou)
-    (fixos || []).forEach(f => {
+    // ILU-114: fixo com o plano pausado nessa data não entra na chamada.
+    removerFixosEmPausa(fixos, periodosPausa, dataAula).forEach(f => {
       if (alunoIdsComLinha.has(f.aluno_id)) return; // já coberto pela linha em presencas
       lista.push({
         id_relacao: null, // não existe linha em presencas ainda

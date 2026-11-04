@@ -247,8 +247,8 @@ export default function AbaReprocessar({ mesAno }) {
       <Surface variant="subtle" className="border border-warning/20 bg-warning-soft p-4 rounded-2xl flex items-start gap-3">
         <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
         <div>
-          <p className="font-bold text-warning text-sm">Quando usar esta aba?</p>
-          <p className="text-sm text-warning/80 mt-0.5">
+          <p className="font-bold text-foreground text-sm">Quando usar esta aba?</p>
+          <p className="text-sm text-foreground/80 mt-0.5">
             Use quando um aluno teve sua matrícula atualizada <strong>após</strong> confirmar o
             pagamento, ou quando um repasse gerou menos lançamentos do que o esperado.
             Reprocessar é seguro e idempotente — apaga os lançamentos anteriores da mensalidade

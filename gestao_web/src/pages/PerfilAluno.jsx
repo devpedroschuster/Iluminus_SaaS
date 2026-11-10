@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User, CreditCard, Calendar, Activity,
@@ -391,9 +391,9 @@ function CardUsoPlan({ aluno, planos, frequencia }) {
     return (
       <div className="bg-warning/10 border border-warning/30 p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center min-h-[140px]">
         <div className="relative z-10">
-          <p className="text-warning text-xs font-bold uppercase tracking-wider mb-2">Uso do Plano</p>
-          <h3 className="text-xl font-black text-warning leading-tight">Histórico pendente</h3>
-          <p className="text-warning/70 text-xs font-medium mt-2">
+          <p className="text-foreground/80 text-xs font-bold uppercase tracking-wider mb-2">Uso do Plano</p>
+          <h3 className="text-xl font-black text-foreground leading-tight">Histórico pendente</h3>
+          <p className="text-foreground/80 text-xs font-medium mt-2">
             Acesse "Histórico" e clique em Renovar para registrar o ciclo atual
           </p>
         </div>
@@ -779,11 +779,11 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 max-w-3xl">
       {semPlano && (
-        <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-warning-foreground">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-foreground">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" />
           <div>
             <p className="font-bold text-sm">Nenhum plano vinculado</p>
-            <p className="text-xs font-medium mt-0.5 text-muted-foreground">
+            <p className="text-xs font-medium mt-0.5 text-foreground/80">
               Vincule um plano ao aluno para que as regras de modalidade sejam aplicadas.
               As modalidades salvas aqui são usadas para controle de turma e repasses.
             </p>
@@ -1132,7 +1132,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
                     <h3 className="font-black text-foreground text-base leading-tight">{modNome}</h3>
                     {limite > 0 && (
                       <span className={`shrink-0 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider
-                        ${isFull ? 'bg-warning-soft text-warning-foreground' : 'bg-success-soft text-success'}`}>
+                        ${isFull ? 'bg-warning-soft text-foreground' : 'bg-success-soft text-success'}`}>
                         {usado}/{limite}
                       </span>
                     )}
@@ -1446,12 +1446,12 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
           {verificaCobrancas && (
             <div className="space-y-3 p-3 rounded-xl bg-warning-soft border border-warning/30">
               {carregandoCobrancas ? (
-                <p className="text-xs font-medium text-muted-foreground">Verificando cobranças em aberto no período...</p>
+                <p className="text-xs font-medium text-foreground/80">Verificando cobranças em aberto no período...</p>
               ) : cobrancasEmAberto.length === 0 ? (
-                <p className="text-xs font-medium text-muted-foreground">Nenhuma cobrança de plano em aberto neste período.</p>
+                <p className="text-xs font-medium text-foreground/80">Nenhuma cobrança de plano em aberto neste período.</p>
               ) : (
                 <>
-                  <div className="flex items-start gap-2 text-xs font-medium text-warning-foreground">
+                  <div className="flex items-start gap-2 text-xs font-medium text-foreground">
                     <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
                     <span>
                       {cobrancasEmAberto.length === 1
@@ -1483,7 +1483,7 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
                   {idsMensais.length > 0 && (
                     <button
                       type="button"
-                      className="text-xs font-bold text-primary hover:underline"
+                      className="text-xs font-bold text-foreground underline hover:no-underline"
                       onClick={() => setIdsMarcados(idsMensais)}
                     >
                       Marcar todas as mensais
@@ -1494,7 +1494,7 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
             </div>
           )}
           {form.status === 'ativo' && (
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-warning-foreground">
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-soft border border-warning/30 text-xs font-medium text-foreground">
               <AlertTriangle size={14} className="shrink-0 mt-0.5 text-warning" />
               Marcar como ativo também atualizará o plano e datas do aluno.
             </div>
@@ -1632,9 +1632,12 @@ function formatarDataBR(iso) {
 export default function PerfilAluno() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState('resumo');
-  const [modalRenovarAberto, setModalRenovarAberto] = useState(false);
+  // A edição do cadastro (NovoAluno) manda para cá quem quer trocar o plano.
+  const abrirRenovarPlano = !!location.state?.abrirRenovarPlano;
+  const [abaAtiva, setAbaAtiva] = useState(abrirRenovarPlano ? 'planos' : 'resumo');
+  const [modalRenovarAberto, setModalRenovarAberto] = useState(abrirRenovarPlano);
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
@@ -1670,9 +1673,20 @@ export default function PerfilAluno() {
     }
   }, [aluno?.observacoes_medicas]);
 
+  // Consome o pedido de abrir a renovação — o state do histórico sobrevive a
+  // um F5, e o modal não deve reabrir sozinho depois.
+  React.useEffect(() => {
+    if (location.state?.abrirRenovarPlano) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
+
   const handleRenovacaoSucesso = () => {
-    queryClient.invalidateQueries(['aluno', id]);
-    queryClient.invalidateQueries(['aluno-planos', id]);
+    queryClient.invalidateQueries({ queryKey: ['aluno', id] });
+    queryClient.invalidateQueries({ queryKey: ['aluno-planos', id] });
+    // A renovação cria a mensalidade do novo ciclo.
+    queryClient.invalidateQueries({ queryKey: ['financeiro'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   // Lista de planos para o modal de edição
@@ -1751,11 +1765,11 @@ export default function PerfilAluno() {
 
       {/* Aviso de histórico ausente */}
       {semHistorico && (
-        <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-warning-foreground">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-foreground">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" />
           <div>
             <p className="font-bold text-sm">Histórico de plano não registrado</p>
-            <p className="text-xs font-medium mt-0.5 text-muted-foreground">
+            <p className="text-xs font-medium mt-0.5 text-foreground/80">
               Este aluno possui um plano vinculado, mas nenhum ciclo foi gravado em{' '}
               <code className="font-mono">historico_planos</code>. Use o botão{' '}
               <strong>Renovar / Alterar Plano</strong> na aba Histórico para registrar o ciclo atual.

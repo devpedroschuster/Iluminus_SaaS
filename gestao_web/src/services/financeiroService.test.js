@@ -43,6 +43,38 @@ describe('financeiroService.listarCobrancasPlanoEmAberto (ILU-70)', () => {
   });
 });
 
+// "Novo Lançamento" quita a cobrança que a renovação/cadastro já criou, em vez
+// de lançar outra ao lado dela.
+describe('financeiroService.listarCobrancasEmAbertoDoAluno', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('busca só cobranças de plano em aberto do aluno, da mais recente para a mais antiga', async () => {
+    const linhas = [{ id: 5, data_vencimento: '2026-11-10', status: 'pendente', tipo_aula: 'regular' }];
+    const { query, chamadas } = criarQueryMock({ data: linhas, error: null });
+    supabase.from.mockReturnValue(query);
+
+    const resultado = await financeiroService.listarCobrancasEmAbertoDoAluno(7);
+
+    expect(supabase.from).toHaveBeenCalledWith('mensalidades');
+    expect(chamadas).toEqual(expect.arrayContaining([
+      ['eq', 'aluno_id', 7],
+      ['in', 'status', ['pendente', 'atrasado']],
+      ['in', 'tipo_aula', ['regular', 'plano_livre']],
+      ['order', 'data_vencimento', { ascending: false }],
+    ]));
+    expect(resultado).toEqual(linhas);
+  });
+
+  it('propaga erro da consulta', async () => {
+    const { query } = criarQueryMock({ data: null, error: new Error('falhou') });
+    supabase.from.mockReturnValue(query);
+
+    await expect(financeiroService.listarCobrancasEmAbertoDoAluno(7)).rejects.toThrow('falhou');
+  });
+});
+
 describe('financeiroService.excluirCobrancasEmAberto (ILU-70)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

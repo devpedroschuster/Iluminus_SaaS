@@ -120,9 +120,14 @@ export default function Financeiro() {
   setPagamentoSelecionado(mensalidade);
   setValorPago(formatarValorInput(mensalidade.valor_esperado ?? mensalidade.planos?.preco));
   setFormaPagamento('');
-  setTipoAula(mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular');
-  setProfessorId('');
-  setModalidadeNome('');
+  // Experimental/avulsa já vêm com tipo, professor e modalidade definidos no
+  // lançamento (ex.: cobrança criada ao agendar a experimental) — só confirma.
+  const ehAulaAvulsaOuExperimental = ['experimental', 'avulsa'].includes(mensalidade.tipo_aula);
+  setTipoAula(ehAulaAvulsaOuExperimental
+    ? mensalidade.tipo_aula
+    : (mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular'));
+  setProfessorId(ehAulaAvulsaOuExperimental ? (mensalidade.professor_id || '') : '');
+  setModalidadeNome(ehAulaAvulsaOuExperimental ? (mensalidade.modalidade_nome || '') : '');
   setModalidadeId(''); // NOVO — reseta a cada abertura
   if (mensalidade.aluno_id) {
     setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(mensalidade.aluno_id));
@@ -359,7 +364,8 @@ const handleAbrirEdicao = async (item) => {
             onChange={(e) => setFiltros({ ...filtros, ano: parseInt(e.target.value) })}
             className="font-bold"
           >
-            {[2024, 2025, 2026].map(ano => (
+            {/* Até o ano que vem: renovações podem ter vencimento nele. */}
+            {Array.from({ length: dataAtual.getFullYear() + 1 - 2024 + 1 }, (_, i) => 2024 + i).map(ano => (
               <option key={ano} value={ano}>{ano}</option>
             ))}
           </Input>

@@ -312,8 +312,8 @@ export default function ResultadoFinanceiro() {
                   <div className="flex items-center gap-2 p-3 rounded-2xl bg-warning-soft border border-warning/20">
                     <AlertCircle size={16} className="text-warning shrink-0" />
                     <div className="flex-1">
-                      <p className="text-xs font-black text-warning">A receber no mês</p>
-                      <p className="text-sm font-black text-warning">
+                      <p className="text-xs font-black text-foreground">A receber no mês</p>
+                      <p className="text-sm font-black text-foreground">
                         {formatarMoeda(dre?.receitasPendentes ?? 0)}
                         <span className="text-xs font-medium ml-1">
                           ({dre?.inadimplentes?.length ?? 0} em atraso)

@@ -242,7 +242,7 @@ export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagame
 
       {/* ── Avisos ─────────────────────────────────────────────────────── */}
       {resultado.avisos?.length > 0 && (
-        <div className="rounded-xl bg-warning-soft border border-warning/20 p-3 text-xs text-warning-foreground space-y-1">
+        <div className="rounded-xl bg-warning-soft border border-warning/20 p-3 text-xs text-foreground space-y-1">
           {resultado.avisos.map((a, i) => (
             <p key={i}>⚠ {a}</p>
           ))}

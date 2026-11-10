@@ -5,6 +5,7 @@ vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } })
 vi.mock('./repasseService', () => ({ gerarRepassesDaMensalidade: vi.fn() }));
 
 import { supabase } from '../lib/supabase';
+import { gerarRepassesDaMensalidade } from './repasseService';
 import { agendamentoService } from './agendamentoService';
 
 // Cada chamada a supabase.from() recebe o próximo resultado da fila.
@@ -14,6 +15,81 @@ function filaDeQueries(...resultados) {
   supabase.from.mockImplementation(() => mocks[i++].query);
   return mocks.map((m) => m.chamadas);
 }
+
+// A experimental entra pendente no Financeiro (muitas vezes pagam só no dia da
+// aula), a não ser que o visitante já tenha pago no agendamento.
+describe('agendamentoService.agendarAulaAdmin — aula experimental', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const dadosVisitante = {
+    tipo: 'visitante', ignorarAvisos: true, nome_visitante: 'Bia',
+    aula_id: '9', data_aula: '2026-11-05', valor_experimental: '50',
+    forma_pagamento_experimental: 'pix',
+  };
+
+  it('por padrão registra cobrança pendente: sem forma de pagamento e sem repasse', async () => {
+    supabase.rpc.mockResolvedValue({ data: { lead_id: 1, mensalidade_id: 2, pago: false }, error: null });
+
+    const resultado = await agendamentoService.agendarAulaAdmin(dadosVisitante);
+
+    expect(supabase.rpc).toHaveBeenCalledWith('agendar_aula_experimental', expect.objectContaining({
+      p_nome: 'Bia', p_aula_id: 9, p_valor: 50, p_forma_pagamento: null, p_ja_pago: false,
+    }));
+    expect(gerarRepassesDaMensalidade).not.toHaveBeenCalled();
+    expect(resultado).toEqual({ lead_id: 1, mensalidade_id: 2, pago: false });
+  });
+
+  it('com "já foi pago", manda a forma de pagamento e gera o repasse', async () => {
+    supabase.rpc.mockResolvedValue({ data: { lead_id: 1, mensalidade_id: 2, pago: true }, error: null });
+
+    await agendamentoService.agendarAulaAdmin({ ...dadosVisitante, experimental_ja_pago: true });
+
+    expect(supabase.rpc).toHaveBeenCalledWith('agendar_aula_experimental', expect.objectContaining({
+      p_forma_pagamento: 'pix', p_ja_pago: true,
+    }));
+    expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(2);
+  });
+
+  it('experimental gratuita não gera repasse nem marcada como paga', async () => {
+    supabase.rpc.mockResolvedValue({ data: { lead_id: 1, mensalidade_id: null, pago: false }, error: null });
+
+    await agendamentoService.agendarAulaAdmin({ ...dadosVisitante, valor_experimental: '0', experimental_ja_pago: true });
+
+    expect(gerarRepassesDaMensalidade).not.toHaveBeenCalled();
+  });
+});
+
+// As presenças de 3 meses do calendário passam das 1000 linhas que a API
+// devolve por requisição: o excedente sumia da grade.
+describe('agendamentoService.listarPresencasPeriodo', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('busca todas as páginas, ordenadas, além do limite de 1000 linhas', async () => {
+    const pagina1 = Array.from({ length: 1000 }, (_, i) => ({ id: i + 1 }));
+    const pagina2 = [{ id: 1001 }, { id: 1002 }];
+    const [chamadas1, chamadas2] = filaDeQueries(
+      { data: pagina1, error: null },
+      { data: pagina2, error: null },
+    );
+
+    const presencas = await agendamentoService.listarPresencasPeriodo('2026-09-01', '2026-11-30');
+
+    expect(presencas).toHaveLength(1002);
+    expect(chamadas1).toContainEqual(['order', 'id']);
+    expect(chamadas1).toContainEqual(['range', 0, 999]);
+    expect(chamadas2).toContainEqual(['range', 1000, 1999]);
+    expect(chamadas2).toContainEqual(['gte', 'data_aula', '2026-09-01']);
+    expect(chamadas2).toContainEqual(['lte', 'data_aula', '2026-11-30']);
+  });
+
+  it('mantém o filtro por professor em todas as páginas (ILU-45)', async () => {
+    const [chamadas] = filaDeQueries({ data: [{ id: 1 }], error: null });
+
+    await agendamentoService.listarPresencasPeriodo('2026-09-01', '2026-11-30', 'prof-1');
+
+    expect(chamadas).toContainEqual(['eq', 'agenda.professor_id', 'prof-1']);
+  });
+});
 
 // ILU-78: 'falta' = não veio e não avisou (conta no limite semanal e barra a
 // confirmação automática da presença presumida). 'cancelado' = avisou.

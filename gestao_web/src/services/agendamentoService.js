@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { buscarTodasAsPaginas } from '../lib/paginacao';
 import { gerarRepassesDaMensalidade } from './repasseService';
 
 // Linha de presencas do aluno naquela aula e data (chave única), ou null.
@@ -89,19 +90,24 @@ async agendarAulaAdmin(dados) {
 
   if (dados.tipo === 'visitante') {
     // Aula experimental: cria o lead (com snapshot do professor da turma) e,
-    // se o valor for > 0, o pagamento já quitado no Financeiro — na mesma
-    // transação, via RPC (ver migration 20261009003807).
+    // se o valor for > 0, a cobrança no Financeiro — na mesma transação, via
+    // RPC. A cobrança entra pendente (vence no dia da aula), a não ser que o
+    // visitante já tenha pago no agendamento (ver migration 20261031145808).
+    const jaPago = !!dados.experimental_ja_pago;
     const { data, error } = await supabase.rpc('agendar_aula_experimental', {
       p_nome: dados.nome_visitante,
       p_telefone: dados.telefone_visitante || null,
       p_aula_id: Number(dados.aula_id),
       p_data_aula: dados.data_aula,
       p_valor: Number(dados.valor_experimental) || 0,
-      p_forma_pagamento: dados.forma_pagamento_experimental || 'pix',
+      p_forma_pagamento: jaPago ? (dados.forma_pagamento_experimental || 'pix') : null,
+      p_ja_pago: jaPago,
     });
     if (error) throw error;
 
-    if (data?.mensalidade_id) {
+    // Repasse só sai quando há pagamento — a cobrança pendente gera o dela
+    // ao ser recebida no Financeiro (financeiroService.confirmarPagamento).
+    if (data?.mensalidade_id && data?.pago) {
       // Mesmo padrão não-bloqueante de financeiroService.adicionarPagamentoManual:
       // o agendamento/pagamento nunca é desfeito por falha no repasse; a
       // reconciliação de gerar-repasses-mensais cobre o que ficar faltando.
@@ -164,24 +170,28 @@ async agendarAulaAdmin(dados) {
   // presenças de aulas daquele professor (join via agenda.professor_id) —
   // evita mandar pro cliente nomes/presença de alunos de outros professores
   // (ver ILU-45). Admin não passa professorId e continua vendo tudo.
+  //
+  // O período do calendário são 3 meses — passa fácil das 1000 linhas que a
+  // API devolve por requisição, e o excedente sumia da grade (o aluno só
+  // aparecia ao abrir a aula, que busca por conta própria). Por isso pagina.
   async listarPresencasPeriodo(inicio, fim, professorId = null) {
-    let query = supabase
-      .from('presencas')
-      .select(
-        professorId
-          ? 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo ), agenda!inner ( professor_id )'
-          : 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )'
-      )
-      .gte('data_aula', inicio)
-      .lte('data_aula', fim);
+    return buscarTodasAsPaginas(() => {
+      let query = supabase
+        .from('presencas')
+        .select(
+          professorId
+            ? 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo ), agenda!inner ( professor_id )'
+            : 'id, aluno_id, data_checkin, data_aula, aula_id, status, origem, alunos ( id, nome_completo )'
+        )
+        .gte('data_aula', inicio)
+        .lte('data_aula', fim);
 
-    if (professorId) {
-      query = query.eq('agenda.professor_id', professorId);
-    }
+      if (professorId) {
+        query = query.eq('agenda.professor_id', professorId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data;
+      return query.order('id');
+    });
   },
 
   async listarPresencas(aulaId, dataAula) {

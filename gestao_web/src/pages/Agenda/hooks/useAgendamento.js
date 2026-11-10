@@ -38,8 +38,10 @@ function formInicial(valorExperimentalPadrao = '') {
     nome_visitante: '',
     aula_id: '',
     data_aula: '',
-    // Pagamento registrado automaticamente ao agendar uma experimental.
+    // Cobrança registrada automaticamente ao agendar uma experimental —
+    // pendente, a não ser que o visitante já tenha pago no agendamento.
     valor_experimental: valorExperimentalPadrao,
+    experimental_ja_pago: false,
     forma_pagamento_experimental: 'pix',
     // Campos de exibição — preenchidos pelo modal ao selecionar aluno/aula.
     // Não são enviados ao banco; apenas enriquecem o toast de sucesso.
@@ -135,9 +137,12 @@ export function useAgendamento(onSucesso, feriados = []) {
         ? `✅ ${nome} agendado para ${atividade} em ${dataFormatada}. Tudo certo!`
         : `✅ ${nome} agendado para ${atividade}. Tudo certo!`;
 
-      const msgPagamento = resultado?.mensalidade_id
-        ? ` Pagamento de ${formatarMoeda(Number(agendamentoForm.valor_experimental))} registrado no Financeiro.`
-        : '';
+      const valorExperimental = formatarMoeda(Number(agendamentoForm.valor_experimental));
+      const msgPagamento = !resultado?.mensalidade_id
+        ? ''
+        : resultado.pago
+          ? ` Pagamento de ${valorExperimental} registrado no Financeiro.`
+          : ` Cobrança de ${valorExperimental} pendente no Financeiro.`;
 
       showToast.success(msgSucesso + msgPagamento);
       if (resultado?.avisoRepasse) {

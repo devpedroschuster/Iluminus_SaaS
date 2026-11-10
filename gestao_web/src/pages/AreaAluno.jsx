@@ -195,9 +195,13 @@ export default function AreaAluno() {
                   </div>
                 </div>
                 <div className="profile-plan-card card">
-                  <div className="profile-plan-label">Plano Ativo</div>
+                  <div className="profile-plan-label">{aluno.plano_pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
                   <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
-                  <div className="profile-plan-desc">{aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}</div>
+                  <div className="profile-plan-desc">
+                    {aluno.plano_pausado_desde
+                      ? `Pausado desde ${formatarData(aluno.plano_pausado_desde)}. Para voltar às aulas, fale com a recepção.`
+                      : aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}
+                  </div>
                 </div>
               </div>
               <div className="card" style={{ marginBottom: '24px' }}>

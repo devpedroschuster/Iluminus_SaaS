@@ -1,8 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import {
   somarDias, formatarDiaMes, montarDias, aulasDoDia, inicioDaSemana, consumoDaSemana,
-  acaoDoCartao, avisoDoPlano, rotuloStatus, nomeProfessor, diasComAula, painelDeErro,
+  acaoDoCartao, avisoDoPlano, rotuloStatus, nomeProfessor, diasComAula, painelDeErro, aulasParaMostrar,
 } from './agendaAluno';
+
+// ILU-114: com o plano pausado não há o que agendar; a lista só mostra o que já
+// tem registro (ex.: a gestão agendou o aluno mesmo pausado).
+describe('aulasParaMostrar', () => {
+  const aulas = [
+    { aula_id: 1, data: '2026-11-09', meu_status: null },
+    { aula_id: 2, data: '2026-11-09', meu_status: 'agendado' },
+    { aula_id: 3, data: '2026-11-09', meu_status: 'cancelado' },
+    { aula_id: 4, data: '2026-11-10', meu_status: 'agendado' },
+  ];
+  const ids = (lista) => lista.map((a) => a.aula_id);
+
+  it('plano normal: todas as aulas do dia', () => {
+    expect(ids(aulasParaMostrar(aulas, { pausado_desde: null }, '2026-11-09'))).toEqual([1, 2, 3]);
+  });
+
+  it('plano pausado: só o que tem registro ativo naquele dia', () => {
+    expect(ids(aulasParaMostrar(aulas, { pausado_desde: '2026-11-01' }, '2026-11-09'))).toEqual([2]);
+  });
+
+  it('sem plano: todas as aulas do dia', () => {
+    expect(ids(aulasParaMostrar(aulas, null, '2026-11-09'))).toEqual([1, 2, 3]);
+  });
+});
 
 // ILU-95: o painel de erro só substitui a lista quando não há lista; o
 // detalhe é só a recusa do servidor (P0001), nunca erro técnico de rede.
@@ -100,6 +124,14 @@ describe('acaoDoCartao', () => {
 });
 
 describe('avisoDoPlano', () => {
+  // ILU-114: plano pausado explica por que nada pode ser agendado, mesmo com o
+  // vencimento original já no passado (os dias voltam na retomada).
+  it('plano pausado: aviso de pausa, antes de qualquer aviso de vencimento', () => {
+    expect(avisoDoPlano({ data_fim: '2026-10-04', bloqueia_a_partir_de: '2026-10-09', pausado_desde: '2026-09-20' }, '2026-10-09')).toEqual({
+      tom: 'pausa',
+      texto: 'Seu plano está pausado desde 20/09. Para voltar às aulas, fale com a recepção.',
+    });
+  });
   it('sem plano ou sem data de fim: nenhum aviso', () => {
     expect(avisoDoPlano(null, '2026-10-09')).toBeNull();
     expect(avisoDoPlano({ data_fim: null, bloqueia_a_partir_de: null }, '2026-10-09')).toBeNull();

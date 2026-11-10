@@ -5,7 +5,7 @@ import { areaAlunoService } from '../../services/areaAlunoService';
 import { showToast } from '../shared/showToast';
 import { ModalConfirmacao } from '../ui/Modal';
 import {
-  montarDias, aulasDoDia, consumoDaSemana, acaoDoCartao, avisoDoPlano, rotuloStatus,
+  montarDias, aulasParaMostrar, consumoDaSemana, acaoDoCartao, avisoDoPlano, rotuloStatus,
   nomeProfessor, diasComAula, formatarDiaMes, inicioDaSemana, somarDias, painelDeErro,
 } from '../../lib/agendaAluno';
 
@@ -67,7 +67,8 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
   }
 
   const diaAtivo = dias.some((d) => d.data === diaEscolhido) ? diaEscolhido : dias[0]?.data;
-  const aulas = aulasDoDia(dados.aulas, diaAtivo);
+  const pausado = !!dados.plano?.pausado_desde;
+  const aulas = aulasParaMostrar(dados.aulas, dados.plano, diaAtivo);
   const feriado = dados.feriados.find((f) => f.data === diaAtivo);
   const consumo = consumoDaSemana(dados.consumo, diaAtivo);
   const semana = inicioDaSemana(diaAtivo);
@@ -79,15 +80,20 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
       {aviso && (
         <div className={`mb-6 p-4 rounded-2xl border ${aviso.tom === 'bloqueio' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
           <p className="font-bold text-sm">{aviso.texto}</p>
-          {aviso.tom === 'bloqueio' && (
-            <button className="btn btn-wa btn-sm mt-3" onClick={() => onFalarComRecepcao('Olá! Quero renovar meu plano para voltar a agendar aulas.')}>
+          {aviso.tom !== 'aviso' && (
+            <button
+              className="btn btn-wa btn-sm mt-3"
+              onClick={() => onFalarComRecepcao(aviso.tom === 'pausa'
+                ? 'Olá! Meu plano está pausado e quero voltar às aulas.'
+                : 'Olá! Quero renovar meu plano para voltar a agendar aulas.')}
+            >
               💬 Falar com a recepção
             </button>
           )}
         </div>
       )}
 
-      {consumo.length > 0 && (
+      {consumo.length > 0 && !pausado && (
         <div className="mb-8 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
           <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-orange-400"></span>
@@ -144,7 +150,9 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
           </div>
         ) : aulas.length === 0 ? (
           <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
-            <p className="text-gray-500 font-medium">Nenhuma aula da sua matrícula neste dia.</p>
+            <p className="text-gray-500 font-medium">
+              {pausado ? 'As aulas voltam a aparecer quando o plano for retomado.' : 'Nenhuma aula da sua matrícula neste dia.'}
+            </p>
           </div>
         ) : (
           aulas.map((aula) => (

@@ -30,4 +30,16 @@ export const areaAlunoService = {
     if (error) throw erroDoServidor(error);
     return resultado;
   },
+
+  // ILU-37: só o histórico recente; a aba é uma tabela simples sem paginação.
+  async listarMensalidades(alunoId) {
+    const { data, error } = await supabase
+      .from('mensalidades')
+      .select('*')
+      .eq('aluno_id', alunoId)
+      .order('data_vencimento', { ascending: false })
+      .limit(100);
+    if (error) throw erroDoServidor(error);
+    return data || [];
+  },
 };

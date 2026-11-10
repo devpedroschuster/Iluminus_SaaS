@@ -13,7 +13,7 @@ import {
   hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
-import { diasDevolvidosNoCiclo } from '../lib/pausaPlano';
+import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
 import { alunosService } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -1734,10 +1734,7 @@ export default function PerfilAluno() {
 
   // ILU-114: pausar/retomar mexe no vencimento, nas cobranças, na grade e nos avisos.
   const handlePausaSucesso = () => {
-    ['aluno', 'aluno-planos', 'aluno-pausas', 'aluno-resumo-frequencia', 'aluno-cobrancas-em-aberto']
-      .forEach((chave) => queryClient.invalidateQueries({ queryKey: [chave, id] }));
-    ['financeiro', 'dashboard', 'alunos', 'matriculas-fixas', 'notificacoes-gerais']
-      .forEach((chave) => queryClient.invalidateQueries({ queryKey: [chave] }));
+    consultasAfetadasPelaPausa(id).forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
   };
 
   // Lista de planos para o modal de edição

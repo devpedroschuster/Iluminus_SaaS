@@ -1,8 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import {
   emPausaNaData, calcularRetomada, anexarPausas, removerFixosEmPausa, fixosForaDePausa,
-  notificacoesDePausa, cobrancasRemoviveis, diasDevolvidosNoCiclo,
+  notificacoesDePausa, cobrancasRemoviveis, diasDevolvidosNoCiclo, consultasAfetadasPelaPausa,
 } from './pausaPlano';
+
+// Depois de pausar ou retomar, as telas abertas em seguida não podem usar o
+// que já tinham carregado: a grade mostrava por até 5 minutos a reserva que a
+// pausa acabou de cancelar.
+describe('consultasAfetadasPelaPausa', () => {
+  const chaves = consultasAfetadasPelaPausa('7');
+
+  it('atualiza as reservas e os fixos da grade', () => {
+    expect(chaves).toContainEqual(['agenda']);
+    expect(chaves).toContainEqual(['matriculas-fixas']);
+  });
+
+  it('atualiza o perfil do aluno, o financeiro e os avisos', () => {
+    expect(chaves).toContainEqual(['aluno', '7']);
+    expect(chaves).toContainEqual(['aluno-pausas', '7']);
+    expect(chaves).toContainEqual(['financeiro']);
+    expect(chaves).toContainEqual(['notificacoes-gerais']);
+  });
+});
 
 // ILU-114: o servidor decide (pausar_plano_aluno / retomar_plano_aluno); aqui
 // ficam as contas que as telas mostram antes de confirmar e os filtros de quem

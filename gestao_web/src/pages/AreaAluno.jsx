@@ -7,6 +7,7 @@ import { showToast } from '../components/shared/showToast';
 import AbaAgendarAulas from '../components/aluno/AbaAgendarAulas';
 import { PWABanners } from '../components/PWABanners';
 import { statusMensalidadeAluno } from '../lib/utils';
+import { areaAlunoService } from '../services/areaAlunoService';
 
 // Abas da barra inferior do celular (ILU-81). No computador a sidebar faz esse papel.
 const ABAS_CELULAR = [
@@ -43,19 +44,7 @@ export default function AreaAluno() {
   const { data: mensalidades, isLoading: loadingMensalidades } = useQuery({
     queryKey: ['minhas-mensalidades', aluno?.id],
     enabled: !!aluno?.id,
-    queryFn: async () => {
-      // ILU-37: limita ao histórico recente — a aba renderiza uma tabela simples
-      // sem paginação, então buscar todas as mensalidades sem limite cresce
-      // sem necessidade para alunos de longa data.
-      const { data, error } = await supabase
-        .from('mensalidades')
-        .select('*')
-        .eq('aluno_id', aluno.id)
-        .order('data_vencimento', { ascending: false })
-        .limit(100);
-      if (error && error.code !== '42P01') throw error;
-      return data || [];
-    }
+    queryFn: () => areaAlunoService.listarMensalidades(aluno.id),
   });
 
   const handleAvatarUpload = async (event) => {

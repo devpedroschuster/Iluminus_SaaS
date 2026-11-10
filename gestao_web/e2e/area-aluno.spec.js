@@ -38,6 +38,8 @@ test.describe('Área do Aluno — navegação no celular', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
   test('a barra inferior leva às três abas e ao Sair', async ({ page }) => {
+    // ILU-89: as mensalidades são buscadas quando a Área do Aluno abre.
+    const respostaMensalidades = page.waitForResponse((r) => r.url().includes('/rest/v1/mensalidades'));
     await loginComoAluno(page, ALUNO_EMAIL, ALUNO_SENHA);
     const barra = page.getByRole('navigation', { name: 'Menu da Área do Aluno' });
     await expect(barra).toBeVisible();
@@ -53,8 +55,12 @@ test.describe('Área do Aluno — navegação no celular', () => {
     const caixaBarra = await barra.boundingBox();
     expect(caixaSuporte.y + caixaSuporte.height).toBeLessThanOrEqual(caixaBarra.y);
 
+    // A aba carrega de verdade: a consulta volta 200 e a lista (ou o aviso de
+    // lista vazia) aparece no lugar do spinner.
     await barra.getByRole('button', { name: 'Mensalidades' }).click();
     await expect(page.getByText('Histórico e status dos seus pagamentos')).toBeVisible();
+    expect((await respostaMensalidades).status()).toBe(200);
+    await expect(page.locator('table.pay-table').or(page.getByText('Nenhuma cobrança registrada.'))).toBeVisible();
 
     await barra.getByRole('button', { name: 'Agendar' }).click();
     await expect(page.getByText('Escolha o dia e reserve sua vaga')).toBeVisible();

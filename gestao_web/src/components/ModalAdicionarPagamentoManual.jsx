@@ -156,6 +156,10 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
+    // Aluno travado: o id vem direto de alunoFixo, mesmo que o envio seja
+    // mais rápido que o carregarDados preencher form.aluno_id.
+    const alunoId = alunoFixo?.id ?? form.aluno_id;
+    let quitando = false;
 
     try {
       const nomeCompleto = alunoFixo?.nome_completo
@@ -164,7 +168,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
       if (lancarEmAberto) {
         const payloadAberto = {
-          aluno_id: form.aluno_id,
+          aluno_id: alunoId,
           tipo_aula: form.tipo_aula,
           status: 'pendente',
           valor_esperado: form.valor_pago,
@@ -188,6 +192,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       }
 
       if (cobrancaParaQuitar) {
+        quitando = true;
         const { resultado } = await financeiroService.confirmarPagamento(cobrancaParaQuitar.id, {
           valor_pago: Number(form.valor_pago),
           forma_pagamento: form.forma_pagamento,
@@ -210,7 +215,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       }
 
       const payload = {
-        aluno_id: isVisitante ? null : form.aluno_id,
+        aluno_id: isVisitante ? null : alunoId,
         nome_visitante: isVisitante ? form.nome_visitante : null,
         tipo_aula: form.tipo_aula,
         valor_pago: Number(form.valor_pago),
@@ -245,6 +250,11 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       onSucesso?.();
       onClose();
     } catch (error) {
+      // A mensalidade a quitar mudou em outra tela (já paga, por exemplo):
+      // recarrega as consultas para a linha velha sair da tela.
+      if (quitando && (error instanceof ErroLancamento || error?.code === 'P0001')) {
+        invalidarConsultasFinanceiras(queryClient);
+      }
       showToast.error(error instanceof ErroLancamento ? mensagemErroLancamento(error) : traduzirErroRegistro(error));
     } finally {
       setLoading(false);

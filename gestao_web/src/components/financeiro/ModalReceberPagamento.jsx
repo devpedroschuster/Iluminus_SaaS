@@ -26,9 +26,9 @@ const ehAvulsaOuExperimental = (tipo) => tipo === 'experimental' || tipo === 'av
  * O estado inicial vem do lançamento: monte um por abertura (o
  * useModaisLancamento faz isso). `onSalvo` é chamado logo depois de o
  * pagamento ser gravado (o comprovante continua aberto); `onConcluido`, quando
- * o comprovante é fechado.
+ * o comprovante é fechado; `onErro(error)`, quando a gravação falha.
  */
-export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onSalvo, onConcluido }) {
+export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onSalvo, onConcluido, onErro }) {
   // Experimental/avulsa já vêm com professor e modalidade do lançamento.
   const avulsaOuExperimental = ehAvulsaOuExperimental(mensalidade.tipo_aula);
   const [etapa, setEtapa] = useState('formulario');
@@ -99,6 +99,7 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onS
       setEtapa('comprovante');
     } catch (error) {
       showToast.error(mensagemErroLancamento(error));
+      onErro?.(error);
     } finally {
       setEnviando(false);
     }

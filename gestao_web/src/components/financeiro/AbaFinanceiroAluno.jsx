@@ -13,6 +13,7 @@ import {
   resumoFinanceiroAluno,
   filtrarPorStatus,
   ordenarMensalidades,
+  rotuloFormaPagamento,
 } from '../../lib/mensalidades';
 
 const FILTROS = [
@@ -54,6 +55,9 @@ export default function AbaFinanceiroAluno({ aluno, alunoId }) {
   );
 
   const { emAberto, pagoNoAno, ultimoPagamento } = resumo;
+  // Carregando ou com erro, os cartões mostram "—", não um R$ 0,00 que parece real.
+  const semDados = loading || !!erro;
+  const quantasCobrancas = (n) => `${n} ${n === 1 ? 'cobrança' : 'cobranças'}`;
 
   return (
     <div className="space-y-6">
@@ -67,22 +71,22 @@ export default function AbaFinanceiroAluno({ aluno, alunoId }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <CardResumo
           titulo="Em aberto"
-          valor={formatarMoeda(emAberto.total)}
-          detalhe={`${emAberto.quantidade} ${emAberto.quantidade === 1 ? 'cobrança' : 'cobranças'}`}
+          valor={semDados ? '—' : formatarMoeda(emAberto.total)}
+          detalhe={semDados ? '—' : quantasCobrancas(emAberto.quantidade)}
           icone={<Clock />}
           tone="warning"
         />
         <CardResumo
           titulo={`Pago em ${pagoNoAno.ano}`}
-          valor={formatarMoeda(pagoNoAno.total)}
-          detalhe={`${pagoNoAno.quantidade} ${pagoNoAno.quantidade === 1 ? 'cobrança' : 'cobranças'}`}
+          valor={semDados ? '—' : formatarMoeda(pagoNoAno.total)}
+          detalhe={semDados ? '—' : quantasCobrancas(pagoNoAno.quantidade)}
           icone={<CheckCircle />}
           tone="success"
         />
         <CardResumo
           titulo="Último pagamento"
-          valor={ultimoPagamento ? formatarData(ultimoPagamento.data) : '—'}
-          detalhe={ultimoPagamento?.forma || '—'}
+          valor={!semDados && ultimoPagamento ? formatarData(ultimoPagamento.data) : '—'}
+          detalhe={!semDados && ultimoPagamento ? rotuloFormaPagamento(ultimoPagamento.forma) : '—'}
           icone={<CalendarCheck />}
           tone="info"
         />
@@ -126,7 +130,7 @@ export default function AbaFinanceiroAluno({ aluno, alunoId }) {
       <ModalAdicionarPagamentoManual
         isOpen={modalAberto}
         onClose={() => setModalAberto(false)}
-        alunoFixo={{ id: alunoId, nome_completo: aluno.nome_completo }}
+        alunoFixo={{ id: alunoId, nome_completo: aluno?.nome_completo }}
       />
     </div>
   );

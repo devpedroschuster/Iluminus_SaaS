@@ -6,11 +6,11 @@ import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import { showToast } from '../shared/showToast';
 import { financeiroService } from '../../services/financeiroService';
-import { FORMAS_PAGAMENTO } from '../../lib/constants';
 import { formatarMoeda, formatarData, valorDevidoMensalidade } from '../../lib/utils';
 import {
   comissaoMarcadaPorPadrao,
   rotuloMesReferencia,
+  rotuloFormaPagamento,
   mensagemErroLancamento,
 } from '../../lib/mensalidades';
 
@@ -31,14 +31,11 @@ const TEXTOS = {
   },
 };
 
-const rotuloForma = (forma) =>
-  FORMAS_PAGAMENTO.find((f) => f.valor === forma)?.label ?? forma ?? '—';
-
 const mesDaComissao = (c) => (c.data_referencia ? rotuloMesReferencia(c.data_referencia) : '—');
 
 function mensagemConfirmacao(modo, m) {
   if (modo === 'reverter') {
-    return `Reverter o pagamento de ${formatarMoeda(valorDevidoMensalidade(m))} recebido em ${formatarData(m.data_pagamento)} (${rotuloForma(m.forma_pagamento)})? O lançamento volta a ficar em aberto.`;
+    return `Reverter o pagamento de ${formatarMoeda(valorDevidoMensalidade(m))} recebido em ${formatarData(m.data_pagamento)} (${rotuloFormaPagamento(m.forma_pagamento)})? O lançamento volta a ficar em aberto.`;
   }
   const nome = m.alunos?.nome_completo || m.nome_visitante || 'Visitante';
   return `Excluir o lançamento de ${nome} com vencimento em ${formatarData(m.data_vencimento)}? Esta ação não pode ser desfeita.`;
@@ -58,9 +55,9 @@ function EsqueletoComissoes() {
  * Confirmação de Reverter (linha paga) ou Excluir (qualquer linha). Se a
  * cobrança tem comissões, lista cada uma com a caixa para removê-la junto
  * (spec §6.1). Se a lista não carrega, o confirmar fica desabilitado: nunca
- * segue como "sem comissão".
+ * segue como "sem comissão". `onErro(error)` é chamado quando a ação falha.
  */
-export default function ModalReverterOuExcluir({ mensalidade, modo, aberto, fechar, onConcluido }) {
+export default function ModalReverterOuExcluir({ mensalidade, modo, aberto, fechar, onConcluido, onErro }) {
   const textos = TEXTOS[modo];
   const [escolhas, setEscolhas] = useState({});
   const [enviando, setEnviando] = useState(false);
@@ -89,6 +86,7 @@ export default function ModalReverterOuExcluir({ mensalidade, modo, aberto, fech
       onConcluido();
     } catch (error) {
       showToast.error(mensagemErroLancamento(error));
+      onErro?.(error);
     } finally {
       setEnviando(false);
     }

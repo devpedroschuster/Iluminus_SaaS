@@ -1,5 +1,5 @@
 import { CheckCircle2, Printer, UserX } from 'lucide-react';
-import { formatarMoeda } from '../lib/utils';
+import { formatarMoeda, formatarData } from '../lib/utils';
 
 // Mapa de labels para forma de pagamento
 const FORMA_LABELS = {
@@ -59,17 +59,12 @@ function MensagemSemRepasse({ tipoAula }) {
 export default function RepasseAlunoCard({ aluno, mensalidade, resultado, pagamento }) {
   if (!resultado) return null;
 
-  // Data de pagamento: prefere o campo explícito, cai na data de hoje
-  const dataFormatada = (() => {
-    const raw = pagamento?.data_pagamento || new Date().toISOString();
-    return new Date(raw).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  })();
+  // Data de pagamento: prefere o campo explícito ('AAAA-MM-DD', lido por
+  // formatarData ao meio-dia — `new Date('AAAA-MM-DD')` é meia-noite UTC e
+  // mostrava o dia anterior); sem ele, cai em agora (com hora).
+  const dataFormatada = pagamento?.data_pagamento
+    ? formatarData(pagamento.data_pagamento)
+    : formatarData(new Date(), true);
 
   const nomeAluno = aluno?.nome_completo || '—';
   const valorPago = pagamento?.valor_pago ?? resultado.valor_total;

@@ -4,7 +4,7 @@ import Surface from '../ui/Surface';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import { formatarMoeda, valorDevidoMensalidade, hojeBrasilia } from '../../lib/utils';
-import { calcularStatusReal, rotuloReferencia } from '../../lib/mensalidades';
+import { calcularStatusReal, rotuloReferencia, rotuloFormaPagamento } from '../../lib/mensalidades';
 
 const TH = 'p-4 font-bold text-muted-foreground uppercase text-xs';
 
@@ -84,8 +84,8 @@ export default function TabelaMensalidades({ itens, mostrarAluno = false, acoes,
                   </td>
                   <td className="p-4">
                     {paga && item.forma_pagamento ? (
-                      <Badge tone="neutral" variant="soft" className="capitalize">
-                        {item.forma_pagamento}
+                      <Badge tone="neutral" variant="soft">
+                        {rotuloFormaPagamento(item.forma_pagamento)}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
@@ -153,14 +153,15 @@ export default function TabelaMensalidades({ itens, mostrarAluno = false, acoes,
               );
             })}
           </tbody>
-          {/* Rodapé: contagem + total do que está na lista */}
+          {/* Rodapé: contagem + total do que está na lista. As células somam as
+              colunas do cabeçalho (8 com Aluno, 7 sem); o Total fica sob Ações. */}
           <tfoot>
             <tr className="bg-muted border-t-2 border-border">
               <td className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-wide">
                 {itens.length}{' '}
                 {itens.length === 1 ? 'registro' : 'registros'}
               </td>
-              <td colSpan={mostrarAluno ? 5 : 4} />
+              <td colSpan={mostrarAluno ? 6 : 5} />
               <td className="p-4 text-right">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide mr-2">
                   Total

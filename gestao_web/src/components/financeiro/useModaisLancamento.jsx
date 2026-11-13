@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import ModalReceberPagamento from './ModalReceberPagamento';
 import ModalEditarLancamento from './ModalEditarLancamento';
 import ModalReverterOuExcluir from './ModalReverterOuExcluir';
-import { invalidarConsultasFinanceiras } from '../../lib/mensalidades';
+import { invalidarConsultasFinanceiras, ErroLancamento } from '../../lib/mensalidades';
 
 /**
  * Ações por linha da TabelaMensalidades e os modais que elas abrem, iguais na
@@ -16,7 +16,10 @@ import { invalidarConsultasFinanceiras } from '../../lib/mensalidades';
  * então o formulário sempre começa dos dados da linha clicada. Depois de
  * qualquer ação concluída, invalida as consultas financeiras (as duas telas e
  * Comissões) e a lista de comissões, e fecha. No Receber a invalidação vem
- * logo depois de gravar, com o comprovante ainda aberto.
+ * logo depois de gravar, com o comprovante ainda aberto. Se a ação falha
+ * porque a linha mudou em outra tela (ErroLancamento ou RAISE do banco,
+ * P0001), invalida também, para a linha velha sair da tela; o modal fica
+ * aberto com a mensagem.
  */
 export function useModaisLancamento() {
   const queryClient = useQueryClient();
@@ -41,6 +44,10 @@ export function useModaisLancamento() {
     setAberto(null);
   };
 
+  const aoFalhar = (error) => {
+    if (error instanceof ErroLancamento || error?.code === 'P0001') invalidar();
+  };
+
   const modal = aberto?.modal;
   const item = aberto?.item;
   const chave = item ? `${modal}-${item.id}` : undefined;
@@ -55,10 +62,18 @@ export function useModaisLancamento() {
           fechar={fechar}
           onSalvo={invalidar}
           onConcluido={concluir}
+          onErro={aoFalhar}
         />
       )}
       {modal === 'editar' && (
-        <ModalEditarLancamento key={chave} mensalidade={item} aberto fechar={fechar} onConcluido={concluir} />
+        <ModalEditarLancamento
+          key={chave}
+          mensalidade={item}
+          aberto
+          fechar={fechar}
+          onConcluido={concluir}
+          onErro={aoFalhar}
+        />
       )}
       {(modal === 'reverter' || modal === 'excluir') && (
         <ModalReverterOuExcluir
@@ -68,6 +83,7 @@ export function useModaisLancamento() {
           aberto
           fechar={fechar}
           onConcluido={concluir}
+          onErro={aoFalhar}
         />
       )}
     </>

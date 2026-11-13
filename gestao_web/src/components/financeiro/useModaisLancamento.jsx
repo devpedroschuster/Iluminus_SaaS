@@ -14,8 +14,9 @@ import { invalidarConsultasFinanceiras } from '../../lib/mensalidades';
  *
  * Cada modal é montado só enquanto está aberto (com `key` pelo lançamento),
  * então o formulário sempre começa dos dados da linha clicada. Depois de
- * qualquer ação concluída, invalida as consultas financeiras das duas telas
- * e a lista de comissões, e fecha.
+ * qualquer ação concluída, invalida as consultas financeiras (as duas telas e
+ * Comissões) e a lista de comissões, e fecha. No Receber a invalidação vem
+ * logo depois de gravar, com o comprovante ainda aberto.
  */
 export function useModaisLancamento() {
   const queryClient = useQueryClient();
@@ -30,9 +31,13 @@ export function useModaisLancamento() {
 
   const fechar = () => setAberto(null);
 
-  const concluir = () => {
+  const invalidar = () => {
     invalidarConsultasFinanceiras(queryClient);
     queryClient.invalidateQueries({ queryKey: ['comissoes-mensalidade'] });
+  };
+
+  const concluir = () => {
+    invalidar();
     setAberto(null);
   };
 
@@ -43,7 +48,14 @@ export function useModaisLancamento() {
   const modais = item ? (
     <>
       {modal === 'receber' && (
-        <ModalReceberPagamento key={chave} mensalidade={item} aberto fechar={fechar} onConcluido={concluir} />
+        <ModalReceberPagamento
+          key={chave}
+          mensalidade={item}
+          aberto
+          fechar={fechar}
+          onSalvo={invalidar}
+          onConcluido={concluir}
+        />
       )}
       {modal === 'editar' && (
         <ModalEditarLancamento key={chave} mensalidade={item} aberto fechar={fechar} onConcluido={concluir} />

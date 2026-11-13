@@ -184,15 +184,18 @@ describe('rotuloMesReferencia', () => {
 });
 
 describe('invalidarConsultasFinanceiras', () => {
-  it('invalida as quatro famílias de consultas', () => {
+  it('invalida as sete famílias de consultas (financeiro e comissões)', () => {
     const cliente = { invalidateQueries: vi.fn() };
     invalidarConsultasFinanceiras(cliente);
-    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(4);
+    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(7);
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['financeiro'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['financeiro-aluno'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['aluno-cobrancas-em-aberto'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(4, { queryKey: ['dashboard'] });
-    expect(CONSULTAS_FINANCEIRAS).toHaveLength(4);
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(5, { queryKey: ['comissoes'] });
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(6, { queryKey: ['resumo-mensal'] });
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(7, { queryKey: ['repasses'] });
+    expect(CONSULTAS_FINANCEIRAS).toHaveLength(7);
   });
 });
 

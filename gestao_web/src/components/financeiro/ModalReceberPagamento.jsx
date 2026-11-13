@@ -24,10 +24,11 @@ const ehAvulsaOuExperimental = (tipo) => tipo === 'experimental' || tipo === 'av
 /**
  * "Confirmar Recebimento" e, depois do sucesso, o "Comprovante de Pagamento".
  * O estado inicial vem do lançamento: monte um por abertura (o
- * useModaisLancamento faz isso). `onConcluido` é chamado quando o comprovante
- * é fechado, depois de o pagamento ter sido gravado.
+ * useModaisLancamento faz isso). `onSalvo` é chamado logo depois de o
+ * pagamento ser gravado (o comprovante continua aberto); `onConcluido`, quando
+ * o comprovante é fechado.
  */
-export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onConcluido }) {
+export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onSalvo, onConcluido }) {
   // Experimental/avulsa já vêm com professor e modalidade do lançamento.
   const avulsaOuExperimental = ehAvulsaOuExperimental(mensalidade.tipo_aula);
   const [etapa, setEtapa] = useState('formulario');
@@ -87,6 +88,7 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onC
     setEnviando(true);
     try {
       const res = await financeiroService.confirmarPagamento(mensalidade.id, payload);
+      onSalvo?.();
       showToast.success('Pagamento processado com sucesso!');
       setResultado(res.resultado);
       setDadosPagamento({

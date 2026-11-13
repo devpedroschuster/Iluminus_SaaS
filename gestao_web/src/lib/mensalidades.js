@@ -139,11 +139,16 @@ export function rotuloMesReferencia(data) {
   return `${d.toLocaleString('pt-BR', { month: 'long' })}/${d.getFullYear()}`;
 }
 
+// Também as consultas da tela Comissões: receber, reverter e excluir mudam
+// os repasses dos professores.
 export const CONSULTAS_FINANCEIRAS = [
   ['financeiro'],
   ['financeiro-aluno'],
   ['aluno-cobrancas-em-aberto'],
   ['dashboard'],
+  ['comissoes'],
+  ['resumo-mensal'],
+  ['repasses'],
 ];
 
 export function invalidarConsultasFinanceiras(queryClient) {

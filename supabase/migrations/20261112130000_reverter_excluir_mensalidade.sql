@@ -19,9 +19,9 @@
 --   - Reverter mantendo uma comissão: ela continua ligada à cobrança, e o
 --     Receber seguinte a reaproveita.
 --   - Excluir mantendo uma comissão: ela é desligada (mensalidade_id = NULL)
---     antes de apagar a cobrança, senão o CASCADE a levaria; se isso colidir com
---     uma linha do lote (uq_repasse_lote_mensal), a função recusa e pede para
---     marcar uma das duas.
+--     antes de apagar a cobrança, senão o CASCADE a levaria; se isso colidir
+--     (uq_repasse_lote_mensal) com uma linha do lote ou com outra comissão
+--     mantida, a função recusa e pede para marcar uma das duas.
 --   - A cobrança revertida volta para 'atrasado' se venceu antes de hoje em
 --     Brasília, senão 'pendente'; valor_esperado vazio recebe o valor pago.
 --
@@ -188,6 +188,25 @@ BEGIN
    LIMIT 1;
   IF FOUND THEN
     RAISE EXCEPTION 'Já existe no lote mensal uma comissão de % (%) deste aluno. Marque uma das duas para remover.',
+      v_colisao.modalidade, to_char(v_colisao.data_referencia, 'MM/YYYY');
+  END IF;
+
+  -- Nem duas mantidas com a mesma chave (mesma modalidade, outro professor):
+  -- desligadas, colidiriam entre si. Chave com NULL nunca colide no índice.
+  SELECT r.modalidade, r.data_referencia
+    INTO v_colisao
+    FROM public.repasses_lancamentos r
+   WHERE r.mensalidade_id = p_mensalidade_id
+     AND r.id <> ALL (v_remover)
+     AND r.aluno_id IS NOT NULL
+     AND r.modalidade IS NOT NULL
+     AND r.data_referencia IS NOT NULL
+   GROUP BY r.aluno_id, r.modalidade, r.tipo_aula, r.data_referencia
+  HAVING count(*) > 1
+   ORDER BY r.data_referencia, r.modalidade
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'Duas comissões de % (%) deste aluno ficariam repetidas ao excluir. Marque uma delas para remover.',
       v_colisao.modalidade, to_char(v_colisao.data_referencia, 'MM/YYYY');
   END IF;
 

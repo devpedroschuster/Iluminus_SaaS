@@ -11,7 +11,8 @@
 --      guarda o valor em valor_esperado e não mexe no fechamento do mês;
 --      recusa cobrança não paga e quem não é admin.
 --   E: excluir — desliga as comissões mantidas antes de apagar a cobrança,
---      recusa colisão com o lote mensal, funciona para visitante.
+--      recusa colisão com o lote mensal e entre duas comissões mantidas,
+--      funciona para visitante. São 19 casos ao todo.
 --
 -- Cria os próprios dados ([TESTE FIN-ALUNO], e-mails teste-finaluno-*@iluminus.test)
 -- e SEMPRE termina em RAISE EXCEPTION, então tudo é desfeito. Cada caso roda
@@ -55,7 +56,7 @@ DECLARE
   v_j jsonb; v_j2 jsonb;
   v_m mensalidades%ROWTYPE;
   v_antes jsonb;
-  v_n int; v_n2 int; v_id bigint; v_id2 bigint; v_r uuid; v_lote uuid; v_lote2 uuid;
+  v_n int; v_n2 int; v_id bigint; v_id2 bigint; v_r uuid; v_r2 uuid; v_lote uuid; v_lote2 uuid;
   v_txt text; v_esperado text; v_recusado boolean;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
@@ -568,6 +569,53 @@ BEGIN
       v_falhas := v_falhas || ('E5: ' || v_txt || ' de id inexistente não respondeu "Lançamento não encontrado."');
     END IF;
   END LOOP;
+
+  -- E6: duas comissões mantidas com a mesma chave (mesma modalidade, outro
+  -- professor) colidiriam entre si ao desligar: recusado e nada muda; marcando
+  -- uma delas, passa
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO mensalidades (aluno_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (a_a, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9) RETURNING id INTO v_id;
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_id, v_prof_a, a_a, 'regular', '[TESTE FIN-ALUNO] Dança', 30, v_mes) RETURNING id INTO v_r;
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_id, v_prof_b, a_a, 'regular', '[TESTE FIN-ALUNO] Dança', 30, v_mes) RETURNING id INTO v_r2;
+    v_esperado := 'Duas comissões de [TESTE FIN-ALUNO] Dança ('
+                  || to_char(v_mes, 'MM/YYYY') || ') deste aluno ficariam repetidas ao excluir. Marque uma delas para remover.';
+    v_recusado := false;
+    BEGIN
+      PERFORM set_config('request.jwt.claims', c_admin, true);
+      SET LOCAL ROLE authenticated;
+      v_j := public.excluir_mensalidade(v_id);
+      RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR002';
+    EXCEPTION WHEN SQLSTATE 'TR002' THEN NULL;
+    WHEN OTHERS THEN v_recusado := SQLERRM = v_esperado;
+      IF NOT v_recusado THEN v_falhas := v_falhas || ('E6: erro inesperado: ' || SQLERRM); END IF;
+    END;
+    IF NOT v_recusado THEN
+      v_falhas := v_falhas || 'E6: as duas comissões repetidas não foram recusadas com a mensagem certa'::text;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM mensalidades WHERE id = v_id)
+       OR (SELECT count(*) FROM repasses_lancamentos WHERE id IN (v_r, v_r2) AND mensalidade_id = v_id) <> 2 THEN
+      v_falhas := v_falhas || 'E6: a recusa mudou a cobrança ou as comissões'::text;
+    END IF;
+    PERFORM set_config('request.jwt.claims', c_admin, true);
+    SET LOCAL ROLE authenticated;
+    v_j := public.excluir_mensalidade(v_id, ARRAY[v_r]);
+    RESET ROLE;
+    IF EXISTS (SELECT 1 FROM mensalidades WHERE id = v_id)
+       OR EXISTS (SELECT 1 FROM repasses_lancamentos WHERE id = v_r)
+       OR NOT EXISTS (SELECT 1 FROM repasses_lancamentos WHERE id = v_r2 AND mensalidade_id IS NULL) THEN
+      v_falhas := v_falhas || 'E6: marcando uma delas, a exclusão deveria passar e a outra ficar desligada'::text;
+    END IF;
+    IF (v_j->>'comissoes_removidas')::int IS DISTINCT FROM 1 OR (v_j->>'comissoes_mantidas')::int IS DISTINCT FROM 1 THEN
+      v_falhas := v_falhas || ('E6: resposta errada: ' || v_j::text);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('E6: ' || SQLERRM);
+  END;
 
   ---------------------------------------------------------------- resultado
   RESET ROLE;

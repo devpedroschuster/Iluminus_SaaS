@@ -6,18 +6,14 @@ const EMAIL = process.env.E2E_ADMIN_EMAIL;
 const SENHA = process.env.E2E_ADMIN_PASSWORD;
 
 test.describe('Financeiro e Comissões', () => {
-  test('gerar mensalidades do mês', async ({ page }) => {
+  test('tela Financeiro sem geração automática', async ({ page }) => {
     await loginComoAdmin(page, EMAIL, SENHA);
     await page.goto('/financeiro');
 
     await expect(page.getByRole('heading', { name: 'Financeiro' })).toBeVisible();
 
-    await page.getByRole('button', { name: /Criar mensalidades de/ }).click();
-    await page.getByRole('button', { name: 'Confirmar', exact: true }).click();
-
-    await expect(page.getByText('Mensalidades criadas com sucesso!')).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole('button', { name: /Criar mensalidades de/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Novo Lançamento' })).toBeVisible();
   });
 
   test('calcular repasses mensais dos professores', async ({ page }) => {

@@ -198,7 +198,7 @@ export default function Alunos() {
             : 'Aluno marcado como bolsista!'
         );
       } else {
-        showToast.success('Bolsa removida. A cobrança volta ao normal na próxima geração de mensalidades.');
+        showToast.success('Bolsa removida. As próximas mensalidades são lançadas normalmente pelo Financeiro.');
       }
       modalBolsista.fechar();
       refetch();
@@ -572,7 +572,7 @@ export default function Alunos() {
         titulo={alunoSelecionado?.bolsista ? 'Remover Bolsa' : 'Marcar como Bolsista'}
         mensagem={
           alunoSelecionado?.bolsista
-            ? `Deseja remover a bolsa de ${alunoSelecionado?.nome_completo}? A cobrança volta ao normal a partir da próxima geração de mensalidades (não recria cobranças retroativas).`
+            ? `Deseja remover a bolsa de ${alunoSelecionado?.nome_completo}? As mensalidades que foram zeradas continuam zeradas. As próximas são lançadas normalmente pelo Financeiro.`
             : `Deseja marcar ${alunoSelecionado?.nome_completo} como bolsista? Isso zera imediatamente todas as mensalidades em aberto dele, independente do plano vinculado, e passa a contá-lo como "B" no Dashboard.`
         }
         textoConfirmar={alunoSelecionado?.bolsista ? 'Remover bolsa' : 'Marcar como bolsista'}

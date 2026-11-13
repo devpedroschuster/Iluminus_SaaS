@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { ClipboardList, History, RefreshCw } from 'lucide-react';
+import { ClipboardList, History, RefreshCw, WifiOff } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
 import { formatarData } from '../lib/utils';
+import { estadoListaMatriculas } from '../lib/matriculas';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import Skeleton from '../components/ui/Skeleton';
@@ -18,12 +19,20 @@ const JANELA_DIAS = 30;
 export default function Matriculas() {
   const [dias, setDias] = useState(JANELA_DIAS);
 
-  // Prefixo 'alunos': invalidações de ['alunos'] (ex.: depois de um cadastro)
-  // também atualizam esta lista.
-  const { data: matriculas = [], isLoading, isError, isFetching, refetch } = useQuery({
+  // Matrícula nova aparece ao abrir a página porque a consulta usa o staleTime
+  // padrão (0) e busca de novo a cada montagem — não adicionar staleTime aqui
+  // sem garantir que o cadastro invalide esta chave. O prefixo 'alunos' faz
+  // invalidações de ['alunos'] também atualizarem a lista.
+  const {
+    data: matriculas = [], isError, isPending, isPlaceholderData, isFetching, fetchStatus, refetch,
+  } = useQuery({
     queryKey: ['alunos', 'matriculas-recentes', dias],
     queryFn: () => alunosService.listarMatriculasRecentes({ dias }),
     placeholderData: keepPreviousData,
+  });
+
+  const estado = estadoListaMatriculas({
+    isError, isPending, isPlaceholderData, fetchStatus, total: matriculas.length,
   });
 
   const botaoMaisAntigas = (
@@ -39,13 +48,23 @@ export default function Matriculas() {
   );
 
   let conteudo;
-  if (isLoading) {
+  if (estado === 'carregando') {
     conteudo = (
       <div className="p-6 space-y-3">
         {[1, 2, 3, 4].map((i) => <Skeleton.Row key={i} />)}
       </div>
     );
-  } else if (isError) {
+  } else if (estado === 'sem-conexao') {
+    conteudo = (
+      <div className="p-6">
+        <EmptyState
+          icon={<WifiOff size={28} />}
+          title="Sem conexão com a internet."
+          description="A lista aparece sozinha assim que a conexão voltar."
+        />
+      </div>
+    );
+  } else if (estado === 'erro') {
     conteudo = (
       <div className="p-6">
         <EmptyState
@@ -60,7 +79,7 @@ export default function Matriculas() {
         />
       </div>
     );
-  } else if (matriculas.length === 0) {
+  } else if (estado === 'vazio') {
     conteudo = (
       <div className="p-6">
         <EmptyState

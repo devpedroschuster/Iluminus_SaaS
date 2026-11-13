@@ -2,7 +2,7 @@
 
 - **Data:** 2026-11-13
 - **Status:** aprovado pelo usuário em 2026-11-13.
-- **Issue Linear:** a criar no time Iluminus.
+- **Issue Linear:** ILU-120 (time Iluminus).
 - **Tamanho:** mudança pequena — só tela, sem migration nem mudança de RLS.
 
 ## Por quê

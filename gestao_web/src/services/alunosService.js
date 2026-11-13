@@ -180,6 +180,32 @@ export const alunosService = {
     return data;
   },
 
+  // ILU-120: página "Matrículas" — alunos cadastrados nos últimos `dias` dias
+  // de calendário (incluindo hoje), do mais recente para o mais antigo. A
+  // janela começa à meia-noite de Brasília; o offset fixo -03:00 vale porque
+  // o Brasil não tem horário de verão desde 2019. Desativados continuam na
+  // lista: a matrícula fechou naquele dia.
+  async listarMatriculasRecentes({ dias, hoje = hojeBrasilia() }) {
+    try {
+      const [ano, mes, dia] = hoje.split('-').map(Number);
+      const inicio = new Date(Date.UTC(ano, mes - 1, dia - (dias - 1)))
+        .toISOString().slice(0, 10);
+
+      const { data, error } = await supabase
+        .from('alunos')
+        .select('id, nome_completo, created_at')
+        .eq('role', 'aluno')
+        .gte('created_at', `${inicio}T00:00:00-03:00`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data ?? [];
+    } catch (error) {
+      console.error('[alunosService.listarMatriculasRecentes]', error);
+      throw error;
+    }
+  },
+
   async buscarPerfilCompleto(alunoId) {
     const { data, error } = await supabase
       .from('alunos')

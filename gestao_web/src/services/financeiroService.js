@@ -1,6 +1,14 @@
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
-import { avancarUmMes, hojeBrasilia, vencimentoCobertoPorCicloAVista } from '../lib/utils';
+import { hojeBrasilia } from '../lib/utils';
+import { ErroLancamento } from '../lib/mensalidades';
+
+const SELECT_MENSALIDADE = `
+      *,
+      alunos (nome_completo),
+      planos (nome, preco, is_plano_livre),
+      modalidades:modalidade_id (id, nome)
+    `;
 
 const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
@@ -8,12 +16,7 @@ export const financeiroService = {
   async listarMensalidades(inicio, fim) {
   const { data, error } = await supabase
     .from('mensalidades')
-    .select(`
-      *,
-      alunos (nome_completo),
-      planos (nome, preco, is_plano_livre),
-      modalidades:modalidade_id (id, nome)
-    `)
+    .select(SELECT_MENSALIDADE)
     .gte('data_vencimento', inicio)
     .lte('data_vencimento', fim)
     .order('data_vencimento', { ascending: true });
@@ -48,124 +51,72 @@ async listarModalidadesDoAluno(alunoId) {
   return mods ?? [];
 },
 
-  /**
-   * Gera mensalidades para um determinado mês/ano.
-   *
-   * @param {number} mesNumero - Mês no formato 1-indexed (1 = janeiro, 12 = dezembro).
-   *                             ATENÇÃO: Se o chamador obtiver o mês via `new Date().getMonth()`,
-   *                             deve passar `getMonth() + 1` para converter para 1-indexed.
-   * @param {number} ano       - Ano com 4 dígitos (ex: 2025).
-   */
-  async gerarMensalidades(mesNumero, ano) {
-    if (mesNumero < 1 || mesNumero > 12) {
-      throw new Error(
-        `gerarMensalidades: mesNumero deve ser 1-indexed (1–12). Recebido: ${mesNumero}. ` +
-        `Se estiver usando Date.getMonth(), lembre-se de somar 1.`
-      );
-    }
-
-    // BUG CRÍTICO CORRIGIDO (ILU-11): a tabela `alunos` não tem coluna
-    // `status` — só o booleano `ativo`. O filtro `.eq('status', 'ativo')`
-    // fazia essa query falhar com 400 (coluna inexistente) sempre que o
-    // botão "Gerar Mensalidades" era usado manualmente.
-    // ILU-11: também busca `bolsista` para nunca gerar cobrança para quem
-    // está isento, independente do plano vinculado.
-    // ILU-114: plano pausado não é cobrado enquanto a pausa estiver aberta.
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, plano_id, bolsista, planos(preco)')
-      .eq('ativo', true)
-      .not('plano_id', 'is', null)
-      .is('plano_pausado_desde', null);
-
-    if (errAlunos) throw errAlunos;
-
-    const alunosCobraveis = (alunos || []).filter(a => !a.bolsista);
-
-    // Alunos com ciclo pago à vista (forma_recebimento = 'a_vista' em
-    // historico_planos) já quitaram o período inteiro na matrícula/renovação
-    // — não geram mensalidade com vencimento dentro desse ciclo. Checa a
-    // data da próxima cobrança contra o período do ciclo (não só o status
-    // 'ativo', que deixava passar ciclos 'agendado'), mesma regra do cron
-    // gerar-mensalidades.
-    const { data: ciclosAVista, error: errCiclos } = await supabase
-      .from('historico_planos')
-      .select('aluno_id, data_inicio, data_fim, status, forma_recebimento')
-      .in('status', ['ativo', 'agendado'])
-      .eq('forma_recebimento', 'a_vista')
-      .in('aluno_id', alunosCobraveis.map(a => a.id));
-    if (errCiclos) throw errCiclos;
-    const ciclosAVistaPorAluno = new Map();
-    (ciclosAVista || []).forEach(c => {
-      ciclosAVistaPorAluno.set(c.aluno_id, [...(ciclosAVistaPorAluno.get(c.aluno_id) || []), c]);
-    });
-
-    // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para o
-    // corte de "últimos 3 meses" não errar por um dia perto da meia-noite
-    // em Brasília.
-    const tresMesesAtras = new Date(`${hojeBrasilia()}T12:00:00`);
-    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
-    const filtroData = tresMesesAtras.toISOString().split('T')[0];
-
-    const { data: ultimasMensalidades } = await supabase
+  /** Todas as cobranças do aluno (qualquer data), da mais recente para a mais antiga. */
+  async listarMensalidadesDoAluno(alunoId) {
+    const { data, error } = await supabase
       .from('mensalidades')
-      .select('aluno_id, data_vencimento')
-      .gte('data_vencimento', filtroData)
+      .select(SELECT_MENSALIDADE)
+      .eq('aluno_id', alunoId)
       .order('data_vencimento', { ascending: false });
+    if (error) throw error;
+    return data;
+  },
 
-    const mapaUltimasDatas = new Map();
-    ultimasMensalidades?.forEach(m => {
-      if (!mapaUltimasDatas.has(m.aluno_id)) {
-        mapaUltimasDatas.set(m.aluno_id, m.data_vencimento);
-      }
-    });
-
-    const novasCobrancas = [];
-
-    alunosCobraveis.forEach(aluno => {
-      const ultimaDataStr = mapaUltimasDatas.get(aluno.id);
-
-      let proximaData;
-      if (ultimaDataStr) {
-        // ILU-17: antes somava 30 dias fixos, o que desalinha com o
-        // calendário real (meses têm 28-31 dias) e podia pular um mês
-        // inteiro para vencimentos perto do fim do mês (ex.: 31/jan + 30
-        // dias = 2/mar, nunca cai em fevereiro). `avancarUmMes` avança pro
-        // mesmo dia do mês seguinte, recuando ao último dia do mês de
-        // destino quando necessário.
-        proximaData = avancarUmMes(ultimaDataStr);
-      } else {
-        // Aluno novo ou sem histórico recente: primeira cobrança no dia 10 do mês solicitado
-        proximaData = `${ano}-${String(mesNumero).padStart(2, '0')}-10`;
-      }
-
-      const [pAno, pMes] = proximaData.split('-').map(Number);
-
-      if (
-        pAno === ano && pMes === mesNumero &&
-        !vencimentoCobertoPorCicloAVista(ciclosAVistaPorAluno.get(aluno.id), proximaData)
-      ) {
-        novasCobrancas.push({
-          aluno_id: aluno.id,
-          plano_id: aluno.plano_id,
-          data_vencimento: proximaData,
-          status: 'pendente',
-          valor_esperado: aluno.planos?.preco ?? null,
-        });
-      }
-    });
-
-    if (novasCobrancas.length > 0) {
-      const { error: errInsert } = await supabase
-        .from('mensalidades')
-        .insert(novasCobrancas);
-      if (errInsert) throw errInsert;
+  /**
+   * Atualiza campos de um lançamento; o payload vem de `montarPayloadEdicao`.
+   * `paga` é o status que a tela viu: só grava se a linha continua assim
+   * (paga, ou em aberto). Se ela foi recebida ou revertida em outra tela, o
+   * payload montado para o outro status não é gravado.
+   */
+  async atualizarLancamento(id, payload, paga) {
+    let query = supabase.from('mensalidades').update(payload).eq('id', id);
+    query = paga ? query.eq('status', 'pago') : query.in('status', ['pendente', 'atrasado']);
+    const { data: atualizadas, error } = await query.select('id');
+    if (error) throw error;
+    if (!atualizadas?.length) {
+      throw new ErroLancamento('Este lançamento mudou em outra tela. Atualize a tela e tente de novo.');
     }
+  },
 
-    return true;
+  async listarComissoesDaMensalidade(mensalidadeId) {
+    const { data, error } = await supabase.rpc('listar_comissoes_da_mensalidade', {
+      p_mensalidade_id: mensalidadeId,
+    });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async reverterPagamento(mensalidadeId, comissoesARemover = []) {
+    const { data, error } = await supabase.rpc('reverter_pagamento_mensalidade', {
+      p_mensalidade_id: mensalidadeId,
+      p_comissoes_a_remover: comissoesARemover,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async excluirLancamento(mensalidadeId, comissoesARemover = []) {
+    const { data, error } = await supabase.rpc('excluir_mensalidade', {
+      p_mensalidade_id: mensalidadeId,
+      p_comissoes_a_remover: comissoesARemover,
+    });
+    if (error) throw error;
+    return data;
   },
 
   async adicionarPagamentoManual(dados) {
+    const status = dados.status || 'pago';
+    const emAberto = status === 'pendente';
+
+    if (emAberto) {
+      if (!dados.aluno_id) {
+        throw new ErroLancamento('Cobrança em aberto precisa de um aluno cadastrado.');
+      }
+      if (!(Number(dados.valor_esperado) > 0)) {
+        throw new ErroLancamento('Informe o valor a receber.');
+      }
+    }
+
     const payload = {
       aluno_id: dados.aluno_id ? dados.aluno_id : null,
       nome_visitante: dados.nome_visitante ? dados.nome_visitante : null,
@@ -175,14 +126,15 @@ async listarModalidadesDoAluno(alunoId) {
       modalidade_id: dados.tipo_aula === 'regular' ? (dados.modalidade_id || null) : null,
 
       tipo_aula: dados.tipo_aula,
-      valor_pago: Number(dados.valor_pago),
-      status: dados.status || 'pago',
+      valor_pago: emAberto ? null : Number(dados.valor_pago),
+      status,
 
-      forma_pagamento: dados.forma_pagamento,
+      forma_pagamento: emAberto ? null : dados.forma_pagamento,
 
       data_vencimento: dados.data_vencimento,
-      data_pagamento: dados.status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
+      data_pagamento: status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
     };
+    if (emAberto) payload.valor_esperado = Number(dados.valor_esperado);
 
     const { data, error } = await supabase
       .from('mensalidades')
@@ -197,7 +149,7 @@ async listarModalidadesDoAluno(alunoId) {
 
     // Venda de produto e evento não remuneram professor — não há repasse a
     // calcular (gerar-repasses não tem regra para esses tipos).
-    if (dados.status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
+    if (status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
         await gerarRepassesDaMensalidade(data.id);
       } catch (repasseError) {
@@ -240,11 +192,52 @@ async listarModalidadesDoAluno(alunoId) {
     data_pagamento: dados.data_pagamento || hojeBrasilia(),
   };
 
-    const { error } = await supabase
+    // Só confirma linha ainda em aberto: se outra aba já pagou, não sobrescreve.
+    const { data: atualizadas, error } = await supabase
       .from('mensalidades')
       .update(payload)
-      .eq('id', id);
+      .eq('id', id)
+      .in('status', ['pendente', 'atrasado'])
+      .select('id');
     if (error) throw error;
+    if (!atualizadas?.length) {
+      throw new ErroLancamento('Este lançamento já está pago. Atualize a tela para ver a situação atual.');
+    }
+
+    // Produto e evento não remuneram professor.
+    if (TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
+      return { ok: true, resultado: { gerados: 0, itens: [], avisos: [] } };
+    }
+
+    // Comissão mantida na reversão de um pagamento anterior: não gera outra.
+    const { data: comissoesLigadas, error: errComissoes } = await supabase
+      .from('repasses_lancamentos')
+      .select('id')
+      .eq('mensalidade_id', id)
+      .limit(1);
+    if (errComissoes) {
+      // O pagamento já foi gravado: não lança, avisa (mesmo padrão do REP-09).
+      console.warn('[financeiroService.confirmarPagamento] Não foi possível verificar as comissões.', errComissoes);
+      return {
+        ok: true,
+        resultado: {
+          gerados: 0,
+          itens: [],
+          avisos: [],
+          aviso: 'Pagamento confirmado, mas não foi possível verificar as comissões. Verifique na aba "Reprocessar".',
+        },
+      };
+    }
+    if (comissoesLigadas?.length) {
+      return {
+        ok: true,
+        resultado: {
+          gerados: 0,
+          itens: [],
+          avisos: ['A comissão mantida na reversão foi reaproveitada; nenhuma comissão nova foi gerada.'],
+        },
+      };
+    }
 
     try {
       const resultado = await gerarRepassesDaMensalidade(id);

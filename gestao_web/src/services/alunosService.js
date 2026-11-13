@@ -468,9 +468,8 @@ export const alunosService = {
   //      não há pagamento real associado.
   //
   // Ao DESATIVAR (bolsista = false):
-  //   apenas remove a flag. Não recria cobranças retroativas — a
-  //   cobrança volta ao normal a partir da próxima geração mensal
-  //   (gerar-mensalidades), que passa a considerar o plano vigente.
+  //   apenas remove a flag. Não recria cobranças; as próximas são
+  //   lançadas à mão pela gestão.
   //
   // @param {string} alunoId
   // @param {boolean} bolsista

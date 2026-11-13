@@ -6,7 +6,7 @@ import {
   ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
   Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
   CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info, CalendarCheck,
-  CalendarX, RotateCcw, Clock, KeyRound, Pause, Play,
+  CalendarX, RotateCcw, Clock, KeyRound, Pause, Play, Wallet,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -26,6 +26,7 @@ import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
 import Modal, { ModalConfirmacao } from '../components/ui/Modal';
 import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
+import AbaFinanceiroAluno from '../components/financeiro/AbaFinanceiroAluno';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -1780,7 +1781,8 @@ export default function PerfilAluno() {
     { id: 'modalidades', label: 'Modalidades',      icon: <BookOpen size={18} />    },
     { id: 'agenda',      label: 'Agenda Fixa',      icon: <CalendarDays size={18} /> },
     { id: 'planos',      label: 'Histórico',        icon: <CreditCard size={18} />  },
-    { id: 'frequencia',  label: 'Frequência',       icon: <Calendar size={18} />    },
+    { id: 'financeiro',  label: 'Financeiro',       icon: <Wallet size={18} />      },
+    { id: 'frequencia',  label: 'Frequência',      icon: <Calendar size={18} />    },
     { id: 'anamnese',    label: 'Saúde/Anamnese',   icon: <Activity size={18} />    },
   ];
 
@@ -1940,6 +1942,11 @@ export default function PerfilAluno() {
         {/* ABA: Agenda Fixa */}
         {abaAtiva === 'agenda' && (
           <AbaAgendaFixa aluno={aluno} alunoId={id} />
+        )}
+
+        {/* ABA: Financeiro */}
+        {abaAtiva === 'financeiro' && (
+          <AbaFinanceiroAluno aluno={aluno} alunoId={id} />
         )}
 
         {/* ABA: Frequência */}

@@ -18,6 +18,24 @@ const fim    = paraUTC(filtros.ano, filtros.mes,     0);
   return { 
     mensalidades: query.data || [], 
     loading: query.isLoading, 
-    refetch: query.refetch 
+    refetch: query.refetch
+  };
+}
+
+export function useMensalidadesDoAluno(alunoId) {
+  const query = useQuery({
+    queryKey: ['financeiro-aluno', String(alunoId)],
+    queryFn: () => financeiroService.listarMensalidadesDoAluno(alunoId),
+    enabled: !!alunoId,
+    // A aba remonta a cada troca de aba do perfil e precisa buscar de novo:
+    // renovação, pausa e edição à vista em outras abas criam ou apagam cobranças.
+    staleTime: 0,
+  });
+
+  return {
+    mensalidades: query.data || [],
+    loading: query.isLoading,
+    erro: query.error,
+    refetch: query.refetch,
   };
 }

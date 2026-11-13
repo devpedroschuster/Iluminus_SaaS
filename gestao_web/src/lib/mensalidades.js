@@ -1,4 +1,5 @@
 import { hojeBrasilia, valorDevidoMensalidade, parseValorMoeda, formatarValorInput } from './utils';
+import { FORMAS_PAGAMENTO } from './constants';
 
 const MS_POR_DIA = 86_400_000;
 
@@ -92,7 +93,14 @@ const TIPOS_FIXOS_AO_RECEBER = ['experimental', 'avulsa', 'produto', 'evento'];
 /** Tipo de aula que vai para a confirmação do pagamento. */
 export function tipoAulaAoReceber(mensalidade) {
   if (TIPOS_FIXOS_AO_RECEBER.includes(mensalidade.tipo_aula)) return mensalidade.tipo_aula;
+  if (mensalidade.tipo_aula === 'plano_livre') return 'plano_livre';
   return mensalidade.planos?.is_plano_livre ? 'plano_livre' : 'regular';
+}
+
+/** Rótulo da forma de pagamento ('pix' → 'Pix'); código desconhecido aparece como está, vazio vira '—'. */
+export function rotuloFormaPagamento(codigo) {
+  if (!codigo) return '—';
+  return FORMAS_PAGAMENTO.find((f) => f.valor === codigo)?.label ?? codigo;
 }
 
 const estaPaga = (item) => item.status === 'pago';
@@ -139,8 +147,9 @@ export function rotuloMesReferencia(data) {
   return `${d.toLocaleString('pt-BR', { month: 'long' })}/${d.getFullYear()}`;
 }
 
-// Também as consultas da tela Comissões: receber, reverter e excluir mudam
-// os repasses dos professores.
+// Também as consultas da tela Comissões (receber, reverter e excluir mudam
+// os repasses dos professores) e as do Resultado Financeiro, que lê as
+// mensalidades.
 export const CONSULTAS_FINANCEIRAS = [
   ['financeiro'],
   ['financeiro-aluno'],
@@ -149,6 +158,8 @@ export const CONSULTAS_FINANCEIRAS = [
   ['comissoes'],
   ['resumo-mensal'],
   ['repasses'],
+  ['dre'],
+  ['dre-historico'],
 ];
 
 export function invalidarConsultasFinanceiras(queryClient) {

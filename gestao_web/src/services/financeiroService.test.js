@@ -7,6 +7,7 @@ vi.mock('./repasseService', () => ({ gerarRepassesDaMensalidade: vi.fn() }));
 import { supabase } from '../lib/supabase';
 import { gerarRepassesDaMensalidade } from './repasseService';
 import { financeiroService } from './financeiroService';
+import { ErroLancamento } from '../lib/mensalidades';
 
 describe('financeiroService (cobranças do aluno e lançamentos em aberto)', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -149,13 +150,63 @@ describe('financeiroService (cobranças do aluno e lançamentos em aberto)', () 
     expect(supabase.rpc).toHaveBeenCalledWith('listar_comissoes_da_mensalidade', { p_mensalidade_id: 9 });
   });
 
-  it('atualizarLancamento faz update por id', async () => {
-    const { query, chamadas } = criarQueryMock({ data: null, error: null });
+  it('atualizarLancamento de linha em aberto só grava se ela continua em aberto', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 9 }], error: null });
     supabase.from.mockReturnValue(query);
-    await financeiroService.atualizarLancamento(9, { valor_esperado: 300 });
+    await expect(financeiroService.atualizarLancamento(9, { valor_esperado: 300 }, false)).resolves.toBeUndefined();
     expect(supabase.from).toHaveBeenCalledWith('mensalidades');
     expect(chamadas).toContainEqual(['update', { valor_esperado: 300 }]);
     expect(chamadas).toContainEqual(['eq', 'id', 9]);
+    expect(chamadas).toContainEqual(['in', 'status', ['pendente', 'atrasado']]);
+    expect(chamadas).toContainEqual(['select', 'id']);
+    expect(chamadas.some(([m, campo]) => m === 'eq' && campo === 'status')).toBe(false);
+  });
+
+  it('atualizarLancamento de linha paga só grava se ela continua paga', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 9 }], error: null });
+    supabase.from.mockReturnValue(query);
+    await expect(financeiroService.atualizarLancamento(9, { valor_pago: 250 }, true)).resolves.toBeUndefined();
+    expect(chamadas).toContainEqual(['eq', 'id', 9]);
+    expect(chamadas).toContainEqual(['eq', 'status', 'pago']);
+    expect(chamadas).toContainEqual(['select', 'id']);
+    expect(chamadas.some(([m, campo]) => m === 'in' && campo === 'status')).toBe(false);
+  });
+
+  it('atualizarLancamento recusa quando a linha mudou em outra tela (nada gravado)', async () => {
+    const { query } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+    const promessa = financeiroService.atualizarLancamento(9, { valor_pago: 250 }, true);
+    await expect(promessa).rejects.toBeInstanceOf(ErroLancamento);
+    await expect(promessa).rejects.toThrow('Este lançamento mudou em outra tela. Atualize a tela e tente de novo.');
+  });
+
+  it('atualizarLancamento propaga erro do banco', async () => {
+    const erro = new Error('negado');
+    const { query } = criarQueryMock({ data: null, error: erro });
+    supabase.from.mockReturnValue(query);
+    await expect(financeiroService.atualizarLancamento(9, { valor_esperado: 300 }, false)).rejects.toBe(erro);
+  });
+
+  it('confirmarPagamento não falha se a consulta das comissões der erro depois de gravar', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: null, error: new Error('timeout') });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 100 });
+
+    expect(r).toEqual({
+      ok: true,
+      resultado: {
+        gerados: 0,
+        itens: [],
+        avisos: [],
+        aviso: 'Pagamento confirmado, mas não foi possível verificar as comissões. Verifique na aba "Reprocessar".',
+      },
+    });
+    expect(gerarRepassesDaMensalidade).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

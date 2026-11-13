@@ -27,7 +27,9 @@ export function useMensalidadesDoAluno(alunoId) {
     queryKey: ['financeiro-aluno', String(alunoId)],
     queryFn: () => financeiroService.listarMensalidadesDoAluno(alunoId),
     enabled: !!alunoId,
-    staleTime: 1000 * 60 * 5,
+    // A aba remonta a cada troca de aba do perfil e precisa buscar de novo:
+    // renovação, pausa e edição à vista em outras abas criam ou apagam cobranças.
+    staleTime: 0,
   });
 
   return {

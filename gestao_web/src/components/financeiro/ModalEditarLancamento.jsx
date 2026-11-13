@@ -17,9 +17,10 @@ const NOOP = () => {};
  * Reverter). Linha paga: vencimento, valor pago, forma, data de pagamento e
  * modalidade. Linha em aberto: vencimento, valor a receber e modalidade.
  * O estado inicial vem do lançamento: monte um por abertura (o
- * useModaisLancamento faz isso).
+ * useModaisLancamento faz isso). `onErro(error)` é chamado quando a gravação
+ * falha (por exemplo, a linha mudou de status em outra tela).
  */
-export default function ModalEditarLancamento({ mensalidade, aberto, fechar, onConcluido }) {
+export default function ModalEditarLancamento({ mensalidade, aberto, fechar, onConcluido, onErro }) {
   const paga = mensalidade.status === 'pago';
   const regular = mensalidade.tipo_aula === 'regular';
   const [form, setForm] = useState(() => formEdicaoInicial(mensalidade));
@@ -48,11 +49,12 @@ export default function ModalEditarLancamento({ mensalidade, aberto, fechar, onC
     }
     setSalvando(true);
     try {
-      await financeiroService.atualizarLancamento(mensalidade.id, montarPayloadEdicao(mensalidade, form));
+      await financeiroService.atualizarLancamento(mensalidade.id, montarPayloadEdicao(mensalidade, form), paga);
       showToast.success('Lançamento atualizado com sucesso!');
       onConcluido();
     } catch (error) {
       showToast.error(mensagemErroLancamento(error));
+      onErro?.(error);
     } finally {
       setSalvando(false);
     }

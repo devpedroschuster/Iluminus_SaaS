@@ -62,10 +62,20 @@ async listarModalidadesDoAluno(alunoId) {
     return data;
   },
 
-  /** Atualiza campos de um lançamento; o payload vem de `montarPayloadEdicao`. */
-  async atualizarLancamento(id, payload) {
-    const { error } = await supabase.from('mensalidades').update(payload).eq('id', id);
+  /**
+   * Atualiza campos de um lançamento; o payload vem de `montarPayloadEdicao`.
+   * `paga` é o status que a tela viu: só grava se a linha continua assim
+   * (paga, ou em aberto). Se ela foi recebida ou revertida em outra tela, o
+   * payload montado para o outro status não é gravado.
+   */
+  async atualizarLancamento(id, payload, paga) {
+    let query = supabase.from('mensalidades').update(payload).eq('id', id);
+    query = paga ? query.eq('status', 'pago') : query.in('status', ['pendente', 'atrasado']);
+    const { data: atualizadas, error } = await query.select('id');
     if (error) throw error;
+    if (!atualizadas?.length) {
+      throw new ErroLancamento('Este lançamento mudou em outra tela. Atualize a tela e tente de novo.');
+    }
   },
 
   async listarComissoesDaMensalidade(mensalidadeId) {
@@ -205,7 +215,19 @@ async listarModalidadesDoAluno(alunoId) {
       .select('id')
       .eq('mensalidade_id', id)
       .limit(1);
-    if (errComissoes) throw errComissoes;
+    if (errComissoes) {
+      // O pagamento já foi gravado: não lança, avisa (mesmo padrão do REP-09).
+      console.warn('[financeiroService.confirmarPagamento] Não foi possível verificar as comissões.', errComissoes);
+      return {
+        ok: true,
+        resultado: {
+          gerados: 0,
+          itens: [],
+          avisos: [],
+          aviso: 'Pagamento confirmado, mas não foi possível verificar as comissões. Verifique na aba "Reprocessar".',
+        },
+      };
+    }
     if (comissoesLigadas?.length) {
       return {
         ok: true,

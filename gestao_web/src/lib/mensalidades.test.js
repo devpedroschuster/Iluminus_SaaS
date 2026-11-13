@@ -7,6 +7,7 @@ import {
   resumoFinanceiroAluno,
   rotuloReferencia,
   tipoAulaAoReceber,
+  rotuloFormaPagamento,
   formEdicaoInicial,
   montarPayloadEdicao,
   comissaoMarcadaPorPadrao,
@@ -117,6 +118,24 @@ describe('tipoAulaAoReceber', () => {
   it('experimental', () => expect(tipoAulaAoReceber({ tipo_aula: 'experimental' })).toBe('experimental'));
   it('regular com plano livre', () => expect(tipoAulaAoReceber({ tipo_aula: 'regular', planos: { is_plano_livre: true } })).toBe('plano_livre'));
   it('regular', () => expect(tipoAulaAoReceber({ tipo_aula: 'regular', planos: { is_plano_livre: false } })).toBe('regular'));
+  it('plano_livre já gravado continua plano_livre, mesmo sem o plano marcado como livre', () => {
+    expect(tipoAulaAoReceber({ tipo_aula: 'plano_livre', planos: { is_plano_livre: false } })).toBe('plano_livre');
+    expect(tipoAulaAoReceber({ tipo_aula: 'plano_livre', planos: null })).toBe('plano_livre');
+  });
+});
+
+describe('rotuloFormaPagamento', () => {
+  it('código conhecido vira o rótulo', () => {
+    expect(rotuloFormaPagamento('pix')).toBe('Pix');
+    expect(rotuloFormaPagamento('credito')).toBe('Cartão de Crédito');
+    expect(rotuloFormaPagamento('bolsa')).toBe('Bolsa (isento)');
+  });
+  it('código desconhecido aparece como está', () => expect(rotuloFormaPagamento('cheque')).toBe('cheque'));
+  it('vazio vira travessão', () => {
+    expect(rotuloFormaPagamento(null)).toBe('—');
+    expect(rotuloFormaPagamento(undefined)).toBe('—');
+    expect(rotuloFormaPagamento('')).toBe('—');
+  });
 });
 
 describe('formEdicaoInicial', () => {
@@ -184,10 +203,10 @@ describe('rotuloMesReferencia', () => {
 });
 
 describe('invalidarConsultasFinanceiras', () => {
-  it('invalida as sete famílias de consultas (financeiro e comissões)', () => {
+  it('invalida as nove famílias de consultas (financeiro, comissões e Resultado Financeiro)', () => {
     const cliente = { invalidateQueries: vi.fn() };
     invalidarConsultasFinanceiras(cliente);
-    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(7);
+    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(9);
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['financeiro'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['financeiro-aluno'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['aluno-cobrancas-em-aberto'] });
@@ -195,7 +214,9 @@ describe('invalidarConsultasFinanceiras', () => {
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(5, { queryKey: ['comissoes'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(6, { queryKey: ['resumo-mensal'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(7, { queryKey: ['repasses'] });
-    expect(CONSULTAS_FINANCEIRAS).toHaveLength(7);
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(8, { queryKey: ['dre'] });
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(9, { queryKey: ['dre-historico'] });
+    expect(CONSULTAS_FINANCEIRAS).toHaveLength(9);
   });
 });
 

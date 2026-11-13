@@ -14,6 +14,8 @@
 --   - Entram na lista as comissões ligadas à cobrança e, numa regular paga, a
 --     linha do lote mensal do aluno no mês do vencimento, se não sobrar outra
 --     regular paga dele nesse mês (pela ILU-13, é a regular paga que justifica o lote).
+--     Linha do lote é regular ou plano_livre: uma avulsa/experimental que um
+--     Excluir anterior desligou não entra.
 --   - Mês já fechado em Comissões só gera aviso na tela; não bloqueia, e o
 --     valor_total do fechamento não é recalculado.
 --   - Reverter mantendo uma comissão: ela continua ligada à cobrança, e o
@@ -23,7 +25,8 @@
 --     (uq_repasse_lote_mensal) com uma linha do lote ou com outra comissão
 --     mantida, a função recusa e pede para marcar uma das duas.
 --   - A cobrança revertida volta para 'atrasado' se venceu antes de hoje em
---     Brasília, senão 'pendente'; valor_esperado vazio recebe o valor pago.
+--     Brasília, senão 'pendente'; valor_esperado vazio recebe o valor pago
+--     (menos zero, de bolsa: fica vazio e a tela cai no preço do plano).
 --
 -- Teste: scripts/sql-tests/reverter_excluir_mensalidade.sql
 -- Down:  supabase/migrations-down/20261112130000_reverter_excluir_mensalidade.sql
@@ -43,6 +46,7 @@ AS $$
     JOIN public.repasses_lancamentos r
       ON r.mensalidade_id IS NULL
      AND r.aluno_id = m.aluno_id
+     AND r.tipo_aula IN ('regular', 'plano_livre')  -- só linhas do lote; nunca uma avulsa desligada por um Excluir
      AND r.data_referencia = date_trunc('month', m.data_vencimento)::date
    WHERE m.id = p_mensalidade_id
      AND m.aluno_id IS NOT NULL
@@ -129,7 +133,8 @@ BEGIN
          valor_pago      = NULL,
          forma_pagamento = NULL,
          data_pagamento  = NULL,
-         valor_esperado  = coalesce(m.valor_esperado, v_cobranca.valor_pago)
+         -- Zero (bolsa) não vira valor a receber: vazio, a tela usa o preço do plano.
+         valor_esperado  = coalesce(m.valor_esperado, nullif(v_cobranca.valor_pago, 0))
    WHERE m.id = p_mensalidade_id;
 
   RETURN jsonb_build_object(

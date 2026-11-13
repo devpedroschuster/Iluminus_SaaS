@@ -5,14 +5,16 @@
 --   S: permissões — as três RPCs só para authenticated; _comissoes_elegiveis
 --      fora da API.
 --   L: a lista da pergunta — comissões ligadas à cobrança, com professor e mês
---      fechado; a linha do lote mensal só quando esta cobrança a justificava.
---   R: reverter — remove só as comissões marcadas que pertencem à cobrança,
---      volta a cobrança para aberta (atrasado/pendente pela data de Brasília),
---      guarda o valor em valor_esperado e não mexe no fechamento do mês;
---      recusa cobrança não paga e quem não é admin.
+--      fechado; a linha do lote mensal só quando esta cobrança a justificava,
+--      e nunca uma avulsa desligada (sobra de um Excluir) no lugar do lote.
+--   R: reverter — remove só as comissões marcadas que pertencem à cobrança
+--      (no excluir também), volta a cobrança para aberta (atrasado/pendente
+--      pela data de Brasília), guarda o valor em valor_esperado (menos o zero
+--      de bolsa) e não mexe no fechamento do mês; recusa cobrança não paga e
+--      quem não é admin.
 --   E: excluir — desliga as comissões mantidas antes de apagar a cobrança,
 --      recusa colisão com o lote mensal e entre duas comissões mantidas,
---      funciona para visitante. São 19 casos ao todo.
+--      funciona para visitante. São 20 casos ao todo.
 --
 -- Cria os próprios dados ([TESTE FIN-ALUNO], e-mails teste-finaluno-*@iluminus.test)
 -- e SEMPRE termina em RAISE EXCEPTION, então tudo é desfeito. Cada caso roda
@@ -206,6 +208,31 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('L2: ' || SQLERRM);
   END;
 
+  -- L3: uma comissão avulsa desligada (sobra de um Excluir anterior) do mesmo
+  -- aluno no mês do vencimento não entra como lote; a linha do lote, sim
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (NULL, v_prof_a, a_a, 'regular', '[TESTE FIN-ALUNO] Dança', 60, v_mes_ant) RETURNING id INTO v_lote;
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (NULL, v_prof_a, a_a, 'avulsa', '[TESTE FIN-ALUNO] Avulsa', 25, v_mes_ant) RETURNING id INTO v_r;
+    PERFORM set_config('request.jwt.claims', c_admin, true);
+    SET LOCAL ROLE authenticated;
+    SELECT count(*), string_agg(c.id::text, ',') FILTER (WHERE c.do_lote), count(*) FILTER (WHERE c.id = v_r)
+      INTO v_n, v_txt, v_n2
+      FROM public.listar_comissoes_da_mensalidade(m1) c;
+    RESET ROLE;
+    IF v_n2 <> 0 THEN
+      v_falhas := v_falhas || 'L3: a comissão avulsa desligada entrou como lote mensal'::text;
+    END IF;
+    IF v_n <> 3 OR v_txt IS DISTINCT FROM v_lote::text THEN
+      v_falhas := v_falhas || ('L3: esperava as 2 ligadas e só a linha do lote: ' || v_n || ' itens, lote=' || coalesce(v_txt, 'nenhum'));
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('L3: ' || SQLERRM);
+  END;
+
   ---------------------------------------------------------------- R: reverter
   -- R1: com as duas marcadas — somem, e a cobrança volta para aberta
   v_total := v_total + 1;
@@ -272,32 +299,40 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('R3: ' || SQLERRM);
   END;
 
-  -- R4: comissão de outra cobrança é recusada, e nada muda
+  -- R4: comissão de outra cobrança é recusada, e nada muda (no reverter e,
+  -- com a mesma lista, no excluir)
   v_total := v_total + 1;
   BEGIN
     INSERT INTO mensalidades (aluno_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (a_a, v_hoje, 'pago', 'avulsa', 50, 'pix', v_hoje) RETURNING id INTO v_id;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
     VALUES (v_id, v_prof_a, a_a, 'avulsa', '[TESTE FIN-ALUNO] Avulsa', 25, v_mes) RETURNING id INTO v_r;
-    v_recusado := false;
-    BEGIN
-      PERFORM set_config('request.jwt.claims', c_admin, true);
-      SET LOCAL ROLE authenticated;
-      v_j := public.reverter_pagamento_mensalidade(m1, ARRAY[r1, v_r]);
-      RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR002';
-    EXCEPTION WHEN SQLSTATE 'TR002' THEN NULL;
-    WHEN OTHERS THEN v_recusado := SQLERRM = e_nao_pertence;
-      IF NOT v_recusado THEN v_falhas := v_falhas || ('R4: erro inesperado: ' || SQLERRM); END IF;
-    END;
-    IF NOT v_recusado THEN
-      v_falhas := v_falhas || 'R4: comissão de outra cobrança não foi recusada com a mensagem certa'::text;
-    END IF;
-    IF (SELECT status FROM mensalidades WHERE id = m1) IS DISTINCT FROM 'pago' THEN
-      v_falhas := v_falhas || 'R4: a cobrança deixou de estar paga'::text;
-    END IF;
-    IF (SELECT count(*) FROM repasses_lancamentos WHERE id IN (r1, r2, v_r)) <> 3 THEN
-      v_falhas := v_falhas || 'R4: alguma comissão sumiu'::text;
-    END IF;
+    FOREACH v_txt IN ARRAY ARRAY['reverter', 'excluir'] LOOP
+      v_recusado := false;
+      BEGIN
+        PERFORM set_config('request.jwt.claims', c_admin, true);
+        SET LOCAL ROLE authenticated;
+        IF v_txt = 'reverter' THEN
+          v_j := public.reverter_pagamento_mensalidade(m1, ARRAY[r1, v_r]);
+        ELSE
+          v_j := public.excluir_mensalidade(m1, ARRAY[r1, v_r]);
+        END IF;
+        RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR002';
+      EXCEPTION WHEN SQLSTATE 'TR002' THEN NULL;
+      WHEN OTHERS THEN v_recusado := SQLERRM = e_nao_pertence;
+        IF NOT v_recusado THEN v_falhas := v_falhas || ('R4: ' || v_txt || ': erro inesperado: ' || SQLERRM); END IF;
+      END;
+      IF NOT v_recusado THEN
+        v_falhas := v_falhas || ('R4: ' || v_txt || ': comissão de outra cobrança não foi recusada com a mensagem certa');
+      END IF;
+      IF (SELECT status FROM mensalidades WHERE id = m1) IS DISTINCT FROM 'pago' THEN
+        v_falhas := v_falhas || ('R4: ' || v_txt || ': a cobrança sumiu ou deixou de estar paga');
+      END IF;
+      IF (SELECT count(*) FROM repasses_lancamentos
+           WHERE (id IN (r1, r2) AND mensalidade_id = m1) OR (id = v_r AND mensalidade_id = v_id)) <> 3 THEN
+        v_falhas := v_falhas || ('R4: ' || v_txt || ': alguma comissão sumiu ou foi desligada');
+      END IF;
+    END LOOP;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('R4: ' || SQLERRM);
@@ -370,21 +405,29 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- R8: valor_esperado vazio recebe o valor pago antigo; preenchido, fica
+  -- R8: valor_esperado vazio recebe o valor pago antigo; preenchido, fica; vazio
+  -- com valor pago zero (bolsa) continua vazio, e a tela cai no preço do plano
   v_total := v_total + 1;
   BEGIN
     INSERT INTO mensalidades (aluno_id, data_vencimento, status, tipo_aula, valor_esperado, valor_pago, forma_pagamento, data_pagamento)
     VALUES (a_a, v_hoje - 3, 'pago', 'avulsa', 300, 280, 'dinheiro', v_hoje - 3) RETURNING id INTO v_id;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_esperado, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (a_a, v_plano, v_hoje - 2, 'pago', 'regular', NULL, 0, 'bolsa', v_hoje - 2) RETURNING id INTO v_id2;
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     v_j := public.reverter_pagamento_mensalidade(m1);
     v_j := public.reverter_pagamento_mensalidade(v_id);
+    v_j := public.reverter_pagamento_mensalidade(v_id2);
     RESET ROLE;
     IF (SELECT valor_esperado FROM mensalidades WHERE id = m1) IS DISTINCT FROM 280::numeric THEN
       v_falhas := v_falhas || 'R8: valor_esperado vazio não recebeu o valor pago'::text;
     END IF;
     IF (SELECT valor_esperado FROM mensalidades WHERE id = v_id) IS DISTINCT FROM 300::numeric THEN
       v_falhas := v_falhas || 'R8: valor_esperado já preenchido foi trocado'::text;
+    END IF;
+    IF (SELECT valor_esperado FROM mensalidades WHERE id = v_id2) IS NOT NULL THEN
+      v_falhas := v_falhas || ('R8: bolsa (valor pago 0) deixou valor_esperado = '
+                               || (SELECT valor_esperado FROM mensalidades WHERE id = v_id2) || ' em vez de vazio');
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, Download, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
-  CreditCard, UserPlus
+  CreditCard, UserPlus, ClipboardList
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
@@ -47,6 +47,7 @@ function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
     { name: 'Painel Avisos', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Notificações', path: '/notificacoes', icon: Bell },
     { name: 'Leads', path: '/leads', icon: Clock },
+    { name: 'Matrículas', path: '/matriculas', icon: ClipboardList },
     { name: 'Aniversariantes', path: '/aniversariantes', icon: Gift },
     
     { label: 'Gestão e Operação' },

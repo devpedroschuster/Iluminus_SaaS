@@ -18,6 +18,22 @@ const fim    = paraUTC(filtros.ano, filtros.mes,     0);
   return { 
     mensalidades: query.data || [], 
     loading: query.isLoading, 
-    refetch: query.refetch 
+    refetch: query.refetch
+  };
+}
+
+export function useMensalidadesDoAluno(alunoId) {
+  const query = useQuery({
+    queryKey: ['financeiro-aluno', String(alunoId)],
+    queryFn: () => financeiroService.listarMensalidadesDoAluno(alunoId),
+    enabled: !!alunoId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  return {
+    mensalidades: query.data || [],
+    loading: query.isLoading,
+    erro: query.error,
+    refetch: query.refetch,
   };
 }

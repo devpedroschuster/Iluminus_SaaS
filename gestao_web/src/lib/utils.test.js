@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
-  valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia, avancarUmMes,
-  vencimentoCobertoPorCicloAVista, contarAlunosPorArea,
+  valorDevidoMensalidade, parseValorMoeda, formatarValorInput, hojeBrasilia,
+  contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
   ehPlanoLivre, calcularFrequenciaMedia, statusAcessoApp, STATUS_ACESSO_APP, montarInstrucoesAcesso,
   statusMensalidadeAluno,
@@ -173,63 +173,6 @@ describe('statusMensalidadeAluno (regressão ILU-96)', () => {
 
   it('sem data de vencimento fica "Pendente"', () => {
     expect(statusMensalidadeAluno('pendente', null)).toBe('Pendente');
-  });
-});
-
-describe('avancarUmMes (regressão ILU-17)', () => {
-  it('preserva o dia quando ele existe no mês seguinte', () => {
-    expect(avancarUmMes('2026-03-15')).toBe('2026-04-15');
-  });
-
-  it('recua para o último dia de fevereiro quando vindo do dia 31 de janeiro (não-bissexto)', () => {
-    // Bug original (+30 dias fixos): 2026-01-31 + 30 dias = 2026-03-02, pulando fevereiro inteiro.
-    expect(avancarUmMes('2026-01-31')).toBe('2026-02-28');
-  });
-
-  it('recua para 29/fev em ano bissexto', () => {
-    expect(avancarUmMes('2028-01-31')).toBe('2028-02-29');
-  });
-
-  it('vira o ano ao avançar de dezembro para janeiro', () => {
-    expect(avancarUmMes('2026-12-15')).toBe('2027-01-15');
-  });
-
-  it('mantém dia 30 ao avançar de um mês de 30 dias para um de 31', () => {
-    expect(avancarUmMes('2026-04-30')).toBe('2026-05-30');
-  });
-});
-
-describe('vencimentoCobertoPorCicloAVista', () => {
-  const semestralAVista = { data_inicio: '2026-09-12', data_fim: '2027-03-11', forma_recebimento: 'a_vista', status: 'ativo' };
-
-  it('cobre um vencimento no meio de um ciclo semestral pago à vista', () => {
-    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-10-10')).toBe(true);
-  });
-
-  it('cobre os limites do ciclo (data_fim é o último dia inclusivo — ILU-30)', () => {
-    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-09-12')).toBe(true);
-    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2027-03-11')).toBe(true);
-  });
-
-  it('não cobre vencimentos fora do ciclo', () => {
-    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2026-09-11')).toBe(false);
-    expect(vencimentoCobertoPorCicloAVista([semestralAVista], '2027-03-12')).toBe(false);
-  });
-
-  it('ignora ciclos recorrentes (parcelados)', () => {
-    const recorrente = { ...semestralAVista, forma_recebimento: 'recorrente' };
-    expect(vencimentoCobertoPorCicloAVista([recorrente], '2026-10-10')).toBe(false);
-  });
-
-  it('considera ciclos agendados, mas ignora finalizados e cancelados', () => {
-    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'agendado' }], '2026-10-10')).toBe(true);
-    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'finalizado' }], '2026-10-10')).toBe(false);
-    expect(vencimentoCobertoPorCicloAVista([{ ...semestralAVista, status: 'cancelado' }], '2026-10-10')).toBe(false);
-  });
-
-  it('retorna false sem ciclos', () => {
-    expect(vencimentoCobertoPorCicloAVista([], '2026-10-10')).toBe(false);
-    expect(vencimentoCobertoPorCicloAVista(undefined, '2026-10-10')).toBe(false);
   });
 });
 

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { financeiroService } from '../services/financeiroService';
 import { showToast } from './shared/showToast';
 import { formatarMoeda, hojeBrasilia, valorDevidoMensalidade } from '../lib/utils';
+import { invalidarConsultasFinanceiras, mensagemErroLancamento, ErroLancamento } from '../lib/mensalidades';
 import { User, DollarSign, Calendar, BookOpen, GraduationCap, Package, CreditCard, LayoutList, Loader2 } from 'lucide-react';
 
 /**
@@ -58,7 +60,8 @@ function getInitialForm() {
   };
 }
 
-export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso }) {
+export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSucesso, alunoFixo }) {
+  const queryClient = useQueryClient();
   const [alunos, setAlunos] = useState([]);
   const [planos, setPlanos] = useState([]);
   const [professores, setProfessores] = useState([]);
@@ -70,9 +73,13 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   const [cobrancasEmAberto, setCobrancasEmAberto] = useState([]);
   const [cobrancaId, setCobrancaId] = useState('');
 
+  // "Já foi pago" (padrão) ou "Fica em aberto" — só vale para aluno cadastrado.
+  const [emAberto, setEmAberto] = useState(false);
+  const lancarEmAberto = emAberto && !isVisitante;
+
   const [form, setForm] = useState(getInitialForm);
 
-  const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante
+  const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto
     ? cobrancasEmAberto.find(c => String(c.id) === cobrancaId)
     : null;
 
@@ -82,13 +89,15 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     } else {
       setForm(getInitialForm());
       setIsVisitante(false);
+      setEmAberto(false);
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, alunoFixo?.id]);
 
   useEffect(() => {
     setCobrancasEmAberto([]);
     setCobrancaId('');
-    if (!isOpen || isVisitante || !form.aluno_id) return;
+    if (!isOpen || isVisitante || lancarEmAberto || !form.aluno_id) return;
 
     // Ignora resposta obsoleta se o aluno mudar antes de resolver.
     let cancelado = false;
@@ -110,7 +119,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         showToast.warning('Não foi possível verificar as cobranças em aberto deste aluno. Confira no Financeiro antes de lançar.');
       });
     return () => { cancelado = true; };
-  }, [isOpen, isVisitante, form.aluno_id]);
+  }, [isOpen, isVisitante, lancarEmAberto, form.aluno_id]);
 
   const handleCobrancaChange = (id) => {
     setCobrancaId(id);
@@ -119,12 +128,29 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   };
 
   async function carregarDados() {
-    const { data: a } = await supabase.from('alunos').select('id, nome_completo, plano_id').order('nome_completo');
     const { data: p } = await supabase.from('planos').select('id, nome, preco');
     const { data: profs } = await supabase.from('professores').select('id, nome');
-    if (a) setAlunos(a);
     if (p) setPlanos(p);
     if (profs) setProfessores(profs);
+
+    if (alunoFixo) {
+      // Aluno vem travado: não carrega a lista, só o plano padrão dele.
+      const { data: aluno } = await supabase.from('alunos').select('id, nome_completo, plano_id').eq('id', alunoFixo.id).maybeSingle();
+      const defaultPlano = aluno?.plano_id || '';
+      const planoObj = (p || []).find(pl => pl.id === defaultPlano);
+      setForm(f => ({
+        ...f,
+        aluno_id: alunoFixo.id,
+        plano_id: defaultPlano,
+        valor_pago: planoObj ? planoObj.preco : f.valor_pago,
+        modalidade_id: '',
+      }));
+      setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(alunoFixo.id));
+      return;
+    }
+
+    const { data: a } = await supabase.from('alunos').select('id, nome_completo, plano_id').order('nome_completo');
+    if (a) setAlunos(a);
   }
 
   async function handleSubmit(e) {
@@ -132,7 +158,34 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     setLoading(true);
 
     try {
-      const nomeAluno = alunos.find(a => String(a.id) === String(form.aluno_id))?.nome_completo?.split(' ')[0] || 'Aluno';
+      const nomeCompleto = alunoFixo?.nome_completo
+        || alunos.find(a => String(a.id) === String(form.aluno_id))?.nome_completo;
+      const nomeAluno = nomeCompleto?.split(' ')[0] || 'Aluno';
+
+      if (lancarEmAberto) {
+        const payloadAberto = {
+          aluno_id: form.aluno_id,
+          tipo_aula: form.tipo_aula,
+          status: 'pendente',
+          valor_esperado: form.valor_pago,
+          data_vencimento: form.data_vencimento,
+        };
+        if (form.tipo_aula === 'regular' && form.plano_id) {
+          payloadAberto.plano_id = form.plano_id;
+          payloadAberto.modalidade_id = form.modalidade_id || null;
+        }
+        if (form.tipo_aula === 'avulsa') {
+          payloadAberto.professor_id = form.professor_id;
+          payloadAberto.modalidade_nome = form.modalidade_nome;
+        }
+
+        await financeiroService.adicionarPagamentoManual(payloadAberto);
+        showToast.success(`Cobrança de ${nomeAluno} lançada em aberto.`);
+        invalidarConsultasFinanceiras(queryClient);
+        onSucesso?.();
+        onClose();
+        return;
+      }
 
       if (cobrancaParaQuitar) {
         const { resultado } = await financeiroService.confirmarPagamento(cobrancaParaQuitar.id, {
@@ -144,12 +197,14 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         });
 
         showToast.success(`✅ Pagamento de ${nomeAluno} registrado na mensalidade em aberto!`);
-        if (resultado?.aviso) {
-          // Aviso em toast separado — não substitui a confirmação de sucesso
-          setTimeout(() => showToast.warning(`⚠️ ${resultado.aviso}`), 600);
-        }
+        // Avisos em toasts separados — não substituem a confirmação de sucesso
+        const avisos = [resultado?.aviso, ...(resultado?.avisos || [])].filter(Boolean);
+        avisos.forEach((aviso, i) => {
+          setTimeout(() => showToast.warning(`⚠️ ${aviso}`), 600 * (i + 1));
+        });
 
-        onSucesso();
+        invalidarConsultasFinanceiras(queryClient);
+        onSucesso?.();
         onClose();
         return;
       }
@@ -186,31 +241,67 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         setTimeout(() => showToast.warning(`⚠️ ${resultado._avisoRepasse}`), 600);
       }
 
-      onSucesso();
+      invalidarConsultasFinanceiras(queryClient);
+      onSucesso?.();
       onClose();
     } catch (error) {
-      showToast.error(traduzirErroRegistro(error));
+      showToast.error(error instanceof ErroLancamento ? mensagemErroLancamento(error) : traduzirErroRegistro(error));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal aberto={isOpen} fechar={onClose} title="Registrar Pagamento" size="md">
+    <Modal aberto={isOpen} fechar={onClose} title="Novo lançamento" size="md">
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+        {/* Já foi pago ou fica em aberto — só para aluno cadastrado */}
+        {!isVisitante && (
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { valor: false, rotulo: 'Já foi pago' },
+              { valor: true, rotulo: 'Fica em aberto' },
+            ].map(op => (
+              <button
+                key={op.rotulo}
+                type="button"
+                onClick={() => setEmAberto(op.valor)}
+                aria-pressed={emAberto === op.valor}
+                className={`rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${
+                  emAberto === op.valor
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-card text-foreground/70 border-border hover:bg-muted'
+                }`}
+              >
+                {op.rotulo}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Bloco Aluno / Visitante */}
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <Label>{isVisitante ? 'Nome do Visitante' : 'Selecionar Aluno'}</Label>
-            <button
-              type="button"
-              onClick={() => setIsVisitante(!isVisitante)}
-              className="text-primary font-bold text-xs uppercase tracking-wider hover:underline flex items-center gap-1 transition-colors"
-            >
-              {isVisitante ? 'Buscar Cadastrado' : 'Registrar Visitante'}
-            </button>
+            {!alunoFixo && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVisitante(!isVisitante);
+                  setEmAberto(false);
+                }}
+                className="text-primary font-bold text-xs uppercase tracking-wider hover:underline flex items-center gap-1 transition-colors"
+              >
+                {isVisitante ? 'Buscar Cadastrado' : 'Registrar Visitante'}
+              </button>
+            )}
           </div>
-          {isVisitante ? (
+          {alunoFixo ? (
+            <Input
+              leftIcon={<User size={18} />}
+              value={alunoFixo.nome_completo || ''}
+              readOnly
+            />
+          ) : isVisitante ? (
             <Input
               leftIcon={<User size={18} />}
               placeholder="Ex: João Silva"
@@ -268,7 +359,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         </div>
 
         {/* Mensalidade que este lançamento vai quitar */}
-        {form.tipo_aula === 'regular' && !isVisitante && cobrancasEmAberto.length > 0 && (
+        {form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto && cobrancasEmAberto.length > 0 && (
           <div className="space-y-2 bg-warning-soft p-4 rounded-2xl border border-warning/20">
             <Label className="block">Mensalidade em aberto deste aluno</Label>
             <Input
@@ -365,7 +456,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         {/* Valores e Datas */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="block mb-1.5">Valor Pago (R$)</Label>
+            <Label className="block mb-1.5">{lancarEmAberto ? 'Valor a receber (R$)' : 'Valor Pago (R$)'}</Label>
             <Input
               type="number" step="0.01" min="0"
               leftIcon={<DollarSign size={18} />}
@@ -376,17 +467,19 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             />
           </div>
 
-          <div>
-  <Label className="block mb-1.5">Data do Pagamento</Label>
-  <Input
-    type="date"
-    leftIcon={<Calendar size={18} />}
-    value={form.data_pagamento}
-    onChange={e => setForm({ ...form, data_pagamento: e.target.value })}
-    required
-  />
-</div>
-          {!cobrancaParaQuitar && (
+          {!lancarEmAberto && (
+            <div>
+              <Label className="block mb-1.5">Data do Pagamento</Label>
+              <Input
+                type="date"
+                leftIcon={<Calendar size={18} />}
+                value={form.data_pagamento}
+                onChange={e => setForm({ ...form, data_pagamento: e.target.value })}
+                required
+              />
+            </div>
+          )}
+          {(lancarEmAberto || !cobrancaParaQuitar) && (
             <div>
               <Label className="block mb-1.5">Data do Vencimento</Label>
               <Input
@@ -400,20 +493,22 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           )}
         </div>
 
-        <div>
-          <Label className="block mb-1.5">Forma de Pagamento</Label>
-          <Input
-            as="select"
-            leftIcon={<CreditCard size={18} />}
-            value={form.forma_pagamento}
-            onChange={e => setForm({ ...form, forma_pagamento: e.target.value })}
-          >
-            <option value="pix">Pix</option>
-            <option value="credito">Cartão de Crédito</option>
-            <option value="debito">Cartão de Débito</option>
-            <option value="dinheiro">Dinheiro</option>
-          </Input>
-        </div>
+        {!lancarEmAberto && (
+          <div>
+            <Label className="block mb-1.5">Forma de Pagamento</Label>
+            <Input
+              as="select"
+              leftIcon={<CreditCard size={18} />}
+              value={form.forma_pagamento}
+              onChange={e => setForm({ ...form, forma_pagamento: e.target.value })}
+            >
+              <option value="pix">Pix</option>
+              <option value="credito">Cartão de Crédito</option>
+              <option value="debito">Cartão de Débito</option>
+              <option value="dinheiro">Dinheiro</option>
+            </Input>
+          </div>
+        )}
 
         <div className="pt-4">
           <Button
@@ -426,7 +521,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             {loading ? (
               <><Loader2 className="animate-spin" size={20} /> Registrando...</>
             ) : (
-              'Registrar Recebimento'
+              lancarEmAberto ? 'Lançar em aberto' : 'Registrar Recebimento'
             )}
           </Button>
         </div>

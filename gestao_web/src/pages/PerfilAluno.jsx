@@ -14,7 +14,7 @@ import {
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
-import { alunosService } from '../services/alunosService';
+import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
 import { showToast } from '../components/shared/showToast';
@@ -1368,6 +1368,17 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
         ? `Histórico atualizado. ${resultadoCobrancas.sucesso}`
         : 'Histórico atualizado com sucesso!');
       if (resultadoCobrancas?.aviso) showToast.warning(resultadoCobrancas.aviso);
+      // ILU-122: ciclo à vista precisa da cobrança integral ligada para gerar
+      // as comissões dos meses seguintes. Nunca desfaz o salvamento.
+      if (form.forma_recebimento === 'a_vista') {
+        try {
+          const vinculada = await alunosService.vincularCobrancaIntegral(registro.id);
+          if (vinculada == null) showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+        } catch (errVinculo) {
+          console.warn('[PerfilAluno] Não foi possível ligar a cobrança integral ao ciclo:', errVinculo);
+          showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+        }
+      }
       onClose();
     } catch (err) {
       console.error('[PerfilAluno] Erro ao editar histórico:', err);

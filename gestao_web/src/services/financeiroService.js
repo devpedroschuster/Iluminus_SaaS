@@ -151,7 +151,9 @@ async listarModalidadesDoAluno(alunoId) {
     // calcular (gerar-repasses não tem regra para esses tipos).
     if (status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
-        await gerarRepassesDaMensalidade(data.id);
+        const resultado = await gerarRepassesDaMensalidade(data.id);
+        const avisos = [resultado?.aviso, ...(resultado?.avisos ?? [])].filter(Boolean);
+        return { ...data, _avisosRepasse: avisos };
       } catch (repasseError) {
         // Pagamento salvo com sucesso; apenas o repasse falhou.
         // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
@@ -228,7 +230,9 @@ async listarModalidadesDoAluno(alunoId) {
         },
       };
     }
-    if (comissoesLigadas?.length) {
+    // Só avulsa/experimental reaproveitam a comissão mantida; regular e plano
+    // livre sempre passam pela apuração, que não duplica.
+    if (comissoesLigadas?.length && ['avulsa', 'experimental'].includes(dados.tipo_aula)) {
       return {
         ok: true,
         resultado: {

@@ -35,6 +35,9 @@ async function invocarCriarUsuario(body) {
   return { email: data.email, senha: data.senha_temporaria };
 }
 
+export const AVISO_CICLO_A_VISTA_SEM_COBRANCA =
+  'Ciclo à vista sem a cobrança integral ligada: as comissões dos meses seguintes não vão ser geradas. Lance a cobrança integral do ciclo.';
+
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
     try {
@@ -274,6 +277,22 @@ export const alunosService = {
   // não tinha chamadores; o cadastro de aluno (NovoAluno.jsx) grava
   // histórico e primeira mensalidade por conta própria.
   // ─────────────────────────────────────────────────────────────
+
+  /**
+   * ILU-122: liga o ciclo à vista à sua cobrança integral, para a apuração
+   * dos repasses dos meses seguintes. renovar_plano_aluno já faz isso sozinha;
+   * este atalho serve ao cadastro de aluno e à edição do histórico.
+   *
+   * @param {string} historicoId
+   * @returns {Promise<number|null>} id da cobrança ligada, ou null se não há o que ligar
+   */
+  async vincularCobrancaIntegral(historicoId) {
+    const { data, error } = await supabase.rpc('vincular_cobranca_integral', {
+      p_historico_id: historicoId,
+    });
+    if (error) throw error;
+    return data ?? null;
+  },
 
   /**
    * Renova o plano de um aluno de forma atômica via RPC.

@@ -31,11 +31,12 @@
 --     Cobrança com modalidade_id cobre só aquela modalidade.
 --   - Mês de entrada (data_referencia): o primeiro mês >= max(competência,
 --     corte) sem fechamento para o professor. Mês fechado nunca recebe escrita.
---   - Já existe: linha nova (modalidade_id + competencia) ou linha antiga sem
---     modalidade_id, casando pelo nome atual da modalidade e pelo mês; ou
---     linha antiga (sem competencia), do mesmo nome, ligada a uma cobrança
---     que vence no mês e não é integral de ciclo à vista (o modelo antigo a
---     lançou no mês do pagamento).
+--   - Já existe: linha nova (modalidade_id + competencia); ou linha antiga
+--     (sem competencia), do mesmo nome atual da modalidade, que conta para um
+--     mês só: a ligada a uma cobrança mensal (não integral de ciclo à vista)
+--     conta no mês do vencimento dela (o modelo antigo a lançou no mês do
+--     pagamento); a do lote (sem cobrança) ou ligada a uma integral conta no
+--     mês de data_referencia.
 --   - Só insere; nunca atualiza nem apaga comissão. ON CONFLICT repete o
 --     predicado de uq_repasse_competencia (senão 42P10).
 --   - Plano livre: o aluno cuja fonte de cobertura do mês é de plano livre
@@ -370,14 +371,23 @@ BEGIN
                   WHERE rl.aluno_id = pm.aluno_id
                     AND rl.tipo_aula IN ('regular', 'plano_livre')
                     AND ((rl.modalidade_id = pm.mod_id AND rl.competencia = v_mes)
+                      -- Pelo nome e pelo mês: linha sem modalidade_id; se for
+                      -- antiga (sem competência), só a do lote (sem cobrança)
+                      -- ou a ligada à integral de um ciclo à vista.
                       OR (rl.modalidade_id IS NULL AND rl.modalidade = pm.mod_nome
                           AND coalesce(rl.competencia, rl.data_referencia) >= v_mes
-                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim)
-                      -- Linha antiga ligada a uma cobrança mensal que vence no
-                      -- mês: o modelo antigo a lançou no mês do pagamento
-                      -- (a de outubro paga em 03/11 ficou em novembro), mas ela
-                      -- é a comissão do mês do vencimento. A integral de ciclo
-                      -- à vista fica só com a regra de cima.
+                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim
+                          AND (rl.competencia IS NOT NULL
+                               OR rl.mensalidade_id IS NULL
+                               OR EXISTS (SELECT 1 FROM historico_planos hy
+                                           WHERE hy.cobranca_integral_id = rl.mensalidade_id
+                                             AND hy.forma_recebimento = 'a_vista')))
+                      -- Linha antiga ligada a uma cobrança mensal: conta só para
+                      -- o mês do vencimento dela. O modelo antigo a lançou no
+                      -- mês do pagamento (a de outubro paga em 03/11 ficou em
+                      -- novembro), mas ela é a comissão de outubro; novembro
+                      -- continua livre para a cobrança de novembro. Assim cada
+                      -- linha antiga conta para um mês só.
                       OR (rl.competencia IS NULL AND rl.modalidade = pm.mod_nome
                           AND EXISTS (SELECT 1 FROM mensalidades mx
                                        WHERE mx.id = rl.mensalidade_id

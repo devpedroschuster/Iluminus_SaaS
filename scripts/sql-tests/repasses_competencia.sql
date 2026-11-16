@@ -1920,6 +1920,39 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('C14: ' || SQLERRM);
   END;
 
+  -- C15: cada linha antiga conta para um mês só. Corte em M. A cobrança A de
+  -- M-1 foi paga em M no modelo antigo, que deixou a linha R_A em M
+  -- (sem competência, ligada a A). A cobrança Z de M é paga depois: M gera
+  -- (R_A é de M-1, não de M), e M-1 continua ja_existia por R_A.
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = v_mes;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C15', 'teste-repcomp-c15@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 2) RETURNING id INTO v_m;
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_m, v_prof, v_al, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_mes);
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9) RETURNING id INTO v_mi;
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',') INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi) x;
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',') INTO v_txt2
+      FROM apurar_repasses_da_cobranca(v_m) x;
+    SELECT count(*), count(*) FILTER (WHERE competencia = v_mes AND mensalidade_id = v_mi)
+      INTO v_n, v_n2 FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_txt IS DISTINCT FROM to_char(v_mes, 'YYYY-MM') || '=gerada'
+       OR v_txt2 IS DISTINCT FROM to_char(v_m1, 'YYYY-MM') || '=ja_existia'
+       OR v_n <> 2 OR v_n2 <> 1 THEN
+      v_falhas := v_falhas || format('C15: esperava M gerada pela cobrança de M e M-1 ja_existia pela linha antiga, veio M: %s, M-1: %s, %s linha(s) (%s de M)',
+                                     coalesce(v_txt, '(nada)'), coalesce(v_txt2, '(nada)'), v_n, v_n2);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C15: ' || SQLERRM);
+  END;
+
   ---------------------------------------------------------------- resultado
   RESET ROLE;
   RAISE EXCEPTION 'RESULTADO REPASSES-COMPETENCIA: %',

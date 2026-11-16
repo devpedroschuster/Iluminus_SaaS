@@ -12,7 +12,15 @@ ALTER TABLE public.historico_planos
   DROP COLUMN IF EXISTS cobranca_integral_id;
 
 DROP INDEX IF EXISTS public.uq_repasse_competencia;
+DROP INDEX IF EXISTS public.uq_repasse_mensalidade_legado;
 
 ALTER TABLE public.repasses_lancamentos
   DROP COLUMN IF EXISTS modalidade_id,
   DROP COLUMN IF EXISTS competencia;
+
+-- Restaura a restrição original. Falha se já existirem várias linhas do mesmo
+-- (mensalidade_id, professor_id, modalidade) (meses 2..N de um ciclo à vista):
+-- apague ou desligue essas linhas antes.
+ALTER TABLE public.repasses_lancamentos
+  ADD CONSTRAINT repasses_lancamentos_mensalidade_id_professor_id_modalidade_key
+  UNIQUE (mensalidade_id, professor_id, modalidade);

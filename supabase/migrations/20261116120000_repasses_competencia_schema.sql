@@ -19,6 +19,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_repasse_competencia
     AND modalidade_id IS NOT NULL
     AND competencia IS NOT NULL;
 
+-- Num ciclo à vista, todos os meses apontam para a MESMA cobrança integral
+-- (mensalidade_id), então a restrição antiga não cabe mais. Ela vira um índice
+-- parcial que continua protegendo as linhas antigas e as avulsas/experimentais
+-- (competencia NULL); as linhas novas são protegidas por uq_repasse_competencia.
+ALTER TABLE public.repasses_lancamentos
+  DROP CONSTRAINT IF EXISTS repasses_lancamentos_mensalidade_id_professor_id_modalidade_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_repasse_mensalidade_legado
+  ON public.repasses_lancamentos (mensalidade_id, professor_id, modalidade)
+  WHERE competencia IS NULL;
+
 ALTER TABLE public.historico_planos
   ADD COLUMN IF NOT EXISTS cobranca_integral_id bigint REFERENCES public.mensalidades(id) ON DELETE SET NULL;
 

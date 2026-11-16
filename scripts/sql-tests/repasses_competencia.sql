@@ -32,7 +32,7 @@ DECLARE
   a_a bigint; m1 bigint; m2 bigint;
   v_falhas text[] := '{}';
   v_total int := 0;
-  v_n int; v_txt text;
+  v_n int; v_txt text; v_recusado boolean;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
   IF v_admin IS NULL THEN
@@ -138,6 +138,34 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('S3: ' || SQLERRM);
+  END;
+
+  -- S5: ciclo à vista — meses diferentes na MESMA cobrança coexistem; linhas
+  -- sem competência (antigas/avulsas) continuam protegidas contra duplicata
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, modalidade_id, valor, data_referencia, competencia)
+    VALUES (m1, v_prof, a_a, 'regular', '[TESTE REPASSE-COMP] Dança', v_mod, 60, v_mes, v_mes);
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, modalidade_id, valor, data_referencia, competencia)
+    VALUES (m1, v_prof, a_a, 'regular', '[TESTE REPASSE-COMP] Dança', v_mod, 60, (v_mes + interval '1 month')::date, (v_mes + interval '1 month')::date);
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE mensalidade_id = m1 AND professor_id = v_prof AND competencia IS NOT NULL;
+    IF v_n <> 2 THEN
+      v_falhas := v_falhas || ('S5: esperava 2 meses na mesma cobrança, veio ' || v_n);
+    END IF;
+    v_recusado := false;
+    BEGIN
+      INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+      VALUES (m1, v_prof, a_a, 'avulsa', '[TESTE REPASSE-COMP] Dança', 10, v_mes);
+      INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+      VALUES (m1, v_prof, a_a, 'avulsa', '[TESTE REPASSE-COMP] Dança', 10, v_mes);
+    EXCEPTION WHEN unique_violation THEN v_recusado := true;
+    END;
+    IF NOT v_recusado THEN
+      v_falhas := v_falhas || 'S5: duas linhas sem competência na mesma cobrança deveriam ser recusadas'::text;
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('S5: ' || SQLERRM);
   END;
 
   -- S4: repasses_removidos — admin lê, authenticated sem admin não lê

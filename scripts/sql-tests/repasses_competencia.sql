@@ -51,7 +51,7 @@ DECLARE
   v_n2 int; v_txt2 text; v_val numeric;
   r record;
   -- casos L
-  v_mod3 uuid; v_pl300 int; v_pl100 int; v_pl375 int;
+  v_mod3 uuid; v_pl300 int; v_pl100 int; v_pl375 int; v_pl0 int;
   g_danca bigint; g_pilates bigint; g_teatro bigint; g_yoga bigint;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
@@ -1195,6 +1195,54 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('L9: ' || SQLERRM);
+  END;
+
+  -- L10: plano livre com preço 0 (planos.preco é NOT NULL: "sem preço" é 0).
+  -- Cobrança paga de M-1 e presença em 2 modalidades com professor: as duas
+  -- sem_cobertura, nada gravado — nunca uma comissão de 0,00. Um segundo
+  -- aluno, à vista nesse plano cobrindo M-1, idem (o ramo dos ciclos).
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO planos (nome, preco, duracao_meses, regras_acesso, is_plano_livre)
+    VALUES ('[TESTE REPASSE-COMP] Livre 0', 0, 1, '[]', true) RETURNING id INTO v_pl0;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] L10', 'teste-repcomp-l10@iluminus.test', 'aluno', true, false, v_pl0, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_pl0, v_m1 + 9, 'pago', 'plano_livre', 0, 'pix', v_m1 + 9);
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
+      (v_al, g_danca,   v_m1 + 2, 'presente', 'avulso', (v_m1 + 2 + time '19:00') AT TIME ZONE 'America/Sao_Paulo'),
+      (v_al, g_pilates, v_m1 + 4, 'presente', 'avulso', (v_m1 + 4 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    SELECT count(*) AS n, string_agg(DISTINCT x.situacao, ',') AS sit, bool_and(x.tipo_aula = 'plano_livre') AS livre,
+           string_agg(x.situacao || ':' || coalesce(x.valor::text, '-'), ',') AS det
+      INTO r FROM apurar_repasses(v_m1, v_al, false) x;
+    IF r.n <> 2 OR r.sit IS DISTINCT FROM 'sem_cobertura' OR r.livre IS NOT TRUE THEN
+      v_falhas := v_falhas || format('L10: recorrente esperava 2 sem_cobertura plano_livre, veio n=%s (%s)', r.n, r.det);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] L10 à vista', 'teste-repcomp-l10b@iluminus.test', 'aluno', true, false, v_pl0, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    v_ini := v_m1 + 4;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_pl0, v_ini, 'pago', 'regular', 0, 0, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al2, v_pl0, v_ini, (v_ini + interval '3 months')::date - 1, 'ativo', 0, 'a_vista', v_mi);
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin)
+    VALUES (v_al2, g_danca, v_m1 + 5, 'presente', 'avulso', (v_m1 + 5 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    SELECT count(*) AS n, string_agg(x.situacao || ':' || coalesce(x.valor::text, '-'), ',') AS det
+      INTO r FROM apurar_repasses(v_m1, v_al2, false) x;
+    IF r.n <> 1 OR r.det IS DISTINCT FROM 'sem_cobertura:-' THEN
+      v_falhas := v_falhas || format('L10: à vista esperava 1 sem_cobertura, veio n=%s (%s)', r.n, r.det);
+    END IF;
+
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2);
+    IF v_n <> 0 THEN
+      v_falhas := v_falhas || ('L10: gravou ' || v_n || ' linha(s)');
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('L10: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

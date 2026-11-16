@@ -46,7 +46,9 @@
 --         plano_livre_pct_prof, dividido por igual entre as com professor.
 --         Centavos como distribuirCentavos: cada uma leva a parte truncada e
 --         os que sobram vão um a um para as últimas, na ordem de modalidade_id.
---       - fonte sem plano (sem preço): 'sem_cobertura' por modalidade, nada gravado.
+--       - fonte sem preço (sem plano, ou plano com preço 0 — planos.preco é
+--         NOT NULL, então "sem preço" lá é 0): 'sem_cobertura' por
+--         modalidade, nada gravado. Nunca grava comissão de 0,00.
 --
 -- Teste: scripts/sql-tests/repasses_competencia.sql (casos R e L)
 -- Down:  supabase/migrations-down/20261116121000_apurar_repasses.sql
@@ -126,11 +128,12 @@ BEGIN
   WITH
   -- Recorrente: cobrança paga com vencimento no mês. A integral ligada a um
   -- ciclo à vista fica de fora: ela cobre pelos aniversários do ciclo.
-  -- preco_livre: o preço mensal do plano da cobrança (só o plano livre usa).
+  -- preco_livre: o preço mensal do plano da cobrança (só o plano livre usa);
+  -- preço <= 0 conta como sem preço (NULL).
   recorrente AS (
     SELECT m.aluno_id, m.id AS mensalidade_id, m.modalidade_id, 1 AS prioridade, m.data_vencimento AS data_fonte,
            (m.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)) AS plano_livre,
-           p.preco AS preco_livre
+           CASE WHEN p.preco > 0 THEN p.preco END AS preco_livre
       FROM mensalidades m
       LEFT JOIN planos p ON p.id = m.plano_id
      WHERE m.tipo_aula IN ('regular', 'plano_livre')
@@ -149,7 +152,7 @@ BEGIN
   -- duração do plano só para estimar o fim.
   -- Plano livre: pelo plano do ciclo, pela integral (tipo_aula ou o plano
   -- dela). preco_livre: o preço mensal do plano do ciclo; se só o plano da
-  -- integral é de plano livre, o dele.
+  -- integral é de plano livre, o dele. Preço <= 0 conta como sem preço.
   ciclos AS (
     SELECT h.id AS ciclo_id, h.aluno_id, h.cobranca_integral_id AS mensalidade_id, mi.modalidade_id,
            h.data_inicio, cf.data_fim,
@@ -158,8 +161,9 @@ BEGIN
            (mi.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)
             OR coalesce(pmi.is_plano_livre, false)) AS plano_livre,
            CASE WHEN NOT coalesce(p.is_plano_livre, false) AND coalesce(pmi.is_plano_livre, false)
-                THEN pmi.preco
-                ELSE coalesce(p.preco, pmi.preco) END AS preco_livre,
+                THEN CASE WHEN pmi.preco > 0 THEN pmi.preco END
+                ELSE coalesce(CASE WHEN p.preco > 0 THEN p.preco END,
+                              CASE WHEN pmi.preco > 0 THEN pmi.preco END) END AS preco_livre,
            (extract(year FROM v_mes)::int * 12 + extract(month FROM v_mes)::int)
              - (extract(year FROM h.data_inicio)::int * 12 + extract(month FROM h.data_inicio)::int) AS k_mes
       FROM historico_planos h

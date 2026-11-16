@@ -23,7 +23,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { avisoDaLinha, type LinhaApuracao } from '../_shared/repasses.ts';
+import { avisoDaLinha, cobrancaDeMesFuturo, type LinhaApuracao } from '../_shared/repasses.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -144,12 +144,16 @@ serve(async (req: Request) => {
       const { data: linhasRpc, error: errRpc } = await supabase.rpc('apurar_repasses_da_cobranca', {
         p_mensalidade_id: mensalidadeId,
       });
-      if (errRpc) throw errRpc;
+      if (errRpc) throw new Error(errRpc.message);
 
       const linhas = (linhasRpc ?? []) as LinhaApuracao[];
       if (linhas.length === 0) {
+        // Vencimento num mês que ainda não começou: a apuração diária grava
+        // quando o mês começar.
         return response({
-          aviso: 'Nenhum repasse calculado para esta cobrança.',
+          aviso: cobrancaDeMesFuturo(mensalidade.data_vencimento)
+            ? 'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.'
+            : 'Nenhum repasse calculado para esta cobrança.',
           gerados: 0,
           itens: [],
           avisos: [],

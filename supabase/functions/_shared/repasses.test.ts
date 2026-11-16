@@ -1,5 +1,11 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { avisoDaLinha, resumirPorProfessor, type LinhaApuracao } from './repasses.ts';
+import {
+  avisoDaLinha,
+  cobrancaDeMesFuturo,
+  mesAtualBrasilia,
+  resumirPorProfessor,
+  type LinhaApuracao,
+} from './repasses.ts';
 
 function linha(p: Partial<LinhaApuracao>): LinhaApuracao {
   return {
@@ -46,6 +52,20 @@ Deno.test('avisoDaLinha: rótulos das demais situações', () => {
   for (const [situacao, rotulo] of Object.entries(esperado)) {
     assertEquals(avisoDaLinha(linha({ situacao })), `Ana (Dança): ${rotulo}`);
   }
+});
+
+Deno.test('mesAtualBrasilia: usa o fuso de Brasília na virada do mês', () => {
+  assertEquals(mesAtualBrasilia(new Date('2026-12-01T01:00:00Z')), '2026-11'); // 30/11 22:00 em Brasília
+  assertEquals(mesAtualBrasilia(new Date('2026-12-01T03:00:00Z')), '2026-12'); // 01/12 00:00 em Brasília
+});
+
+Deno.test('cobrancaDeMesFuturo: só vencimento num mês depois do atual em Brasília', () => {
+  const agora = new Date('2026-12-01T01:00:00Z'); // 30/11 22:00 em Brasília
+  assertEquals(cobrancaDeMesFuturo('2026-12-01', agora), true);
+  assertEquals(cobrancaDeMesFuturo('2027-01-10', agora), true);
+  assertEquals(cobrancaDeMesFuturo('2026-11-30', agora), false);
+  assertEquals(cobrancaDeMesFuturo('2026-10-10', agora), false);
+  assertEquals(cobrancaDeMesFuturo(null, agora), false);
 });
 
 Deno.test('resumirPorProfessor soma 50.00 + 16.66 + 16.67 e ignora ja_existia', () => {

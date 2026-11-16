@@ -52,6 +52,22 @@ export function avisoDaLinha(l: LinhaApuracao): string | null {
     : `${l.aluno_nome}: ${rotulo}`;
 }
 
+// Mês atual 'AAAA-MM' no fuso de Brasília (o mesmo da apuração no banco).
+export function mesAtualBrasilia(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(agora);
+}
+
+// Cobrança com vencimento ('AAAA-MM-DD') num mês que ainda não começou em
+// Brasília: a apuração não grava nada dela agora (entra quando o mês começar).
+export function cobrancaDeMesFuturo(dataVencimento: string | null, agora: Date = new Date()): boolean {
+  if (!dataVencimento) return false;
+  return dataVencimento.slice(0, 7) > mesAtualBrasilia(agora);
+}
+
 export type ResumoProfessor = {
   professor_id: string;
   nome: string;

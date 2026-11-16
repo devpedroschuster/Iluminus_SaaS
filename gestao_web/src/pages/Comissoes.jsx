@@ -8,7 +8,15 @@ import {
 import * as XLSX from 'xlsx';
 
 import { comissoesService } from '../services/comissoesService';
-import { gerarRepassesMensais } from '../services/repasseService';
+import { gerarRepassesMensais, situacaoRepassesMes } from '../services/repasseService';
+import { useQuery } from '@tanstack/react-query';
+import { useConfiguracoesRepasse } from '../hooks/useConfiguracoesRepasse';
+import {
+  textoReferenteA,
+  mesAntesDoCorte,
+  alunosSemComissao,
+  nomeDoMes,
+} from '../lib/repasses';
 import {
   useComissoesProfessor,
   useResumoMensal,
@@ -57,6 +65,28 @@ const TIPO_TONE = {
 function mesAnoAtual() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Corte da apuração por mês de referência (ILU-122). Se a configuração não
+// carregar, usa o corte padrão para a tela continuar funcionando.
+const CORTE_PADRAO = '2026-11-01';
+
+function useMesAnteriorAoCorte(mesAno) {
+  const { data: config } = useConfiguracoesRepasse();
+  const corte = config?.corte_competencia || CORTE_PADRAO;
+  return mesAntesDoCorte(mesAno, corte);
+}
+
+function FaixaMesForaDoSistema() {
+  return (
+    <Surface
+      variant="subtle"
+      className="border border-border bg-muted p-4 rounded-2xl flex items-center gap-3 text-muted-foreground"
+    >
+      <Calendar size={22} className="shrink-0" />
+      <p className="font-bold">Mês acertado fora do sistema</p>
+    </Surface>
+  );
 }
 
 function formatarData(iso) {
@@ -185,6 +215,11 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
         </td>
         <td className="p-4 font-bold text-foreground">
           {nomeDoLancamento(lancamento)}
+          {textoReferenteA(lancamento) && (
+            <p className="text-xs font-medium text-muted-foreground mt-0.5">
+              {textoReferenteA(lancamento)}
+            </p>
+          )}
         </td>
         <td className="p-4">
           <select
@@ -288,6 +323,11 @@ function LinheLancamento({ lancamento, fechado, onSaved, onDeleted }) {
       </td>
       <td className="p-4 font-bold text-foreground">
         {nomeDoLancamento(lancamento)}
+        {textoReferenteA(lancamento) && (
+          <p className="text-xs font-medium text-muted-foreground mt-0.5">
+            {textoReferenteA(lancamento)}
+          </p>
+        )}
       </td>
       <td className="p-4">
         <TipoAulaBadge tipo={lancamento.tipo_aula} />
@@ -434,6 +474,7 @@ function AbaDetalhe({
   const mesFormatado = filtros.mesAno.split('-').reverse().join('/');
   const filtroAtivo = !!filtros.tipoAula;
   const fechado = !!dados?.fechamento;
+  const antesDoCorte = useMesAnteriorAoCorte(filtros.mesAno);
 
   return (
     <div className="space-y-6">
@@ -518,6 +559,8 @@ function AbaDetalhe({
         <TableSkeleton />
       ) : dados ? (
         <div className="space-y-6">
+          {antesDoCorte && <FaixaMesForaDoSistema />}
+
           {fechado && (
             <Surface
               variant="subtle"
@@ -565,7 +608,7 @@ function AbaDetalhe({
                   <FileSpreadsheet size={18} />
                   {filtroAtivo ? 'Exportar Filtrado' : 'Exportar'}
                 </Button>
-                {!fechado && totalGeral > 0 && (
+                {!fechado && !antesDoCorte && totalGeral > 0 && (
                   <Button
                     onClick={modalFechamento.abrir}
                     className="bg-success text-success-foreground hover:bg-success/90 font-bold flex items-center gap-2 shadow-lg shadow-success/20 transition-all border-none"
@@ -659,8 +702,99 @@ function AbaDetalhe({
 
 // ─── Aba: Visão Geral ─────────────────────────────────────────────────────────
 
+// Quadro "Alunos sem comissão em {Mês de AAAA}" (ILU-122): usa a simulação
+// da apuração (não grava nada). Só consulta meses entre o corte e o mês atual —
+// fora disso a função lança erro.
+function AlunosSemComissaoMes({ mesAno }) {
+  const { data: config } = useConfiguracoesRepasse();
+  const corte = config?.corte_competencia || CORTE_PADRAO;
+  const habilitado = !mesAntesDoCorte(mesAno, corte) && mesAno <= mesAnoAtual();
+  const { data: linhas, isLoading, error } = useQuery({
+    queryKey: ['situacao-repasses-mes', mesAno],
+    queryFn: () => {
+      const [ano, mes] = mesAno.split('-').map(Number);
+      return situacaoRepassesMes(mes, ano);
+    },
+    enabled: habilitado,
+    staleTime: 1000 * 60 * 2,
+  });
+  const [mostrarInativos, setMostrarInativos] = useState(false);
+
+  if (!habilitado) return null;
+
+  const titulo = `Alunos sem comissão em ${nomeDoMes(mesAno)}`;
+
+  if (isLoading) {
+    return (
+      <Surface variant="card" padding="lg">
+        <p className="text-sm text-muted-foreground animate-pulse">Carregando {titulo.toLowerCase()}...</p>
+      </Surface>
+    );
+  }
+
+  if (error) {
+    return (
+      <Surface variant="card" padding="lg">
+        <p className="text-sm text-destructive font-bold">
+          {error?.message || 'Erro ao carregar alunos sem comissão.'}
+        </p>
+      </Surface>
+    );
+  }
+
+  const todos = alunosSemComissao(linhas);
+  if (todos.length === 0) return null;
+
+  const recolhidos = todos.filter(a =>
+    a.motivos.every(m => m === 'Bolsista' || m === 'Aluno inativo')
+  );
+  const visiveis = todos.filter(a => !recolhidos.includes(a));
+
+  const linha = a => (
+    <li key={a.aluno_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-2">
+      <span className="font-bold text-foreground">{a.aluno_nome}</span>
+      <span className="text-sm text-muted-foreground">{a.motivos.join(' · ')}</span>
+    </li>
+  );
+
+  return (
+    <Surface variant="card" padding="none" className="overflow-hidden">
+      <div className="p-6 border-b border-border bg-muted/30">
+        <h3 className="font-black text-foreground text-lg flex items-center gap-2">
+          <AlertTriangle className="text-warning" size={20} /> {titulo}
+        </h3>
+      </div>
+      <div className="p-6 space-y-4">
+        {visiveis.length > 0 && (
+          <ul className="divide-y divide-border">{visiveis.map(linha)}</ul>
+        )}
+        {recolhidos.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setMostrarInativos(v => !v)}
+              aria-expanded={mostrarInativos}
+              className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {mostrarInativos ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              Bolsistas e inativos ({recolhidos.length})
+            </button>
+            {mostrarInativos && (
+              <ul className="divide-y divide-border mt-2">{recolhidos.map(linha)}</ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Surface>
+  );
+}
+
 function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
   const { data: resumo, isLoading, error } = useResumoMensal(mesAno);
+  const antesDoCorte = useMesAnteriorAoCorte(mesAno);
+
+  const faixa = antesDoCorte ? <FaixaMesForaDoSistema /> : null;
+  const semComissao = <AlunosSemComissaoMes mesAno={mesAno} />;
 
   if (isLoading) return <TableSkeleton />;
 
@@ -675,11 +809,15 @@ function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
 
   if (!resumo || resumo.length === 0) {
     return (
-      <EmptyState
-        icon={<UserCheck size={28} />}
-        title="Nenhum repasse neste mês"
-        description="Gere os repasses mensais ou confirme pagamentos individuais para que apareçam aqui."
-      />
+      <div className="space-y-6">
+        {faixa}
+        <EmptyState
+          icon={<UserCheck size={28} />}
+          title="Nenhum repasse neste mês"
+          description="Gere os repasses mensais ou confirme pagamentos individuais para que apareçam aqui."
+        />
+        {semComissao}
+      </div>
     );
   }
 
@@ -688,6 +826,7 @@ function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
 
   return (
     <div className="space-y-6">
+      {faixa}
       {/* KPIs do mês */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Surface variant="card" padding="lg" className="flex items-center gap-4">
@@ -781,6 +920,8 @@ function AbaVisaoGeral({ mesAno, onSelecionarProfessor }) {
           </table>
         </div>
       </Surface>
+
+      {semComissao}
     </div>
   );
 }
@@ -801,6 +942,7 @@ export default function Comissoes() {
 
   const modalGeracao = useModal();
   const invalidarComissoes = useInvalidarComissoes();
+  const mesAnteriorAoCorte = useMesAnteriorAoCorte(filtros.mesAno);
 
   useEffect(() => {
     async function carregarProfessores() {
@@ -875,14 +1017,16 @@ export default function Comissoes() {
               className="w-40"
             />
           </div>
-          <Button
-            variant="brand"
-            onClick={modalGeracao.abrir}
-            className="flex items-center gap-2 font-black"
-          >
-            <RefreshCw size={18} />
-            Gerar Repasses
-          </Button>
+          {!mesAnteriorAoCorte && (
+            <Button
+              variant="brand"
+              onClick={modalGeracao.abrir}
+              className="flex items-center gap-2 font-black"
+            >
+              <RefreshCw size={18} />
+              Gerar Repasses
+            </Button>
+          )}
         </div>
       </div>
 

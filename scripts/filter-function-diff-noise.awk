@@ -20,7 +20,10 @@ BEGIN { in_func = 0; dollars = 0; after_close = 0 }
     next
   }
 
-  if (line ~ /^set check_function_bodies = (on|off);$/) {
+  # Ajuste de sessão que a CLI emite antes das funções — não é mudança de
+  # schema. A v2 escreve "set check_function_bodies = off;"; a v3 escreve
+  # "SET local check_function_bodies = off;".
+  if (tolower(line) ~ /^set( local)? check_function_bodies = (on|off);$/) {
     next
   }
 

@@ -824,6 +824,39 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('R22: ' || SQLERRM);
   END;
 
+  -- R23: o limite vem das datas do próprio ciclo, não de planos.duracao_meses.
+  -- Plano "Combo" com duracao_meses = 1 vendido à vista por 6 meses
+  -- (18/03/2025 a 17/09/2025, integral paga e ligada): os 6 meses geram, o
+  -- 7º fica sem cobertura.
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R23', 'teste-repcomp-r23@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano, DATE '2025-03-18', 'pago', 'regular', 1680, 1680, 'pix', DATE '2025-03-18', 'Pagamento integral do plano')
+    RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano, DATE '2025-03-18', DATE '2025-09-17', 'finalizado', 1680, 'a_vista', v_mi);
+    v_txt := NULL;
+    FOR i IN 2..8 LOOP
+      v_d := (DATE '2025-01-01' + make_interval(months => i))::date;
+      SELECT string_agg(x.situacao, ',') INTO v_txt2 FROM apurar_repasses(v_d, v_al, false) x;
+      v_txt := concat_ws(' ', v_txt, to_char(v_d, 'MM') || '=' || coalesce(v_txt2, '-'));
+    END LOOP;
+    IF v_txt IS DISTINCT FROM '03=gerada 04=gerada 05=gerada 06=gerada 07=gerada 08=gerada 09=sem_cobertura' THEN
+      v_falhas := v_falhas || ('R23: veio ' || v_txt);
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al AND mensalidade_id = v_mi;
+    IF v_n <> 6 THEN
+      v_falhas := v_falhas || ('R23: esperava 6 meses gravados, veio ' || v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R23: ' || SQLERRM);
+  END;
+
   -- R24: mês inteiro (p_aluno_id nulo, o caminho do agendamento e do botão),
   -- em prévia. Um aluno inativo que pagou M-1 gera (o pagamento prova o mês,
   -- spec 3.3); um inativo sem cobertura nem é avaliado; um ativo sem cobertura

@@ -10,11 +10,16 @@
 --   - Mês coberto: cobrança regular/plano_livre paga com vencimento no mês
 --     (recorrente), ou ciclo à vista com a cobrança integral paga e um
 --     "aniversário" (data_inicio + k meses) dentro do mês, <= data_fim e fora
---     de pausa. Só os primeiros duracao_meses aniversários fora de pausa
---     contam: o fim gravado pela tela (calcularFimPlano) estoura um dia em
---     inícios no fim do mês (31/01 trimestral termina em 30/04, e 31/01 + 3
---     meses = 30/04), e a retomada de uma pausa estende data_fim pelos dias
---     pausados mesmo quando nenhum aniversário caiu nela.
+--     de pausa. Só os primeiros N aniversários fora de pausa contam, onde N
+--     são os meses que o próprio ciclo vendeu: os meses inteiros de
+--     age(data_fim + 1 - D, data_inicio), mais 1 se sobram 15 dias ou mais,
+--     no mínimo 1, sendo D os dias_devolvidos das pausas já retomadas do ciclo.
+--     Não vem de planos.duracao_meses: planos "Combo" com duração 1 são
+--     vendidos à vista por vários meses. Sem o limite, o fim gravado pela
+--     tela (calcularFimPlano) estoura um dia em inícios no fim do mês (31/01
+--     trimestral termina em 30/04, e 31/01 + 3 meses = 30/04), e a retomada
+--     de uma pausa estende data_fim pelos dias pausados mesmo quando nenhum
+--     aniversário caiu nela.
 --   - A integral ligada a um ciclo à vista (cobranca_integral_id) cobre pelos
 --     aniversários do ciclo, não pelo próprio vencimento: com vencimento antes
 --     do início, ela daria um mês a mais.
@@ -123,9 +128,14 @@ BEGIN
   ),
   -- À vista: ciclos com a integral paga que podem ter aniversário no mês.
   -- Ativo e finalizado cobrem; agendado, quando chega o mês do início dele.
+  -- meses_pagos (N): os meses que o ciclo vendeu, pelas datas dele, sem os
+  -- dias devolvidos pelas pausas já retomadas. Ciclo sem data_fim usa a
+  -- duração do plano só para estimar o fim.
   ciclos AS (
     SELECT h.id AS ciclo_id, h.aluno_id, h.cobranca_integral_id AS mensalidade_id, mi.modalidade_id,
-           h.data_inicio, cf.data_fim, p.duracao_meses,
+           h.data_inicio, cf.data_fim,
+           greatest(1, extract(year FROM dur.a)::int * 12 + extract(month FROM dur.a)::int
+                       + CASE WHEN extract(day FROM dur.a) >= 15 THEN 1 ELSE 0 END) AS meses_pagos,
            (mi.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)) AS plano_livre,
            (extract(year FROM v_mes)::int * 12 + extract(month FROM v_mes)::int)
              - (extract(year FROM h.data_inicio)::int * 12 + extract(month FROM h.data_inicio)::int) AS k_mes
@@ -136,6 +146,13 @@ BEGIN
         SELECT coalesce(h.data_fim,
                         (h.data_inicio + make_interval(months => greatest(coalesce(p.duracao_meses, 1), 1)))::date - 1) AS data_fim
       ) cf
+      CROSS JOIN LATERAL (
+        SELECT age((cf.data_fim + 1 - coalesce(sum(pp.dias_devolvidos), 0)::int)::timestamp,
+                   h.data_inicio::timestamp) AS a
+          FROM pausas_plano pp
+         WHERE pp.historico_plano_id = h.id
+           AND pp.data_retorno IS NOT NULL
+      ) dur
      WHERE h.forma_recebimento = 'a_vista'
        AND (h.status IN ('ativo', 'finalizado')
             OR (h.status = 'agendado' AND date_trunc('month', h.data_inicio)::date <= v_mes_atual))
@@ -146,9 +163,9 @@ BEGIN
        AND (p_aluno_id IS NULL OR h.aluno_id = p_aluno_id)
   ),
   -- Aniversários de cada ciclo até o do mês (k_mes), numerados entre os que
-  -- caem fora de pausa: só os primeiros duracao_meses contam.
+  -- caem fora de pausa: só os primeiros meses_pagos contam.
   aniversarios AS (
-    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.duracao_meses, c.plano_livre, c.k_mes,
+    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.meses_pagos, c.plano_livre, c.k_mes,
            g.k, g.data_aniv, public._em_pausa(c.aluno_id, g.data_aniv) AS em_pausa
       FROM ciclos c
       CROSS JOIN LATERAL (
@@ -171,7 +188,7 @@ BEGIN
     SELECT ad.aluno_id, ad.mensalidade_id, ad.modalidade_id, 2, ad.data_aniv, ad.plano_livre
       FROM aniversario_do_mes ad
      WHERE NOT ad.em_pausa
-       AND (coalesce(ad.duracao_meses, 0) < 1 OR ad.ordem <= ad.duracao_meses)
+       AND ad.ordem <= ad.meses_pagos
   ),
   pausados AS (
     SELECT DISTINCT ad.aluno_id FROM aniversario_do_mes ad WHERE ad.em_pausa

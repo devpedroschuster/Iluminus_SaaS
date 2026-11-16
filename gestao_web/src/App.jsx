@@ -31,6 +31,7 @@ import Modalidades from './pages/Modalidades';
 import Presenca from './pages/Presenca';
 import Comissoes from './pages/Comissoes';
 import Aniversariantes from './pages/Aniversariantes';
+import Matriculas from './pages/Matriculas';
 import Landing from './pages/Landing';
 import AreaAluno from './pages/AreaAluno';
 import ConfiguracoesFeriados from './pages/ConfiguracoesFeriados';
@@ -168,6 +169,7 @@ function Rotas() {
         <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
           <Route path="/dashboard"                  element={<Dashboard />} />
           <Route path="/leads"                      element={<Leads />} />
+          <Route path="/matriculas"                 element={<Matriculas />} />
           <Route path="/alunos"                     element={<Alunos />} />
           <Route path="/alunos/novo"                element={<NovoAluno />} />
           <Route path="/alunos/:id"                 element={<PerfilAluno />} />

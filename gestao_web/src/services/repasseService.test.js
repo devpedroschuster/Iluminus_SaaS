@@ -5,10 +5,12 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 import { supabase } from '../lib/supabase';
+import { criarQueryMock } from '../test/criarQueryMock';
 import {
   situacaoRepassesMes,
   mensagemDeErroFunction,
   gerarRepassesDaMensalidade,
+  contarComissoesDaMensalidade,
 } from './repasseService';
 
 describe('repasseService', () => {
@@ -50,5 +52,21 @@ describe('repasseService', () => {
   it('gerarRepassesDaMensalidade lança quando data.error', async () => {
     supabase.functions.invoke.mockResolvedValueOnce({ data: { error: 'quebrou' }, error: null });
     await expect(gerarRepassesDaMensalidade(5)).rejects.toThrow('quebrou');
+  });
+
+  it('contarComissoesDaMensalidade conta as comissões ligadas à cobrança', async () => {
+    const { query, chamadas } = criarQueryMock({ count: 3, error: null });
+    supabase.from.mockReturnValueOnce(query);
+
+    expect(await contarComissoesDaMensalidade(5)).toBe(3);
+    expect(supabase.from).toHaveBeenCalledWith('repasses_lancamentos');
+    expect(chamadas).toEqual([['select', 'id', { count: 'exact', head: true }], ['eq', 'mensalidade_id', 5]]);
+  });
+
+  it('contarComissoesDaMensalidade lança o erro da consulta', async () => {
+    const erro = new Error('timeout');
+    const { query } = criarQueryMock({ count: null, error: erro });
+    supabase.from.mockReturnValueOnce(query);
+    await expect(contarComissoesDaMensalidade(5)).rejects.toBe(erro);
   });
 });

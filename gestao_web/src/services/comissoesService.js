@@ -186,7 +186,7 @@ export const comissoesService = {
   async updateLancamento(id, campos) {
     const { data: atual, error: errBusca } = await supabase
       .from('repasses_lancamentos')
-      .select('professor_id, data_referencia')
+      .select('professor_id, data_referencia, competencia, tipo_aula')
       .eq('id', id)
       .single();
 
@@ -194,6 +194,13 @@ export const comissoesService = {
 
     if (await this._mesEstaFechado(atual.professor_id, atual.data_referencia)) {
       throw new Error('Não é possível editar: o mês deste lançamento já foi fechado.');
+    }
+
+    // ILU-122: o tipo da comissão de mensalidade (com competência) vem da
+    // apuração. Trocado para avulsa/experimental, ela sairia do índice único
+    // e do "já existe", e a apuração a criaria de novo.
+    if (atual.competencia && campos.tipo_aula !== undefined && campos.tipo_aula !== atual.tipo_aula) {
+      throw new Error('Não é possível mudar o tipo de uma comissão de mensalidade.');
     }
 
     const permitidos = ['valor', 'tipo_aula', 'modalidade', 'data_referencia', 'status'];

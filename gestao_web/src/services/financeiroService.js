@@ -12,6 +12,11 @@ const SELECT_MENSALIDADE = `
 
 const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
+// Mensagem real da falha do repasse, sem o ponto final (o aviso continua a frase).
+function motivoDaFalha(erro) {
+  return String(erro?.message || erro || 'erro desconhecido').replace(/[.\s]+$/, '');
+}
+
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
   const { data, error } = await supabase
@@ -158,7 +163,10 @@ async listarModalidadesDoAluno(alunoId) {
         // Pagamento salvo com sucesso; apenas o repasse falhou.
         // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
         console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
-        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+        return {
+          ...data,
+          _avisoRepasse: `Pagamento registrado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
+        };
       }
     }
     return data;
@@ -251,7 +259,7 @@ async listarModalidadesDoAluno(alunoId) {
       return {
         ok: true,
         resultado: {
-          aviso: 'Pagamento confirmado, mas o repasse não pôde ser gerado automaticamente. Verifique manualmente na aba "Reprocessar".',
+          aviso: `Pagamento confirmado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
           gerados: 0,
         },
       };

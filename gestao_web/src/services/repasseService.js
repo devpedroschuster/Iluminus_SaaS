@@ -94,11 +94,12 @@ export async function gerarRepassesMensais(mes, ano) {
 
 /**
  * Reprocessa os repasses de uma mensalidade específica invocando
- * a Edge Function `gerar-repasses`. Idempotente: apaga os lançamentos
- * anteriores e recria com base no estado atual do aluno.
+ * a Edge Function `gerar-repasses`. Mensalidade (regular / plano livre): só
+ * acrescenta as comissões que faltam, nunca remove nem altera as existentes.
+ * Avulsa / experimental: apaga os lançamentos da cobrança e recria.
  *
  * @param {string} mensalidadeId
- * @returns {{ gerados: number, itens: Array }} resultado da função
+ * @returns {{ gerados: number, itens: Array, aviso?: string, avisos?: string[] }} resultado da função
  */
 export async function reprocessarRepasse(mensalidadeId) {
   const { data, error } = await supabase.functions.invoke('gerar-repasses', {
@@ -109,6 +110,17 @@ export async function reprocessarRepasse(mensalidadeId) {
   if (data?.error) throw new Error(data.error);
 
   return data;
+}
+
+/** Quantas comissões estão ligadas à cobrança (mensalidade_id). */
+export async function contarComissoesDaMensalidade(mensalidadeId) {
+  const { count, error } = await supabase
+    .from('repasses_lancamentos')
+    .select('id', { count: 'exact', head: true })
+    .eq('mensalidade_id', mensalidadeId);
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 /**

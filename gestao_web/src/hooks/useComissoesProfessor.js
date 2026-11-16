@@ -28,5 +28,8 @@ export function useInvalidarComissoes() {
     qc.invalidateQueries({ queryKey: ['comissoes', professorId, mesAno] });
     // UX-04: invalida o resumo mensal junto para manter consistência após fechamento
     qc.invalidateQueries({ queryKey: ['resumo-mensal', mesAno] });
+    // ILU-122: o quadro "sem comissão" (apuração simulada) de qualquer mês —
+    // a comissão alterada pode ser de outra competência que a do mês exibido.
+    qc.invalidateQueries({ queryKey: ['situacao-repasses-mes'] });
   };
 }

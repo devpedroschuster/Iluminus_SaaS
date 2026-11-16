@@ -298,7 +298,9 @@ export const alunosService = {
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
    *
-   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisoRepasse?: string }}
+   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisosRepasse?: string[], avisoRepasse?: string }}
+   *   avisosRepasse: o aviso e os avisos da geração do repasse (pagamento já recebido);
+   *   avisoRepasse: a geração do repasse falhou.
    */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
@@ -323,7 +325,9 @@ export const alunosService = {
       // a renovação/pagamento nunca é desfeita por falha no repasse.
       if (resultado.pago) {
         try {
-          await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+          const repasse = await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+          const avisosRepasse = [repasse?.aviso, ...(repasse?.avisos ?? [])].filter(Boolean);
+          return { ...resultado, avisosRepasse };
         } catch (repasseError) {
           console.warn('[alunosService.renovarPlano] Repasse não gerado automaticamente.', repasseError);
           return { ...resultado, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };

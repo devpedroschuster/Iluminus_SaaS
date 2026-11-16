@@ -16,7 +16,7 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
-import { textoReferenteA } from '../../lib/repasses';
+import { mesAnoAtual, textoReferenteA } from '../../lib/repasses';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -32,11 +32,6 @@ function navegarMes(mesAno, delta) {
   const [ano, mes] = mesAno.split('-').map(Number);
   const d = new Date(ano, mes - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function mesAnoAtual() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatarMoeda(v) {

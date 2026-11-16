@@ -86,3 +86,17 @@ export function nomeDoMes(mesAno) {
   const [ano, mes] = mesAno.split('-');
   return `${MESES[Number(mes) - 1]} de ${ano}`;
 }
+
+/**
+ * Resultado de reprocessar uma cobrança (gerar-repasses): `gerados` são as
+ * comissões novas — na mensalidade a apuração só acrescenta o que falta —, e
+ * os avisos da function viram toasts.
+ */
+export function resultadoReprocessar(resultado, nome) {
+  const novas = resultado?.gerados ?? 0;
+  return {
+    novas,
+    mensagem: `${novas} comissão(ões) nova(s) para ${nome}.`,
+    avisos: [resultado?.aviso, ...(resultado?.avisos ?? [])].filter(Boolean),
+  };
+}

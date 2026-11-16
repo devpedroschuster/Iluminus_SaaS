@@ -6,6 +6,7 @@ import {
   rotuloSituacao,
   alunosSemComissao,
   nomeDoMes,
+  resultadoReprocessar,
 } from './repasses';
 
 describe('textoReferenteA', () => {
@@ -80,5 +81,28 @@ describe('nomeDoMes', () => {
   it('formata em português capitalizado', () => {
     expect(nomeDoMes('2026-11')).toBe('Novembro de 2026');
     expect(nomeDoMes('2026-03')).toBe('Março de 2026');
+  });
+});
+
+describe('resultadoReprocessar', () => {
+  it('conta as comissões novas (não "reprocessadas") e junta o aviso e os avisos da function', () => {
+    expect(resultadoReprocessar({
+      gerados: 0,
+      aviso: 'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+      avisos: ['Ana (Dança): Comissão removida pela gestão'],
+    }, 'Ana')).toEqual({
+      novas: 0,
+      mensagem: '0 comissão(ões) nova(s) para Ana.',
+      avisos: [
+        'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+        'Ana (Dança): Comissão removida pela gestão',
+      ],
+    });
+  });
+
+  it('sem avisos devolve lista vazia', () => {
+    expect(resultadoReprocessar({ gerados: 2 }, 'Bia')).toEqual({
+      novas: 2, mensagem: '2 comissão(ões) nova(s) para Bia.', avisos: [],
+    });
   });
 });

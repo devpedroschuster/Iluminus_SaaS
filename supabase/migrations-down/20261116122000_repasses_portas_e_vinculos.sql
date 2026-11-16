@@ -3,8 +3,10 @@
 --
 -- Tira o job diário, remove as quatro funções novas (pagamento recebido,
 -- agendamento, excluir comissão, vínculo da integral) e volta
--- renovar_plano_aluno à definição de produção de antes desta migration
--- (pg_get_functiondef lido de produção em 2026-11-16; igual à da ILU-114).
+-- renovar_plano_aluno e excluir_mensalidade às definições de produção de
+-- antes desta migration (pg_get_functiondef lido de produção em 2026-11-16;
+-- iguais às da ILU-114 e da ILU-116), e uq_repasse_lote_mensal ao predicado
+-- antigo (WHERE mensalidade_id IS NULL).
 --
 -- ATENÇÃO antes de rodar:
 --   - Desfaça antes o que chama estas funções (Edge Function gerar-repasses e
@@ -13,6 +15,14 @@
 --   - Não desfaz dados: as comissões gravadas, as marcas em
 --     repasses_removidos e os vínculos historico_planos.cobranca_integral_id
 --     ficam como estão.
+--   - O índice antigo volta a valer para comissões com competência desligadas
+--     da cobrança (Excluir mantendo a comissão). Se duas delas tiverem o mesmo
+--     aluno, modalidade, tipo e data_referencia (ou uma delas e uma linha do
+--     lote), o CREATE UNIQUE INDEX falha: resolva essas linhas antes. Para
+--     achá-las:
+--       SELECT aluno_id, modalidade, tipo_aula, data_referencia, count(*)
+--         FROM repasses_lancamentos WHERE mensalidade_id IS NULL
+--        GROUP BY 1, 2, 3, 4 HAVING count(*) > 1;
 
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'apurar-repasses-diario';
 
@@ -153,3 +163,90 @@ BEGIN
   RETURN jsonb_build_object('mensalidade_id', v_mensalidade_id, 'pago', v_recebido);
 END;
 $function$;
+
+-- excluir_mensalidade como estava em produção (checagens de colisão sem a
+-- competência). CREATE OR REPLACE mantém as permissões atuais.
+CREATE OR REPLACE FUNCTION public.excluir_mensalidade(p_mensalidade_id bigint, p_comissoes_a_remover uuid[] DEFAULT '{}'::uuid[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_remover   uuid[] := coalesce(p_comissoes_a_remover, '{}');
+  v_elegiveis uuid[];
+  v_colisao   record;
+  v_removidas int;
+BEGIN
+  IF NOT (auth.role() = 'service_role' OR public.is_admin()) THEN
+    RAISE EXCEPTION 'Usuário sem permissão para alterar lançamentos.';
+  END IF;
+
+  PERFORM 1 FROM public.mensalidades m WHERE m.id = p_mensalidade_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Lançamento não encontrado.';
+  END IF;
+
+  SELECT coalesce(array_agg(e.id), '{}') INTO v_elegiveis
+    FROM public._comissoes_elegiveis(p_mensalidade_id) e;
+  IF NOT (v_remover <@ v_elegiveis) THEN
+    RAISE EXCEPTION 'Uma das comissões escolhidas não pertence a este lançamento. Atualize a tela e tente de novo.';
+  END IF;
+
+  -- Desligada, a comissão mantida entra no índice uq_repasse_lote_mensal: não
+  -- pode haver lá uma linha do lote com a mesma chave que vá continuar.
+  SELECT r.modalidade, r.data_referencia
+    INTO v_colisao
+    FROM public.repasses_lancamentos r
+   WHERE r.mensalidade_id = p_mensalidade_id
+     AND r.id <> ALL (v_remover)
+     AND EXISTS (SELECT 1 FROM public.repasses_lancamentos l
+                  WHERE l.mensalidade_id IS NULL
+                    AND l.aluno_id = r.aluno_id
+                    AND l.modalidade = r.modalidade
+                    AND l.tipo_aula = r.tipo_aula
+                    AND l.data_referencia = r.data_referencia
+                    AND l.id <> ALL (v_remover))
+   ORDER BY r.data_referencia, r.modalidade
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'Já existe no lote mensal uma comissão de % (%) deste aluno. Marque uma das duas para remover.',
+      v_colisao.modalidade, to_char(v_colisao.data_referencia, 'MM/YYYY');
+  END IF;
+
+  -- Nem duas mantidas com a mesma chave (mesma modalidade, outro professor):
+  -- desligadas, colidiriam entre si. Chave com NULL nunca colide no índice.
+  SELECT r.modalidade, r.data_referencia
+    INTO v_colisao
+    FROM public.repasses_lancamentos r
+   WHERE r.mensalidade_id = p_mensalidade_id
+     AND r.id <> ALL (v_remover)
+     AND r.aluno_id IS NOT NULL
+     AND r.modalidade IS NOT NULL
+     AND r.data_referencia IS NOT NULL
+   GROUP BY r.aluno_id, r.modalidade, r.tipo_aula, r.data_referencia
+  HAVING count(*) > 1
+   ORDER BY r.data_referencia, r.modalidade
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'Duas comissões de % (%) deste aluno ficariam repetidas ao excluir. Marque uma delas para remover.',
+      v_colisao.modalidade, to_char(v_colisao.data_referencia, 'MM/YYYY');
+  END IF;
+
+  DELETE FROM public.repasses_lancamentos r WHERE r.id = ANY (v_remover);
+  GET DIAGNOSTICS v_removidas = ROW_COUNT;
+
+  UPDATE public.repasses_lancamentos r SET mensalidade_id = NULL WHERE r.mensalidade_id = p_mensalidade_id;
+
+  DELETE FROM public.mensalidades m WHERE m.id = p_mensalidade_id;
+
+  RETURN jsonb_build_object(
+    'comissoes_removidas', v_removidas,
+    'comissoes_mantidas', cardinality(v_elegiveis) - v_removidas);
+END;
+$function$;
+
+DROP INDEX IF EXISTS public.uq_repasse_lote_mensal;
+CREATE UNIQUE INDEX uq_repasse_lote_mensal
+  ON public.repasses_lancamentos USING btree (aluno_id, modalidade, tipo_aula, data_referencia)
+  WHERE (mensalidade_id IS NULL);

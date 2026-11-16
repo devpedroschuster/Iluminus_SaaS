@@ -59,7 +59,7 @@ DECLARE
   v_mod3 uuid; v_pl300 int; v_pl100 int; v_pl375 int; v_pl0 int;
   g_danca bigint; g_pilates bigint; g_teatro bigint; g_yoga bigint;
   -- casos C
-  v_j jsonb; v_mi2 bigint; v_bi bigint; v_al4 bigint; v_h2 uuid; v_h3 uuid; v_rid uuid;
+  v_j jsonb; v_mi2 bigint; v_bi bigint; v_al4 bigint; v_h2 uuid; v_h3 uuid; v_rid uuid; v_n3 int;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
   IF v_admin IS NULL THEN
@@ -1261,7 +1261,8 @@ BEGIN
 
   -- C1: renovar_plano_aluno à vista, recebido: o ciclo criado fica ligado à
   -- cobrança integral que a renovação criou, e o pagamento já gera a comissão
-  -- do mês corrente (spec 3.6). A renovação recorrente não liga nada.
+  -- do mês corrente (spec 3.6). A renovação recorrente não liga nada. A que
+  -- reaproveita a integral em aberto de um ciclo à vista desliga esse ciclo.
   v_total := v_total + 1;
   BEGIN
     INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
@@ -1292,6 +1293,27 @@ BEGIN
      WHERE aluno_id = v_al2 AND forma_recebimento = 'recorrente' AND cobranca_integral_id IS NULL;
     IF v_n <> 1 THEN
       v_falhas := v_falhas || 'C1: a renovação recorrente não deveria ligar cobrança integral'::text;
+    END IF;
+
+    -- Renovação à vista não recebida (ciclo ligado à integral P em aberto),
+    -- depois recorrente no mesmo plano e início: a renovação reaproveita P como
+    -- a mensal e a recebe. O ciclo à vista, agora finalizado, perde o vínculo:
+    -- P paga cobre só o mês do vencimento, não os três aniversários.
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C1 reaproveitada', 'teste-repcomp-c1c@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al3;
+    v_ini := v_m2 + 3;
+    v_j := renovar_plano_aluno(v_al3, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 0, 'a_vista');
+    v_mi2 := (v_j ->> 'mensalidade_id')::bigint;
+    SELECT id INTO v_h FROM historico_planos WHERE aluno_id = v_al3 AND cobranca_integral_id = v_mi2;
+    v_j := renovar_plano_aluno(v_al3, v_plano3, v_ini, (v_ini + interval '1 month')::date - 1, 250, 'recorrente', true, 'pix');
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',' ORDER BY x.competencia) INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi2) x;
+    IF v_h IS NULL OR (v_j ->> 'mensalidade_id')::bigint IS DISTINCT FROM v_mi2
+       OR (SELECT cobranca_integral_id FROM historico_planos WHERE id = v_h) IS NOT NULL
+       OR v_txt IS DISTINCT FROM to_char(v_m2, 'YYYY-MM') || '=gerada' THEN
+      v_falhas := v_falhas || format('C1: cobrança reaproveitada (%s, reaproveitou %s) deveria sair do ciclo à vista e cobrir só %s, veio %s',
+                                     v_mi2, v_j ->> 'mensalidade_id', to_char(v_m2, 'YYYY-MM'), coalesce(v_txt, '(nada)'));
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -1697,9 +1719,11 @@ BEGIN
   -- Trimestral de 31/01/2025 a 30/04/2025: jan, fev e mar, nada de abril.
   -- Semestral de 04/01/2025 com pausa fechada sobre o aniversário de
   -- fevereiro (data_fim estendida para 31/07): jan e mar a jul, nada de
-  -- fevereiro nem de agosto.
+  -- fevereiro nem de agosto. Corte em 01/2024, como em R14/R21 (pagas em
+  -- 2025, depois do corte).
   v_total := v_total + 1;
   BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
     INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
     VALUES ('[TESTE REPASSE-COMP] C10 teto', 'teste-repcomp-c10a@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
     RETURNING id INTO v_al;
@@ -1764,6 +1788,136 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('C11: ' || SQLERRM);
+  END;
+
+  -- C12: pagamento recebido ANTES do corte não apura meses anteriores ao
+  -- corte (já acertados fora do sistema); os meses a partir do corte, sim.
+  -- Corte em M. Recorrente de M-1 paga em M-1: nada. Semestral de M-2 com a
+  -- integral paga em M-2: só M (gerada, entra em M).
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = v_mes;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C12 recorrente', 'teste-repcomp-c12a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9) RETURNING id INTO v_m;
+    SELECT count(*) INTO v_n FROM apurar_repasses_da_cobranca(v_m) x;
+    SELECT count(*) INTO v_n2 FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_n <> 0 OR v_n2 <> 0 THEN
+      v_falhas := v_falhas || format('C12: recorrente de M-1 paga antes do corte não deveria apurar, veio %s linha(s), %s gravada(s)', v_n, v_n2);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C12 à vista', 'teste-repcomp-c12b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    v_ini := v_m2 + 3;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al2, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi);
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao || '@' || to_char(x.data_referencia, 'YYYY-MM'), ','
+                      ORDER BY x.competencia) INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi) x;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al2;
+    IF v_txt IS DISTINCT FROM to_char(v_mes, 'YYYY-MM') || '=gerada@' || to_char(v_mes, 'YYYY-MM') OR v_n <> 1 THEN
+      v_falhas := v_falhas || format('C12: integral paga antes do corte deveria apurar só M, veio %s (%s gravada(s))', coalesce(v_txt, '(nada)'), v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C12: ' || SQLERRM);
+  END;
+
+  -- C13: linha antiga (sem competência) ligada à MESMA cobrança mensal, lançada
+  -- no mês do pagamento (modelo antigo: a de M-1 paga em M ficou em M), conta
+  -- como já existente na competência do vencimento: o pagamento reprocessado
+  -- não grava outra. A integral de ciclo à vista fica com a regra do nome e do
+  -- mês: o ciclo de M-1 com a integral paga em M e a linha antiga em M dá M-1
+  -- gerada e M ja_existia.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C13 mensal', 'teste-repcomp-c13a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 2) RETURNING id INTO v_m;
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_m, v_prof, v_al, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_mes);
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',') INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_m) x;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_txt IS DISTINCT FROM to_char(v_m1, 'YYYY-MM') || '=ja_existia' OR v_n <> 1 THEN
+      v_falhas := v_falhas || format('C13: linha antiga da mesma cobrança deveria dar ja_existia em M-1, veio %s (%s linha(s))',
+                                     coalesce(v_txt, '(nada)'), v_n);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C13 integral', 'teste-repcomp-c13b@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    v_ini := v_m1 + 4;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_mes + 1, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al2, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 'ativo', 750, 'a_vista', v_mi);
+    INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_mi, v_prof, v_al2, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_mes);
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',' ORDER BY x.competencia) INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi) x;
+    IF v_txt IS DISTINCT FROM to_char(v_m1, 'YYYY-MM') || '=gerada,' || to_char(v_mes, 'YYYY-MM') || '=ja_existia' THEN
+      v_falhas := v_falhas || ('C13: integral com linha antiga em M deveria dar M-1 gerada e M ja_existia, veio ' || coalesce(v_txt, '(nada)'));
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C13: ' || SQLERRM);
+  END;
+
+  -- C14: comissões de uma integral empurradas para o mesmo mês de entrada
+  -- (corte em M, integral de M-2 paga em M: M-2, M-1 e M entram todas em M).
+  -- excluir_mensalidade(integral, '{}') mantém e desliga todas, sem a recusa
+  -- de "repetidas" nem colisão no índice do lote; idem com uma linha antiga do
+  -- lote do mesmo aluno, modalidade e mês de entrada (aí M já existia e só
+  -- M-2 e M-1 são da integral).
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = v_mes;
+    v_ini := v_m2 + 3;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C14', 'teste-repcomp-c14a@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_mes + 1, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi);
+    PERFORM * FROM apurar_repasses_da_cobranca(v_mi);
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al AND mensalidade_id = v_mi AND data_referencia = v_mes;
+    v_j := excluir_mensalidade(v_mi, '{}');
+    SELECT count(*) INTO v_n2 FROM repasses_lancamentos
+     WHERE aluno_id = v_al AND mensalidade_id IS NULL AND competencia IS NOT NULL AND data_referencia = v_mes;
+    IF v_n <> 3 OR (v_j ->> 'comissoes_mantidas')::int IS DISTINCT FROM 3 OR v_n2 <> 3 THEN
+      v_falhas := v_falhas || format('C14: esperava 3 comissões em M mantidas e desligadas, veio %s antes, %s, %s desligada(s)', v_n, v_j, v_n2);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C14 lote', 'teste-repcomp-c14b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_prof, v_al2, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_mes);
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_mes + 1, 'Pagamento integral do plano') RETURNING id INTO v_mi2;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al2, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi2);
+    PERFORM * FROM apurar_repasses_da_cobranca(v_mi2);
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al2 AND mensalidade_id = v_mi2 AND data_referencia = v_mes;
+    v_j := excluir_mensalidade(v_mi2, '{}');
+    SELECT count(*), count(*) FILTER (WHERE competencia IS NOT NULL AND mensalidade_id IS NULL)
+      INTO v_n2, v_n3 FROM repasses_lancamentos WHERE aluno_id = v_al2 AND data_referencia = v_mes;
+    IF v_n <> 2 OR (v_j ->> 'comissoes_mantidas')::int IS DISTINCT FROM 2 OR v_n2 <> 3 OR v_n3 <> 2 THEN
+      v_falhas := v_falhas || format('C14: com a linha do lote, esperava 2 da integral mantidas e desligadas ao lado dela, veio %s antes, %s, %s linha(s), %s desligada(s)',
+                                     v_n, v_j, v_n2, v_n3);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C14: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

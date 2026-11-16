@@ -32,7 +32,10 @@
 --   - Mês de entrada (data_referencia): o primeiro mês >= max(competência,
 --     corte) sem fechamento para o professor. Mês fechado nunca recebe escrita.
 --   - Já existe: linha nova (modalidade_id + competencia) ou linha antiga sem
---     modalidade_id, casando pelo nome atual da modalidade e pelo mês.
+--     modalidade_id, casando pelo nome atual da modalidade e pelo mês; ou
+--     linha antiga (sem competencia), do mesmo nome, ligada a uma cobrança
+--     que vence no mês e não é integral de ciclo à vista (o modelo antigo a
+--     lançou no mês do pagamento).
 --   - Só insere; nunca atualiza nem apaga comissão. ON CONFLICT repete o
 --     predicado de uq_repasse_competencia (senão 42P10).
 --   - Plano livre: o aluno cuja fonte de cobertura do mês é de plano livre
@@ -369,7 +372,19 @@ BEGIN
                     AND ((rl.modalidade_id = pm.mod_id AND rl.competencia = v_mes)
                       OR (rl.modalidade_id IS NULL AND rl.modalidade = pm.mod_nome
                           AND coalesce(rl.competencia, rl.data_referencia) >= v_mes
-                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim))) THEN 'ja_existia'
+                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim)
+                      -- Linha antiga ligada a uma cobrança mensal que vence no
+                      -- mês: o modelo antigo a lançou no mês do pagamento
+                      -- (a de outubro paga em 03/11 ficou em novembro), mas ela
+                      -- é a comissão do mês do vencimento. A integral de ciclo
+                      -- à vista fica só com a regra de cima.
+                      OR (rl.competencia IS NULL AND rl.modalidade = pm.mod_nome
+                          AND EXISTS (SELECT 1 FROM mensalidades mx
+                                       WHERE mx.id = rl.mensalidade_id
+                                         AND mx.data_vencimento >= v_mes AND mx.data_vencimento < v_fim
+                                         AND NOT EXISTS (SELECT 1 FROM historico_planos hx
+                                                          WHERE hx.cobranca_integral_id = mx.id
+                                                            AND hx.forma_recebimento = 'a_vista'))))) THEN 'ja_existia'
                WHEN EXISTS (
                  SELECT 1 FROM repasses_removidos rr
                   WHERE rr.aluno_id = pm.aluno_id AND rr.modalidade_id = pm.mod_id AND rr.competencia = v_mes) THEN 'removida_pela_gestao'

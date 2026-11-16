@@ -44,7 +44,7 @@ DECLARE
   v_p1 date := (v_mes + interval '1 month')::date;
   v_v1 numeric; v_vm numeric;
   v_prof2 uuid; v_mod2 uuid; v_mod_sem uuid; v_plano3 int; v_plano6 int;
-  v_al bigint; v_m bigint; v_mi bigint; v_ini date; v_d date;
+  v_al bigint; v_al2 bigint; v_al3 bigint; v_m bigint; v_mi bigint; v_ini date; v_d date; v_h uuid;
   v_n2 int; v_txt2 text; v_val numeric;
   r record;
 BEGIN
@@ -749,6 +749,123 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('R20: ' || SQLERRM);
+  END;
+
+  -- R21: o limite de duracao_meses conta só aniversários FORA de pausa (spec
+  -- 3.2, "continuam seis meses"). Semestral de 04/01/2025; pausa fechada de
+  -- 01/02 a 01/03 (retorno exclusivo, 28 dias) cobrindo o aniversário de
+  -- fevereiro; a retomada estendeu data_fim de 03/07 para 31/07. Fevereiro fica
+  -- pausado e julho gera: é o 6º aniversário fora de pausa, o 7º no total.
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R21', 'teste-repcomp-r21@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
+    RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, DATE '2025-01-04', DATE '2025-07-31', 'finalizado', 1440, 'a_vista', v_mi)
+    RETURNING id INTO v_h;
+    INSERT INTO pausas_plano (aluno_id, historico_plano_id, data_inicio, data_prevista_volta, data_retorno, dias_devolvidos, fim_plano_antes, fim_plano_depois, motivo)
+    VALUES (v_al, v_h, DATE '2025-02-01', DATE '2025-03-01', DATE '2025-03-01', 28, DATE '2025-07-03', DATE '2025-07-31', '[TESTE REPASSE-COMP] pausa');
+    v_txt := NULL;
+    FOR i IN 0..7 LOOP
+      v_d := (DATE '2025-01-01' + make_interval(months => i))::date;
+      SELECT string_agg(x.situacao, ',') INTO v_txt2 FROM apurar_repasses(v_d, v_al, false) x;
+      v_txt := concat_ws(' ', v_txt, to_char(v_d, 'MM') || '=' || coalesce(v_txt2, '-'));
+    END LOOP;
+    IF v_txt IS DISTINCT FROM '01=gerada 02=pausado 03=gerada 04=gerada 05=gerada 06=gerada 07=gerada 08=sem_cobertura' THEN
+      v_falhas := v_falhas || ('R21: veio ' || v_txt);
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al AND mensalidade_id = v_mi;
+    IF v_n <> 6 THEN
+      v_falhas := v_falhas || ('R21: esperava 6 meses gravados, veio ' || v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R21: ' || SQLERRM);
+  END;
+
+  -- R22: gêmeo de R21 com a pausa (10/02 a 02/03, 20 dias) fora de qualquer
+  -- aniversário: a retomada estende data_fim de 03/07 para 23/07, o que põe o
+  -- aniversário de 04/07 dentro do ciclo, mas seriam 7 meses pagos por 6.
+  -- Julho fica sem cobertura.
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R22', 'teste-repcomp-r22@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
+    RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, DATE '2025-01-04', DATE '2025-07-23', 'finalizado', 1440, 'a_vista', v_mi)
+    RETURNING id INTO v_h;
+    INSERT INTO pausas_plano (aluno_id, historico_plano_id, data_inicio, data_prevista_volta, data_retorno, dias_devolvidos, fim_plano_antes, fim_plano_depois, motivo)
+    VALUES (v_al, v_h, DATE '2025-02-10', DATE '2025-03-02', DATE '2025-03-02', 20, DATE '2025-07-03', DATE '2025-07-23', '[TESTE REPASSE-COMP] pausa');
+    v_txt := NULL;
+    FOR i IN 0..6 LOOP
+      v_d := (DATE '2025-01-01' + make_interval(months => i))::date;
+      SELECT string_agg(x.situacao, ',') INTO v_txt2 FROM apurar_repasses(v_d, v_al, false) x;
+      v_txt := concat_ws(' ', v_txt, to_char(v_d, 'MM') || '=' || coalesce(v_txt2, '-'));
+    END LOOP;
+    IF v_txt IS DISTINCT FROM '01=gerada 02=gerada 03=gerada 04=gerada 05=gerada 06=gerada 07=sem_cobertura' THEN
+      v_falhas := v_falhas || ('R22: veio ' || v_txt);
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al AND mensalidade_id = v_mi;
+    IF v_n <> 6 THEN
+      v_falhas := v_falhas || ('R22: esperava 6 meses gravados, veio ' || v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R22: ' || SQLERRM);
+  END;
+
+  -- R24: mês inteiro (p_aluno_id nulo, o caminho do agendamento e do botão),
+  -- em prévia. Um aluno inativo que pagou M-1 gera (o pagamento prova o mês,
+  -- spec 3.3); um inativo sem cobertura nem é avaliado; um ativo sem cobertura
+  -- aparece como sem_cobertura. Filtrado aos alunos deste caso.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R24 inativo pago', 'teste-repcomp-r24a@iluminus.test', 'aluno', false, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R24 inativo sem cobertura', 'teste-repcomp-r24b@iluminus.test', 'aluno', false, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] R24 ativo sem cobertura', 'teste-repcomp-r24c@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al3;
+    SELECT count(*) FILTER (WHERE x.aluno_id = v_al) AS n_a,
+           max(x.situacao) FILTER (WHERE x.aluno_id = v_al) AS sit_a,
+           count(*) FILTER (WHERE x.aluno_id = v_al2) AS n_b,
+           count(*) FILTER (WHERE x.aluno_id = v_al3) AS n_c,
+           max(x.situacao) FILTER (WHERE x.aluno_id = v_al3) AS sit_c,
+           bool_and(x.modalidade_id IS NULL) FILTER (WHERE x.aluno_id = v_al3) AS c_sem_mod
+      INTO r
+      FROM apurar_repasses(v_m1, NULL, true) x
+     WHERE x.aluno_nome LIKE '[TESTE REPASSE-COMP] R24%';
+    IF r.n_a <> 1 OR r.sit_a IS DISTINCT FROM 'gerada' THEN
+      v_falhas := v_falhas || format('R24: inativo que pagou M-1 deveria vir 1 gerada, veio n=%s situacao=%s', r.n_a, r.sit_a);
+    END IF;
+    IF r.n_b <> 0 THEN
+      v_falhas := v_falhas || ('R24: inativo sem cobertura não deveria ser avaliado, veio ' || r.n_b || ' linha(s)');
+    END IF;
+    IF r.n_c <> 1 OR r.sit_c IS DISTINCT FROM 'sem_cobertura' OR r.c_sem_mod IS NOT TRUE THEN
+      v_falhas := v_falhas || format('R24: ativo sem cobertura deveria vir 1 sem_cobertura do aluno, veio n=%s situacao=%s', r.n_c, r.sit_c);
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2, v_al3);
+    IF v_n <> 0 THEN
+      v_falhas := v_falhas || ('R24: a prévia gravou ' || v_n || ' linha(s)');
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R24: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

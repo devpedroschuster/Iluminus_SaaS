@@ -429,7 +429,9 @@ O que muda em cada tela:
   - um aluno à vista mostra a comissão em cada mês coberto;
   - o quadro "sem comissão" lista bolsista e mês não pago;
   - o botão de gerar não dá erro;
-  - o mês anterior ao corte mostra a faixa.
+  - o mês anterior ao corte mostra a faixa;
+  - renovar à vista **não recebido** e depois receber a cobrança integral (Financeiro → "Receber"): o ciclo fica ligado à integral e a comissão do mês corrente aparece no recebimento;
+  - Reprocessar numa cobrança que já tem comissões: só acrescenta o que falta (nenhuma comissão existente some ou muda), a coluna "Lançamentos" mostra a contagem real e os avisos aparecem.
 - [ ] **Passo 6:** `supabase link --project-ref spmvrzftyqxalprpceqn`; abrir o PR com o link da issue.
 
 ---
@@ -449,7 +451,24 @@ Passos:
 - [ ] **Passo 4:** Conferência de novembro: `select * from apurar_repasses('2026-11-01', null, true)`. Mostrar ao usuário:
   - as `gerada` por professor;
   - quem fica de fora, e por quê;
-  - a duplicata do aluno #82 (proposta: `excluir_comissao` da linha de Treinamento Físico ligada à cobrança 688).
+  - as `ja_existia`, cada uma com a linha antiga que a justifica (id, tipo, valor, `data_referencia`, cobrança):
+    ```sql
+    select a.aluno_id, a.aluno_nome, a.modalidade, a.tipo_aula,
+           r.id, r.tipo_aula as tipo_antigo, r.valor, r.data_referencia, r.mensalidade_id
+      from apurar_repasses('2026-11-01', null, true) a
+      join repasses_lancamentos r
+        on r.aluno_id = a.aluno_id
+       and r.tipo_aula in ('regular', 'plano_livre')
+       and public._mes_da_comissao(r.competencia, r.mensalidade_id, r.data_referencia) = '2026-11-01'
+       and (a.tipo_aula = 'plano_livre'  -- plano livre: tudo ou nada, qualquer modalidade do aluno no mês
+            or r.modalidade_id = a.modalidade_id
+            or (r.modalidade_id is null and r.modalidade = a.modalidade))
+     where a.situacao = 'ja_existia'
+     order by a.aluno_nome, a.modalidade;
+    ```
+  - as linhas antigas `plano_livre` de novembro (`competencia is null`, `data_referencia` em 11/2026): elas bloqueiam o plano livre do aluno no mês inteiro;
+  - as linhas antigas (`competencia is null`) ligadas a uma cobrança integral de ciclo à vista (`historico_planos.cobranca_integral_id`, depois do Passo 3): o valor delas veio do `valor_pago` do pagamento à vista (no modelo antigo), não do mês;
+  - a duplicata do aluno #82 (proposta: `excluir_comissao` da linha de Treinamento Físico ligada à cobrança 688). Antes de excluir, conferir o vencimento da cobrança por trás da linha de Treinamento Físico que **fica**: se não vencer em novembro, ela conta para o mês do vencimento dela (`_mes_da_comissao`) e novembro fica livre para a apuração gerar uma linha nova — o que pode não ser o esperado.
 
   Com a aprovação, rodar `apurar_repasses('2026-11-01')` sem simular e o `excluir_comissao` aprovado.
 - [ ] **Passo 5:** Com confirmação, rodar `UPDATE configuracoes_repasse SET apuracao_automatica = true`. No dia seguinte, conferir em `cron.job_run_details` que `apurar-repasses-diario` rodou sem erro.

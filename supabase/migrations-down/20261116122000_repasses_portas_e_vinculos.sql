@@ -8,6 +8,9 @@
 -- iguais às da ILU-114 e da ILU-116), e uq_repasse_lote_mensal ao predicado
 -- antigo (WHERE mensalidade_id IS NULL).
 --
+-- Ordem do rollback da ILU-122: frontend, Edge Functions, depois as
+-- migrations (esta, 121000, 120000) — detalhes no down de 20261116120000.
+--
 -- ATENÇÃO antes de rodar:
 --   - Desfaça antes o que chama estas funções (Edge Function gerar-repasses e
 --     o front da ILU-122), senão o pagamento, o excluir da tela Comissões e o

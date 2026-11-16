@@ -2,6 +2,14 @@
 -- Perde os DADOS das colunas/tabela removidas (competencia, modalidade_id,
 -- cobranca_integral_id, repasses_removidos, corte/apuração). Tire backup antes
 -- se importam (ver .github/workflows/db-backup.yml).
+--
+-- ORDEM DO ROLLBACK DA ILU-122 (docs/DEPLOY.md): primeiro o frontend (o novo
+-- seleciona `competencia` e chama as RPCs novas), depois as Edge Functions,
+-- e só então as migrations — 20261116122000, 20261116121000 e esta, nessa
+-- ordem. Atenção ao voltar as Edge Functions: o `gerar-repasses` antigo apaga
+-- e recria as comissões da cobrança no mês do pagamento; reprocessar ou
+-- receber de novo uma cobrança integral com comissões de vários meses
+-- (competência) apaga todas e deixa só a do mês do pagamento.
 ALTER TABLE public.configuracoes_repasse
   DROP COLUMN IF EXISTS apuracao_automatica,
   DROP COLUMN IF EXISTS corte_competencia;

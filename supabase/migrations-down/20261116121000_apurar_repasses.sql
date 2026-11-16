@@ -3,6 +3,9 @@
 --
 -- Remove as cinco funções da apuração.
 --
+-- Ordem do rollback da ILU-122: frontend, Edge Functions, depois as
+-- migrations (122000, esta, 120000) — detalhes no down de 20261116120000.
+--
 -- ATENÇÃO antes de rodar:
 --   - Desfaça antes o que chama a apuração (migrations seguintes da ILU-122:
 --     pagamento, agendamento diário, Edge Functions e tela), senão elas

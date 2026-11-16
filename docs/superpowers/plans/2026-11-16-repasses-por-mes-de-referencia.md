@@ -87,7 +87,7 @@
 
 ---
 
-### Tarefa 0: Ambiente de trabalho
+### Task 0: Ambiente de trabalho
 
 - [ ] **Passo 1:** Criar o worktree com `superpowers:using-git-worktrees`. Branch: `repasses-por-competencia`.
 - [ ] **Passo 2:** Copiar para o worktree o spec e este plano, que hoje estão sem commit no checkout principal:
@@ -102,7 +102,7 @@
 
 ---
 
-### Tarefa 1: Schema
+### Task 1: Schema
 
 **Files:**
 - Create: `supabase/migrations/20261116120000_repasses_competencia_schema.sql`
@@ -137,7 +137,7 @@
 
 ---
 
-### Tarefa 2: Apuração — cobertura, regular, mês de entrada
+### Task 2: Apuração — cobertura, regular, mês de entrada
 
 **Files:**
 - Create: `supabase/migrations/20261116121000_apurar_repasses.sql` (+ down: `DROP FUNCTION` das três)
@@ -209,7 +209,7 @@
 
 ---
 
-### Tarefa 3: Apuração — plano livre
+### Task 3: Apuração — plano livre
 
 **Files:**
 - Modify: `supabase/migrations/20261116121000_apurar_repasses.sql` (ainda não aplicada em lugar nenhum: editar no arquivo, sem migration nova)
@@ -246,7 +246,7 @@
 
 ---
 
-### Tarefa 4: Portas da apuração e vínculos
+### Task 4: Portas da apuração e vínculos
 
 **Files:**
 - Create: `supabase/migrations/20261116122000_repasses_portas_e_vinculos.sql` (+ down: `DROP` das funções novas e restauração de `renovar_plano_aluno` com a definição atual de produção)
@@ -294,7 +294,7 @@
 
 ---
 
-### Tarefa 5: Edge Functions
+### Task 5: Edge Functions
 
 **Files:**
 - Create: `supabase/functions/_shared/repasses.ts`, `supabase/functions/_shared/repasses.test.ts`
@@ -328,7 +328,7 @@ Mudanças em cada function:
 
 ---
 
-### Tarefa 6: Serviços do frontend
+### Task 6: Serviços do frontend
 
 **Files:**
 - Modify:
@@ -376,7 +376,7 @@ Mudanças em cada function:
 
 ---
 
-### Tarefa 7: Telas
+### Task 7: Telas
 
 **Files:**
 - Create: `gestao_web/src/lib/repasses.js`, `gestao_web/src/lib/repasses.test.js`
@@ -419,7 +419,7 @@ O que muda em cada tela:
 
 ---
 
-### Tarefa 8: Staging
+### Task 8: Staging
 
 - [ ] **Passo 1:** `supabase link --project-ref mytmreoqysbxisszludl`; com o Docker rodando, `supabase db push`. Esperado: as 3 migrations aplicadas.
 - [ ] **Passo 2:** Rodar `repasses_competencia.sql`, `reverter_excluir_mensalidade.sql` e `ilu114_pausa_plano.sql`. Esperado: três `PASSOU`.
@@ -434,7 +434,7 @@ O que muda em cada tela:
 
 ---
 
-### Tarefa 9: Produção (cada passo de escrita só com o "sim" do usuário naquele momento)
+### Task 9: Produção (cada passo de escrita só com o "sim" do usuário naquele momento)
 
 **Files:**
 - Create: `scripts/sql-fixes/2026-11-16-vincular-ciclos-a-vista.sql`, com duas partes:

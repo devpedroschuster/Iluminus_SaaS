@@ -98,7 +98,7 @@
 - [ ] **Passo 3:** Criar a issue no Linear, no time Iluminus.
   - Título: "Repasses: comissão por mês de referência (à vista, plano livre, lote quebrado)".
   - Corpo: resumo da seção 1 do spec e caminho do spec.
-  - Anotar o id (ILU-N) para os commits.
+  - Anotar o id (ILU-122) para os commits.
 
 ---
 
@@ -133,7 +133,7 @@
 - [ ] **Passo 2:** Rodar contra staging, concatenando a migration ainda vazia e o teste. Esperado: `FALHOU`, com S1 e S2 falhando.
 - [ ] **Passo 3:** Escrever a migration (só `ADD COLUMN`, `CREATE INDEX`, `CREATE TABLE`, policy) e a down, que desfaz na ordem inversa.
 - [ ] **Passo 4:** Rodar de novo (migration + teste concatenados, no staging). Esperado: `RESULTADO REPASSES-COMPETENCIA: PASSOU (4/4)`.
-- [ ] **Passo 5: Commit** — `feat(db): schema for repasse by reference month (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(db): schema for repasse by reference month (ILU-122)`.
 
 ---
 
@@ -205,7 +205,7 @@
 - [ ] **Passo 2:** Rodar no staging (migrations da T1 e da T2 vazia + teste). Esperado: os casos R falham por função inexistente.
 - [ ] **Passo 3:** Implementar as três funções em `20261116121000_apurar_repasses.sql`.
 - [ ] **Passo 4:** Rodar. Esperado: `PASSOU (23/23)` (S1–S4 + R1–R19).
-- [ ] **Passo 5: Commit** — `feat(db): apurar_repasses with coverage, closed-month and cutoff rules (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(db): apurar_repasses with coverage, closed-month and cutoff rules (ILU-122)`.
 
 ---
 
@@ -242,7 +242,7 @@
 - [ ] **Passo 2:** Rodar. Esperado: os casos L falham.
 - [ ] **Passo 3:** Implementar no `_apurar_repasses`.
 - [ ] **Passo 4:** Rodar. Esperado: `PASSOU (29/29)`.
-- [ ] **Passo 5: Commit** — `feat(db): plano livre in apurar_repasses (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(db): plano livre in apurar_repasses (ILU-122)`.
 
 ---
 
@@ -290,7 +290,7 @@
 - [ ] **Passo 2:** Rodar. Esperado: os casos C falham.
 - [ ] **Passo 3:** Implementar a migration.
 - [ ] **Passo 4:** Rodar este teste, `reverter_excluir_mensalidade.sql` e `ilu114_pausa_plano.sql` (regressão). Esperado: os três com `PASSOU`.
-- [ ] **Passo 5: Commit** — `feat(db): payment, schedule and delete entry points for apurar_repasses (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(db): payment, schedule and delete entry points for apurar_repasses (ILU-122)`.
 
 ---
 
@@ -324,7 +324,7 @@ Mudanças em cada function:
 - [ ] **Passo 2:** `deno test supabase/functions/_shared/repasses.test.ts`. Esperado: falha (módulo inexistente).
 - [ ] **Passo 3:** Implementar `_shared/repasses.ts` e as três functions.
 - [ ] **Passo 4:** `deno test supabase/functions/_shared/repasses.test.ts` (PASS) e `deno check supabase/functions/*/index.ts` (sem erros).
-- [ ] **Passo 5: Commit** — `feat(functions): repasse functions delegate to apurar_repasses (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(functions): repasse functions delegate to apurar_repasses (ILU-122)`.
 
 ---
 
@@ -372,7 +372,7 @@ Mudanças em cada function:
 - [ ] **Passo 2:** `cd gestao_web && npm test`. Esperado: os testes novos falham.
 - [ ] **Passo 3:** Implementar.
 - [ ] **Passo 4:** `npm test` (todos PASS) e `npm run lint` (sem erros).
-- [ ] **Passo 5: Commit** — `feat(web): services call apurar_repasses, surface repasse warnings and real errors (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(web): services call apurar_repasses, surface repasse warnings and real errors (ILU-122)`.
 
 ---
 
@@ -415,7 +415,7 @@ O que muda em cada tela:
 - [ ] **Passo 2:** `npm test`. Esperado: falha.
 - [ ] **Passo 3:** Implementar `lib/repasses.js` e as telas.
 - [ ] **Passo 4:** `npm test`, `npm run lint` e `npm run build`, todos sem erro.
-- [ ] **Passo 5: Commit** — `feat(web): show students without commission, "referente a" and off-system months (ILU-N)`.
+- [ ] **Passo 5: Commit** — `feat(web): show students without commission, "referente a" and off-system months (ILU-122)`.
 
 ---
 

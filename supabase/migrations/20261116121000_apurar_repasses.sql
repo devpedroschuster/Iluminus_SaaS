@@ -34,10 +34,21 @@
 --     modalidade_id, casando pelo nome atual da modalidade e pelo mês.
 --   - Só insere; nunca atualiza nem apaga comissão. ON CONFLICT repete o
 --     predicado de uq_repasse_competencia (senão 42P10).
---   - Plano livre: o aluno cuja fonte de cobertura do mês é de plano livre fica
---     fora da apuração regular (estado 'plano_livre', sem linhas por enquanto).
+--   - Plano livre: o aluno cuja fonte de cobertura do mês é de plano livre
+--     (cobrança tipo_aula 'plano_livre' ou de plano is_plano_livre; ciclo de
+--     plano livre, ou com a integral de plano livre). Com fontes dos dois
+--     tipos no mês, vale o plano livre. Não usa modalidades_selecionadas:
+--       - mês em andamento: uma linha 'plano_livre_mes_em_andamento', nada gravado;
+--       - mês terminado: as modalidades distintas com presença 'presente'
+--         (aula_id não nulo, data_checkin no mês em -03:00, modalidade pela
+--         agenda); sem nenhuma, uma linha 'plano_livre_sem_presenca';
+--       - valor: planos.preco (mensal, nunca valor_pago) do plano da fonte ×
+--         plano_livre_pct_prof, dividido por igual entre as com professor.
+--         Centavos como distribuirCentavos: cada uma leva a parte truncada e
+--         os que sobram vão um a um para as últimas, na ordem de modalidade_id.
+--       - fonte sem plano (sem preço): 'sem_cobertura' por modalidade, nada gravado.
 --
--- Teste: scripts/sql-tests/repasses_competencia.sql (casos R)
+-- Teste: scripts/sql-tests/repasses_competencia.sql (casos R e L)
 -- Down:  supabase/migrations-down/20261116121000_apurar_repasses.sql
 
 -- 1. Em que mês a comissão de p_competencia entra para o professor.
@@ -85,13 +96,16 @@ DECLARE
   v_mes       date := date_trunc('month', p_competencia)::date;
   v_fim       date := (date_trunc('month', p_competencia) + interval '1 month')::date;
   v_mes_atual date := date_trunc('month', (now() AT TIME ZONE 'America/Sao_Paulo')::date)::date;
+  -- O mês em Brasília (-03:00), para as presenças do plano livre.
+  v_ini_ts    timestamptz := (to_char(v_mes, 'YYYY-MM-DD') || 'T00:00:00-03:00')::timestamptz;
+  v_fim_ts    timestamptz := (to_char(v_fim, 'YYYY-MM-DD') || 'T00:00:00-03:00')::timestamptz;
   v_cfg       record;
 BEGIN
   IF p_competencia IS NULL THEN
     RETURN;
   END IF;
 
-  SELECT c.corte_competencia, c.valor_1_modalidade, c.valor_multi_modalidade
+  SELECT c.corte_competencia, c.valor_1_modalidade, c.valor_multi_modalidade, c.plano_livre_pct_prof
     INTO v_cfg
     FROM configuracoes_repasse c
    LIMIT 1;
@@ -112,9 +126,11 @@ BEGIN
   WITH
   -- Recorrente: cobrança paga com vencimento no mês. A integral ligada a um
   -- ciclo à vista fica de fora: ela cobre pelos aniversários do ciclo.
+  -- preco_livre: o preço mensal do plano da cobrança (só o plano livre usa).
   recorrente AS (
     SELECT m.aluno_id, m.id AS mensalidade_id, m.modalidade_id, 1 AS prioridade, m.data_vencimento AS data_fonte,
-           (m.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)) AS plano_livre
+           (m.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)) AS plano_livre,
+           p.preco AS preco_livre
       FROM mensalidades m
       LEFT JOIN planos p ON p.id = m.plano_id
      WHERE m.tipo_aula IN ('regular', 'plano_livre')
@@ -131,17 +147,25 @@ BEGIN
   -- meses_pagos (N): os meses que o ciclo vendeu, pelas datas dele, sem os
   -- dias devolvidos pelas pausas já retomadas. Ciclo sem data_fim usa a
   -- duração do plano só para estimar o fim.
+  -- Plano livre: pelo plano do ciclo, pela integral (tipo_aula ou o plano
+  -- dela). preco_livre: o preço mensal do plano do ciclo; se só o plano da
+  -- integral é de plano livre, o dele.
   ciclos AS (
     SELECT h.id AS ciclo_id, h.aluno_id, h.cobranca_integral_id AS mensalidade_id, mi.modalidade_id,
            h.data_inicio, cf.data_fim,
            greatest(1, extract(year FROM dur.a)::int * 12 + extract(month FROM dur.a)::int
                        + CASE WHEN extract(day FROM dur.a) >= 15 THEN 1 ELSE 0 END) AS meses_pagos,
-           (mi.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)) AS plano_livre,
+           (mi.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)
+            OR coalesce(pmi.is_plano_livre, false)) AS plano_livre,
+           CASE WHEN NOT coalesce(p.is_plano_livre, false) AND coalesce(pmi.is_plano_livre, false)
+                THEN pmi.preco
+                ELSE coalesce(p.preco, pmi.preco) END AS preco_livre,
            (extract(year FROM v_mes)::int * 12 + extract(month FROM v_mes)::int)
              - (extract(year FROM h.data_inicio)::int * 12 + extract(month FROM h.data_inicio)::int) AS k_mes
       FROM historico_planos h
       JOIN mensalidades mi ON mi.id = h.cobranca_integral_id
       LEFT JOIN planos p ON p.id = h.plano_id
+      LEFT JOIN planos pmi ON pmi.id = mi.plano_id
       CROSS JOIN LATERAL (
         SELECT coalesce(h.data_fim,
                         (h.data_inicio + make_interval(months => greatest(coalesce(p.duracao_meses, 1), 1)))::date - 1) AS data_fim
@@ -165,7 +189,7 @@ BEGIN
   -- Aniversários de cada ciclo até o do mês (k_mes), numerados entre os que
   -- caem fora de pausa: só os primeiros meses_pagos contam.
   aniversarios AS (
-    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.meses_pagos, c.plano_livre, c.k_mes,
+    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.meses_pagos, c.plano_livre, c.preco_livre, c.k_mes,
            g.k, g.data_aniv, public._em_pausa(c.aluno_id, g.data_aniv) AS em_pausa
       FROM ciclos c
       CROSS JOIN LATERAL (
@@ -182,10 +206,10 @@ BEGIN
      WHERE o.k = o.k_mes
   ),
   fontes AS (
-    SELECT rc.aluno_id, rc.mensalidade_id, rc.modalidade_id, rc.prioridade, rc.data_fonte, rc.plano_livre
+    SELECT rc.aluno_id, rc.mensalidade_id, rc.modalidade_id, rc.prioridade, rc.data_fonte, rc.plano_livre, rc.preco_livre
       FROM recorrente rc
     UNION ALL
-    SELECT ad.aluno_id, ad.mensalidade_id, ad.modalidade_id, 2, ad.data_aniv, ad.plano_livre
+    SELECT ad.aluno_id, ad.mensalidade_id, ad.modalidade_id, 2, ad.data_aniv, ad.plano_livre, ad.preco_livre
       FROM aniversario_do_mes ad
      WHERE NOT ad.em_pausa
        AND ad.ordem <= ad.meses_pagos
@@ -195,13 +219,15 @@ BEGIN
   ),
   -- Quem é avaliado: com p_aluno_id, só ele; sem, os alunos com modalidade que
   -- estão ativos ou têm cobertura no mês (pagamento de mês passado de quem já
-  -- saiu ainda gera).
+  -- saiu ainda gera). Coberto por plano livre conta mesmo sem modalidade
+  -- matriculada: as dele vêm das presenças.
   avaliados AS (
     SELECT al.id, al.nome_completo, coalesce(al.ativo, true) AS ativo, coalesce(al.bolsista, false) AS bolsista,
            al.modalidades_selecionadas
       FROM alunos al
      WHERE al.role = 'aluno'
-       AND cardinality(al.modalidades_selecionadas) > 0
+       AND (cardinality(al.modalidades_selecionadas) > 0
+            OR EXISTS (SELECT 1 FROM fontes f WHERE f.aluno_id = al.id AND f.plano_livre))
        AND (p_aluno_id IS NULL OR al.id = p_aluno_id)
        AND (p_aluno_id IS NOT NULL
             OR coalesce(al.ativo, true)
@@ -239,6 +265,62 @@ BEGIN
              OVER (PARTITION BY cb.aluno_id) AS n_com_professor
       FROM cobertura cb
   ),
+  -- Plano livre: a fonte de plano livre que justifica o mês (com preço antes
+  -- de sem; a recorrente antes da integral; depois vencimento e id) dá a
+  -- cobrança e o preço mensal. Modalidade da cobrança não restringe nada.
+  livre_alunos AS (
+    SELECT DISTINCT ON (e.id) e.id AS aluno_id, e.nome_completo, f.mensalidade_id, f.preco_livre
+      FROM estados e
+      JOIN fontes f ON f.aluno_id = e.id AND f.plano_livre
+     WHERE e.estado = 'plano_livre'
+     ORDER BY e.id, (f.preco_livre IS NULL), f.prioridade, f.data_fonte, f.mensalidade_id
+  ),
+  -- Modalidades distintas com presença confirmada no mês inteiro, em
+  -- Brasília. Mês em andamento não olha presença.
+  frequentadas AS (
+    SELECT DISTINCT pr.aluno_id, ag.modalidade_id AS mod_id
+      FROM livre_alunos la
+      JOIN presencas pr ON pr.aluno_id = la.aluno_id
+      JOIN agenda ag ON ag.id = pr.aula_id
+     WHERE v_mes < v_mes_atual
+       AND pr.status = 'presente'
+       AND pr.aula_id IS NOT NULL
+       AND pr.data_checkin >= v_ini_ts AND pr.data_checkin < v_fim_ts
+       AND ag.modalidade_id IS NOT NULL
+  ),
+  -- centavos = preço × pct (em centavos, arredondado); ordem = posição da
+  -- modalidade entre as com professor, por modalidade_id.
+  livre AS (
+    SELECT la.aluno_id, la.nome_completo, mo.id AS mod_id, mo.nome AS mod_nome, mo.professor_id,
+           la.mensalidade_id, round(la.preco_livre * v_cfg.plano_livre_pct_prof) AS centavos,
+           count(*) FILTER (WHERE mo.professor_id IS NOT NULL) OVER (PARTITION BY la.aluno_id) AS n_com_professor,
+           count(*) FILTER (WHERE mo.professor_id IS NOT NULL) OVER (PARTITION BY la.aluno_id ORDER BY mo.id) AS ordem
+      FROM frequentadas fr
+      JOIN livre_alunos la ON la.aluno_id = fr.aluno_id
+      JOIN modalidades mo ON mo.id = fr.mod_id
+  ),
+  -- Uma linha por aluno × modalidade, regular ou plano livre, com o motivo
+  -- quando ela já fica de fora antes de olhar o que está gravado.
+  por_modalidade AS (
+    SELECT rg.aluno_id, rg.nome_completo, rg.mod_id, rg.mod_nome, rg.professor_id, 'regular'::text AS tipo,
+           rg.mensalidade_id,
+           CASE WHEN rg.n_com_professor = 1 THEN v_cfg.valor_1_modalidade ELSE v_cfg.valor_multi_modalidade END AS valor,
+           CASE WHEN rg.mensalidade_id IS NULL THEN 'sem_cobertura'
+                WHEN rg.professor_id IS NULL THEN 'sem_professor' END AS barrada
+      FROM regular rg
+    UNION ALL
+    -- Plano livre: a parte truncada, mais um centavo para as últimas
+    -- mod(centavos, n) modalidades (distribuirCentavos).
+    SELECT lv.aluno_id, lv.nome_completo, lv.mod_id, lv.mod_nome, lv.professor_id, 'plano_livre', lv.mensalidade_id,
+           CASE WHEN lv.professor_id IS NOT NULL THEN
+             round((div(lv.centavos, lv.n_com_professor)
+                    + CASE WHEN lv.ordem > lv.n_com_professor - mod(lv.centavos, lv.n_com_professor) THEN 1 ELSE 0 END)
+                   / 100, 2)
+           END,
+           CASE WHEN lv.professor_id IS NULL THEN 'sem_professor'
+                WHEN lv.centavos IS NULL THEN 'sem_cobertura' END
+      FROM livre lv
+  ),
   linhas AS (
     SELECT e.id AS aluno_id, e.nome_completo AS aluno_nome, NULL::uuid AS modalidade_id, NULL::text AS modalidade,
            NULL::uuid AS professor_id, NULL::text AS tipo_aula, NULL::bigint AS mensalidade_id,
@@ -246,25 +328,29 @@ BEGIN
       FROM estados e
      WHERE e.estado IN ('bolsista', 'inativo', 'pausado', 'sem_cobertura')
     UNION ALL
-    SELECT rg.aluno_id, rg.nome_completo, rg.mod_id, rg.mod_nome, rg.professor_id, 'regular', rg.mensalidade_id,
-           CASE WHEN rg.n_com_professor = 1 THEN v_cfg.valor_1_modalidade ELSE v_cfg.valor_multi_modalidade END,
-           CASE
-             WHEN rg.mensalidade_id IS NULL THEN 'sem_cobertura'
-             WHEN rg.professor_id IS NULL THEN 'sem_professor'
-             WHEN EXISTS (
-               SELECT 1 FROM repasses_lancamentos rl
-                WHERE rl.aluno_id = rg.aluno_id
-                  AND rl.tipo_aula IN ('regular', 'plano_livre')
-                  AND ((rl.modalidade_id = rg.mod_id AND rl.competencia = v_mes)
-                    OR (rl.modalidade_id IS NULL AND rl.modalidade = rg.mod_nome
-                        AND coalesce(rl.competencia, rl.data_referencia) >= v_mes
-                        AND coalesce(rl.competencia, rl.data_referencia) < v_fim))) THEN 'ja_existia'
-             WHEN EXISTS (
-               SELECT 1 FROM repasses_removidos rr
-                WHERE rr.aluno_id = rg.aluno_id AND rr.modalidade_id = rg.mod_id AND rr.competencia = v_mes) THEN 'removida_pela_gestao'
-             ELSE 'gerada'
-           END
-      FROM regular rg
+    -- Plano livre sem linha por modalidade: o mês ainda corre, ou nenhuma presença.
+    SELECT la.aluno_id, la.nome_completo, NULL::uuid, NULL::text, NULL::uuid, NULL::text, NULL::bigint, NULL::numeric,
+           CASE WHEN v_mes >= v_mes_atual THEN 'plano_livre_mes_em_andamento' ELSE 'plano_livre_sem_presenca' END
+      FROM livre_alunos la
+     WHERE NOT EXISTS (SELECT 1 FROM livre lv WHERE lv.aluno_id = la.aluno_id)
+    UNION ALL
+    SELECT pm.aluno_id, pm.nome_completo, pm.mod_id, pm.mod_nome, pm.professor_id, pm.tipo, pm.mensalidade_id, pm.valor,
+           coalesce(pm.barrada,
+             CASE
+               WHEN EXISTS (
+                 SELECT 1 FROM repasses_lancamentos rl
+                  WHERE rl.aluno_id = pm.aluno_id
+                    AND rl.tipo_aula IN ('regular', 'plano_livre')
+                    AND ((rl.modalidade_id = pm.mod_id AND rl.competencia = v_mes)
+                      OR (rl.modalidade_id IS NULL AND rl.modalidade = pm.mod_nome
+                          AND coalesce(rl.competencia, rl.data_referencia) >= v_mes
+                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim))) THEN 'ja_existia'
+               WHEN EXISTS (
+                 SELECT 1 FROM repasses_removidos rr
+                  WHERE rr.aluno_id = pm.aluno_id AND rr.modalidade_id = pm.mod_id AND rr.competencia = v_mes) THEN 'removida_pela_gestao'
+               ELSE 'gerada'
+             END)
+      FROM por_modalidade pm
   ),
   a_gravar AS (
     SELECT l.aluno_id, l.modalidade_id, l.modalidade, l.professor_id, l.tipo_aula, l.mensalidade_id, l.valor,

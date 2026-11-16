@@ -19,7 +19,8 @@
 --     tela (calcularFimPlano) estoura um dia em inícios no fim do mês (31/01
 --     trimestral termina em 30/04, e 31/01 + 3 meses = 30/04), e a retomada
 --     de uma pausa estende data_fim pelos dias pausados mesmo quando nenhum
---     aniversário caiu nela.
+--     aniversário caiu nela. Essa regra mora numa função só,
+--     _aniversarios_ciclo, que a apuração e o pagamento da integral leem.
 --   - A integral ligada a um ciclo à vista (cobranca_integral_id) cobre pelos
 --     aniversários do ciclo, não pelo próprio vencimento: com vencimento antes
 --     do início, ela daria um mês a mais.
@@ -77,7 +78,54 @@ BEGIN
 END;
 $$;
 
--- 2. Apuração de um mês (interna: sem checagem de permissão). Mês futuro não
+-- 2. Aniversários de um ciclo: data_inicio + k meses, para k = 0, 1, 2…,
+--    enquanto <= data_fim, cada um dizendo se cai em pausa e se conta (fora de
+--    pausa e entre os N primeiros fora de pausa, com N como no cabeçalho). Ciclo
+--    sem data_fim usa a duração do plano só para estimar o fim. É a regra única
+--    dos meses do ciclo à vista: a apuração (abaixo) e o pagamento da integral
+--    (apurar_repasses_da_cobranca) leem daqui.
+CREATE OR REPLACE FUNCTION public._aniversarios_ciclo(p_historico_id uuid)
+RETURNS TABLE(k int, data_aniv date, em_pausa boolean, conta boolean)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  WITH ciclo AS (
+    SELECT h.aluno_id, h.data_inicio, cf.data_fim,
+           greatest(1, extract(year FROM dur.a)::int * 12 + extract(month FROM dur.a)::int
+                       + CASE WHEN extract(day FROM dur.a) >= 15 THEN 1 ELSE 0 END) AS meses_pagos
+      FROM historico_planos h
+      LEFT JOIN planos p ON p.id = h.plano_id
+      CROSS JOIN LATERAL (
+        SELECT coalesce(h.data_fim,
+                        (h.data_inicio + make_interval(months => greatest(coalesce(p.duracao_meses, 1), 1)))::date - 1) AS data_fim
+      ) cf
+      CROSS JOIN LATERAL (
+        SELECT age((cf.data_fim + 1 - coalesce(sum(pp.dias_devolvidos), 0)::int)::timestamp,
+                   h.data_inicio::timestamp) AS a
+          FROM pausas_plano pp
+         WHERE pp.historico_plano_id = h.id
+           AND pp.data_retorno IS NOT NULL
+      ) dur
+     WHERE h.id = p_historico_id
+  ),
+  aniversarios AS (
+    SELECT g.k, g.data_aniv, public._em_pausa(c.aluno_id, g.data_aniv) AS em_pausa, c.meses_pagos
+      FROM ciclo c
+      CROSS JOIN LATERAL (
+        SELECT s.k, (c.data_inicio + s.k * interval '1 month')::date AS data_aniv
+          FROM generate_series(0, (extract(year FROM c.data_fim)::int * 12 + extract(month FROM c.data_fim)::int)
+                                - (extract(year FROM c.data_inicio)::int * 12 + extract(month FROM c.data_inicio)::int)) AS s(k)
+      ) g
+     WHERE g.data_aniv <= c.data_fim
+  )
+  SELECT an.k, an.data_aniv, an.em_pausa,
+         NOT an.em_pausa
+           AND count(*) FILTER (WHERE NOT an.em_pausa) OVER (ORDER BY an.k) <= an.meses_pagos
+    FROM aniversarios an
+   ORDER BY an.k
+$$;
+
+-- 3. Apuração de um mês (interna: sem checagem de permissão). Mês futuro não
 --    devolve nada; mês anterior ao corte só com p_permitir_antes_do_corte.
 --    Devolve uma linha por aluno × modalidade avaliado, ou uma linha por aluno
 --    (modalidade nula) quando ele fica de fora inteiro. Com p_simular = false
@@ -147,17 +195,13 @@ BEGIN
   ),
   -- À vista: ciclos com a integral paga que podem ter aniversário no mês.
   -- Ativo e finalizado cobrem; agendado, quando chega o mês do início dele.
-  -- meses_pagos (N): os meses que o ciclo vendeu, pelas datas dele, sem os
-  -- dias devolvidos pelas pausas já retomadas. Ciclo sem data_fim usa a
-  -- duração do plano só para estimar o fim.
+  -- Quais aniversários contam (teto pelas datas do ciclo, pausa) vem de
+  -- _aniversarios_ciclo; aqui só o filtro grosso pelas datas gravadas.
   -- Plano livre: pelo plano do ciclo, pela integral (tipo_aula ou o plano
   -- dela). preco_livre: o preço mensal do plano do ciclo; se só o plano da
   -- integral é de plano livre, o dele. Preço <= 0 conta como sem preço.
   ciclos AS (
     SELECT h.id AS ciclo_id, h.aluno_id, h.cobranca_integral_id AS mensalidade_id, mi.modalidade_id,
-           h.data_inicio, cf.data_fim,
-           greatest(1, extract(year FROM dur.a)::int * 12 + extract(month FROM dur.a)::int
-                       + CASE WHEN extract(day FROM dur.a) >= 15 THEN 1 ELSE 0 END) AS meses_pagos,
            (mi.tipo_aula = 'plano_livre' OR coalesce(p.is_plano_livre, false)
             OR coalesce(pmi.is_plano_livre, false)) AS plano_livre,
            CASE WHEN NOT coalesce(p.is_plano_livre, false) AND coalesce(pmi.is_plano_livre, false)
@@ -170,44 +214,22 @@ BEGIN
       JOIN mensalidades mi ON mi.id = h.cobranca_integral_id
       LEFT JOIN planos p ON p.id = h.plano_id
       LEFT JOIN planos pmi ON pmi.id = mi.plano_id
-      CROSS JOIN LATERAL (
-        SELECT coalesce(h.data_fim,
-                        (h.data_inicio + make_interval(months => greatest(coalesce(p.duracao_meses, 1), 1)))::date - 1) AS data_fim
-      ) cf
-      CROSS JOIN LATERAL (
-        SELECT age((cf.data_fim + 1 - coalesce(sum(pp.dias_devolvidos), 0)::int)::timestamp,
-                   h.data_inicio::timestamp) AS a
-          FROM pausas_plano pp
-         WHERE pp.historico_plano_id = h.id
-           AND pp.data_retorno IS NOT NULL
-      ) dur
      WHERE h.forma_recebimento = 'a_vista'
        AND (h.status IN ('ativo', 'finalizado')
             OR (h.status = 'agendado' AND date_trunc('month', h.data_inicio)::date <= v_mes_atual))
        AND mi.status = 'pago'
        AND mi.tipo_aula IN ('regular', 'plano_livre')
        AND h.data_inicio < v_fim
-       AND cf.data_fim >= v_mes
+       AND (h.data_fim IS NULL OR h.data_fim >= v_mes)
        AND (p_aluno_id IS NULL OR h.aluno_id = p_aluno_id)
   ),
-  -- Aniversários de cada ciclo até o do mês (k_mes), numerados entre os que
-  -- caem fora de pausa: só os primeiros meses_pagos contam.
-  aniversarios AS (
-    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.meses_pagos, c.plano_livre, c.preco_livre, c.k_mes,
-           g.k, g.data_aniv, public._em_pausa(c.aluno_id, g.data_aniv) AS em_pausa
-      FROM ciclos c
-      CROSS JOIN LATERAL (
-        SELECT s.k, (c.data_inicio + s.k * interval '1 month')::date AS data_aniv
-          FROM generate_series(0, c.k_mes) AS s(k)
-      ) g
-     WHERE g.data_aniv <= c.data_fim
-  ),
+  -- O aniversário de cada ciclo no mês (k = k_mes), se houver, com a pausa e
+  -- se conta.
   aniversario_do_mes AS (
-    SELECT o.*
-      FROM (SELECT an.*,
-                   count(*) FILTER (WHERE NOT an.em_pausa) OVER (PARTITION BY an.ciclo_id ORDER BY an.k) AS ordem
-              FROM aniversarios an) o
-     WHERE o.k = o.k_mes
+    SELECT c.ciclo_id, c.aluno_id, c.mensalidade_id, c.modalidade_id, c.plano_livre, c.preco_livre,
+           an.data_aniv, an.em_pausa, an.conta
+      FROM ciclos c
+      JOIN LATERAL public._aniversarios_ciclo(c.ciclo_id) an ON an.k = c.k_mes
   ),
   fontes AS (
     SELECT rc.aluno_id, rc.mensalidade_id, rc.modalidade_id, rc.prioridade, rc.data_fonte, rc.plano_livre, rc.preco_livre
@@ -215,8 +237,7 @@ BEGIN
     UNION ALL
     SELECT ad.aluno_id, ad.mensalidade_id, ad.modalidade_id, 2, ad.data_aniv, ad.plano_livre, ad.preco_livre
       FROM aniversario_do_mes ad
-     WHERE NOT ad.em_pausa
-       AND ad.ordem <= ad.meses_pagos
+     WHERE ad.conta
   ),
   pausados AS (
     SELECT DISTINCT ad.aluno_id FROM aniversario_do_mes ad WHERE ad.em_pausa
@@ -395,7 +416,7 @@ BEGIN
 END;
 $$;
 
--- 3. Porta pública: admin ou service_role, mês já começado e a partir do corte.
+-- 4. Porta pública: admin ou service_role, mês já começado e a partir do corte.
 CREATE OR REPLACE FUNCTION public.apurar_repasses(
   p_competencia date,
   p_aluno_id bigint DEFAULT NULL,
@@ -431,11 +452,13 @@ BEGIN
 END;
 $$;
 
--- 4. Permissões. As internas não são chamáveis pelo navegador; a pública
+-- 5. Permissões. As internas não são chamáveis pelo navegador; a pública
 --    checa admin dentro dela.
 REVOKE ALL ON FUNCTION public._mes_entrada_repasse(uuid, date) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._aniversarios_ciclo(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._apurar_repasses(date, bigint, boolean, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._mes_entrada_repasse(uuid, date) TO service_role;
+GRANT EXECUTE ON FUNCTION public._aniversarios_ciclo(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public._apurar_repasses(date, bigint, boolean, boolean) TO service_role;
 
 REVOKE ALL ON FUNCTION public.apurar_repasses(date, bigint, boolean) FROM PUBLIC, anon;

@@ -9,8 +9,12 @@
 --   L: plano livre — preço mensal do plano da fonte × pct, dividido entre as
 --      modalidades com presença no mês (Brasília), centavos para as últimas;
 --      mês em andamento, sem presença, modalidade sem professor.
---   (C: a tarefa seguinte acrescenta seus casos numa seção própria, abaixo da
---    seção L, antes do resultado.)
+--   C: portas e vínculos — pagamento recebido (apurar_repasses_da_cobranca:
+--      os meses de aniversário da integral, ou o do vencimento, mesmo antes
+--      do corte), vínculo do ciclo à vista com a cobrança integral
+--      (renovar_plano_aluno, vincular_cobranca_integral), excluir comissão
+--      com a marca de removida, Reverter/Excluir da ILU-116 com a integral,
+--      agendamento diário (interruptor e corte) e permissões.
 --
 -- Cria os próprios dados ([TESTE REPASSE-COMP], e-mails
 -- teste-repcomp-*@iluminus.test) e SEMPRE termina em RAISE EXCEPTION, então
@@ -23,7 +27,8 @@
 --
 -- Como rodar (staging, a partir da raiz do repo): concatene as migrations da
 -- ILU-122 ainda não aplicadas, em ordem (20261116120000_repasses_competencia_schema,
--- 20261116121000_apurar_repasses), e depois este arquivo, num arquivo
+-- 20261116121000_apurar_repasses, 20261116122000_repasses_portas_e_vinculos),
+-- e depois este arquivo, num arquivo
 -- temporário FORA do repo, e rode
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
 --     --output-format text -f <arquivo temporário>
@@ -53,6 +58,8 @@ DECLARE
   -- casos L
   v_mod3 uuid; v_pl300 int; v_pl100 int; v_pl375 int; v_pl0 int;
   g_danca bigint; g_pilates bigint; g_teatro bigint; g_yoga bigint;
+  -- casos C
+  v_j jsonb; v_mi2 bigint; v_bi bigint; v_al4 bigint; v_h2 uuid; v_h3 uuid; v_rid uuid;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
   IF v_admin IS NULL THEN
@@ -1243,6 +1250,520 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('L10: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- C: portas e vínculos
+  -- Pagamento recebido (apurar_repasses_da_cobranca), vínculo do ciclo à vista
+  -- com a integral, excluir comissão, Reverter/Excluir com a integral,
+  -- agendamento diário e permissões. Mesmos claims de admin; corte do harness
+  -- (v_mes - 12 meses), salvo onde o caso muda. Os valores do regular vêm da
+  -- configuração (v_v1).
+
+  -- C1: renovar_plano_aluno à vista, recebido: o ciclo criado fica ligado à
+  -- cobrança integral que a renovação criou, e o pagamento já gera a comissão
+  -- do mês corrente (spec 3.6). A renovação recorrente não liga nada.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C1', 'teste-repcomp-c1@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    v_j := renovar_plano_aluno(v_al, v_plano3, v_mes, (v_mes + interval '3 months')::date - 1, 750, 'a_vista', true, 'pix');
+    v_mi := (v_j ->> 'mensalidade_id')::bigint;
+    SELECT count(*) INTO v_n
+      FROM historico_planos h
+      JOIN mensalidades m ON m.id = h.cobranca_integral_id
+     WHERE h.aluno_id = v_al AND h.status = 'ativo' AND h.forma_recebimento = 'a_vista'
+       AND h.cobranca_integral_id = v_mi AND m.status = 'pago' AND m.descricao = 'Pagamento integral do plano';
+    IF v_n <> 1 THEN
+      v_falhas := v_falhas || ('C1: o ciclo à vista deveria ficar ligado à integral paga criada (' || coalesce(v_mi::text, 'NULL') || ')');
+    END IF;
+    SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.competencia) AS comp, max(x.mensalidade_id) AS mens
+      INTO r FROM apurar_repasses_da_cobranca(v_mi) x;
+    IF r.n <> 1 OR r.sit IS DISTINCT FROM 'gerada' OR r.comp IS DISTINCT FROM v_mes OR r.mens IS DISTINCT FROM v_mi THEN
+      v_falhas := v_falhas || format('C1: o pagamento deveria gerar o mês corrente na integral, veio n=%s situacao=%s competencia=%s cobranca=%s',
+                                     r.n, r.sit, r.comp, r.mens);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C1 recorrente', 'teste-repcomp-c1b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    v_j := renovar_plano_aluno(v_al2, v_plano, v_mes, (v_mes + interval '1 month')::date - 1, 280, 'recorrente', true, 'pix');
+    SELECT count(*) INTO v_n FROM historico_planos
+     WHERE aluno_id = v_al2 AND forma_recebimento = 'recorrente' AND cobranca_integral_id IS NULL;
+    IF v_n <> 1 THEN
+      v_falhas := v_falhas || 'C1: a renovação recorrente não deveria ligar cobrança integral'::text;
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C1: ' || SQLERRM);
+  END;
+
+  -- C2: integral paga de um semestral iniciado no dia 4 de M-2:
+  -- apurar_repasses_da_cobranca gera M-2, M-1 e M na integral, cada um entrando
+  -- no próprio mês; nada para M+1 (aniversário do ciclo num mês que ainda não
+  -- começou). Uma segunda chamada dá ja_existia e não duplica.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C2', 'teste-repcomp-c2@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    v_ini := v_m2 + 3;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi);
+    SELECT count(*) AS n,
+           string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',' ORDER BY x.competencia) AS det,
+           count(*) FILTER (WHERE x.situacao = 'gerada' AND x.mensalidade_id = v_mi AND x.data_referencia = x.competencia
+                              AND x.modalidade_id = v_mod AND x.valor = v_v1) AS certas
+      INTO r FROM apurar_repasses_da_cobranca(v_mi) x;
+    v_txt := to_char(v_m2, 'YYYY-MM') || '=gerada,' || to_char(v_m1, 'YYYY-MM') || '=gerada,' || to_char(v_mes, 'YYYY-MM') || '=gerada';
+    IF r.n <> 3 OR r.certas <> 3 OR r.det IS DISTINCT FROM v_txt THEN
+      v_falhas := v_falhas || format('C2: esperava %s (na integral, cada uma no próprio mês), veio n=%s certas=%s (%s)', v_txt, r.n, r.certas, r.det);
+    END IF;
+    SELECT count(*), count(*) FILTER (WHERE competencia > v_mes) INTO v_n, v_n2
+      FROM repasses_lancamentos WHERE aluno_id = v_al AND mensalidade_id = v_mi;
+    IF v_n <> 3 OR v_n2 <> 0 THEN
+      v_falhas := v_falhas || format('C2: esperava 3 linhas gravadas e nenhuma depois de M, veio %s (%s depois de M)', v_n, v_n2);
+    END IF;
+    SELECT string_agg(DISTINCT x.situacao, ',') INTO v_txt FROM apurar_repasses_da_cobranca(v_mi) x;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_txt IS DISTINCT FROM 'ja_existia' OR v_n <> 3 THEN
+      v_falhas := v_falhas || format('C2: segunda chamada deveria dar só ja_existia sem duplicar, veio %s com %s linha(s)', v_txt, v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C2: ' || SQLERRM);
+  END;
+
+  -- C3: corte no mês corrente; cobrança recorrente de M-1 (antes do corte)
+  -- paga agora: o pagamento gera, com competência M-1 e data_referencia no mês
+  -- do corte (spec 3.7, "pagamento recebido depois da entrada no ar").
+  v_total := v_total + 1;
+  BEGIN
+    UPDATE configuracoes_repasse SET corte_competencia = v_mes;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C3', 'teste-repcomp-c3@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 1) RETURNING id INTO v_m;
+    SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.competencia) AS comp, max(x.data_referencia) AS ref,
+           max(x.mensalidade_id) AS mens
+      INTO r FROM apurar_repasses_da_cobranca(v_m) x;
+    IF r.n <> 1 OR r.sit IS DISTINCT FROM 'gerada' OR r.comp IS DISTINCT FROM v_m1 OR r.ref IS DISTINCT FROM v_mes
+       OR r.mens IS DISTINCT FROM v_m THEN
+      v_falhas := v_falhas || format('C3: esperava gerada competencia=%s ref=%s, veio n=%s situacao=%s competencia=%s ref=%s cobranca=%s',
+                                     v_m1, v_mes, r.n, r.sit, r.comp, r.ref, r.mens);
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos
+     WHERE aluno_id = v_al AND competencia = v_m1 AND data_referencia = v_mes AND mensalidade_id = v_m;
+    IF v_n <> 1 THEN
+      v_falhas := v_falhas || ('C3: esperava 1 linha gravada no mês do corte, veio ' || v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C3: ' || SQLERRM);
+  END;
+
+  -- C4: vincular_cobranca_integral. Ciclo à vista sem vínculo, integral paga
+  -- 10 dias depois do início: liga e devolve o id. Candidatas: o mesmo plano
+  -- vence outro plano mais perto do início; a mais perto vence a mais longe.
+  -- Ciclo já ligado devolve o vínculo sem mudar. Ciclo recorrente devolve NULL
+  -- e não liga. Fora da janela (início - 16) ou sem a descrição da integral,
+  -- não liga. Integral já ligada a outro ciclo não é reaproveitada.
+  v_total := v_total + 1;
+  BEGIN
+    v_ini := v_m1 + 4;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C4', 'teste-repcomp-c4@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano3, v_ini + 10, 'pago', 'regular', 750, 750, 'pix', v_ini + 10, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano');
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_esperado, descricao)
+    VALUES (v_al, v_plano3, v_ini + 25, 'pendente', 'regular', 750, 'Pagamento integral do plano');
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
+    VALUES (v_al, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 'ativo', 750, 'a_vista') RETURNING id INTO v_h;
+    v_bi := vincular_cobranca_integral(v_h);
+    IF v_bi IS DISTINCT FROM v_mi OR (SELECT cobranca_integral_id FROM historico_planos WHERE id = v_h) IS DISTINCT FROM v_mi THEN
+      v_falhas := v_falhas || format('C4: esperava ligar %s, devolveu %s', v_mi, v_bi);
+    END IF;
+    -- Já ligado: mesmo com uma candidata melhor agora (mesmo plano, no início).
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano');
+    v_bi := vincular_cobranca_integral(v_h);
+    IF v_bi IS DISTINCT FROM v_mi OR (SELECT cobranca_integral_id FROM historico_planos WHERE id = v_h) IS DISTINCT FROM v_mi THEN
+      v_falhas := v_falhas || format('C4: ciclo já ligado deveria devolver %s sem mudar, devolveu %s', v_mi, v_bi);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C4 recorrente', 'teste-repcomp-c4b@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano');
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
+    VALUES (v_al2, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 'ativo', 750, 'recorrente') RETURNING id INTO v_h2;
+    v_bi := vincular_cobranca_integral(v_h2);
+    IF v_bi IS NOT NULL OR (SELECT cobranca_integral_id FROM historico_planos WHERE id = v_h2) IS NOT NULL THEN
+      v_falhas := v_falhas || ('C4: ciclo recorrente deveria devolver NULL sem ligar, devolveu ' || coalesce(v_bi::text, 'NULL'));
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C4 fora', 'teste-repcomp-c4c@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al3;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al3, v_plano3, v_ini - 16, 'pago', 'regular', 750, 750, 'pix', v_ini - 16, 'Pagamento integral do plano');
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al3, v_plano3, v_ini + 2, 'pago', 'regular', 250, 'pix', v_ini + 2);
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
+    VALUES (v_al3, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 'ativo', 750, 'a_vista') RETURNING id INTO v_h3;
+    v_bi := vincular_cobranca_integral(v_h3);
+    IF v_bi IS NOT NULL THEN
+      v_falhas := v_falhas || ('C4: fora da janela ou sem a descrição da integral não deveria ligar, ligou ' || v_bi);
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C4 já ligada', 'teste-repcomp-c4d@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al4;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al4, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi2;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al4, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 'finalizado', 750, 'a_vista', v_mi2);
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
+    VALUES (v_al4, v_plano3, v_ini + 5, (v_ini + 5 + interval '3 months')::date - 1, 'ativo', 750, 'a_vista') RETURNING id INTO v_h2;
+    v_bi := vincular_cobranca_integral(v_h2);
+    IF v_bi IS NOT NULL THEN
+      v_falhas := v_falhas || ('C4: integral já ligada a outro ciclo não deveria ser reaproveitada, ligou ' || v_bi);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C4: ' || SQLERRM);
+  END;
+
+  -- C5: excluir_comissao de uma comissão gerada grava a marca em
+  -- repasses_removidos (aluno, modalidade, competência, quem removeu) e apaga
+  -- a linha; a apuração seguinte do mês dá removida_pela_gestao e não recria.
+  -- Linha antiga (sem modalidade_id/competência) marca pela modalidade de nome
+  -- igual e pelo mês de data_referencia; avulsa não marca. Mês fechado para o
+  -- professor recusa com a mensagem exata e não apaga nem marca; id inexistente
+  -- recusa.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C5', 'teste-repcomp-c5@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
+    PERFORM * FROM apurar_repasses(v_mes, v_al, false);
+    SELECT id INTO v_rid FROM repasses_lancamentos WHERE aluno_id = v_al AND modalidade_id = v_mod AND competencia = v_mes;
+    PERFORM excluir_comissao(v_rid);
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al;
+    SELECT count(*) INTO v_n2 FROM repasses_removidos
+     WHERE aluno_id = v_al AND modalidade_id = v_mod AND competencia = v_mes AND removido_por = v_admin;
+    IF v_rid IS NULL OR v_n <> 0 OR v_n2 <> 1 THEN
+      v_falhas := v_falhas || format('C5: excluir deveria apagar a linha (%s) e marcar com quem removeu, sobraram %s linha(s), %s marca(s)',
+                                     coalesce(v_rid::text, 'nenhuma gerada'), v_n, v_n2);
+    END IF;
+    SELECT string_agg(x.situacao, ',') INTO v_txt FROM apurar_repasses(v_mes, v_al, false) x;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_txt IS DISTINCT FROM 'removida_pela_gestao' OR v_n <> 0 THEN
+      v_falhas := v_falhas || format('C5: depois de excluir, a apuração deveria dar removida_pela_gestao sem recriar, deu %s com %s linha(s)',
+                                     coalesce(v_txt, '(nada)'), v_n);
+    END IF;
+    -- Linha antiga: modalidade pelo nome atual, competência pelo mês de data_referencia.
+    INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_prof2, v_al, 'regular', '[TESTE REPASSE-COMP] Pilates', 100, v_m1) RETURNING id INTO v_rid;
+    PERFORM excluir_comissao(v_rid);
+    SELECT count(*) INTO v_n FROM repasses_removidos WHERE aluno_id = v_al AND modalidade_id = v_mod2 AND competencia = v_m1;
+    IF v_n <> 1 OR EXISTS (SELECT 1 FROM repasses_lancamentos WHERE id = v_rid) THEN
+      v_falhas := v_falhas || 'C5: linha antiga deveria ser apagada e marcada pela modalidade de mesmo nome e pelo mês'::text;
+    END IF;
+    -- Avulsa: apaga sem marcar.
+    INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
+    VALUES (v_prof, v_al, 'avulsa', '[TESTE REPASSE-COMP] Dança', 35, v_m2) RETURNING id INTO v_rid;
+    PERFORM excluir_comissao(v_rid);
+    SELECT count(*) INTO v_n FROM repasses_removidos WHERE aluno_id = v_al;
+    IF v_n <> 2 OR EXISTS (SELECT 1 FROM repasses_lancamentos WHERE id = v_rid) THEN
+      v_falhas := v_falhas || ('C5: avulsa deveria ser apagada sem marca, marcas do aluno: ' || v_n);
+    END IF;
+    -- Mês fechado: recusa e não mexe em nada.
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C5 fechado', 'teste-repcomp-c5b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al2, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
+    PERFORM * FROM apurar_repasses(v_m1, v_al2, false);
+    SELECT id INTO v_rid FROM repasses_lancamentos WHERE aluno_id = v_al2 AND competencia = v_m1 AND data_referencia = v_m1;
+    INSERT INTO fechamento_comissoes (professor_id, mes_referencia, valor_total) VALUES (v_prof, v_m1, 0);
+    v_recusado := false;
+    BEGIN
+      PERFORM excluir_comissao(v_rid);
+    EXCEPTION WHEN OTHERS THEN v_recusado := (SQLERRM = 'Não é possível excluir: o mês deste lançamento já foi fechado.');
+    END;
+    IF v_rid IS NULL OR NOT v_recusado
+       OR NOT EXISTS (SELECT 1 FROM repasses_lancamentos WHERE id = v_rid)
+       OR EXISTS (SELECT 1 FROM repasses_removidos WHERE aluno_id = v_al2) THEN
+      v_falhas := v_falhas || 'C5: em mês fechado deveria recusar com a mensagem exata, sem apagar nem marcar'::text;
+    END IF;
+    v_recusado := false;
+    BEGIN
+      PERFORM excluir_comissao(gen_random_uuid());
+    EXCEPTION WHEN OTHERS THEN v_recusado := (SQLERRM = 'Lançamento não encontrado.');
+    END;
+    IF NOT v_recusado THEN
+      v_falhas := v_falhas || 'C5: id inexistente deveria ser recusado com ''Lançamento não encontrado.'''::text;
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C5: ' || SQLERRM);
+  END;
+
+  -- C6: listar_comissoes_da_mensalidade(integral) depois de C2: as 3 comissões
+  -- do ciclo (uma por mês), ligadas (não do lote), cada uma com mes_fechado
+  -- certo — M-1 fechado para o professor depois da apuração.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C6', 'teste-repcomp-c6@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    v_ini := v_m2 + 3;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi);
+    PERFORM * FROM apurar_repasses_da_cobranca(v_mi);
+    INSERT INTO fechamento_comissoes (professor_id, mes_referencia, valor_total) VALUES (v_prof, v_m1, 0);
+    SELECT count(*) AS n, bool_and(NOT x.do_lote) AS ligadas,
+           string_agg(to_char(x.data_referencia, 'YYYY-MM') || '=' || x.mes_fechado, ',' ORDER BY x.data_referencia) AS det
+      INTO r FROM listar_comissoes_da_mensalidade(v_mi) x;
+    v_txt := to_char(v_m2, 'YYYY-MM') || '=false,' || to_char(v_m1, 'YYYY-MM') || '=true,' || to_char(v_mes, 'YYYY-MM') || '=false';
+    IF r.n <> 3 OR r.ligadas IS NOT TRUE OR r.det IS DISTINCT FROM v_txt THEN
+      v_falhas := v_falhas || format('C6: esperava %s (ligadas), veio n=%s ligadas=%s (%s)', v_txt, r.n, r.ligadas, r.det);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C6: ' || SQLERRM);
+  END;
+
+  -- C7: excluir_mensalidade(integral, '{}') mantendo as 3 comissões: elas
+  -- ficam sem cobrança (mensalidade_id NULL), sem colidir no índice novo. A
+  -- apuração de M não duplica: sem a integral, o ciclo deixa de cobrir
+  -- (sem_cobertura); com a integral lançada de novo e ligada por
+  -- vincular_cobranca_integral, dá ja_existia em M e nos 3 meses do pagamento.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C7', 'teste-repcomp-c7@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    v_ini := v_m2 + 3;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano6, v_ini, (v_ini + interval '6 months')::date - 1, 'ativo', 1440, 'a_vista', v_mi) RETURNING id INTO v_h;
+    PERFORM * FROM apurar_repasses_da_cobranca(v_mi);
+    v_j := excluir_mensalidade(v_mi, '{}');
+    SELECT count(*), count(*) FILTER (WHERE mensalidade_id IS NULL AND modalidade_id = v_mod AND competencia IS NOT NULL)
+      INTO v_n, v_n2 FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF (v_j ->> 'comissoes_mantidas')::int IS DISTINCT FROM 3 OR v_n <> 3 OR v_n2 <> 3 THEN
+      v_falhas := v_falhas || format('C7: esperava 3 comissões mantidas e desligadas, veio %s (%s linha(s), %s desligada(s))', v_j, v_n, v_n2);
+    END IF;
+    SELECT string_agg(x.situacao, ',') INTO v_txt FROM apurar_repasses(v_mes, v_al, false) x;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_txt IS DISTINCT FROM 'sem_cobertura' OR v_n <> 3 THEN
+      v_falhas := v_falhas || format('C7: sem a integral, a apuração de M deveria dar sem_cobertura sem duplicar, deu %s com %s linha(s)',
+                                     coalesce(v_txt, '(nada)'), v_n);
+    END IF;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_mes, 'Pagamento integral do plano') RETURNING id INTO v_mi2;
+    v_bi := vincular_cobranca_integral(v_h);
+    SELECT string_agg(x.situacao, ',') INTO v_txt FROM apurar_repasses(v_mes, v_al, false) x;
+    SELECT count(*), string_agg(DISTINCT x.situacao, ',') INTO v_n, v_txt2 FROM apurar_repasses_da_cobranca(v_mi2) x;
+    SELECT count(*) INTO v_n2 FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_bi IS DISTINCT FROM v_mi2 OR v_txt IS DISTINCT FROM 'ja_existia' OR v_n <> 3 OR v_txt2 IS DISTINCT FROM 'ja_existia' OR v_n2 <> 3 THEN
+      v_falhas := v_falhas || format('C7: com a integral de novo (ligada %s, esperava %s), M deu %s e o pagamento %s linha(s) %s; tabela com %s linha(s)',
+                                     v_bi, v_mi2, coalesce(v_txt, '(nada)'), v_n, coalesce(v_txt2, '(nada)'), v_n2);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C7: ' || SQLERRM);
+  END;
+
+  -- C8: apurar_repasses_agendado. Desligado (apuracao_automatica = false):
+  -- nada gravado. Ligado com o corte no mês corrente: grava o mês corrente e
+  -- não o anterior (antes do corte). Com o corte antes de M-1: grava também
+  -- M-1, e M não duplica. O job apura todo o staging: só os alunos deste caso
+  -- são conferidos.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C8 M', 'teste-repcomp-c8a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C8 M-1', 'teste-repcomp-c8b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al2, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
+
+    UPDATE configuracoes_repasse SET apuracao_automatica = false;
+    PERFORM apurar_repasses_agendado();
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2);
+    IF v_n <> 0 THEN
+      v_falhas := v_falhas || ('C8: desligado não deveria gravar, gravou ' || v_n || ' linha(s)');
+    END IF;
+
+    UPDATE configuracoes_repasse SET apuracao_automatica = true, corte_competencia = v_mes;
+    PERFORM apurar_repasses_agendado();
+    SELECT count(*) FILTER (WHERE aluno_id = v_al AND competencia = v_mes AND data_referencia = v_mes),
+           count(*) FILTER (WHERE aluno_id = v_al2)
+      INTO v_n, v_n2 FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2);
+    IF v_n <> 1 OR v_n2 <> 0 THEN
+      v_falhas := v_falhas || format('C8: ligado com corte em M deveria gravar só M, veio M=%s M-1=%s', v_n, v_n2);
+    END IF;
+
+    UPDATE configuracoes_repasse SET corte_competencia = (v_mes - interval '12 months')::date;
+    PERFORM apurar_repasses_agendado();
+    SELECT count(*) FILTER (WHERE aluno_id = v_al),
+           count(*) FILTER (WHERE aluno_id = v_al2 AND competencia = v_m1 AND data_referencia = v_m1)
+      INTO v_n, v_n2 FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2);
+    IF v_n <> 1 OR v_n2 <> 1 THEN
+      v_falhas := v_falhas || format('C8: com o corte antes de M-1 deveria gravar M-1 e manter 1 de M, veio M=%s M-1=%s', v_n, v_n2);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C8: ' || SQLERRM);
+  END;
+
+  -- C9: permissões e o job. apurar_repasses_agendado e _aniversarios_ciclo
+  -- sem EXECUTE para anon/authenticated (o agendado com, para service_role);
+  -- as três públicas com EXECUTE para authenticated e sem anon, e recusando
+  -- authenticated sem admin com a mensagem de cada uma; o job
+  -- apurar-repasses-diario existe em cron.job, às 06:00 UTC.
+  v_total := v_total + 1;
+  BEGIN
+    FOREACH v_txt IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+      IF has_function_privilege(v_txt, 'public.apurar_repasses_agendado()', 'EXECUTE')
+         OR has_function_privilege(v_txt, 'public._aniversarios_ciclo(uuid)', 'EXECUTE') THEN
+        v_falhas := v_falhas || ('C9: ' || v_txt || ' executa apurar_repasses_agendado ou _aniversarios_ciclo');
+      END IF;
+    END LOOP;
+    IF NOT has_function_privilege('service_role', 'public.apurar_repasses_agendado()', 'EXECUTE') THEN
+      v_falhas := v_falhas || 'C9: service_role deveria executar apurar_repasses_agendado'::text;
+    END IF;
+    FOREACH v_txt IN ARRAY ARRAY['public.apurar_repasses_da_cobranca(bigint)', 'public.excluir_comissao(uuid)',
+                                 'public.vincular_cobranca_integral(uuid)'] LOOP
+      IF has_function_privilege('anon', v_txt, 'EXECUTE') OR NOT has_function_privilege('authenticated', v_txt, 'EXECUTE') THEN
+        v_falhas := v_falhas || ('C9: ' || v_txt || ' deveria ter EXECUTE só para authenticated (não anon)');
+      END IF;
+    END LOOP;
+    v_txt2 := '';
+    PERFORM set_config('request.jwt.claims', c_nada, true);
+    SET LOCAL ROLE authenticated;
+    BEGIN
+      PERFORM * FROM apurar_repasses_da_cobranca(m1);
+    EXCEPTION WHEN OTHERS THEN v_txt2 := v_txt2 || 'cobranca=' || SQLERRM || ' ';
+    END;
+    BEGIN
+      PERFORM excluir_comissao(gen_random_uuid());
+    EXCEPTION WHEN OTHERS THEN v_txt2 := v_txt2 || 'excluir=' || SQLERRM || ' ';
+    END;
+    BEGIN
+      PERFORM vincular_cobranca_integral(gen_random_uuid());
+    EXCEPTION WHEN OTHERS THEN v_txt2 := v_txt2 || 'vincular=' || SQLERRM;
+    END;
+    RESET ROLE;
+    PERFORM set_config('request.jwt.claims', c_admin, true);
+    IF v_txt2 IS DISTINCT FROM 'cobranca=Usuário sem permissão para apurar comissões. '
+                            || 'excluir=Usuário sem permissão para alterar lançamentos. '
+                            || 'vincular=Usuário sem permissão para apurar comissões.' THEN
+      v_falhas := v_falhas || ('C9: authenticated sem admin deveria ser recusado com a mensagem de cada função, veio: ' || v_txt2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM cron.job
+                    WHERE jobname = 'apurar-repasses-diario' AND schedule = '0 6 * * *'
+                      AND command = 'select public.apurar_repasses_agendado()') THEN
+      v_falhas := v_falhas || 'C9: falta o job apurar-repasses-diario (0 6 * * *) em cron.job'::text;
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C9: ' || SQLERRM);
+  END;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', c_admin, true);
+
+  -- C10 (extra): o pagamento da integral apura só os meses dos aniversários
+  -- que contam, os mesmos da apuração (teto pelas datas do ciclo e pausa).
+  -- Trimestral de 31/01/2025 a 30/04/2025: jan, fev e mar, nada de abril.
+  -- Semestral de 04/01/2025 com pausa fechada sobre o aniversário de
+  -- fevereiro (data_fim estendida para 31/07): jan e mar a jul, nada de
+  -- fevereiro nem de agosto.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C10 teto', 'teste-repcomp-c10a@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al, v_plano3, DATE '2025-01-31', 'pago', 'regular', 750, 750, 'pix', DATE '2025-01-31', 'Pagamento integral do plano')
+    RETURNING id INTO v_mi;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al, v_plano3, DATE '2025-01-31', DATE '2025-04-30', 'finalizado', 750, 'a_vista', v_mi);
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',' ORDER BY x.competencia) INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi) x;
+    IF v_txt IS DISTINCT FROM '2025-01=gerada,2025-02=gerada,2025-03=gerada' THEN
+      v_falhas := v_falhas || ('C10: trimestral 31/01 deveria apurar jan a mar, veio ' || coalesce(v_txt, '(nada)'));
+    END IF;
+
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C10 pausa', 'teste-repcomp-c10b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
+    RETURNING id INTO v_al2;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
+    VALUES (v_al2, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
+    RETURNING id INTO v_mi2;
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
+    VALUES (v_al2, v_plano6, DATE '2025-01-04', DATE '2025-07-31', 'finalizado', 1440, 'a_vista', v_mi2)
+    RETURNING id INTO v_h;
+    INSERT INTO pausas_plano (aluno_id, historico_plano_id, data_inicio, data_prevista_volta, data_retorno, dias_devolvidos, fim_plano_antes, fim_plano_depois, motivo)
+    VALUES (v_al2, v_h, DATE '2025-02-01', DATE '2025-03-01', DATE '2025-03-01', 28, DATE '2025-07-03', DATE '2025-07-31', '[TESTE REPASSE-COMP] pausa');
+    SELECT string_agg(to_char(x.competencia, 'YYYY-MM') || '=' || x.situacao, ',' ORDER BY x.competencia) INTO v_txt
+      FROM apurar_repasses_da_cobranca(v_mi2) x;
+    IF v_txt IS DISTINCT FROM '2025-01=gerada,2025-03=gerada,2025-04=gerada,2025-05=gerada,2025-06=gerada,2025-07=gerada' THEN
+      v_falhas := v_falhas || ('C10: semestral com pausa em fevereiro deveria apurar jan e mar a jul, veio ' || coalesce(v_txt, '(nada)'));
+    END IF;
+    SELECT count(*) INTO v_n FROM repasses_lancamentos WHERE aluno_id IN (v_al, v_al2);
+    IF v_n <> 9 THEN
+      v_falhas := v_falhas || ('C10: esperava 9 linhas gravadas (3 + 6), veio ' || v_n);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C10: ' || SQLERRM);
+  END;
+
+  -- C11 (extra): apurar_repasses_da_cobranca não apura nada para cobrança em
+  -- aberto, avulsa paga, cobrança de visitante (sem aluno) ou id inexistente.
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE REPASSE-COMP] C11', 'teste-repcomp-c11@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula)
+    VALUES (v_al, v_plano, v_mes + 9, 'pendente', 'regular') RETURNING id INTO v_m;
+    INSERT INTO mensalidades (aluno_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_mes + 2, 'pago', 'avulsa', 50, 'pix', v_mes + 2) RETURNING id INTO v_mi;
+    INSERT INTO mensalidades (aluno_id, nome_visitante, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (NULL, '[TESTE REPASSE-COMP] visitante', v_mes + 2, 'pago', 'regular', 50, 'pix', v_mes + 2) RETURNING id INTO v_mi2;
+    SELECT count(*) INTO v_n FROM (
+      SELECT x.aluno_id FROM apurar_repasses_da_cobranca(v_m) x
+      UNION ALL SELECT x.aluno_id FROM apurar_repasses_da_cobranca(v_mi) x
+      UNION ALL SELECT x.aluno_id FROM apurar_repasses_da_cobranca(v_mi2) x
+      UNION ALL SELECT x.aluno_id FROM apurar_repasses_da_cobranca(-1) x) t;
+    SELECT count(*) INTO v_n2 FROM repasses_lancamentos WHERE aluno_id = v_al;
+    IF v_n <> 0 OR v_n2 <> 0 THEN
+      v_falhas := v_falhas || format('C11: esperava nada apurado nem gravado, veio %s linha(s) e %s gravada(s)', v_n, v_n2);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('C11: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

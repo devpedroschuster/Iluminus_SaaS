@@ -1,4 +1,10 @@
-// Helpers puros das telas de repasse por mês de referência (ILU-122).
+// Helpers das telas de repasse por mês de referência (ILU-122).
+import { hojeBrasilia } from './utils';
+
+/** Mês atual 'AAAA-MM' no fuso de Brasília (não o do navegador). */
+export function mesAnoAtual() {
+  return hojeBrasilia().slice(0, 7);
+}
 
 /**
  * Linha devolvida por `repasseService.situacaoRepassesMes`.

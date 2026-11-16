@@ -12,6 +12,7 @@ import { gerarRepassesMensais, situacaoRepassesMes } from '../services/repasseSe
 import { useQuery } from '@tanstack/react-query';
 import { useConfiguracoesRepasse } from '../hooks/useConfiguracoesRepasse';
 import {
+  mesAnoAtual,
   textoReferenteA,
   mesAntesDoCorte,
   alunosSemComissao,
@@ -61,11 +62,6 @@ const TIPO_TONE = {
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function mesAnoAtual() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
 
 // Corte da apuração por mês de referência (ILU-122). Se a configuração não
 // carregar, usa o corte padrão para a tela continuar funcionando.

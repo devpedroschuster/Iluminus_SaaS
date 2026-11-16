@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  mesAnoAtual,
   textoReferenteA,
   mesAntesDoCorte,
   rotuloSituacao,
@@ -60,6 +61,18 @@ describe('alunosSemComissao', () => {
       { aluno_id: 1, aluno_nome: 'Ana', situacao: 'sem_cobertura' },
     ]);
     expect(r.map(a => a.aluno_nome)).toEqual(['Ana', 'Bia']);
+  });
+});
+
+describe('mesAnoAtual', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('usa o fuso de Brasília na virada do mês', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-12-01T01:00:00Z')); // 30/11 22:00 em Brasília
+    expect(mesAnoAtual()).toBe('2026-11');
+    vi.setSystemTime(new Date('2026-12-01T03:00:00Z')); // 01/12 00:00 em Brasília
+    expect(mesAnoAtual()).toBe('2026-12');
   });
 });
 

@@ -14,7 +14,8 @@
 --     configuracoes_repasse.apuracao_automatica ligado.
 --   - excluir_comissao: o excluir da tela Comissões. Recusa mês fechado para o
 --     professor e, em comissão regular/plano livre de aluno, grava a marca em
---     repasses_removidos para a apuração não recriar.
+--     repasses_removidos para a apuração não recriar, no mês em que a
+--     apuração conta a linha (_mes_da_comissao).
 --   - vincular_cobranca_integral: liga um ciclo à vista à cobrança integral
 --     dele (cadastro e edição do ciclo, que gravam o ciclo pelo navegador).
 --   - renovar_plano_aluno: a renovação à vista já liga o ciclo novo à cobrança
@@ -135,7 +136,8 @@ BEGIN
     RAISE EXCEPTION 'Usuário sem permissão para alterar lançamentos.';
   END IF;
 
-  SELECT r.id, r.aluno_id, r.professor_id, r.tipo_aula, r.modalidade, r.modalidade_id, r.competencia, r.data_referencia
+  SELECT r.id, r.aluno_id, r.professor_id, r.tipo_aula, r.modalidade, r.modalidade_id, r.competencia, r.data_referencia,
+         r.mensalidade_id
     INTO v_linha
     FROM repasses_lancamentos r
    WHERE r.id = p_id
@@ -154,12 +156,15 @@ BEGIN
   END IF;
 
   -- Comissão de mensalidade de aluno: a marca impede a apuração de recriá-la.
-  -- Linha antiga (sem modalidade_id/competência): a modalidade de mesmo nome
-  -- hoje e o mês de data_referencia; sem modalidade com esse nome, não marca.
+  -- O mês é aquele em que a apuração conta a linha como já existente
+  -- (_mes_da_comissao): a competência; linha antiga ligada a uma cobrança
+  -- mensal, o mês do vencimento dela; senão o de data_referencia. Linha
+  -- antiga (sem modalidade_id): a modalidade de mesmo nome hoje; sem
+  -- modalidade com esse nome, não marca.
   IF v_linha.tipo_aula IN ('regular', 'plano_livre') AND v_linha.aluno_id IS NOT NULL THEN
     v_modalidade := coalesce(v_linha.modalidade_id,
                              (SELECT mo.id FROM modalidades mo WHERE mo.nome = v_linha.modalidade));
-    v_competencia := coalesce(v_linha.competencia, v_mes);
+    v_competencia := public._mes_da_comissao(v_linha.competencia, v_linha.mensalidade_id, v_linha.data_referencia);
     IF v_modalidade IS NOT NULL AND v_competencia IS NOT NULL THEN
       INSERT INTO repasses_removidos (aluno_id, modalidade_id, competencia, removido_por)
       VALUES (v_linha.aluno_id, v_modalidade, v_competencia, auth.uid())
@@ -350,7 +355,9 @@ BEGIN
 
     -- ILU-122: a cobrança reaproveitada passa a ser deste ciclo; se era a
     -- integral de um ciclo à vista anterior, ele perde o vínculo (senão, paga
-    -- como mensal, ela cobriria todos os aniversários daquele ciclo).
+    -- como mensal, ela cobriria todos os aniversários daquele ciclo). Precisa
+    -- vir antes de ligar o ciclo novo abaixo: uq_historico_cobranca_integral
+    -- não deixa a mesma integral em dois ciclos.
     UPDATE historico_planos
        SET cobranca_integral_id = NULL
      WHERE cobranca_integral_id = v_mensalidade_id

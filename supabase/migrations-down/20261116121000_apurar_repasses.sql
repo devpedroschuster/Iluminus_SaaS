@@ -1,7 +1,7 @@
 -- Desfaz supabase/migrations/20261116121000_apurar_repasses.sql.
 -- NÃO executada automaticamente — ver README.md desta pasta.
 --
--- Remove as quatro funções da apuração.
+-- Remove as cinco funções da apuração.
 --
 -- ATENÇÃO antes de rodar:
 --   - Desfaça antes o que chama a apuração (migrations seguintes da ILU-122:
@@ -12,5 +12,6 @@
 
 DROP FUNCTION IF EXISTS public.apurar_repasses(date, bigint, boolean);
 DROP FUNCTION IF EXISTS public._apurar_repasses(date, bigint, boolean, boolean);
+DROP FUNCTION IF EXISTS public._mes_da_comissao(date, bigint, date);
 DROP FUNCTION IF EXISTS public._aniversarios_ciclo(uuid);
 DROP FUNCTION IF EXISTS public._mes_entrada_repasse(uuid, date);

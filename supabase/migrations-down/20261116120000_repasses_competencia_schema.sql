@@ -8,6 +8,8 @@ ALTER TABLE public.configuracoes_repasse
 
 DROP TABLE IF EXISTS public.repasses_removidos;
 
+DROP INDEX IF EXISTS public.uq_historico_cobranca_integral;
+
 ALTER TABLE public.historico_planos
   DROP COLUMN IF EXISTS cobranca_integral_id;
 

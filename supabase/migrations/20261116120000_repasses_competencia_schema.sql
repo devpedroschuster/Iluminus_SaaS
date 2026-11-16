@@ -1,5 +1,5 @@
 -- Repasse por mês de referência (ILU-122) — schema.
--- Só adiciona: colunas novas (nuláveis ou com DEFAULT), um índice parcial único,
+-- Só adiciona: colunas novas (nuláveis ou com DEFAULT), índices parciais únicos,
 -- uma tabela pequena e duas colunas de configuração. Nada existente muda.
 --
 -- Por que o índice é parcial: as linhas antigas (sem modalidade_id/competencia)
@@ -33,6 +33,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_repasse_mensalidade_legado
 ALTER TABLE public.historico_planos
   ADD COLUMN IF NOT EXISTS cobranca_integral_id bigint REFERENCES public.mensalidades(id) ON DELETE SET NULL;
 
+-- Uma cobrança integral é de um ciclo só: ligada a dois, ela cobriria os
+-- aniversários dos dois. Quem troca o vínculo (renovar_plano_aluno) desliga o
+-- ciclo anterior antes de ligar o novo.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_historico_cobranca_integral
+  ON public.historico_planos (cobranca_integral_id)
+  WHERE cobranca_integral_id IS NOT NULL;
+
 -- Comissões que o admin removeu de propósito: a apuração não as recria.
 CREATE TABLE IF NOT EXISTS public.repasses_removidos (
   aluno_id      bigint      NOT NULL REFERENCES public.alunos(id) ON DELETE CASCADE,
@@ -49,6 +56,11 @@ DROP POLICY IF EXISTS repasses_removidos_select_admin ON public.repasses_removid
 CREATE POLICY repasses_removidos_select_admin ON public.repasses_removidos
   FOR SELECT TO authenticated
   USING (public.is_admin());
+
+-- Só leitura pelo navegador, e só do admin (a política acima precisa do
+-- SELECT). A marca é gravada por excluir_comissao (SECURITY DEFINER).
+REVOKE ALL ON public.repasses_removidos FROM anon;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.repasses_removidos FROM authenticated;
 
 ALTER TABLE public.configuracoes_repasse
   ADD COLUMN IF NOT EXISTS corte_competencia date NOT NULL DEFAULT '2026-11-01',

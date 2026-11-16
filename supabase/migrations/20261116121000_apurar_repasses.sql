@@ -31,18 +31,25 @@
 --     Cobrança com modalidade_id cobre só aquela modalidade.
 --   - Mês de entrada (data_referencia): o primeiro mês >= max(competência,
 --     corte) sem fechamento para o professor. Mês fechado nunca recebe escrita.
---   - Já existe: linha nova (modalidade_id + competencia); ou linha antiga
---     (sem competencia), do mesmo nome atual da modalidade, que conta para um
---     mês só: a ligada a uma cobrança mensal (não integral de ciclo à vista)
---     conta no mês do vencimento dela (o modelo antigo a lançou no mês do
---     pagamento); a do lote (sem cobrança) ou ligada a uma integral conta no
---     mês de data_referencia.
+--   - Já existe: comissão de mensalidade gravada da mesma modalidade
+--     (modalidade_id; sem ele, o nome atual) que conta para o mês, pela regra
+--     única _mes_da_comissao: a competência; linha antiga (sem competência)
+--     conta para um mês só — a ligada a uma cobrança mensal (não integral de
+--     ciclo à vista) no mês do vencimento dela (o modelo antigo a lançou no
+--     mês do pagamento), a do lote (sem cobrança) ou ligada a uma integral no
+--     mês de data_referencia. A mesma regra decide o mês da marca de
+--     excluir_comissao.
 --   - Só insere; nunca atualiza nem apaga comissão. ON CONFLICT repete o
 --     predicado de uq_repasse_competencia (senão 42P10).
 --   - Plano livre: o aluno cuja fonte de cobertura do mês é de plano livre
 --     (cobrança tipo_aula 'plano_livre' ou de plano is_plano_livre; ciclo de
 --     plano livre, ou com a integral de plano livre). Com fontes dos dois
---     tipos no mês, vale o plano livre. Não usa modalidades_selecionadas:
+--     tipos no mês, vale o plano livre. Tudo ou nada por aluno e mês: a parte
+--     é dividida entre todas as frequentadas, então já havendo comissão de
+--     mensalidade do aluno contando para o mês (qualquer modalidade, regular
+--     ou plano livre: o modelo antigo lançava como 'regular' a cobrança
+--     'regular' de plano is_plano_livre), ou marca de removida numa das
+--     frequentadas, nenhuma linha do mês é gravada. Não usa modalidades_selecionadas:
 --       - mês em andamento: uma linha 'plano_livre_mes_em_andamento', nada gravado;
 --       - mês terminado: as modalidades distintas com presença 'presente'
 --         (aula_id não nulo, data_checkin no mês em -03:00, modalidade pela
@@ -127,6 +134,29 @@ AS $$
            AND count(*) FILTER (WHERE NOT an.em_pausa) OVER (ORDER BY an.k) <= an.meses_pagos
     FROM aniversarios an
    ORDER BY an.k
+$$;
+
+-- 2b. O mês de referência para o qual uma comissão de mensalidade conta: a
+--     competência; linha antiga (sem competência) ligada a uma cobrança
+--     mensal (não a integral de um ciclo à vista), o mês do vencimento dela
+--     (a de outubro paga em 03/11 ficou em novembro no modelo antigo, mas é a
+--     de outubro); do lote (sem cobrança) ou ligada a uma integral, o mês de
+--     data_referencia. Assim cada linha conta para um mês só. Regra única do
+--     "já existe" da apuração e da marca de excluir_comissao.
+CREATE OR REPLACE FUNCTION public._mes_da_comissao(p_competencia date, p_mensalidade_id bigint, p_data_referencia date)
+RETURNS date
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT coalesce(
+    date_trunc('month', p_competencia)::date,
+    (SELECT date_trunc('month', m.data_vencimento)::date
+       FROM mensalidades m
+      WHERE m.id = p_mensalidade_id
+        AND NOT EXISTS (SELECT 1 FROM historico_planos h
+                         WHERE h.cobranca_integral_id = m.id
+                           AND h.forma_recebimento = 'a_vista')),
+    date_trunc('month', p_data_referencia)::date)
 $$;
 
 -- 3. Apuração de um mês (interna: sem checagem de permissão). Mês futuro não
@@ -350,6 +380,41 @@ BEGIN
                 WHEN lv.centavos IS NULL THEN 'sem_cobertura' END
       FROM livre lv
   ),
+  -- Comissões de mensalidade já gravadas destes alunos que contam para este
+  -- mês (_mes_da_comissao).
+  contadas AS (
+    SELECT rl.aluno_id, rl.modalidade_id, rl.modalidade
+      FROM repasses_lancamentos rl
+     WHERE rl.tipo_aula IN ('regular', 'plano_livre')
+       AND rl.aluno_id IN (SELECT pm.aluno_id FROM por_modalidade pm)
+       AND public._mes_da_comissao(rl.competencia, rl.mensalidade_id, rl.data_referencia) = v_mes
+  ),
+  -- O que já está gravado para a própria modalidade de cada linha: comissão
+  -- (por modalidade_id; sem ele, pelo nome) e marca de removida.
+  avaliadas AS (
+    SELECT pm.*,
+           EXISTS (SELECT 1 FROM contadas c
+                    WHERE c.aluno_id = pm.aluno_id
+                      AND (c.modalidade_id = pm.mod_id
+                           OR (c.modalidade_id IS NULL AND c.modalidade = pm.mod_nome))) AS existe,
+           EXISTS (SELECT 1 FROM repasses_removidos rr
+                    WHERE rr.aluno_id = pm.aluno_id AND rr.modalidade_id = pm.mod_id
+                      AND rr.competencia = v_mes) AS removida
+      FROM por_modalidade pm
+  ),
+  -- Plano livre, tudo ou nada: a parte do aluno é dividida entre todas as
+  -- frequentadas, então uma linha a mais (presença confirmada depois, linha
+  -- antiga parcial) a completaria acima do preço × pct. Já havendo comissão
+  -- de mensalidade dele contando para o mês, de qualquer modalidade, ou
+  -- marca de removida numa das frequentadas, nada do mês é gravado.
+  livre_bloqueado AS (
+    SELECT av.aluno_id,
+           EXISTS (SELECT 1 FROM contadas c WHERE c.aluno_id = av.aluno_id) AS existe,
+           bool_or(av.removida) AS removida
+      FROM avaliadas av
+     WHERE av.tipo = 'plano_livre'
+     GROUP BY av.aluno_id
+  ),
   linhas AS (
     SELECT e.id AS aluno_id, e.nome_completo AS aluno_nome, NULL::uuid AS modalidade_id, NULL::text AS modalidade,
            NULL::uuid AS professor_id, NULL::text AS tipo_aula, NULL::bigint AS mensalidade_id,
@@ -363,44 +428,17 @@ BEGIN
       FROM livre_alunos la
      WHERE NOT EXISTS (SELECT 1 FROM livre lv WHERE lv.aluno_id = la.aluno_id)
     UNION ALL
-    SELECT pm.aluno_id, pm.nome_completo, pm.mod_id, pm.mod_nome, pm.professor_id, pm.tipo, pm.mensalidade_id, pm.valor,
-           coalesce(pm.barrada,
+    SELECT av.aluno_id, av.nome_completo, av.mod_id, av.mod_nome, av.professor_id, av.tipo, av.mensalidade_id, av.valor,
+           coalesce(av.barrada,
              CASE
-               WHEN EXISTS (
-                 SELECT 1 FROM repasses_lancamentos rl
-                  WHERE rl.aluno_id = pm.aluno_id
-                    AND rl.tipo_aula IN ('regular', 'plano_livre')
-                    AND ((rl.modalidade_id = pm.mod_id AND rl.competencia = v_mes)
-                      -- Pelo nome e pelo mês: linha sem modalidade_id; se for
-                      -- antiga (sem competência), só a do lote (sem cobrança)
-                      -- ou a ligada à integral de um ciclo à vista.
-                      OR (rl.modalidade_id IS NULL AND rl.modalidade = pm.mod_nome
-                          AND coalesce(rl.competencia, rl.data_referencia) >= v_mes
-                          AND coalesce(rl.competencia, rl.data_referencia) < v_fim
-                          AND (rl.competencia IS NOT NULL
-                               OR rl.mensalidade_id IS NULL
-                               OR EXISTS (SELECT 1 FROM historico_planos hy
-                                           WHERE hy.cobranca_integral_id = rl.mensalidade_id
-                                             AND hy.forma_recebimento = 'a_vista')))
-                      -- Linha antiga ligada a uma cobrança mensal: conta só para
-                      -- o mês do vencimento dela. O modelo antigo a lançou no
-                      -- mês do pagamento (a de outubro paga em 03/11 ficou em
-                      -- novembro), mas ela é a comissão de outubro; novembro
-                      -- continua livre para a cobrança de novembro. Assim cada
-                      -- linha antiga conta para um mês só.
-                      OR (rl.competencia IS NULL AND rl.modalidade = pm.mod_nome
-                          AND EXISTS (SELECT 1 FROM mensalidades mx
-                                       WHERE mx.id = rl.mensalidade_id
-                                         AND mx.data_vencimento >= v_mes AND mx.data_vencimento < v_fim
-                                         AND NOT EXISTS (SELECT 1 FROM historico_planos hx
-                                                          WHERE hx.cobranca_integral_id = mx.id
-                                                            AND hx.forma_recebimento = 'a_vista'))))) THEN 'ja_existia'
-               WHEN EXISTS (
-                 SELECT 1 FROM repasses_removidos rr
-                  WHERE rr.aluno_id = pm.aluno_id AND rr.modalidade_id = pm.mod_id AND rr.competencia = v_mes) THEN 'removida_pela_gestao'
+               WHEN av.existe THEN 'ja_existia'
+               WHEN av.removida THEN 'removida_pela_gestao'
+               WHEN lb.existe THEN 'ja_existia'
+               WHEN lb.removida THEN 'removida_pela_gestao'
                ELSE 'gerada'
              END)
-      FROM por_modalidade pm
+      FROM avaliadas av
+      LEFT JOIN livre_bloqueado lb ON lb.aluno_id = av.aluno_id AND av.tipo = 'plano_livre'
   ),
   a_gravar AS (
     SELECT l.aluno_id, l.modalidade_id, l.modalidade, l.professor_id, l.tipo_aula, l.mensalidade_id, l.valor,
@@ -481,9 +519,11 @@ $$;
 --    checa admin dentro dela.
 REVOKE ALL ON FUNCTION public._mes_entrada_repasse(uuid, date) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._aniversarios_ciclo(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._mes_da_comissao(date, bigint, date) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._apurar_repasses(date, bigint, boolean, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._mes_entrada_repasse(uuid, date) TO service_role;
 GRANT EXECUTE ON FUNCTION public._aniversarios_ciclo(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public._mes_da_comissao(date, bigint, date) TO service_role;
 GRANT EXECUTE ON FUNCTION public._apurar_repasses(date, bigint, boolean, boolean) TO service_role;
 
 REVOKE ALL ON FUNCTION public.apurar_repasses(date, bigint, boolean) FROM PUBLIC, anon;

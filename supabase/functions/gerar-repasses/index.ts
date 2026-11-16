@@ -3,35 +3,27 @@
 // Gera repasses para UMA mensalidade específica ao ser confirmada.
 //
 // Lógica por tipo de aula:
-//   - regular      → valor fixo por modalidade matriculada (cfg.valor_1_modalidade ou valor_multi)
-//   - plano_livre  → valor_pago × pct_prof, dividido igualmente entre modalidades frequentadas no mês.
-//                    Se nenhuma presença → sem repasse (100% fica para o espaço).
+//   - regular / plano_livre → DELEGADO ao banco (ILU-122): a RPC
+//                    `apurar_repasses_da_cobranca` calcula e grava as comissões
+//                    por aluno × modalidade × mês de referência (competência).
+//                    Esta função só chama a RPC e devolve itens/avisos.
 //   - avulsa       → valor_pago × aula_avulsa_pct_prof para o professor vinculado
 //   - experimental → valor_pago × aula_experimental_pct_prof se pct_prof > 0, caso contrário sem repasse.
 //                    Única regra que também vale para visitante sem aluno cadastrado (pagamento
 //                    automático do agendamento da experimental — RPC agendar_aula_experimental).
+//                    Avulsa/experimental NUNCA preenchem `competencia`.
 //
 // Chamada via: supabase.functions.invoke('gerar-repasses', { body: { mensalidadeId } })
 // Também é chamada pela etapa de reconciliação do lote mensal (gerar-repasses-mensais,
-// passo 11) para cobrir avulsas/experimentais cujo repasse não foi gerado no momento
+// etapa final) para cobrir avulsas/experimentais cujo repasse não foi gerado no momento
 // original do pagamento.
 //
-// AUDITORIA 2026-07 — Correções aplicadas:
-//   FIX-01: todo `error` de query Supabase agora é checado e propagado (throw).
-//           Antes, as buscas de `alunos.modalidades_selecionadas` e de
-//           `modalidades` (branch REGULAR) descartavam o `error` — uma falha
-//           técnica nessas queries (RLS, timeout, coluna renomeada) era tratada
-//           exatamente como "aluno sem modalidade" ou "modalidade sem professor
-//           vinculado", mascarando o problema real e fazendo alunos com
-//           professor de fato vinculado somem do repasse sem nenhum aviso
-//           correto do que aconteceu.
-//   FIX-02: delete de repasses anteriores (idempotência por mensalidade e por
-//           modalidade já lançada pelo lote) agora verifica erro antes de
-//           prosseguir, evitando inserir novos itens quando a limpeza anterior
-//           falhou (o que poderia gerar duplicidade).
+// AUDITORIA 2026-07 — FIX-01/FIX-02: todo `error` de query é checado e propagado
+// (throw); o delete de repasses anteriores verifica erro antes de inserir.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { avisoDaLinha, type LinhaApuracao } from '../_shared/repasses.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,25 +35,6 @@ function response(body: object, status = 200): Response {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
-}
-
-// REP-07: distribui `total` em centavos exatos entre `n` parcelas.
-// Trunca todas as parcelas para 2 casas decimais e redistribui os centavos
-// restantes (1 centavo por vez) para as últimas parcelas, garantindo que
-// sum(parcelas) === total sem acúmulo de erro de arredondamento.
-//
-// Exemplo: distribuirCentavos(50.00, 3) → [16.66, 16.67, 16.67]  (soma 50.00)
-//          distribuirCentavos(100.00, 3) → [33.33, 33.33, 33.34]  (soma 100.00)
-function distribuirCentavos(total: number, n: number): number[] {
-  if (n <= 0) return [];
-  const base = Math.floor((total / n) * 100) / 100;
-  const parcelas = Array(n).fill(base);
-  const restoCentavos = Math.round((total - base * n) * 100);
-  for (let i = 0; i < restoCentavos; i++) {
-    parcelas[n - 1 - i] += 0.01;
-    parcelas[n - 1 - i] = Math.round(parcelas[n - 1 - i] * 100) / 100;
-  }
-  return parcelas;
 }
 
 // REP-01: interface expandida com campos de avulsa e experimental
@@ -163,7 +136,45 @@ serve(async (req: Request) => {
       return response({ aviso: 'Mensalidade sem aluno vinculado. Nenhum repasse gerado.', gerados: 0 });
     }
 
-    // ── 2. Configurações de repasse ─────────────────────────────────────────
+    // ── 2. REGULAR / PLANO LIVRE: delegado ao banco (ILU-122) ───────────────
+    // A RPC calcula e grava as comissões por aluno × modalidade × mês de
+    // referência. Devolve também as linhas que NÃO geraram comissão (com a
+    // situação), que viram `avisos`. `valor` (numeric) chega como string.
+    if (mensalidade.tipo_aula === 'regular' || mensalidade.tipo_aula === 'plano_livre') {
+      const { data: linhasRpc, error: errRpc } = await supabase.rpc('apurar_repasses_da_cobranca', {
+        p_mensalidade_id: mensalidadeId,
+      });
+      if (errRpc) throw errRpc;
+
+      const linhas = (linhasRpc ?? []) as LinhaApuracao[];
+      if (linhas.length === 0) {
+        return response({
+          aviso: 'Nenhum repasse calculado para esta cobrança.',
+          gerados: 0,
+          itens: [],
+          avisos: [],
+        });
+      }
+
+      const geradas = linhas.filter((l) => l.situacao === 'gerada');
+      return response({
+        sucesso: true,
+        gerados: geradas.length,
+        itens: geradas.map((l) => ({
+          modalidade: l.modalidade,
+          valor: Number(l.valor),
+          tipo: l.tipo_aula,
+          competencia: l.competencia,
+        })),
+        avisos: linhas.map(avisoDaLinha).filter((a): a is string => a !== null),
+      });
+    }
+
+    if (mensalidade.tipo_aula !== 'avulsa' && mensalidade.tipo_aula !== 'experimental') {
+      return response({ aviso: 'Nenhum repasse calculado para este tipo de aula.', gerados: 0 });
+    }
+
+    // ── 3. AVULSA / EXPERIMENTAL ────────────────────────────────────────────
     // REP-01: select expandido com campos de avulsa e experimental
     const { data: config, error: errConfig } = await supabase
       .from('configuracoes_repasse')
@@ -173,8 +184,8 @@ serve(async (req: Request) => {
     if (errConfig || !config) throw new Error('Configurações de repasse não encontradas.');
     const cfg = config as ConfigRepasse;
 
-    // ── 3. Idempotência: remove repasses anteriores desta mensalidade ───────
-    // FIX-02: erro agora é checado — se a limpeza falhar, abortamos em vez de
+    // Idempotência: remove repasses anteriores desta mensalidade.
+    // FIX-02: erro é checado — se a limpeza falhar, abortamos em vez de
     // seguir e potencialmente inserir itens duplicados ao lado dos antigos.
     const { error: errDeleteAnterior } = await supabase
       .from('repasses_lancamentos')
@@ -188,9 +199,6 @@ serve(async (req: Request) => {
     const [anoRef, mesRef] = dataBase.substring(0, 7).split('-').map(Number);
     const mesStr = String(mesRef).padStart(2, '0');
     const dataReferencia = `${anoRef}-${mesStr}-01`;
-    const ultimoDia = new Date(anoRef, mesRef, 0).getDate();
-    const inicioPeriodo = dataReferencia;
-    const fimPeriodo = `${anoRef}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`;
 
     const itens: {
       professor_id: string;
@@ -202,176 +210,7 @@ serve(async (req: Request) => {
       data_referencia: string;
     }[] = [];
 
-    // ── 3b. Repasses já gerados pelo lote mensal (mensalidade_id IS NULL) ────
-    // Usados para não duplicar 'regular'/'plano_livre' já lançados via matrícula.
-    // Sem aluno (experimental de visitante) não existe lote a consultar.
-    const loteJaGerado = new Map<string, string>(); // chave -> id
-    if (mensalidade.aluno_id) {
-      const { data: repassesLote, error: errRepassesLote } = await supabase
-        .from('repasses_lancamentos')
-        .select('id, modalidade, tipo_aula')
-        .eq('aluno_id', mensalidade.aluno_id)
-        .eq('data_referencia', dataReferencia)
-        .is('mensalidade_id', null);
-
-      if (errRepassesLote) throw errRepassesLote;
-
-      for (const r of repassesLote ?? []) {
-        loteJaGerado.set(`${r.modalidade}|${r.tipo_aula}`, r.id);
-      }
-    }
-
-    // ── 4a. PLANO LIVRE ─────────────────────────────────────────────────────
-    if (mensalidade.tipo_aula === 'plano_livre') {
-
-      // Busca presenças do aluno no mês via join agenda → modalidades
-      // IMPORTANTE: filtra status='presente' — o schema novo de `presencas`
-      // também guarda linhas 'agendado'/'falta'/'cancelado', que NÃO devem
-      // contar para repasse (só presença real confirmada gera comissão).
-      const { data: presencas, error: errPresencas } = await supabase
-        .from('presencas')
-        .select(`
-          aula_id,
-          agenda (
-            modalidades (
-              id,
-              nome,
-              professor_id
-            )
-          )
-        `)
-        .eq('aluno_id', mensalidade.aluno_id)
-        .eq('status', 'presente')
-        .gte('data_checkin', `${inicioPeriodo}T00:00:00-03:00`)
-        .lte('data_checkin', `${fimPeriodo}T23:59:59-03:00`)
-        .not('aula_id', 'is', null);
-
-      if (errPresencas) throw errPresencas;
-
-      if (!presencas || presencas.length === 0) {
-        // Sem presenças → sem repasse para professores (100% fica para o espaço)
-        return response({
-          aviso: 'Plano livre sem presenças no mês. Nenhum repasse gerado para professores.',
-          gerados: 0,
-        });
-      }
-
-      // Deduplica modalidades frequentadas (uma por professor)
-      const modMap = new Map<string, { nome: string; professor_id: string }>();
-      for (const p of presencas) {
-        const mod = (p.agenda as any)?.modalidades;
-        if (mod?.id && mod?.professor_id) {
-          modMap.set(mod.id, { nome: mod.nome, professor_id: mod.professor_id });
-        }
-      }
-
-      if (modMap.size === 0) {
-        return response({
-          aviso: 'Plano livre: presenças encontradas mas nenhuma modalidade com professor vinculado.',
-          gerados: 0,
-        });
-      }
-
-      // Cálculo: valor_pago × pct_prof ÷ nº de modalidades frequentadas
-      const valorTotal = Number(mensalidade.valor_pago);
-      const pctProf = Number(cfg.plano_livre_pct_prof) / 100;
-      const parteProfs = valorTotal * pctProf;
-
-      // REP-07: distribui parteProfs sem perda de centavo.
-      const modsArray = [...modMap.values()];
-      const valoresPorMod = distribuirCentavos(parteProfs, modsArray.length);
-
-      for (let i = 0; i < modsArray.length; i++) {
-        const mod = modsArray[i];
-        const chave = `${mod.nome}|plano_livre`;
-        const idLote = loteJaGerado.get(chave);
-        if (idLote) {
-          const { error: errDelLote } = await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
-          if (errDelLote) throw errDelLote;
-        }
-        itens.push({
-          professor_id: mod.professor_id,
-          aluno_id: mensalidade.aluno_id!,
-          mensalidade_id: mensalidadeId,
-          tipo_aula: 'plano_livre',
-          modalidade: mod.nome,
-          valor: valoresPorMod[i],
-          data_referencia: dataReferencia,
-        });
-      }
-
-    // ── 4b. REGULAR ─────────────────────────────────────────────────────────
-    } else if (mensalidade.tipo_aula === 'regular') {
-  const { data: aluno, error: errAluno } = await supabase
-    .from('alunos')
-    .select('modalidades_selecionadas')
-    .eq('id', mensalidade.aluno_id)
-    .single();
-
-  if (errAluno) throw errAluno;
-
-  const modIds: string[] = aluno?.modalidades_selecionadas ?? [];
-
-  if (modIds.length === 0) {
-    return response({ aviso: 'Aluno sem modalidades vinculadas. Repasse não gerado.', gerados: 0 });
-  }
-
-  const { data: mods, error: errMods } = await supabase
-    .from('modalidades')
-    .select('id, nome, professor_id')
-    .in('id', modIds)
-    .not('professor_id', 'is', null);
-
-  if (errMods) throw errMods;
-
-  let modsValidas = (mods ?? []) as { id: string; nome: string; professor_id: string }[];
-
-  // NOVO: mensalidade referencia uma única modalidade → repasse SÓ para ela,
-  // com o valor cheio (o pagamento não cobre as demais matriculadas).
-  // Sem referência (modalidade_id null) → mantém o rateio de sempre.
-  if (mensalidade.modalidade_id) {
-    modsValidas = modsValidas.filter(m => m.id === mensalidade.modalidade_id);
-    if (modsValidas.length === 0) {
-      return response({
-        aviso: 'Modalidade referenciada não está entre as matriculadas do aluno ou não tem professor vinculado. Repasse não gerado.',
-        gerados: 0,
-      });
-    }
-  }
-
-  if (modsValidas.length === 0) {
-    return response({ aviso: 'Modalidades sem professor vinculado. Repasse não gerado.', gerados: 0 });
-  }
-
-  // valorPorMod: se há referência única, valor cheio do pagamento.
-  // Caso contrário, segue a regra de sempre (1 modalidade x múltiplas).
-  const valorPorMod = mensalidade.modalidade_id
-    ? Number(mensalidade.valor_pago)
-    : modsValidas.length === 1
-      ? Number(cfg.valor_1_modalidade)
-      : Number(cfg.valor_multi_modalidade);
-
-  for (const mod of modsValidas) {
-        const chave = `${mod.nome}|regular`;
-        const idLote = loteJaGerado.get(chave);
-        if (idLote) {
-          const { error: errDelLote } = await supabase.from('repasses_lancamentos').delete().eq('id', idLote);
-          if (errDelLote) throw errDelLote;
-        }
-        itens.push({
-          professor_id: mod.professor_id,
-          aluno_id: mensalidade.aluno_id!,
-          mensalidade_id: mensalidadeId,
-          tipo_aula: 'regular',
-          modalidade: mod.nome,
-          valor: valorPorMod,
-          data_referencia: dataReferencia,
-        });
-      }
-
-    // ── 4c. AVULSA ──────────────────────────────────────────────────────────
-    // REP-01: usa percentual do valor pago (aula_avulsa_pct_prof), não valor fixo
-    } else if (mensalidade.tipo_aula === 'avulsa') {
+    if (mensalidade.tipo_aula === 'avulsa') {
       if (!mensalidade.professor_id) {
         return response({ aviso: 'Aula avulsa sem professor. Repasse não gerado.', gerados: 0 });
       }
@@ -388,7 +227,7 @@ serve(async (req: Request) => {
         data_referencia: dataReferencia,
       });
 
-    // ── 4d. EXPERIMENTAL ────────────────────────────────────────────────────
+    // ── EXPERIMENTAL ────────────────────────────────────────────────────
     // Gera repasse apenas se aula_experimental_pct_prof > 0 nas configurações.
     // Se o percentual for 0, a experimental não remunera o professor — sem repasse.
     } else if (mensalidade.tipo_aula === 'experimental') {

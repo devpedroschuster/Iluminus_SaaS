@@ -61,7 +61,7 @@ function Spinner() {
   );
 }
 
-const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
+const LayoutComSidebar = ({ perfil, nomeUsuario, tambemAluno }) => {
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
@@ -69,6 +69,7 @@ const LayoutComSidebar = ({ perfil, nomeUsuario }) => {
       <Sidebar
         perfil={perfil}
         nomeUsuario={nomeUsuario}
+        tambemAluno={tambemAluno}
         menuAberto={menuAberto}
         setMenuAberto={setMenuAberto}
       />
@@ -141,7 +142,7 @@ export default function App() {
 }
 
 function Rotas() {
-  const { sessao, perfil, nomeUsuario } = useAuth();
+  const { sessao, perfil, nomeUsuario, tambemAluno } = useAuth();
 
   return (
     <Routes>
@@ -149,14 +150,14 @@ function Rotas() {
       <Route path="/login" element={<RotaPublica><Login /></RotaPublica>} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
-      {/* Rotas de Aluno */}
+      {/* Rotas de Aluno (e do professor que também é aluno — ILU-83) */}
       <Route element={<RotaPrivada allowedRoles={['aluno']} />}>
         <Route path="/area-aluno" element={<AreaAluno />} />
       </Route>
 
       {/* Rotas Compartilhadas (Admin e Professor) */}
       <Route element={<RotaPrivada allowedRoles={['admin', 'professor']} />}>
-        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
+        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} tambemAluno={tambemAluno} />}>
           <Route path="/agenda"               element={<Agenda />} />
           <Route path="/professor/alunos"     element={<ProfessorAlunos />} />
           <Route path="/professor/comissoes"  element={<ProfessorComissoes />} />
@@ -166,7 +167,7 @@ function Rotas() {
 
       {/* Rotas Exclusivas do Admin */}
       <Route element={<RotaPrivada allowedRoles={['admin']} />}>
-        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} />}>
+        <Route element={<LayoutComSidebar perfil={perfil} nomeUsuario={nomeUsuario} tambemAluno={tambemAluno} />}>
           <Route path="/dashboard"                  element={<Dashboard />} />
           <Route path="/leads"                      element={<Leads />} />
           <Route path="/matriculas"                 element={<Matriculas />} />

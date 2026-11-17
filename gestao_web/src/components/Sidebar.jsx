@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, Download, LogOut, 
   Package, TrendingDown, UserCheck, Calculator, X,
   Clock, Bell, Percent, DollarSign, Gift, TableConfigIcon,
-  CreditCard, UserPlus, ClipboardList
+  CreditCard, UserPlus, ClipboardList, GraduationCap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from './ui/ThemeToggle';
@@ -25,7 +25,7 @@ function inicialNome(nome) {
 }
 
 // #17 — recebe nomeUsuario como prop
-function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
+function Sidebar({ perfil, nomeUsuario, tambemAluno = false, menuAberto, setMenuAberto }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -73,6 +73,11 @@ function Sidebar({ perfil, nomeUsuario, menuAberto, setMenuAberto }) {
     { name: 'Meus Alunos',            path: '/professor/alunos',    icon: Users    },
     { name: 'Meus Leads',             path: '/professor/leads',     icon: UserPlus },
     { name: 'Comissões & Repasses',   path: '/professor/comissoes', icon: Percent  },
+    // ILU-83: quem também é aluno ativo agenda as próprias aulas na Área do Aluno.
+    ...(tambemAluno ? [
+      { label: 'Como Aluno' },
+      { name: 'Minha Área de Aluno', path: '/area-aluno', icon: GraduationCap },
+    ] : []),
   ];
 
   const isProfessor = resolverPerfil(perfil) === 'professor';

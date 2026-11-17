@@ -127,7 +127,7 @@ const emptyStateEspaco = useMemo(() => {
     acoesEvento: useModal(), feriados: useModal(), excluir: useModal(), encerrar: useModal(),
   };
 
-  const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados);
+  const hookAgendamento = useAgendamento(() => modais.agendamento.fechar(), feriados, { isAdmin });
   const hookLista = useListaPresenca(aulaParaLista, dataLista, modais.lista.isOpen);
   const hookFeriados = useFeriados(refetch);
   const eventosCalendario = useEventosCalendario({ aulas, feriados, ...dadosMes, matriculasFixas: dadosIniciais.matriculasFixas, ...pageState });

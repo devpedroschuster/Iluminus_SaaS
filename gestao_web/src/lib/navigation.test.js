@@ -56,4 +56,18 @@ describe('decidirRotaPrivada', () => {
   it('papel permitido: libera', () => {
     expect(decidirRotaPrivada(estado({ perfil: 'admin' }), ['admin', 'professor'])).toBe('liberado');
   });
+
+  // ILU-83: professor que também é aluno ativo abre a Área do Aluno.
+  it('professor que também é aluno: libera a Área do Aluno', () => {
+    expect(decidirRotaPrivada(estado({ perfil: 'professor', tambemAluno: true }), ['aluno'])).toBe('liberado');
+  });
+
+  it('professor sem cadastro de aluno ativo: volta para a agenda', () => {
+    expect(decidirRotaPrivada(estado({ perfil: 'professor' }), ['aluno'])).toBe('/agenda');
+    expect(decidirRotaPrivada(estado({ perfil: 'professor', tambemAluno: false }), ['aluno'])).toBe('/agenda');
+  });
+
+  it('tambemAluno não libera telas de admin', () => {
+    expect(decidirRotaPrivada(estado({ perfil: 'professor', tambemAluno: true }), ['admin'])).toBe('/agenda');
+  });
 });

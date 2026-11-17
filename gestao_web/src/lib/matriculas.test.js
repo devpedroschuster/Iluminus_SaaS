@@ -1,5 +1,51 @@
 import { describe, it, expect } from 'vitest';
-import { estadoListaMatriculas } from './matriculas';
+import { QueryClient } from '@tanstack/react-query';
+import { estadoListaMatriculas, consultasAfetadasPeloCadastro } from './matriculas';
+
+// ILU-121: depois de cadastrar (ou editar) um aluno, as telas que guardam
+// dados por alguns minutos não podem continuar mostrando a lista antiga. Usa
+// um QueryClient de verdade porque o bug era de casamento de prefixo: a chave
+// única ['alunos', 'professores', 'presencas', 'leads'] não casava com
+// nenhuma consulta.
+describe('consultasAfetadasPeloCadastro', () => {
+  function invalidarComCacheDasTelas() {
+    const queryClient = new QueryClient();
+    const chavesDasTelas = {
+      alunos:       ['alunos', { busca: '', status: 'ativos' }, 1],
+      matriculas:   ['alunos', 'matriculas-recentes', 30],
+      agenda:       ['alunos', 'ativos-agendamento'],
+      dashboard:    ['dashboard', '2026-11-17', '2026-11-01', '2026-11-24'],
+      financeiro:   ['financeiro', 11, 2026],
+      leads:        ['leads', 'pendentes'],
+      notificacoes: ['notificacoes-gerais'],
+      modalidades:  ['modalidades'],
+    };
+    Object.values(chavesDasTelas).forEach((chave) => queryClient.setQueryData(chave, []));
+
+    consultasAfetadasPeloCadastro().forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
+
+    return (tela) => queryClient.getQueryState(chavesDasTelas[tela]).isInvalidated;
+  }
+
+  it('atualiza as listas de alunos: Alunos, Matrículas e a grade da Agenda', () => {
+    const invalidada = invalidarComCacheDasTelas();
+    expect(invalidada('alunos')).toBe(true);
+    expect(invalidada('matriculas')).toBe(true);
+    expect(invalidada('agenda')).toBe(true);
+  });
+
+  it('atualiza o Dashboard, o Financeiro (1ª cobrança do plano), os leads e os avisos', () => {
+    const invalidada = invalidarComCacheDasTelas();
+    expect(invalidada('dashboard')).toBe(true);
+    expect(invalidada('financeiro')).toBe(true);
+    expect(invalidada('leads')).toBe(true);
+    expect(invalidada('notificacoes')).toBe(true);
+  });
+
+  it('não joga fora o resto do cache', () => {
+    expect(invalidarComCacheDasTelas()('modalidades')).toBe(false);
+  });
+});
 
 // ILU-120: a página "Matrículas" nunca pode dizer "Nenhuma matrícula" sem ter
 // certeza — nem sem conexão (consulta pausada pelo React Query), nem enquanto

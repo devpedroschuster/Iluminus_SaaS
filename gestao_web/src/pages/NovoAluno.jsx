@@ -12,6 +12,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
+import { consultasAfetadasPeloCadastro } from '../lib/matriculas';
+import { invalidarConsultasFinanceiras } from '../lib/mensalidades';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/showToast';
 import { hojeBrasilia, calcularFimPlano } from '../lib/utils';
@@ -521,6 +523,7 @@ export default function NovoAluno() {
           payload.data_inicio_plano, payload.data_fim_plano, vencimento, formaRecebimento,
         );
         showToast.success('Registro financeiro criado com sucesso!');
+        invalidarConsultasFinanceiras(queryClient);
       } catch (novoErro) {
         console.error('[NovoAluno] Nova falha ao registrar histórico/mensalidade:', novoErro);
         avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento);
@@ -531,6 +534,11 @@ export default function NovoAluno() {
       tentarNovamente, 'Tentar novamente', 15000,
     );
   }
+
+  // ILU-121: uma chamada por chave (ver consultasAfetadasPeloCadastro).
+  const invalidarConsultasDoCadastro = () => Promise.all(
+    consultasAfetadasPeloCadastro().map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+  );
 
   // ─────────────────────────────────────────────────────────
   // Fix #4 – Phase 1: save aluno WITHOUT creating auth.
@@ -583,7 +591,7 @@ export default function NovoAluno() {
           ...dadosCadastro, nome_completo: data.nome_completo,
         });
         showToast.success('Cadastro atualizado com sucesso!');
-        await queryClient.invalidateQueries({ queryKey: ['alunos'] });
+        await invalidarConsultasDoCadastro();
         navigate('/alunos');
         return;
       }
@@ -648,7 +656,7 @@ export default function NovoAluno() {
         await supabase.from('leads').update(payload).eq('id', leadParaConversao.id);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['alunos', 'professores', 'presencas', 'leads'] });
+      await invalidarConsultasDoCadastro();
 
       if (profExistente) {
         navigate('/alunos');

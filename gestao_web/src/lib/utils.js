@@ -132,6 +132,32 @@ export const derivarPlanoVigente = (planos) => {
 };
 
 /**
+ * Campos do plano desnormalizados em `alunos` (plano_id, data_inicio_plano,
+ * data_fim_plano), pela mesma regra de renovar_plano_aluno (ILU-108): o
+ * início é sempre o do ciclo vigente; se ele vale hoje e já há um ciclo
+ * seguinte (renovação feita antes de vencer), plano e fim são os do ciclo de
+ * início mais recente. Assim, editar o histórico depois de uma renovação
+ * antecipada não devolve o aluno ao plano e ao fim do ciclo atual.
+ */
+export const camposDoPlanoNoCadastro = (planos) => {
+  const vigente = derivarPlanoVigente(planos);
+  if (!vigente) return null;
+
+  const hojeStr = hojeBrasilia();
+  let ultimo = vigente;
+  if (vigente.data_inicio <= hojeStr && vigente.data_fim >= hojeStr) {
+    for (const p of planos) {
+      if (p.status !== 'cancelado' && p.data_inicio > ultimo.data_inicio) ultimo = p;
+    }
+  }
+  return {
+    plano_id: ultimo.plano_id,
+    data_inicio_plano: vigente.data_inicio,
+    data_fim_plano: ultimo.data_fim,
+  };
+};
+
+/**
  * Indica se a mensalidade é a cobrança única de um ciclo à vista — a que
  * matricular_aluno / renovar_plano_aluno / NovoAluno criam com a descrição
  * "Pagamento integral do plano" (a matrícula prefixa o nome do plano). Usado

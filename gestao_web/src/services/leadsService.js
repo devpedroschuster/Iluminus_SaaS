@@ -157,6 +157,10 @@ export const leadsService = {
    * incorretos. Diferente de "marcar como perdido" (que preserva o
    * registro no histórico e na taxa de conversão), esta operação remove
    * a linha permanentemente da tabela `leads`.
+   *
+   * ILU-109: o gatilho trg_apagar_cobrancas_abertas_do_lead apaga junto a
+   * cobrança em aberto da experimental (e a comissão ligada a ela); a paga
+   * fica no Financeiro, sem vínculo com o lead.
    */
   async excluirLead(leadId) {
     const { error } = await supabase

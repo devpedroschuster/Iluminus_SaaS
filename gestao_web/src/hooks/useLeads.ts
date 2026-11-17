@@ -1,6 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, InfiniteData } from '@tanstack/react-query';
 import { leadsService } from '../services/leadsService';
 import { showToast } from '../components/shared/showToast';
+import { invalidarConsultasFinanceiras } from '../lib/mensalidades';
 import { Lead } from '../types/leads';
 
 export function useLeadsPendentes() {
@@ -281,6 +282,8 @@ export function useExcluirLead() {
     },
     onSuccess: () => {
       showToast.success("Lead excluído.");
+      // ILU-109: a cobrança em aberto da experimental sai junto com o lead.
+      invalidarConsultasFinanceiras(queryClient);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });

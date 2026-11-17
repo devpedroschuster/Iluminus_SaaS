@@ -482,7 +482,7 @@ export default function Leads() {
                         size="icon"
                         onClick={() => excluirLead(lead.id)}
                         disabled={isExcluindo(lead.id)}
-                        title="Excluir lead permanentemente"
+                        title="Excluir lead permanentemente (a cobrança em aberto da experimental sai junto; o que já foi pago fica no Financeiro)"
                         className="text-destructive hover:bg-destructive/10"
                       >
                         {isExcluindo(lead.id)
@@ -659,7 +659,7 @@ export default function Leads() {
                               size="icon"
                               onClick={() => excluirLead(lead.id)}
                               disabled={isExcluindo(lead.id)}
-                              title="Confirmar exclusão"
+                              title="Confirmar exclusão (a cobrança em aberto da experimental sai junto; o que já foi pago fica no Financeiro)"
                             >
                               {isExcluindo(lead.id)
                                 ? <RefreshCw size={14} className="animate-spin" />

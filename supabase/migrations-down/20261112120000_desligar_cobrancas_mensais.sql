@@ -1,0 +1,22 @@
+-- Desfaz supabase/migrations/20261112120000_desligar_cobrancas_mensais.sql.
+-- NÃO executada automaticamente — ver README.md desta pasta.
+--
+-- Esta down NÃO recria o job: o comando do job leva o service_role e o
+-- x-cron-secret, e segredo não entra no repositório. Para religar, rode à mão
+-- no SQL Editor do painel Supabase, trocando os placeholders pelos valores reais:
+--
+--   SELECT cron.schedule(
+--     'cobrancas-mensais',
+--     '0 8 1 * *',
+--     $$ SELECT net.http_post(
+--          url := 'https://spmvrzftyqxalprpceqn.supabase.co/functions/v1/gerar-mensalidades',
+--          headers := jsonb_build_object(
+--            'Content-Type', 'application/json',
+--            'Authorization', 'Bearer <service_role>',
+--            'x-cron-secret', '<CRON_SECRET>'),
+--          body := '{}'::jsonb) $$
+--   );
+--
+-- ATENÇÃO antes de religar: a Edge Function gerar-mensalidades precisa ser
+-- publicada de novo (a Task 8 do plano ILU-116 a remove), senão o job chama
+-- uma função que não existe.

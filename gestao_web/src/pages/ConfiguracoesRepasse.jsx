@@ -91,8 +91,12 @@ function Field({ label, name, suffix, icon: Icon, tooltip, error, register }) {
   );
 }
 
+const EXEMPLO_PLANO_LIVRE = 300;
+
 // ─── Simulador de divisão em R$ ───────────────────────────────────────────────
-function DivisaoSimulada({ valor, pctProf, pctCasa }) {
+// `rotulo` substitui o texto padrão "Exemplo com R$ X:" (usado no Plano Livre,
+// que simula um plano fixo de R$ 300).
+function DivisaoSimulada({ valor, pctProf, pctCasa, rotulo }) {
   if (!valor || valor <= 0) return null;
   const prof = ((pctProf / 100) * valor).toFixed(2);
   const casa = pctCasa != null ? ((pctCasa / 100) * valor).toFixed(2) : null;
@@ -100,7 +104,11 @@ function DivisaoSimulada({ valor, pctProf, pctCasa }) {
   return (
     <div className="flex items-center gap-2 flex-wrap text-[11px] font-semibold text-muted-foreground bg-muted/40 rounded-xl px-3 py-2 mt-1">
       <Calculator size={12} className="text-primary shrink-0" />
-      <span>Exemplo com <span className="text-foreground">R$ {Number(valor).toFixed(2)}</span>:</span>
+      {rotulo ? (
+        <span>{rotulo}</span>
+      ) : (
+        <span>Exemplo com <span className="text-foreground">R$ {Number(valor).toFixed(2)}</span>:</span>
+      )}
       <span className="text-emerald-600">Prof. → R$ {prof}</span>
       {casa != null && <span className="text-amber-600">Casa → R$ {casa}</span>}
     </div>
@@ -201,16 +209,16 @@ export default function ConfiguracoesRepasse() {
               name="valor_1_modalidade"
               suffix="R$"
               icon={DollarSign}
-              tooltip="Mensalidade padrão para alunos matriculados em uma única modalidade."
+              tooltip="Comissão do professor por mês, quando o aluno tem uma única modalidade com professor."
               error={errors.valor_1_modalidade}
               register={register}
             />
             <Field
-              label="Valor Multi-Modalidade (Livre)"
+              label="Valor por Modalidade (2 ou mais)"
               name="valor_multi_modalidade"
               suffix="R$"
               icon={DollarSign}
-              tooltip="Mensalidade para alunos no Plano Livre, que frequentam múltiplas modalidades sem restrição de turma."
+              tooltip="Comissão do professor por modalidade, por mês, quando o aluno tem duas ou mais modalidades com professor."
               error={errors.valor_multi_modalidade}
               register={register}
             />
@@ -221,7 +229,7 @@ export default function ConfiguracoesRepasse() {
         <Surface variant="card" padding="lg" className="space-y-6">
           <h2 className="font-black text-foreground flex items-center gap-2 border-b border-border pb-4">
             <Percent className="text-warning" size={20} /> Divisão Plano Livre
-            <Tooltip text="No Plano Livre, a mensalidade é dividida proporcionalmente entre a casa e os professores com base nas aulas frequentadas. A soma deve ser 100%." />
+            <Tooltip text="No Plano Livre, a parte dos professores (% Professores sobre o preço mensal do plano) é dividida por igual entre as modalidades que o aluno frequentou no mês. A soma deve ser 100%." />
           </h2>
           <div className="grid grid-cols-2 gap-4">
             <Field label="% Casa" name="plano_livre_pct_casa" suffix="%" error={errors.plano_livre_pct_casa} register={register} />
@@ -229,7 +237,8 @@ export default function ConfiguracoesRepasse() {
           </div>
           {/* Simulador em tempo real */}
           <DivisaoSimulada
-            valor={watched.valor_multi_modalidade}
+            valor={EXEMPLO_PLANO_LIVRE}
+            rotulo="Exemplo: plano de R$ 300"
             pctProf={watched.plano_livre_pct_prof}
             pctCasa={watched.plano_livre_pct_casa}
           />

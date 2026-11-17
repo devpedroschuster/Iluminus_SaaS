@@ -3,6 +3,35 @@
 import { supabase } from '../lib/supabase';
 
 /**
+ * Edge Function que responde HTTP não-2xx faz o supabase-js devolver só
+ * "Edge Function returned a non-2xx status code"; a mensagem real (ex.: erro
+ * de uma RPC) vem no corpo da resposta, em error.context. Lê o corpo e cai
+ * para error.message quando ele não existe ou não é JSON.
+ */
+export async function mensagemDeErroFunction(error) {
+  try {
+    const corpo = await error?.context?.json?.();
+    if (corpo?.error) return String(corpo.error);
+  } catch {
+    // corpo ausente ou inválido: usa error.message
+  }
+  return error?.message || 'Erro ao chamar a função de repasses.';
+}
+
+/**
+ * Situação dos repasses de um mês (simulação, nada é gravado): uma linha por
+ * aluno × modalidade com o valor e a situação da comissão.
+ */
+export async function situacaoRepassesMes(mes, ano) {
+  const { data, error } = await supabase.rpc('apurar_repasses', {
+    p_competencia: `${ano}-${String(mes).padStart(2, '0')}-01`,
+    p_simular: true,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
  * Gera repasses a partir de um pagamento de mensalidade confirmado.
  * Chamado automaticamente em confirmarPagamento e adicionarPagamentoManual.
  */
@@ -11,7 +40,8 @@ export async function gerarRepassesDaMensalidade(mensalidadeId) {
     body: { mensalidadeId },
   });
 
-  if (error) throw error;
+  if (error) throw new Error(await mensagemDeErroFunction(error));
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 
@@ -28,7 +58,7 @@ export async function previewRepassesMensais(mes, ano) {
     body: { mes, ano },
   });
 
-  if (error) throw error;
+  if (error) throw new Error(await mensagemDeErroFunction(error));
   // AUDITORIA 2026-07: Edge Functions do Supabase podem retornar 200 OK com
   // `{ error: '...' }' no corpo em vez de lançar erro de transporte. Sem esta
   // checagem, uma falha de cálculo era silenciosamente tratada como sucesso.
@@ -48,7 +78,7 @@ export async function gerarRepassesMensais(mes, ano) {
     body: { mes, ano },
   });
 
-  if (error) throw error;
+  if (error) throw new Error(await mensagemDeErroFunction(error));
   // AUDITORIA 2026-07: mesma correção de previewRepassesMensais — checa erro
   // no corpo mesmo com HTTP 200.
   // ILU-13: `jaGerados` não é mais retornado junto de `error` (deixou de ser
@@ -64,21 +94,33 @@ export async function gerarRepassesMensais(mes, ano) {
 
 /**
  * Reprocessa os repasses de uma mensalidade específica invocando
- * a Edge Function `gerar-repasses`. Idempotente: apaga os lançamentos
- * anteriores e recria com base no estado atual do aluno.
+ * a Edge Function `gerar-repasses`. Mensalidade (regular / plano livre): só
+ * acrescenta as comissões que faltam, nunca remove nem altera as existentes.
+ * Avulsa / experimental: apaga os lançamentos da cobrança e recria.
  *
  * @param {string} mensalidadeId
- * @returns {{ gerados: number, itens: Array }} resultado da função
+ * @returns {{ gerados: number, itens: Array, aviso?: string, avisos?: string[] }} resultado da função
  */
 export async function reprocessarRepasse(mensalidadeId) {
   const { data, error } = await supabase.functions.invoke('gerar-repasses', {
     body: { mensalidadeId },
   });
 
-  if (error) throw error;
+  if (error) throw new Error(await mensagemDeErroFunction(error));
   if (data?.error) throw new Error(data.error);
 
   return data;
+}
+
+/** Quantas comissões estão ligadas à cobrança (mensalidade_id). */
+export async function contarComissoesDaMensalidade(mensalidadeId) {
+  const { count, error } = await supabase
+    .from('repasses_lancamentos')
+    .select('id', { count: 'exact', head: true })
+    .eq('mensalidade_id', mensalidadeId);
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 /**
@@ -98,7 +140,7 @@ export async function listarRepassesProfessor(professorId, mesAno) {
   // no componente ProfessorComissoes.jsx e os KPIs confirmado/qtdPaga ficam zerados.
   const { data, error } = await supabase
     .from('repasses_lancamentos')
-    .select('id, valor, tipo_aula, modalidade, data_referencia, status, pago_em, alunos(nome_completo)')
+    .select('id, valor, tipo_aula, modalidade, data_referencia, competencia, status, pago_em, alunos(nome_completo)')
     .eq('professor_id', professorId)
     .gte('data_referencia', inicio)
     .lte('data_referencia', fim)

@@ -6,7 +6,7 @@ import {
   ArrowLeft, ExternalLink, FileText, CheckCircle, MapPin, Edit2, AlertTriangle,
   Link2, Save, TrendingUp, TrendingDown, Minus, MessageCircle, X, Phone,
   CalendarDays, BookOpen, RefreshCw, Plus, Trash2, Lock, Info, CalendarCheck,
-  CalendarX, RotateCcw, Clock, KeyRound, Pause, Play,
+  CalendarX, RotateCcw, Clock, KeyRound, Pause, Play, Wallet,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -14,7 +14,7 @@ import {
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
-import { alunosService } from '../services/alunosService';
+import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
 import { showToast } from '../components/shared/showToast';
@@ -26,6 +26,7 @@ import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
 import Modal, { ModalConfirmacao } from '../components/ui/Modal';
 import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
+import AbaFinanceiroAluno from '../components/financeiro/AbaFinanceiroAluno';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -1367,6 +1368,17 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
         ? `Histórico atualizado. ${resultadoCobrancas.sucesso}`
         : 'Histórico atualizado com sucesso!');
       if (resultadoCobrancas?.aviso) showToast.warning(resultadoCobrancas.aviso);
+      // ILU-122: ciclo à vista precisa da cobrança integral ligada para gerar
+      // as comissões dos meses seguintes. Nunca desfaz o salvamento.
+      if (form.forma_recebimento === 'a_vista') {
+        try {
+          const vinculada = await alunosService.vincularCobrancaIntegral(registro.id);
+          if (vinculada == null) showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+        } catch (errVinculo) {
+          console.warn('[PerfilAluno] Não foi possível ligar a cobrança integral ao ciclo:', errVinculo);
+          showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+        }
+      }
       onClose();
     } catch (err) {
       console.error('[PerfilAluno] Erro ao editar histórico:', err);
@@ -1780,7 +1792,8 @@ export default function PerfilAluno() {
     { id: 'modalidades', label: 'Modalidades',      icon: <BookOpen size={18} />    },
     { id: 'agenda',      label: 'Agenda Fixa',      icon: <CalendarDays size={18} /> },
     { id: 'planos',      label: 'Histórico',        icon: <CreditCard size={18} />  },
-    { id: 'frequencia',  label: 'Frequência',       icon: <Calendar size={18} />    },
+    { id: 'financeiro',  label: 'Financeiro',       icon: <Wallet size={18} />      },
+    { id: 'frequencia',  label: 'Frequência',      icon: <Calendar size={18} />    },
     { id: 'anamnese',    label: 'Saúde/Anamnese',   icon: <Activity size={18} />    },
   ];
 
@@ -1940,6 +1953,11 @@ export default function PerfilAluno() {
         {/* ABA: Agenda Fixa */}
         {abaAtiva === 'agenda' && (
           <AbaAgendaFixa aluno={aluno} alunoId={id} />
+        )}
+
+        {/* ABA: Financeiro */}
+        {abaAtiva === 'financeiro' && (
+          <AbaFinanceiroAluno aluno={aluno} alunoId={id} />
         )}
 
         {/* ABA: Frequência */}

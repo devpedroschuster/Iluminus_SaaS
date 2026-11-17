@@ -16,6 +16,7 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
+import { mesAnoAtual, textoReferenteA } from '../../lib/repasses';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -31,11 +32,6 @@ function navegarMes(mesAno, delta) {
   const [ano, mes] = mesAno.split('-').map(Number);
   const d = new Date(ano, mes - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function mesAnoAtual() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatarMoeda(v) {
@@ -281,6 +277,9 @@ export default function ProfessorComissoes() {
                       <p className="font-bold text-foreground">
                         {r.alunos?.nome_completo ?? (r.tipo_aula === 'experimental' ? 'Visitante' : '—')}
                       </p>
+                      {textoReferenteA(r) && (
+                        <p className="text-xs text-muted-foreground">{textoReferenteA(r)}</p>
+                      )}
                     </td>
                     <td className="px-8 py-5">
                       <p className="text-sm font-bold text-foreground">{r.modalidade ?? '—'}</p>

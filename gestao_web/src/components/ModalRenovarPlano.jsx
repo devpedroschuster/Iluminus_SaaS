@@ -112,10 +112,12 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
       showToast.success(resultado.pago
         ? `Plano renovado! Mensalidade registrada como paga no Financeiro (vencimento ${vencimento}).`
         : `Plano renovado! Mensalidade pendente no Financeiro, com vencimento em ${vencimento}. Dê baixa em "Receber" quando pagarem.`);
-      if (resultado.avisoRepasse) {
-        // Aviso em toast separado — não substitui a confirmação de sucesso
-        setTimeout(() => showToast.warning(`⚠️ ${resultado.avisoRepasse}`), 600);
-      }
+      // Avisos em toasts separados — não substituem a confirmação de sucesso.
+      // avisoRepasse: a geração falhou; avisosRepasse: o que a apuração avisou.
+      const avisos = resultado.avisoRepasse ? [resultado.avisoRepasse] : (resultado.avisosRepasse ?? []);
+      avisos.forEach((aviso, i) => {
+        setTimeout(() => showToast.warning(`⚠️ ${aviso}`), 600 * (i + 1));
+      });
       onSucesso();
       onClose();
     } catch (error) {

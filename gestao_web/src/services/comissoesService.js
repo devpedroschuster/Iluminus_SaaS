@@ -17,16 +17,18 @@ export const comissoesService = {
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const fim = `${mesAno}-${String(ultimoDia).padStart(2, '0')}`;
 
-    const { data: fechamento } = await supabase
+    const { data: fechamento, error: errFechamento } = await supabase
       .from('fechamento_comissoes')
       .select('*')
       .eq('professor_id', professorId)
       .eq('mes_referencia', `${mesAno}-01`)
       .maybeSingle();
 
+    if (errFechamento) throw errFechamento;
+
     const { data: lancamentos, error } = await supabase
       .from('repasses_lancamentos')
-      .select('id, valor, tipo_aula, modalidade, data_referencia, pago_em, status, alunos(nome_completo), mensalidades(nome_visitante)')
+      .select('id, valor, tipo_aula, modalidade, data_referencia, competencia, pago_em, status, alunos(nome_completo), mensalidades(nome_visitante)')
       .eq('professor_id', professorId)
       .gte('data_referencia', inicio)
       .lte('data_referencia', fim)
@@ -184,7 +186,7 @@ export const comissoesService = {
   async updateLancamento(id, campos) {
     const { data: atual, error: errBusca } = await supabase
       .from('repasses_lancamentos')
-      .select('professor_id, data_referencia')
+      .select('professor_id, data_referencia, competencia, tipo_aula')
       .eq('id', id)
       .single();
 
@@ -192,6 +194,13 @@ export const comissoesService = {
 
     if (await this._mesEstaFechado(atual.professor_id, atual.data_referencia)) {
       throw new Error('Não é possível editar: o mês deste lançamento já foi fechado.');
+    }
+
+    // ILU-122: o tipo da comissão de mensalidade (com competência) vem da
+    // apuração. Trocado para avulsa/experimental, ela sairia do índice único
+    // e do "já existe", e a apuração a criaria de novo.
+    if (atual.competencia && campos.tipo_aula !== undefined && campos.tipo_aula !== atual.tipo_aula) {
+      throw new Error('Não é possível mudar o tipo de uma comissão de mensalidade.');
     }
 
     const permitidos = ['valor', 'tipo_aula', 'modalidade', 'data_referencia', 'status'];
@@ -214,23 +223,10 @@ export const comissoesService = {
   // EDIT-02: exclui um lançamento individual.
   // SEC-01 FIX: agora bloqueia a exclusão no próprio service se o mês
   // já tiver sido fechado, em vez de depender apenas da UI.
+  // ILU-122: a RPC `excluir_comissao` valida no banco (mês fechado, lançamento
+  // inexistente, permissão) e devolve a mensagem de negócio como erro.
   async deleteLancamento(id) {
-    const { data: atual, error: errBusca } = await supabase
-      .from('repasses_lancamentos')
-      .select('professor_id, data_referencia')
-      .eq('id', id)
-      .single();
-
-    if (errBusca) throw errBusca;
-
-    if (await this._mesEstaFechado(atual.professor_id, atual.data_referencia)) {
-      throw new Error('Não é possível excluir: o mês deste lançamento já foi fechado.');
-    }
-
-    const { error } = await supabase
-      .from('repasses_lancamentos')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.rpc('excluir_comissao', { p_id: id });
 
     if (error) throw error;
     return true;

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }));
+vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn(), from: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
 import { areaAlunoService } from './areaAlunoService';
+import { criarQueryMock } from '../test/criarQueryMock';
 
 // ILU-78/79: as regras ficam no servidor; o serviço só repassa a chamada e a
 // mensagem de recusa (ex.: "Turma lotada.") para o toast.
@@ -44,5 +45,39 @@ describe('areaAlunoService', () => {
   it('usa uma mensagem genérica quando o erro não traz texto', async () => {
     supabase.rpc.mockResolvedValue({ data: null, error: {} });
     await expect(areaAlunoService.cancelar(7, '2026-10-14')).rejects.toThrow('Não foi possível concluir. Tente novamente.');
+  });
+});
+
+// ILU-37: a aba Mensalidades mostra só o histórico recente (sem paginação).
+describe('areaAlunoService.listarMensalidades', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('busca as mensalidades do aluno, mais recentes primeiro, até 100', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 1 }], error: null });
+    supabase.from.mockReturnValue(query);
+
+    await expect(areaAlunoService.listarMensalidades(42)).resolves.toEqual([{ id: 1 }]);
+    expect(supabase.from).toHaveBeenCalledWith('mensalidades');
+    expect(chamadas).toEqual([
+      ['select', '*'],
+      ['eq', 'aluno_id', 42],
+      ['order', 'data_vencimento', { ascending: false }],
+      ['limit', 100],
+    ]);
+  });
+
+  it('devolve lista vazia quando não há mensalidades', async () => {
+    supabase.from.mockReturnValue(criarQueryMock({ data: null, error: null }).query);
+    await expect(areaAlunoService.listarMensalidades(42)).resolves.toEqual([]);
+  });
+
+  // ILU-89: a tela engolia o erro 42P01 ("tabela não existe"), herança de
+  // quando mensalidades podia não existir. Hoje qualquer erro é falha real.
+  it('lança qualquer erro do banco, inclusive 42P01', async () => {
+    supabase.from.mockReturnValue(criarQueryMock({
+      data: null, error: { code: '42P01', message: 'relation "mensalidades" does not exist' },
+    }).query);
+    await expect(areaAlunoService.listarMensalidades(42))
+      .rejects.toMatchObject({ message: 'relation "mensalidades" does not exist', codigo: '42P01' });
   });
 });

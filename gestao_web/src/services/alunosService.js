@@ -35,6 +35,9 @@ async function invocarCriarUsuario(body) {
   return { email: data.email, senha: data.senha_temporaria };
 }
 
+export const AVISO_CICLO_A_VISTA_SEM_COBRANCA =
+  'Ciclo à vista sem a cobrança integral ligada: as comissões dos meses seguintes não vão ser geradas. Lance a cobrança integral do ciclo.';
+
 export const alunosService = {
   async listar(filtros = {}, paginacao = {}) {
     try {
@@ -180,6 +183,32 @@ export const alunosService = {
     return data;
   },
 
+  // ILU-120: página "Matrículas" — alunos cadastrados nos últimos `dias` dias
+  // de calendário (incluindo hoje), do mais recente para o mais antigo. A
+  // janela começa à meia-noite de Brasília; o offset fixo -03:00 vale porque
+  // o Brasil não tem horário de verão desde 2019. Desativados continuam na
+  // lista: a matrícula fechou naquele dia.
+  async listarMatriculasRecentes({ dias, hoje = hojeBrasilia() }) {
+    try {
+      const [ano, mes, dia] = hoje.split('-').map(Number);
+      const inicio = new Date(Date.UTC(ano, mes - 1, dia - (dias - 1)))
+        .toISOString().slice(0, 10);
+
+      const { data, error } = await supabase
+        .from('alunos')
+        .select('id, nome_completo, created_at')
+        .eq('role', 'aluno')
+        .gte('created_at', `${inicio}T00:00:00-03:00`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data ?? [];
+    } catch (error) {
+      console.error('[alunosService.listarMatriculasRecentes]', error);
+      throw error;
+    }
+  },
+
   async buscarPerfilCompleto(alunoId) {
     const { data, error } = await supabase
       .from('alunos')
@@ -250,10 +279,28 @@ export const alunosService = {
   // ─────────────────────────────────────────────────────────────
 
   /**
+   * ILU-122: liga o ciclo à vista à sua cobrança integral, para a apuração
+   * dos repasses dos meses seguintes. renovar_plano_aluno já faz isso sozinha;
+   * este atalho serve ao cadastro de aluno e à edição do histórico.
+   *
+   * @param {string} historicoId
+   * @returns {Promise<number|null>} id da cobrança ligada, ou null se não há o que ligar
+   */
+  async vincularCobrancaIntegral(historicoId) {
+    const { data, error } = await supabase.rpc('vincular_cobranca_integral', {
+      p_historico_id: historicoId,
+    });
+    if (error) throw error;
+    return data ?? null;
+  },
+
+  /**
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
    *
-   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisoRepasse?: string }}
+   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisosRepasse?: string[], avisoRepasse?: string }}
+   *   avisosRepasse: o aviso e os avisos da geração do repasse (pagamento já recebido);
+   *   avisoRepasse: a geração do repasse falhou.
    */
   async renovarPlano(alunoId, dadosRenovacao) {
     try {
@@ -278,7 +325,9 @@ export const alunosService = {
       // a renovação/pagamento nunca é desfeita por falha no repasse.
       if (resultado.pago) {
         try {
-          await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+          const repasse = await gerarRepassesDaMensalidade(resultado.mensalidade_id);
+          const avisosRepasse = [repasse?.aviso, ...(repasse?.avisos ?? [])].filter(Boolean);
+          return { ...resultado, avisosRepasse };
         } catch (repasseError) {
           console.warn('[alunosService.renovarPlano] Repasse não gerado automaticamente.', repasseError);
           return { ...resultado, avisoRepasse: 'Repasse do professor não gerado automaticamente. Verifique na aba "Reprocessar" das Comissões.' };
@@ -468,9 +517,8 @@ export const alunosService = {
   //      não há pagamento real associado.
   //
   // Ao DESATIVAR (bolsista = false):
-  //   apenas remove a flag. Não recria cobranças retroativas — a
-  //   cobrança volta ao normal a partir da próxima geração mensal
-  //   (gerar-mensalidades), que passa a considerar o plano vigente.
+  //   apenas remove a flag. Não recria cobranças; as próximas são
+  //   lançadas à mão pela gestão.
   //
   // @param {string} alunoId
   // @param {boolean} bolsista

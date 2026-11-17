@@ -119,7 +119,27 @@ describe('alunosService.renovarPlano (ILU-69)', () => {
       p_ja_recebido: true, p_forma_pagamento: 'pix', p_data_pagamento: '2026-10-01',
     }));
     expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(55);
-    expect(resultado).toEqual({ sucesso: true, mensalidade_id: 55, pago: true });
+    expect(resultado).toEqual({ sucesso: true, mensalidade_id: 55, pago: true, avisosRepasse: [] });
+  });
+
+  it('com pagamento já recebido, devolve o aviso e os avisos da function em avisosRepasse', async () => {
+    supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 55, pago: true }, error: null });
+    gerarRepassesDaMensalidade.mockResolvedValueOnce({
+      gerados: 0,
+      aviso: 'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+      avisos: ['Ana (Dança): Modalidade sem professor'],
+    });
+
+    const resultado = await alunosService.renovarPlano(10, {
+      plano_id: 2, data_inicio: '2026-12-01', data_fim: '2026-12-31', valor_pago: 150,
+      ja_recebido: true, forma_pagamento: 'pix', data_pagamento: '2026-11-20',
+    });
+
+    expect(resultado.avisosRepasse).toEqual([
+      'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+      'Ana (Dança): Modalidade sem professor',
+    ]);
+    expect(resultado.avisoRepasse).toBeUndefined();
   });
 
   it('falha no repasse não desfaz a renovação: vira aviso', async () => {
@@ -217,5 +237,47 @@ describe('alunosService.criarAcessoApp / gerarNovaSenhaApp (ILU-76)', () => {
     supabase.functions.invoke.mockResolvedValue({ data: { email: 'aluna@exemplo.com' }, error: null });
 
     await expect(alunosService.criarAcessoApp(7)).rejects.toThrow();
+  });
+});
+
+// Página "Matrículas" (ILU-120): matrículas recentes, da mais nova para a mais
+// antiga, com a janela de dias contada no fuso de Brasília.
+describe('alunosService — matrículas recentes', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('busca alunos dos últimos 30 dias, do mais recente para o mais antigo', async () => {
+    const linhas = [{ id: 2, nome_completo: 'B', created_at: '2026-11-12T15:00:00+00:00' }];
+    const { query, chamadas } = criarQueryMock({ data: linhas, error: null });
+    supabase.from.mockReturnValue(query);
+
+    expect(await alunosService.listarMatriculasRecentes({ dias: 30, hoje: '2026-11-13' })).toEqual(linhas);
+    expect(supabase.from).toHaveBeenCalledWith('alunos');
+    expect(chamadas).toContainEqual(['select', 'id, nome_completo, created_at']);
+    expect(chamadas).toContainEqual(['eq', 'role', 'aluno']);
+    expect(chamadas).toContainEqual(['gte', 'created_at', '2026-10-15T00:00:00-03:00']);
+    expect(chamadas).toContainEqual(['order', 'created_at', { ascending: false }]);
+    // desativados continuam na lista
+    expect(chamadas.some(([m, col]) => m === 'eq' && col === 'ativo')).toBe(false);
+  });
+
+  it('janela de 60 dias que atravessa o ano começa no dia certo', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+    await alunosService.listarMatriculasRecentes({ dias: 60, hoje: '2026-01-10' });
+    expect(chamadas).toContainEqual(['gte', 'created_at', '2025-11-12T00:00:00-03:00']);
+  });
+
+  it('devolve lista vazia quando o Supabase devolve data null', async () => {
+    const { query } = criarQueryMock({ data: null, error: null });
+    supabase.from.mockReturnValue(query);
+    expect(await alunosService.listarMatriculasRecentes({ dias: 30, hoje: '2026-11-13' })).toEqual([]);
+  });
+
+  it('repassa o erro do Supabase', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { query } = criarQueryMock({ data: null, error: { message: 'falhou' } });
+    supabase.from.mockReturnValue(query);
+    await expect(alunosService.listarMatriculasRecentes({ dias: 30, hoje: '2026-11-13' }))
+      .rejects.toMatchObject({ message: 'falhou' });
   });
 });

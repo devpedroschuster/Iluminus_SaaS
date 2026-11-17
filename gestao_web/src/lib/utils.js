@@ -95,26 +95,6 @@ export const statusMensalidadeAluno = (status, dataVencimento) => {
 };
 
 /**
- * Soma um mês de calendário a uma data 'AAAA-MM-DD', preservando o dia
- * quando possível (ex.: 2026-01-15 → 2026-02-15) e recuando para o último
- * dia do mês de destino quando o dia original não existir nele (ex.:
- * 2026-01-31 → 2026-02-28) — mesmo approach usado em
- * despesasService.replicarRecorrentes. Evita o desvio de "+30 dias fixos"
- * (ILU-17), que desalinha com o calendário real (meses têm 28-31 dias) e
- * pode pular um mês inteiro para vencimentos perto do fim do mês.
- */
-export const avancarUmMes = (dataStr) => {
-  const d = new Date(dataStr + 'T12:00:00');
-  const dia = d.getDate();
-  const mesAlvo = d.getMonth() + 1; // 0-indexed; pode "estourar" para 12 (Date normaliza para janeiro do ano seguinte)
-  const proxima = new Date(d.getFullYear(), mesAlvo, dia, 12);
-  if (proxima.getMonth() !== mesAlvo % 12) {
-    proxima.setDate(0); // recua para o último dia do mês de destino
-  }
-  return proxima.toISOString().split('T')[0];
-};
-
-/**
  * Calcula a data de fim de um ciclo de plano a partir da data de início e
  * da duração em meses, subtraindo 1 dia do resultado (ILU-30) — assim o
  * ciclo cobre exatamente `duracaoMeses` meses corridos e o próximo ciclo
@@ -150,24 +130,6 @@ export const derivarPlanoVigente = (planos) => {
     .sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1));
   return maisRecente[0] ?? null;
 };
-
-/**
- * Indica se uma data de vencimento cai dentro de algum ciclo pago à vista
- * (historico_planos com forma_recebimento 'a_vista') ainda em aberto — ou
- * seja, se uma mensalidade mensal nessa data seria uma cobrança em
- * duplicidade, já que o ciclo inteiro foi quitado de uma vez. Considera
- * ciclos 'ativo' e 'agendado' (nada promove 'agendado' para 'ativo'
- * automaticamente quando a data de início chega). `data_fim` é o último dia
- * coberto pelo ciclo, inclusivo (ILU-30, ver calcularFimPlano).
- * Espelhada em supabase/functions/gerar-mensalidades (cron).
- */
-export const vencimentoCobertoPorCicloAVista = (ciclos, dataVencimento) =>
-  (ciclos || []).some(c =>
-    c.forma_recebimento === 'a_vista' &&
-    (c.status === 'ativo' || c.status === 'agendado') &&
-    c.data_inicio <= dataVencimento &&
-    dataVencimento <= c.data_fim
-  );
 
 /**
  * Indica se a mensalidade é a cobrança única de um ciclo à vista — a que

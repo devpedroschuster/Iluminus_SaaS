@@ -1,5 +1,21 @@
 import { supabase } from '../lib/supabase';
 
+// Os campos editáveis do formulário de Configurações de Repasse (o schema da
+// página). O formulário recebe a linha inteira de obter(); só estes vão para
+// o banco — nunca corte_competencia, apuracao_automatica, id, singleton,
+// updated_by nem o updated_at antigo.
+export const CAMPOS_CONFIGURACAO_REPASSE = [
+  'valor_1_modalidade',
+  'valor_multi_modalidade',
+  'plano_livre_pct_casa',
+  'plano_livre_pct_prof',
+  'aula_experimental_valor',
+  'aula_experimental_pct_prof',
+  'aula_avulsa_valor',
+  'aula_avulsa_pct_casa',
+  'aula_avulsa_pct_prof',
+];
+
 export const configuracoesRepasseService = {
   async obter() {
     const { data, error } = await supabase
@@ -10,7 +26,10 @@ export const configuracoesRepasseService = {
     return data;
   },
   async salvar(payload) {
-    const { id, ...rest } = payload;
+    const { id } = payload;
+    const rest = Object.fromEntries(
+      CAMPOS_CONFIGURACAO_REPASSE.filter((campo) => campo in payload).map((campo) => [campo, payload[campo]]),
+    );
     // ILU-18: mesmo padrão de alunosService.alterarStatus — sem `.select()`,
     // um `.update()` que afeta 0 linhas (RLS bloqueando silenciosamente, id
     // obsoleto etc.) retornava sucesso mesmo com a comissão nunca alterada

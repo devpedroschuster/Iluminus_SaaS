@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Lock, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { rotaPorPerfil } from '../lib/navigation';
+import { rotaPorPerfil, primeiroAcessoConcluido } from '../lib/navigation';
 import { buscarAcesso } from '../services/acessoService';
 import { useAuth } from '../hooks/useAuth';
 import { showToast } from '../components/shared/showToast';
@@ -66,6 +66,7 @@ export default function RedefinirSenha() {
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessaoValida, setSessaoValida] = useState(false);
+  const [senhaJaDefinida, setSenhaJaDefinida] = useState(false);
   const navigate = useNavigate();
   // ILU-99: o primeiro acesso vem do estado do login (as rotas mandam para cá),
   // não de um navigate do Login — e continua valendo se a página recarregar.
@@ -132,8 +133,14 @@ export default function RedefinirSenha() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password: novaSenha });
-      if (error) throw error;
+      // ILU-82: numa nova tentativa (a senha já foi trocada, mas o primeiro
+      // acesso não foi concluído), não troca a senha de novo — o Supabase
+      // recusaria a mesma senha.
+      if (!senhaJaDefinida) {
+        const { error } = await supabase.auth.updateUser({ password: novaSenha });
+        if (error) throw error;
+        setSenhaJaDefinida(true);
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
       let rotaDestino = rotaPorPerfil(null);
@@ -143,11 +150,19 @@ export default function RedefinirSenha() {
         // (lib/perfilAcesso.js) e segue para a tela dele.
         const acesso = await buscarAcesso(user.id);
         if (acesso.perfil) {
-          const { error: erroFlag } = await supabase
+          // ILU-82: confere que a gravação valeu. Um update que o RLS ou um
+          // gatilho barra em silêncio volta sem erro, e o usuário ficava preso
+          // no "primeiro acesso" a cada login, sem aviso.
+          const { data: gravado, error: erroFlag } = await supabase
             .from(acesso.perfil === 'professor' ? 'professores' : 'alunos')
             .update({ primeiro_acesso: false })
-            .eq('auth_id', user.id);
-          if (erroFlag) throw erroFlag;
+            .eq('auth_id', user.id)
+            .select('primeiro_acesso');
+          if (erroFlag || !primeiroAcessoConcluido(gravado)) {
+            if (erroFlag) console.error('[RedefinirSenha] primeiro_acesso:', erroFlag);
+            showToast.error('Sua senha foi salva, mas não conseguimos concluir o primeiro acesso. Toque em "Salvar e Acessar" de novo ou fale com a recepção.');
+            return;
+          }
           rotaDestino = rotaPorPerfil(acesso.perfil);
         }
       }

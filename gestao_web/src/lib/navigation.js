@@ -38,3 +38,11 @@ export function decidirRotaPrivada({ sessao, perfil, primeiroAcesso, loading, ta
   if (!permitido) return rotaPorPerfil(perfil);
   return 'liberado';
 }
+
+// ILU-82: o retorno de `.update({ primeiro_acesso: false }).select('primeiro_acesso')`
+// confirma que o primeiro acesso foi concluído só se alguma linha foi gravada
+// e todas ficaram com `false`. Zero linhas (RLS) ou o valor revertido por um
+// gatilho voltam sem erro do Supabase.
+export function primeiroAcessoConcluido(linhas) {
+  return Array.isArray(linhas) && linhas.length > 0 && linhas.every((l) => l?.primeiro_acesso === false);
+}

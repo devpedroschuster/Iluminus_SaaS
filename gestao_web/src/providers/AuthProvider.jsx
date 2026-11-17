@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { buscarAcesso } from '../services/acessoService';
 import { showToast } from '../components/shared/showToast';
@@ -9,6 +10,8 @@ import { AuthContext } from './AuthContext';
 // instâncias; a Agenda do professor carregava o perfil 4 vezes), e cada uma
 // podia desconectar a sessão por conta própria.
 export function AuthProvider({ children }) {
+  // ILU-84: o cache de consultas é do usuário logado — sai junto com ele.
+  const queryClient = useQueryClient();
   const [sessao, setSessao] = useState(null);
   const [perfil, setPerfil] = useState(null);
   const [professorId, setProfessorId] = useState(null);
@@ -74,6 +77,10 @@ export function AuthProvider({ children }) {
       }
 
       // Reset para garantir que um usuário diferente não herde o perfil do anterior.
+      // ILU-84: nem os dados em cache das telas dele.
+      if (perfilCarregadoParaId.current && perfilCarregadoParaId.current !== session.user.id) {
+        queryClient.clear();
+      }
       perfilJaCarregado.current = false;
       geracaoRef.current += 1;
 
@@ -164,6 +171,9 @@ export function AuthProvider({ children }) {
         perfilCarregadoParaId.current = null;
         setSessao(null);
         limparPerfil();
+        // ILU-84: num aparelho compartilhado, o próximo login não pode ver os
+        // dados em cache de quem saiu (vale para todos os botões de sair).
+        queryClient.clear();
         // ILU-39/ILU-99: contaDesativada e perfilNaoEncontrado NÃO são
         // resetados aqui de propósito — este SIGNED_OUT é disparado pelo
         // próprio signOut() em segundo plano acima, e a mensagem só fica na
@@ -196,7 +206,7 @@ export function AuthProvider({ children }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   // Relê os cadastros da sessão atual (ex.: depois de concluir o primeiro
   // acesso) e devolve o acesso resolvido.

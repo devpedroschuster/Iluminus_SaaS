@@ -170,6 +170,20 @@ describe('financeiroService (cobranças do aluno e lançamentos em aberto)', () 
     expect(r.resultado.avisos[0]).toContain('reaproveitada');
   });
 
+  it('confirmarPagamento experimental com só comissão de R$ 0,00 ligada gera a de verdade (ILU-124)', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 709 }], error: null });
+    // A consulta pede só comissão com valor: a de R$ 0,00 não volta.
+    const repasses = criarQueryMock({ data: [], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 1 });
+
+    const r = await financeiroService.confirmarPagamento(709, { tipo_aula: 'experimental', valor_pago: 20 });
+
+    expect(repasses.chamadas).toContainEqual(['gt', 'valor', 0]);
+    expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(709);
+    expect(r).toEqual({ ok: true, resultado: { gerados: 1 } });
+  });
+
   it('confirmarPagamento sem comissão ligada gera a comissão', async () => {
     const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
     const repasses = criarQueryMock({ data: [], error: null });

@@ -220,10 +220,13 @@ async listarModalidadesDoAluno(alunoId) {
     }
 
     // Comissão mantida na reversão de um pagamento anterior: não gera outra.
+    // Só conta a que tem valor (ILU-124): uma de R$ 0,00 não paga nada ao
+    // professor, e a geração abaixo a apaga e grava a comissão de verdade.
     const { data: comissoesLigadas, error: errComissoes } = await supabase
       .from('repasses_lancamentos')
       .select('id')
       .eq('mensalidade_id', id)
+      .gt('valor', 0)
       .limit(1);
     if (errComissoes) {
       // O pagamento já foi gravado: não lança, avisa (mesmo padrão do REP-09).

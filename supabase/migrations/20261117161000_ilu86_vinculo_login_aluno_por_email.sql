@@ -58,17 +58,18 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- `alunos.email` é único e normalizado: no máximo uma linha casa.
+  -- `alunos.email` é único e normalizado (gatilho acima): no máximo uma linha
+  -- casa. A comparação normaliza de novo para não depender disso.
   UPDATE public.alunos
      SET auth_id = NEW.id
-   WHERE email = v_email
+   WHERE lower(btrim(email)) = v_email
      AND auth_id IS NULL
      AND role = 'aluno';
   IF FOUND THEN
     RETURN NEW;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM public.alunos WHERE email = v_email) THEN
+  IF EXISTS (SELECT 1 FROM public.alunos WHERE lower(btrim(email)) = v_email) THEN
     RAISE WARNING 'cria_perfil_automatico: o cadastro com o e-mail do login % já tem outro login (ou não é de aluno); nada foi vinculado.', NEW.id;
     RETURN NEW;
   END IF;

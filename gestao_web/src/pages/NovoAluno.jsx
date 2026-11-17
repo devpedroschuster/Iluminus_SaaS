@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { alunosService } from '../services/alunosService';
+import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/shared/showToast';
@@ -464,8 +464,10 @@ export default function NovoAluno() {
       .match({ aluno_id: alunoId, plano_id: planoId, data_inicio: dataInicio, status: 'ativo' })
       .maybeSingle();
 
+    let historicoId = histExistente?.id ?? null;
+
     if (!histExistente) {
-      const { error: errHist } = await supabase.from('historico_planos').insert([{
+      const { data: histCriado, error: errHist } = await supabase.from('historico_planos').insert([{
         aluno_id:          alunoId,
         plano_id:          planoId,
         data_inicio:       dataInicio,
@@ -473,8 +475,9 @@ export default function NovoAluno() {
         status:            'ativo',
         valor_pago:        valorCiclo,
         forma_recebimento: formaRecebimento,
-      }]);
+      }]).select('id').single();
       if (errHist) throw errHist;
+      historicoId = histCriado?.id ?? null;
     }
 
     const { data: mensExistente } = await supabase
@@ -493,6 +496,18 @@ export default function NovoAluno() {
         descricao:       formaRecebimento === 'a_vista' ? 'Pagamento integral do plano' : null,
       }]);
       if (errMensalidade) throw errMensalidade;
+    }
+
+    // ILU-122: liga o ciclo à vista à cobrança integral, para as comissões
+    // dos meses seguintes. Falha aqui não desfaz o cadastro: vira um aviso.
+    if (formaRecebimento === 'a_vista' && historicoId) {
+      try {
+        const vinculada = await alunosService.vincularCobrancaIntegral(historicoId);
+        if (vinculada == null) showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+      } catch (errVinculo) {
+        console.warn('[NovoAluno] Não foi possível ligar a cobrança integral ao ciclo à vista:', errVinculo);
+        showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
+      }
     }
   }
 

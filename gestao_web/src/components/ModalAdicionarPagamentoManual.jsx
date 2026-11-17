@@ -241,10 +241,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
       showToast.success(`✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
 
-      if (resultado._avisoRepasse) {
-        // Aviso em toast separado — não substitui a confirmação de sucesso
-        setTimeout(() => showToast.warning(`⚠️ ${resultado._avisoRepasse}`), 600);
-      }
+      // Avisos em toasts separados — não substituem a confirmação de sucesso
+      const avisosRepasse = resultado._avisosRepasse
+        ?? (resultado._avisoRepasse ? [resultado._avisoRepasse] : []);
+      avisosRepasse.forEach((aviso, i) => {
+        setTimeout(() => showToast.warning(`⚠️ ${aviso}`), 600 * (i + 1));
+      });
 
       invalidarConsultasFinanceiras(queryClient);
       onSucesso?.();

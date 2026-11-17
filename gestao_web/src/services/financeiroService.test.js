@@ -99,12 +99,70 @@ describe('financeiroService (cobranças do aluno e lançamentos em aberto)', () 
     expect(r.resultado.gerados).toBe(0);
   });
 
-  it('confirmarPagamento reaproveita comissão mantida na reversão', async () => {
+  it('confirmarPagamento regular com comissão ligada ainda chama a apuração (ela não duplica)', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: [{ id: 'r1' }], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 0, avisos: [] });
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 100 });
+
+    expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(5);
+    expect(r).toEqual({ ok: true, resultado: { gerados: 0, avisos: [] } });
+  });
+
+  it('adicionarPagamentoManual pago devolve os avisos da function em _avisosRepasse', async () => {
+    const { query } = criarQueryMock({ data: { id: 12 }, error: null });
+    supabase.from.mockReturnValue(query);
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 0, avisos: ['Ana: Bolsista'] });
+
+    const r = await financeiroService.adicionarPagamentoManual({
+      aluno_id: 7, tipo_aula: 'regular', valor_pago: '280', forma_pagamento: 'pix',
+      data_vencimento: '2026-12-10', data_pagamento: '2026-12-05',
+    });
+
+    expect(r._avisosRepasse).toEqual(['Ana: Bolsista']);
+  });
+
+  it('adicionarPagamentoManual pago com falha no repasse não lança e avisa com a mensagem real', async () => {
+    const { query } = criarQueryMock({ data: { id: 12 }, error: null });
+    supabase.from.mockReturnValue(query);
+    gerarRepassesDaMensalidade.mockRejectedValue(new Error('Usuário sem permissão para apurar comissões.'));
+
+    const r = await financeiroService.adicionarPagamentoManual({
+      aluno_id: 7, tipo_aula: 'regular', valor_pago: '280', forma_pagamento: 'pix',
+      data_vencimento: '2026-12-10', data_pagamento: '2026-12-05',
+    });
+
+    expect(r.id).toBe(12);
+    expect(r._avisoRepasse).toBe(
+      'Pagamento registrado, mas o repasse não pôde ser gerado: Usuário sem permissão para apurar comissões. Verifique na aba "Reprocessar".',
+    );
+  });
+
+  it('confirmarPagamento com falha no repasse não lança e avisa com a mensagem real', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: [], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    gerarRepassesDaMensalidade.mockRejectedValue(new Error('Mês ainda não começou'));
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 100 });
+
+    expect(r).toEqual({
+      ok: true,
+      resultado: {
+        aviso: 'Pagamento confirmado, mas o repasse não pôde ser gerado: Mês ainda não começou. Verifique na aba "Reprocessar".',
+        gerados: 0,
+      },
+    });
+  });
+
+  it('confirmarPagamento avulsa com comissão mantida na reversão reaproveita e não gera', async () => {
     const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
     const repasses = criarQueryMock({ data: [{ id: 'r1' }], error: null });
     supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
 
-    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 100 });
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'avulsa', valor_pago: 100 });
 
     expect(repasses.chamadas).toContainEqual(['eq', 'mensalidade_id', 5]);
     expect(gerarRepassesDaMensalidade).not.toHaveBeenCalled();

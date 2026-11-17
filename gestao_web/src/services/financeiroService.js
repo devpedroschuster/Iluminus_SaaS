@@ -12,6 +12,11 @@ const SELECT_MENSALIDADE = `
 
 const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
+// Mensagem real da falha do repasse, sem o ponto final (o aviso continua a frase).
+function motivoDaFalha(erro) {
+  return String(erro?.message || erro || 'erro desconhecido').replace(/[.\s]+$/, '');
+}
+
 export const financeiroService = {
   async listarMensalidades(inicio, fim) {
   const { data, error } = await supabase
@@ -151,12 +156,17 @@ async listarModalidadesDoAluno(alunoId) {
     // calcular (gerar-repasses não tem regra para esses tipos).
     if (status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
-        await gerarRepassesDaMensalidade(data.id);
+        const resultado = await gerarRepassesDaMensalidade(data.id);
+        const avisos = [resultado?.aviso, ...(resultado?.avisos ?? [])].filter(Boolean);
+        return { ...data, _avisosRepasse: avisos };
       } catch (repasseError) {
         // Pagamento salvo com sucesso; apenas o repasse falhou.
         // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
         console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
-        return { ...data, _avisoRepasse: 'Repasse não gerado automaticamente. Verifique manualmente.' };
+        return {
+          ...data,
+          _avisoRepasse: `Pagamento registrado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
+        };
       }
     }
     return data;
@@ -228,7 +238,9 @@ async listarModalidadesDoAluno(alunoId) {
         },
       };
     }
-    if (comissoesLigadas?.length) {
+    // Só avulsa/experimental reaproveitam a comissão mantida; regular e plano
+    // livre sempre passam pela apuração, que não duplica.
+    if (comissoesLigadas?.length && ['avulsa', 'experimental'].includes(dados.tipo_aula)) {
       return {
         ok: true,
         resultado: {
@@ -247,7 +259,7 @@ async listarModalidadesDoAluno(alunoId) {
       return {
         ok: true,
         resultado: {
-          aviso: 'Pagamento confirmado, mas o repasse não pôde ser gerado automaticamente. Verifique manualmente na aba "Reprocessar".',
+          aviso: `Pagamento confirmado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
           gerados: 0,
         },
       };

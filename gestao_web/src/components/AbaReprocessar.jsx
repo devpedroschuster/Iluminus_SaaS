@@ -8,7 +8,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, CheckCircle, AlertTriangle, User, Calendar } from 'lucide-react';
 
 import { supabase } from '../lib/supabase'; // ajuste o caminho se necessário
-import { reprocessarRepasse } from '../services/repasseService';
+import { reprocessarRepasse, contarComissoesDaMensalidade } from '../services/repasseService';
+import { resultadoReprocessar } from '../lib/repasses';
 import { showToast } from '../components/shared/showToast';
 import { TableSkeleton } from '../components/shared/Loading';
 import EmptyState from '../components/ui/EmptyState';
@@ -41,21 +42,35 @@ const TIPO_TONE = {
 
 // ─── linha da tabela ──────────────────────────────────────────────────────────
 
+function mostrarAvisos(avisos) {
+  avisos.forEach((aviso, i) => {
+    setTimeout(() => showToast.warning(`⚠️ ${aviso}`), 600 * (i + 1));
+  });
+}
+
+// `onReprocessado(qtd)`: o número de comissões ligadas à cobrança, consultado
+// de novo depois de reprocessar (null se a consulta falhar).
 function LinhaMensalidade({ mensalidade, onReprocessado }) {
   const [status, setStatus] = useState('idle'); // idle | loading | ok | erro
-  const [resultado, setResultado] = useState(null);
 
   async function handleReprocessar() {
     setStatus('loading');
-    setResultado(null);
     try {
       const data = await reprocessarRepasse(String(mensalidade.id));
-      setResultado(data);
-      setStatus('ok');
-      showToast.success(
-        `${data.gerados} repasse(s) reprocessado(s) para ${mensalidade.alunos?.nome_completo || mensalidade.nome_visitante}.`,
+      const { mensagem, avisos } = resultadoReprocessar(
+        data,
+        mensalidade.alunos?.nome_completo || mensalidade.nome_visitante,
       );
-      onReprocessado?.();
+      setStatus('ok');
+      showToast.success(mensagem);
+      mostrarAvisos(avisos);
+      let qtd = null;
+      try {
+        qtd = await contarComissoesDaMensalidade(mensalidade.id);
+      } catch (errContagem) {
+        console.warn('[AbaReprocessar] contagem das comissões', errContagem);
+      }
+      onReprocessado?.(qtd);
     } catch (err) {
       console.error('[AbaReprocessar]', err);
       setStatus('erro');
@@ -92,15 +107,11 @@ function LinhaMensalidade({ mensalidade, onReprocessado }) {
         {formatarMoeda(mensalidade.valor_pago)}
       </td>
 
-      {/* Lançamentos atuais */}
+      {/* Lançamentos atuais (contados de novo depois de reprocessar) */}
       <td className="p-4 text-center">
-        {status === 'ok' && resultado ? (
-          <span className="text-success font-bold text-sm">{resultado.gerados}</span>
-        ) : (
-          <span className="text-muted-foreground font-medium text-sm">
-            {mensalidade.qtd_lancamentos ?? '—'}
-          </span>
-        )}
+        <span className={`text-sm ${status === 'ok' ? 'text-success font-bold' : 'text-muted-foreground font-medium'}`}>
+          {mensalidade.qtd_lancamentos ?? '—'}
+        </span>
       </td>
 
       {/* Ação */}
@@ -206,6 +217,8 @@ export default function AbaReprocessar({ mesAno }) {
 
     const CONCORRENCIA = 5;
     let sucessos = 0;
+    let novas = 0;
+    const avisos = [];
     const falhas = [];
 
     for (let i = 0; i < mensalidades.length; i += CONCORRENCIA) {
@@ -214,10 +227,13 @@ export default function AbaReprocessar({ mesAno }) {
         lote.map(m => reprocessarRepasse(String(m.id)))
       );
       resultados.forEach((resultado, idx) => {
+        const m = lote[idx];
         if (resultado.status === 'fulfilled') {
           sucessos++;
+          const r = resultadoReprocessar(resultado.value, m.alunos?.nome_completo || m.nome_visitante);
+          novas += r.novas;
+          avisos.push(...r.avisos);
         } else {
-          const m = lote[idx];
           falhas.push(m.alunos?.nome_completo || m.nome_visitante || `mensalidade #${m.id}`);
         }
       });
@@ -225,8 +241,15 @@ export default function AbaReprocessar({ mesAno }) {
 
     setReprocessandoTodos(false);
 
+    if (avisos.length > 0) {
+      showToast.warning(
+        `⚠️ ${avisos.length} aviso(s): ${avisos.slice(0, 3).join(' · ')}`
+          + (avisos.length > 3 ? ` e mais ${avisos.length - 3}` : ''),
+      );
+    }
+
     if (falhas.length === 0) {
-      showToast.success(`${sucessos} mensalidade(s) reprocessada(s) com sucesso.`);
+      showToast.success(`${sucessos} mensalidade(s) reprocessada(s): ${novas} comissão(ões) nova(s).`);
     } else {
       const nomesFalhas = falhas.slice(0, 5).join(', ')
         + (falhas.length > 5 ? ` e mais ${falhas.length - 5}` : '');
@@ -251,8 +274,15 @@ export default function AbaReprocessar({ mesAno }) {
           <p className="text-sm text-foreground/80 mt-0.5">
             Use quando um aluno teve sua matrícula atualizada <strong>após</strong> confirmar o
             pagamento, ou quando um repasse gerou menos lançamentos do que o esperado.
-            Reprocessar é seguro e idempotente — apaga os lançamentos anteriores da mensalidade
-            e recria com base no estado atual do aluno.
+          </p>
+          <p className="text-sm text-foreground/80 mt-1">
+            <strong>Mensalidade (regular / plano livre):</strong> reprocessar só acrescenta as
+            comissões que faltam — nunca remove nem altera as que já existem. Para remover uma
+            comissão, exclua-a na aba <strong>Detalhe por Professor</strong>.
+          </p>
+          <p className="text-sm text-foreground/80 mt-1">
+            <strong>Avulsa / experimental:</strong> as comissões da cobrança são apagadas e
+            criadas de novo.
           </p>
         </div>
       </Surface>
@@ -329,7 +359,9 @@ export default function AbaReprocessar({ mesAno }) {
                   <LinhaMensalidade
                     key={m.id}
                     mensalidade={m}
-                    onReprocessado={carregarMensalidades}
+                    onReprocessado={(qtd) => setMensalidades(lista => lista.map(x => (
+                      x.id === m.id ? { ...x, qtd_lancamentos: qtd } : x
+                    )))}
                   />
                 ))}
               </tbody>

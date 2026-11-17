@@ -119,7 +119,27 @@ describe('alunosService.renovarPlano (ILU-69)', () => {
       p_ja_recebido: true, p_forma_pagamento: 'pix', p_data_pagamento: '2026-10-01',
     }));
     expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(55);
-    expect(resultado).toEqual({ sucesso: true, mensalidade_id: 55, pago: true });
+    expect(resultado).toEqual({ sucesso: true, mensalidade_id: 55, pago: true, avisosRepasse: [] });
+  });
+
+  it('com pagamento já recebido, devolve o aviso e os avisos da function em avisosRepasse', async () => {
+    supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 55, pago: true }, error: null });
+    gerarRepassesDaMensalidade.mockResolvedValueOnce({
+      gerados: 0,
+      aviso: 'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+      avisos: ['Ana (Dança): Modalidade sem professor'],
+    });
+
+    const resultado = await alunosService.renovarPlano(10, {
+      plano_id: 2, data_inicio: '2026-12-01', data_fim: '2026-12-31', valor_pago: 150,
+      ja_recebido: true, forma_pagamento: 'pix', data_pagamento: '2026-11-20',
+    });
+
+    expect(resultado.avisosRepasse).toEqual([
+      'Esta cobrança é de um mês que ainda não começou: a comissão entra quando o mês começar.',
+      'Ana (Dança): Modalidade sem professor',
+    ]);
+    expect(resultado.avisoRepasse).toBeUndefined();
   });
 
   it('falha no repasse não desfaz a renovação: vira aviso', async () => {

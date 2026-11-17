@@ -2,12 +2,13 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Camera, CalendarDays, User, CreditCard, LogOut } from 'lucide-react';
+import { RefreshCw, Camera, CalendarDays, User, CreditCard, LogOut, Calendar } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
 import AbaAgendarAulas from '../components/aluno/AbaAgendarAulas';
 import { PWABanners } from '../components/PWABanners';
 import { statusMensalidadeAluno } from '../lib/utils';
 import { areaAlunoService } from '../services/areaAlunoService';
+import { useAuth } from '../hooks/useAuth';
 
 // Abas da barra inferior do celular (ILU-81). No computador a sidebar faz esse papel.
 const ABAS_CELULAR = [
@@ -20,6 +21,10 @@ export default function AreaAluno() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
+  // ILU-83: o professor que também é aluno chega aqui pelo menu dele e volta
+  // para a Área do Professor por este botão.
+  const { perfil } = useAuth();
+  const ehProfessor = perfil === 'professor';
   const [abaAtiva, setAbaAtiva] = useState('schedule');
   const [modoEdicao, setModoEdicao] = useState(false);
   const [formEdit, setFormEdit] = useState({ telefone: '', cpf: '', data_nascimento: '' });
@@ -136,6 +141,11 @@ export default function AreaAluno() {
         <button className={`nav-item ${abaAtiva === 'schedule' ? 'active' : ''}`} onClick={() => setAbaAtiva('schedule')}><span className="nav-icon">📅</span> Agendar Aulas</button>
         <button className={`nav-item ${abaAtiva === 'profile' ? 'active' : ''}`} onClick={() => setAbaAtiva('profile')}><span className="nav-icon">👤</span> Meu Perfil</button>
         <button className={`nav-item ${abaAtiva === 'payments' ? 'active' : ''}`} onClick={() => setAbaAtiva('payments')}><span className="nav-icon">💳</span> Mensalidades</button>
+        {ehProfessor && (
+          <button className="nav-item" onClick={() => navigate('/agenda')} style={{ marginTop: '20px', fontWeight: 'bold' }}>
+            <span className="nav-icon"><Calendar size={16} aria-hidden="true" /></span> Área do Professor
+          </button>
+        )}
         <div className="sidebar-footer"><button className="nav-item" onClick={doLogout} style={{ color: 'var(--err)' }}><span className="nav-icon">↩</span> Sair</button></div>
       </aside>
       <div className="main-content">
@@ -279,6 +289,12 @@ export default function AreaAluno() {
             {rotulo}
           </button>
         ))}
+        {ehProfessor && (
+          <button type="button" className="bottom-nav-item" onClick={() => navigate('/agenda')}>
+            <span className="bottom-nav-icon"><Calendar size={22} aria-hidden="true" /></span>
+            Professor
+          </button>
+        )}
         <button type="button" className="bottom-nav-item sair" onClick={doLogout}>
           <span className="bottom-nav-icon"><LogOut size={22} aria-hidden="true" /></span>
           Sair

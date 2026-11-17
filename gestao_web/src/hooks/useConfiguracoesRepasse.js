@@ -4,11 +4,15 @@ import { configuracoesRepasseService } from '../services/configuracoesRepasseSer
 
 const KEY = ['configuracoes_repasse'];
 
-export function useConfiguracoesRepasse() {
+// ILU-100: só o admin lê `configuracoes_repasse` (RLS). Quem chama fora de
+// telas exclusivas do admin passa `enabled: false` para os outros perfis — sem
+// isso, o PostgREST devolve 406 e o React Query repete a consulta.
+export function useConfiguracoesRepasse({ enabled = true } = {}) {
   return useQuery({
     queryKey: KEY,
     queryFn: configuracoesRepasseService.obter,
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 

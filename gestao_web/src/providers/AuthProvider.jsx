@@ -14,6 +14,8 @@ export function AuthProvider({ children }) {
   const [professorId, setProfessorId] = useState(null);
   const [nome, setNome] = useState(null);
   const [primeiroAcesso, setPrimeiroAcesso] = useState(false);
+  // ILU-83: professor que também é aluno ativo — pode abrir a Área do Aluno.
+  const [tambemAluno, setTambemAluno] = useState(false);
   // ILU-98: sem nenhum cadastro ativo (aluno e/ou professor inativos).
   const [contaDesativada, setContaDesativada] = useState(false);
   // ILU-39: conta órfã — sessão válida no Supabase Auth, mas sem linha
@@ -44,6 +46,7 @@ export function AuthProvider({ children }) {
       setProfessorId(null);
       setNome(null);
       setPrimeiroAcesso(false);
+      setTambemAluno(false);
     };
 
     // origem 'login': veio de um login novo (SIGNED_IN), e não de uma sessão
@@ -91,6 +94,7 @@ export function AuthProvider({ children }) {
           setProfessorId(acesso.professorId);
           setNome(acesso.nome);
           setPrimeiroAcesso(acesso.primeiroAcesso);
+          setTambemAluno(!!acesso.tambemAluno);
           setContaDesativada(false);
           setPerfilNaoEncontrado(false); // ILU-39
           setLoading(false);
@@ -203,12 +207,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const valor = useMemo(() => ({
-    sessao, perfil, professorId, nome, primeiroAcesso, loading,
+    sessao, perfil, professorId, nome, primeiroAcesso, tambemAluno, loading,
     contaDesativada, perfilNaoEncontrado,
     // #18: só o professor tem o nome exposto na Sidebar.
     nomeUsuario: perfil === 'professor' ? nome : null,
     recarregarAcesso,
-  }), [sessao, perfil, professorId, nome, primeiroAcesso, loading, contaDesativada, perfilNaoEncontrado, recarregarAcesso]);
+  }), [sessao, perfil, professorId, nome, primeiroAcesso, tambemAluno, loading, contaDesativada, perfilNaoEncontrado, recarregarAcesso]);
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
 }

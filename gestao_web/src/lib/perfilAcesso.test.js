@@ -15,7 +15,7 @@ const professor = (campos = {}) => ({
 describe('resolverAcesso (regressão ILU-98)', () => {
   it('professor ativo com cadastro de aluno inativo entra como professor', () => {
     expect(resolverAcesso(aluno({ ativo: false, primeiro_acesso: true }), professor())).toEqual({
-      perfil: 'professor', bloqueio: null, primeiroAcesso: false, nome: 'Bia Lima', professorId: 'prof-1',
+      perfil: 'professor', bloqueio: null, primeiroAcesso: false, nome: 'Bia Lima', professorId: 'prof-1', tambemAluno: false,
     });
   });
 
@@ -28,9 +28,26 @@ describe('resolverAcesso (regressão ILU-98)', () => {
     expect(resolverAcesso(aluno(), professor())).toMatchObject({ perfil: 'professor', professorId: 'prof-1' });
   });
 
+  // ILU-83: quem é professor e aluno ativo entra como professor, mas pode
+  // abrir a própria Área do Aluno.
+  it('professor com cadastro de aluno ativo: tambemAluno', () => {
+    expect(resolverAcesso(aluno(), professor()).tambemAluno).toBe(true);
+    expect(resolverAcesso(aluno({ ativo: null }), professor()).tambemAluno).toBe(true);
+  });
+
+  it('cadastro de aluno inativo não dá acesso à Área do Aluno', () => {
+    expect(resolverAcesso(aluno({ ativo: false }), professor()).tambemAluno).toBe(false);
+  });
+
+  it('só professor, só aluno ou admin: tambemAluno falso', () => {
+    expect(resolverAcesso(null, professor()).tambemAluno).toBe(false);
+    expect(resolverAcesso(aluno(), null).tambemAluno).toBe(false);
+    expect(resolverAcesso(aluno({ role: 'admin' }), professor()).tambemAluno).toBe(false);
+  });
+
   it('admin continua admin, mesmo com cadastro de professor', () => {
     expect(resolverAcesso(aluno({ role: 'admin' }), professor())).toEqual({
-      perfil: 'admin', bloqueio: null, primeiroAcesso: false, nome: 'Ana Souza', professorId: null,
+      perfil: 'admin', bloqueio: null, primeiroAcesso: false, nome: 'Ana Souza', professorId: null, tambemAluno: false,
     });
   });
 
@@ -40,7 +57,7 @@ describe('resolverAcesso (regressão ILU-98)', () => {
 
   it('cadastro de professor inativo não derruba um aluno ativo', () => {
     expect(resolverAcesso(aluno(), professor({ ativo: false }))).toEqual({
-      perfil: 'aluno', bloqueio: null, primeiroAcesso: false, nome: 'Ana Souza', professorId: null,
+      perfil: 'aluno', bloqueio: null, primeiroAcesso: false, nome: 'Ana Souza', professorId: null, tambemAluno: false,
     });
   });
 
@@ -55,13 +72,13 @@ describe('resolverAcesso (regressão ILU-98)', () => {
     ['os dois inativos', aluno({ ativo: false }), professor({ ativo: false })],
   ])('%s: conta desativada', (_, a, p) => {
     expect(resolverAcesso(a, p)).toEqual({
-      perfil: null, bloqueio: 'desativado', primeiroAcesso: false, nome: null, professorId: null,
+      perfil: null, bloqueio: 'desativado', primeiroAcesso: false, nome: null, professorId: null, tambemAluno: false,
     });
   });
 
   it('nenhum cadastro: conta sem perfil', () => {
     expect(resolverAcesso(null, null)).toEqual({
-      perfil: null, bloqueio: 'sem_perfil', primeiroAcesso: false, nome: null, professorId: null,
+      perfil: null, bloqueio: 'sem_perfil', primeiroAcesso: false, nome: null, professorId: null, tambemAluno: false,
     });
   });
 });

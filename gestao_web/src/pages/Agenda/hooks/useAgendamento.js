@@ -50,9 +50,12 @@ function formInicial(valorExperimentalPadrao = '') {
   };
 }
 
-export function useAgendamento(onSucesso, feriados = []) {
+// ILU-100: só o admin agenda aula experimental (agendar_aula_experimental
+// recusa os outros) e só ele lê configuracoes_repasse — para o professor, a
+// consulta do valor padrão não é feita.
+export function useAgendamento(onSucesso, feriados = [], { isAdmin = false } = {}) {
   const queryClient = useQueryClient();
-  const { data: configRepasse } = useConfiguracoesRepasse();
+  const { data: configRepasse } = useConfiguracoesRepasse({ enabled: isAdmin });
   const valorExperimentalPadrao = configRepasse?.aula_experimental_valor != null
     ? String(Number(configRepasse.aula_experimental_valor))
     : '';

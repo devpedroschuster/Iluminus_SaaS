@@ -26,10 +26,15 @@ export function decidirRotaPublica({ sessao, perfil, primeiroAcesso, loading }) 
 }
 
 // Rotas que exigem login, com os perfis permitidos.
-export function decidirRotaPrivada({ sessao, perfil, primeiroAcesso, loading }, permitidos) {
+// ILU-83: o professor que também é aluno ativo (`tambemAluno`) entra nas
+// rotas de aluno — a própria Área do Aluno.
+export function decidirRotaPrivada({ sessao, perfil, primeiroAcesso, loading, tambemAluno }, permitidos) {
   if (loading) return 'carregando';
   if (!sessao || !perfil) return '/login';
   if (primeiroAcesso) return '/redefinir-senha';
-  if (permitidos && !permitidos.includes(perfil)) return rotaPorPerfil(perfil);
+  const permitido = !permitidos
+    || permitidos.includes(perfil)
+    || (perfil === 'professor' && tambemAluno && permitidos.includes('aluno'));
+  if (!permitido) return rotaPorPerfil(perfil);
   return 'liberado';
 }

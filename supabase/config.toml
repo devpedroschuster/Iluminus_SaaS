@@ -397,3 +397,10 @@ entrypoint = "./functions/lembretes-aula/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/lembretes-aula/*.html" ]
+
+# ILU-97: chamada só pelo job `processar-notificacoes` do pg_cron, que se
+# autentica com o header `x-cron-secret` (CRON_SECRET) — sem JWT. A própria
+# função recusa (401) qualquer chamada sem esse segredo.
+[functions.processar-notificacoes]
+enabled = true
+verify_jwt = false

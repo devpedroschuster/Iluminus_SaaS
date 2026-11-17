@@ -5,12 +5,13 @@ import webpush from "npm:web-push@3"
 // =========================================================
 // processar-notificacoes
 //
-// Roda a cada 1-2 min (cron) — consome notificacoes_pendentes e envia
-// Web Push para os professores via push_subscriptions.
+// Roda a cada 2 min (job `processar-notificacoes` do pg_cron, ILU-97) —
+// consome notificacoes_pendentes e envia Web Push para os professores via
+// push_subscriptions.
 //
 // Eventos imediatos (1 notificação por evento):
 //   horario_alterado, aula_cancelada, professor_alterado,
-//   aluno_falta, agendamento_removido
+//   aluno_falta, agendamento_removido, aluno_cancelou_aviso
 //
 // Evento agregado (agrupado por aula antes de notificar):
 //   aluno_agendado -> "3 novos alunos confirmados na sua aula de ..."
@@ -18,6 +19,21 @@ import webpush from "npm:web-push@3"
 // Requer variáveis de ambiente:
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (ex: mailto:contato@...)
 // =========================================================
+
+// Aviso com mais de um dia não é mais notícia (ex.: o envio ficou parado):
+// é marcado como processado sem push.
+const IDADE_MAXIMA_MS = 24 * 60 * 60 * 1000;
+
+// 'YYYY-MM-DD' -> 'DD/MM'; qualquer outra coisa passa como veio.
+function dataCurta(data: unknown): string {
+  const m = typeof data === 'string' ? data.match(/^(\d{4})-(\d{2})-(\d{2})/) : null;
+  return m ? `${m[3]}/${m[2]}` : String(data ?? '');
+}
+
+// 'HH:MM:SS' -> 'HH:MM'.
+function horaCurta(hora: unknown): string {
+  return typeof hora === 'string' ? hora.slice(0, 5) : '';
+}
 
 const MENSAGENS: Record<string, (p: any) => string> = {
   horario_alterado: (p) =>
@@ -27,9 +43,14 @@ const MENSAGENS: Record<string, (p: any) => string> = {
   professor_alterado: (p) =>
     `Você foi atribuído a uma nova aula: ${p.atividade ?? '—'} às ${p.horario ?? '—'}.`,
   aluno_falta: (p) =>
-    `Falta registrada na aula de ${p.atividade ?? 'sua turma'} (${p.data_aula ?? ''}).`,
+    `Falta registrada na aula de ${p.atividade ?? 'sua turma'} (${dataCurta(p.data_aula)}).`,
   agendamento_removido: (p) =>
-    `Um agendamento foi removido da sua aula de ${p.atividade ?? 'sua turma'} (${p.data_aula ?? ''}).`,
+    `Um agendamento foi removido da sua aula de ${p.atividade ?? 'sua turma'} (${dataCurta(p.data_aula)}).`,
+  // ILU-97: sem esta entrada o aviso saía com o texto genérico.
+  aluno_cancelou_aviso: (p) => {
+    const hora = horaCurta(p.horario);
+    return `Um aluno cancelou a aula de ${p.atividade ?? 'sua turma'} de ${dataCurta(p.data_aula)}${hora ? ` às ${hora}` : ''}.`;
+  },
 };
 
 function tituloPara(tipo: string): string {
@@ -39,6 +60,7 @@ function tituloPara(tipo: string): string {
   if (tipo === 'aluno_falta') return '⚠️ Falta registrada';
   if (tipo === 'agendamento_removido') return '✋ Agendamento removido';
   if (tipo === 'aluno_agendado') return '✅ Novos agendamentos';
+  if (tipo === 'aluno_cancelou_aviso') return '🚫 Aluno cancelou';
   return '📅 Atualização na agenda';
 }
 
@@ -153,11 +175,20 @@ serve(async (req) => {
       return new Response(JSON.stringify({ message: "Nada a processar" }), { status: 200 });
     }
 
+    // Reservados, mas velhos demais para notificar (ver IDADE_MAXIMA_MS).
+    const agora = Date.now();
+    const atuais = pendentes.filter((p: any) => agora - new Date(p.criado_em).getTime() <= IDADE_MAXIMA_MS);
+    const descartados = pendentes.length - atuais.length;
+    if (!atuais.length) {
+      console.log(`🗑️ ${descartados} eventos antigos descartados sem push.`);
+      return new Response(JSON.stringify({ eventosProcessados: 0, descartados }), { status: 200 });
+    }
+
     // ── PRÉ-CARREGA SUBSCRIPTIONS (ILU-15) ───────────────────────────────────
     // Antes, `enviarPush` consultava `push_subscriptions` uma vez por
     // notificação (N+1). Agora busca de uma vez só as subscriptions de todos
     // os professores envolvidos nesta execução.
-    const professorIds = [...new Set(pendentes.map((p: any) => p.professor_id))];
+    const professorIds = [...new Set(atuais.map((p: any) => p.professor_id))];
     const { data: todasSubs, error: errSubs } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -176,7 +207,7 @@ serve(async (req) => {
     let eventosProcessados = 0;
 
     // ---- Eventos imediatos: um push por evento ----
-    const imediatos = pendentes.filter((p: any) => p.tipo !== 'aluno_agendado');
+    const imediatos = atuais.filter((p: any) => p.tipo !== 'aluno_agendado');
     for (const evento of imediatos) {
       const gerarMsg = MENSAGENS[evento.tipo];
       const body = gerarMsg ? gerarMsg(evento.payload ?? {}) : 'Sua agenda foi atualizada.';
@@ -189,7 +220,7 @@ serve(async (req) => {
     }
 
     // ---- Evento agregado: aluno_agendado agrupado por aula+professor+data ----
-    const agendamentos = pendentes.filter((p: any) => p.tipo === 'aluno_agendado');
+    const agendamentos = atuais.filter((p: any) => p.tipo === 'aluno_agendado');
     const grupos = new Map<string, any[]>();
     for (const ev of agendamentos) {
       const dataAula = ev.payload?.data_aula ?? 'sem-data';
@@ -215,10 +246,11 @@ serve(async (req) => {
       eventosProcessados += eventosDoGrupo.length;
     }
 
-    console.log(`🚀 ${eventosProcessados} eventos processados, ${totalEnviados} pushes enviados, ${totalExpiradas} subscriptions expiradas removidas.`);
+    console.log(`🚀 ${eventosProcessados} eventos processados, ${descartados} antigos descartados, ${totalEnviados} pushes enviados, ${totalExpiradas} subscriptions expiradas removidas.`);
 
     return new Response(JSON.stringify({
       eventosProcessados,
+      descartados,
       pushesEnviados: totalEnviados,
       subscriptionsExpiradas: totalExpiradas,
     }), { headers: { "Content-Type": "application/json" } });

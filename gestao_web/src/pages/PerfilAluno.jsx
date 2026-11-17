@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
-  hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
+  hojeBrasilia, derivarPlanoVigente, camposDoPlanoNoCadastro, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
@@ -1345,19 +1345,17 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
         })
         .eq('id', registro.id);
       if (error) throw error;
-      // Recalcula o ciclo vigente com o histórico já atualizado e sincroniza
-      // alunos.plano_id/data_fim_plano com ele — em vez de assumir que o
-      // registro editado é o vigente só porque seu status é 'ativo' (podia
-      // deixar a lista/perfil desatualizados ao editar um registro antigo,
-      // ou não atualizar quando a edição tirava o registro da vigência).
+      // Recalcula os campos do plano com o histórico já atualizado e
+      // sincroniza alunos com eles — em vez de assumir que o registro editado
+      // é o vigente só porque seu status é 'ativo' (podia deixar a
+      // lista/perfil desatualizados ao editar um registro antigo, ou não
+      // atualizar quando a edição tirava o registro da vigência). Depois de
+      // uma renovação antecipada, plano e fim continuam os do ciclo novo
+      // (ILU-108).
       const historicoAtualizado = await alunosService.buscarHistoricoPlanos(alunoId);
-      const vigente = derivarPlanoVigente(historicoAtualizado);
-      if (vigente) {
-        await supabase.from('alunos').update({
-          plano_id:          vigente.plano_id,
-          data_inicio_plano: vigente.data_inicio,
-          data_fim_plano:    vigente.data_fim,
-        }).eq('id', alunoId);
+      const campos = camposDoPlanoNoCadastro(historicoAtualizado);
+      if (campos) {
+        await supabase.from('alunos').update(campos).eq('id', alunoId);
       }
       queryClient.invalidateQueries(['aluno-planos', alunoId]);
       queryClient.invalidateQueries(['aluno', alunoId]);

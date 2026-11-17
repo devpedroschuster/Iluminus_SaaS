@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { decidirRotaPublica, decidirRotaPrivada } from './navigation';
+import { decidirRotaPublica, decidirRotaPrivada, primeiroAcessoConcluido } from './navigation';
+
+describe('primeiroAcessoConcluido (ILU-82)', () => {
+  it('só confirma quando alguma linha foi gravada com primeiro_acesso = false', () => {
+    expect(primeiroAcessoConcluido([{ primeiro_acesso: false }])).toBe(true);
+  });
+
+  it('zero linhas (o RLS barrou em silêncio) não conta como concluído', () => {
+    expect(primeiroAcessoConcluido([])).toBe(false);
+    expect(primeiroAcessoConcluido(null)).toBe(false);
+    expect(primeiroAcessoConcluido(undefined)).toBe(false);
+  });
+
+  it('valor revertido por gatilho não conta como concluído', () => {
+    expect(primeiroAcessoConcluido([{ primeiro_acesso: true }])).toBe(false);
+    expect(primeiroAcessoConcluido([{ primeiro_acesso: false }, { primeiro_acesso: true }])).toBe(false);
+  });
+});
 
 // ILU-99: as rotas reagiam a estados intermediários do login.
 // - Conta desativada: por um instante havia sessão sem perfil, e /login

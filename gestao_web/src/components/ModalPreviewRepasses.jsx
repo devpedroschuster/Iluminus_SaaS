@@ -350,10 +350,10 @@ export default function ModalPreviewRepasses({ isOpen, onClose, mesAno, onConfir
           {preview.config && (
             <div className="flex flex-wrap gap-2">
               <Badge tone="neutral" variant="soft" className="text-[11px]">
-                Regular 1 mod.: {formatarMoeda(preview.config.valor_1_modalidade)}
+                Por modalidade: {formatarMoeda(preview.config.valor_1_modalidade)}
               </Badge>
               <Badge tone="neutral" variant="soft" className="text-[11px]">
-                Regular multi: {formatarMoeda(preview.config.valor_multi_modalidade)}
+                2+ danças: {formatarMoeda(preview.config.valor_multi_modalidade)}
               </Badge>
               <Badge tone="info" variant="soft" className="text-[11px]">
                 Plano Livre: {preview.config.plano_livre_pct_prof}% prof.

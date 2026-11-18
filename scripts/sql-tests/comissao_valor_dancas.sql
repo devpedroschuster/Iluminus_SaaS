@@ -4,7 +4,8 @@
 --   S1: configuracoes_repasse.regra_danca_desde existe (date) e está
 --       preenchida com o 1º dia de um mês.
 --   D:  a partir de regra_danca_desde, valor_multi_modalidade só para as
---       modalidades da área 'Dança' de um aluno com 2+ danças distintas
+--       danças (toda área que não é 'Funcional', inclusive NULL e
+--       'Livre/Todos') de um aluno com 2+ danças distintas
 --       cobertas e com professor; qualquer outro caso (Treino, uma dança só,
 --       segunda dança sem professor) leva valor_1_modalidade. Antes da data,
 --       ou com ela NULL, vale a regra antiga (1 modalidade com professor =
@@ -237,6 +238,29 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('D7: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- D8: só Funcional não é dança
+  -- Decisão do usuário: "apenas Treinamento Físico não é considerado Dança".
+  -- Área NULL (a tela mostra como Dança) e 'Livre/Todos' contam como dança.
+  v_total := v_total + 1;
+  BEGIN
+    EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
+    UPDATE modalidades SET area = NULL WHERE id = v_d2;
+    UPDATE modalidades SET area = 'Livre/Todos', professor_id = v_prof_c WHERE id = v_dsp;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
+    VALUES ('[TESTE DANCAS] D8', 'teste-dancas-d8@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d2, v_dsp, v_tr])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
+    v_got := pg_temp.resumo_dancas(v_mes, v_al);
+    v_exp := format('Dança 2=gerada:%s Dança sem prof=gerada:%s Treino=gerada:%s', v_vm, v_vm, v_v1);
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_falhas := v_falhas || format('D8: esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('D8: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

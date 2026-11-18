@@ -1,8 +1,10 @@
 -- Valor da comissão regular por danças (ILU-128, entrega 1 de ILU-127).
 --
 -- Decisão do usuário em 2026-11-18: valor_multi_modalidade (R$ 70) só para as
--- modalidades de dança (modalidades.area = 'Dança', o que inclui Mat Pilates e
--- Yoga) de um aluno com duas ou mais modalidades de dança distintas cobertas
+-- modalidades de dança de um aluno. "Só Treinamento Físico não é dança":
+-- conta como dança toda modalidade cuja área não é 'Funcional' (inclui Mat
+-- Pilates e Yoga, área 'Dança', e área NULL, que a tela mostra como Dança)
+-- de um aluno com duas ou mais modalidades de dança distintas cobertas
 -- no mês e com professor. Qualquer outro caso leva valor_1_modalidade
 -- (R$ 100): Treinamento Físico (área Funcional), aluno com uma dança só, ou
 -- treino + uma dança (antes era 70 + 70).
@@ -190,7 +192,7 @@ BEGIN
            count(*) FILTER (WHERE cb.mensalidade_id IS NOT NULL AND cb.professor_id IS NOT NULL)
              OVER (PARTITION BY cb.aluno_id) AS n_com_professor,
            count(*) FILTER (WHERE cb.mensalidade_id IS NOT NULL AND cb.professor_id IS NOT NULL
-                              AND cb.mod_area = 'Dança')
+                              AND cb.mod_area IS DISTINCT FROM 'Funcional')
              OVER (PARTITION BY cb.aluno_id) AS n_danca_com_professor
       FROM cobertura cb
   ),
@@ -238,7 +240,7 @@ BEGIN
            -- antiga: valor_multi para quem tem 2+ modalidades cobertas com professor.
            CASE
              WHEN v_cfg.regra_danca_desde IS NOT NULL AND v_mes >= v_cfg.regra_danca_desde THEN
-               CASE WHEN rg.mod_area = 'Dança' AND rg.n_danca_com_professor >= 2
+               CASE WHEN rg.mod_area IS DISTINCT FROM 'Funcional' AND rg.n_danca_com_professor >= 2
                     THEN v_cfg.valor_multi_modalidade ELSE v_cfg.valor_1_modalidade END
              ELSE
                CASE WHEN rg.n_com_professor = 1

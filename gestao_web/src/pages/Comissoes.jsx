@@ -17,7 +17,9 @@ import {
   mesAntesDoCorte,
   alunosSemComissao,
   nomeDoMes,
+  mesFuturo,
 } from '../lib/repasses';
+import ComissoesPrevistas from '../components/ComissoesPrevistas';
 import {
   useComissoesProfessor,
   useResumoMensal,
@@ -1013,7 +1015,7 @@ export default function Comissoes() {
               className="w-40"
             />
           </div>
-          {!mesAnteriorAoCorte && (
+          {!mesAnteriorAoCorte && !mesFuturo(filtros.mesAno) && (
             <Button
               variant="brand"
               onClick={modalGeracao.abrir}
@@ -1102,6 +1104,14 @@ export default function Comissoes() {
           })}
         </div>
       </div>
+
+      {/* ILU-125: mês que ainda não começou — o que ele vai gerar. */}
+      {aba !== 'reprocessar' && mesFuturo(filtros.mesAno) && (
+        <ComissoesPrevistas
+          mesAno={filtros.mesAno}
+          professorId={aba === 'detalhe' ? filtros.professorId || null : null}
+        />
+      )}
 
       {/* CONTEÚDO DA ABA */}
       {aba === 'geral' ? (

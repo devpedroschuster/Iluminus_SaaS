@@ -7,6 +7,10 @@ import {
   alunosSemComissao,
   nomeDoMes,
   resultadoReprocessar,
+  mesesDoCiclo,
+  situacaoCoberturaCiclo,
+  valorDoCiclo,
+  previstosPorProfessor,
 } from './repasses';
 
 describe('textoReferenteA', () => {
@@ -104,5 +108,69 @@ describe('resultadoReprocessar', () => {
     expect(resultadoReprocessar({ gerados: 2 }, 'Bia')).toEqual({
       novas: 2, mensagem: '2 comissão(ões) nova(s) para Bia.', avisos: [],
     });
+  });
+});
+
+// Esperados calculados pelo próprio Postgres (age(), como _aniversarios_ciclo).
+describe('mesesDoCiclo', () => {
+  it.each([
+    ['2026-11-17', '2027-02-16', 3],
+    ['2026-01-31', '2026-04-30', 3],
+    ['2026-05-26', '2026-11-25', 6],
+    ['2026-09-18', '2027-03-17', 6],
+    ['2026-10-13', '2026-11-12', 1],
+    ['2026-11-13', '2027-01-10', 2],
+    ['2026-01-31', '2026-02-27', 1],
+    ['2026-01-10', '2026-02-20', 1],
+    ['2026-03-31', '2026-05-15', 2],
+    ['2026-12-15', '2027-12-14', 12],
+  ])('%s a %s = %i', (inicio, fim, meses) => {
+    expect(mesesDoCiclo(inicio, fim)).toBe(meses);
+  });
+  it('sem datas devolve 0', () => {
+    expect(mesesDoCiclo(null, '2026-12-01')).toBe(0);
+  });
+});
+
+describe('situacaoCoberturaCiclo', () => {
+  const tri = { data_inicio: '2026-11-17', data_fim: '2027-02-16', cobranca_integral_id: null };
+  it('ciclo de vários meses sem integral: escolher', () => {
+    expect(situacaoCoberturaCiclo(tri, 715)).toBe('escolher');
+    expect(situacaoCoberturaCiclo(tri, null)).toBe('escolher');
+  });
+  it('esta cobrança já é a integral', () => {
+    expect(situacaoCoberturaCiclo({ ...tri, cobranca_integral_id: 715 }, '715')).toBe('ja_integral');
+  });
+  it('sem escolha: outra integral, ciclo de um mês, sem ciclo', () => {
+    expect(situacaoCoberturaCiclo({ ...tri, cobranca_integral_id: 700 }, 715)).toBeNull();
+    expect(situacaoCoberturaCiclo({ ...tri, cobranca_integral_id: 700 }, null)).toBeNull();
+    expect(situacaoCoberturaCiclo({ ...tri, data_fim: '2026-12-16' }, 715)).toBeNull();
+    expect(situacaoCoberturaCiclo(null, 715)).toBeNull();
+  });
+});
+
+describe('valorDoCiclo', () => {
+  it('usa o valor negociado do ciclo à vista', () => {
+    expect(valorDoCiclo({ forma_recebimento: 'a_vista', valor_pago: '540.00', data_inicio: '2026-11-17', data_fim: '2027-02-16', planos: { preco: 190 } })).toBe(540);
+  });
+  it('ciclo recorrente: valor_pago é o do mês, então usa preço × meses', () => {
+    expect(valorDoCiclo({ forma_recebimento: 'recorrente', valor_pago: '190.00', data_inicio: '2026-11-10', data_fim: '2027-02-09', planos: { preco: 190 } })).toBe(570);
+  });
+  it('sem negociado, preço × meses', () => {
+    expect(valorDoCiclo({ valor_pago: 0, data_inicio: '2026-11-17', data_fim: '2027-02-16', planos: { preco: '190.00' } })).toBe(570);
+  });
+});
+
+describe('previstosPorProfessor', () => {
+  it('agrupa e soma por professor', () => {
+    const r = previstosPorProfessor([
+      { professor_id: 'p1', professor_nome: 'Ana', valor: '100.00', aluno_nome: 'X' },
+      { professor_id: 'p2', professor_nome: 'Bia', valor: 70, aluno_nome: 'Y' },
+      { professor_id: 'p1', professor_nome: 'Ana', valor: '70.00', aluno_nome: 'Z' },
+    ]);
+    expect(r.map((p) => [p.nome, p.total, p.linhas.length])).toEqual([['Ana', 170, 2], ['Bia', 70, 1]]);
+  });
+  it('lista vazia', () => {
+    expect(previstosPorProfessor(undefined)).toEqual([]);
   });
 });

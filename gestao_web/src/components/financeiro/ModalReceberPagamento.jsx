@@ -7,12 +7,15 @@ import Input, { Label } from '../ui/Input';
 import Button from '../ui/Button';
 import SelectFormaPagamento from '../SelectFormaPagamento';
 import RepasseAlunoCard from '../RepasseAlunoCard';
+import CoberturaDoCiclo from './CoberturaDoCiclo';
+import { useCoberturaDoCiclo } from './useCoberturaDoCiclo';
 import { showToast } from '../shared/showToast';
 import { financeiroService } from '../../services/financeiroService';
 import { comissoesService } from '../../services/comissoesService';
 import { TIPOS_AULA } from '../../lib/constants';
 import { formatarValorInput, parseValorMoeda, hojeBrasilia } from '../../lib/utils';
 import { tipoAulaAoReceber, mensagemErroLancamento } from '../../lib/mensalidades';
+import { valorDoCiclo } from '../../lib/repasses';
 
 const NOOP = () => {};
 
@@ -68,6 +71,28 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onS
   const planoLivre = !!mensalidade.planos?.is_plano_livre;
   const nomeAluno = mensalidade.alunos?.nome_completo || mensalidade.nome_visitante || 'Visitante';
 
+  // ILU-125: mensalidade de um ciclo de vários meses pode cobrir o ciclo
+  // inteiro (à vista). O valor acompanha a escolha; o padrão só troca o valor
+  // que ainda é o mensal do plano.
+  const valorMensal = mensalidade.valor_esperado ?? mensalidade.planos?.preco;
+  const cobertura = useCoberturaDoCiclo({
+    alunoId: mensalidade.aluno_id,
+    vencimento: mensalidade.data_vencimento,
+    mensalidadeId: mensalidade.id,
+    ativo: aberto && ['regular', 'plano_livre'].includes(tipoAula),
+    onSugerir: (cobre, ciclo, origem) => {
+      if (origem === 'padrao') {
+        setValorPago((atual) => (
+          !atual || parseValorMoeda(atual) === Number(mensalidade.planos?.preco)
+            ? formatarValorInput(valorDoCiclo(ciclo))
+            : atual
+        ));
+        return;
+      }
+      setValorPago(formatarValorInput(cobre ? valorDoCiclo(ciclo) : valorMensal));
+    },
+  });
+
   const handleConfirmar = async (e) => {
     e.preventDefault();
     const valor = parseValorMoeda(valorPago);
@@ -84,12 +109,15 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onS
       modalidade_nome: comProfessor ? modalidadeNome : null,
       modalidade_id: tipoAula === 'regular' ? (modalidadeId || null) : null,
       data_pagamento: dataPagamento,
+      ciclo_id: cobertura.cicloIdParaLigar,
     };
     setEnviando(true);
     try {
       const res = await financeiroService.confirmarPagamento(mensalidade.id, payload);
       onSalvo?.();
-      showToast.success('Pagamento processado com sucesso!');
+      showToast.success(res.resultado?.ciclo
+        ? `Pagamento processado: cobre os ${res.resultado.ciclo.meses} meses do ciclo.`
+        : 'Pagamento processado com sucesso!');
       setResultado(res.resultado);
       setDadosPagamento({
         valor_pago: valor,
@@ -182,6 +210,7 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onS
             </Input>
           )}
         </div>
+        <CoberturaDoCiclo cobertura={cobertura} />
         {tipoAula === 'regular' && (
           <div>
             <Label>Referência (modalidade)</Label>

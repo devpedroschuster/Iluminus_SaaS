@@ -16,7 +16,12 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
-import { mesAnoAtual, textoReferenteA } from '../../lib/repasses';
+import { mesAnoAtual, textoReferenteA, mesFuturo } from '../../lib/repasses';
+import ComissoesPrevistas from '../../components/ComissoesPrevistas';
+
+// ILU-125: quantos meses à frente o professor pode ver a previsão (um plano
+// anual pago à vista vai até 12).
+const MESES_DE_PREVISAO = 12;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -148,7 +153,8 @@ export default function ProfessorComissoes() {
     );
   }, [repasses]);
 
-  const podeFuturo = mesAno < mesAnoAtual();
+  const podeFuturo = mesAno < navegarMes(mesAnoAtual(), MESES_DE_PREVISAO);
+  const futuro = mesFuturo(mesAno);
 
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500">
@@ -246,8 +252,11 @@ export default function ProfessorComissoes() {
         </div>
       )}
 
+      {/* ── previsão (ILU-125): mês que ainda não começou ──────────────────── */}
+      {futuro && <ComissoesPrevistas mesAno={mesAno} mostrarProfessor={false} />}
+
       {/* ── tabela ─────────────────────────────────────────────────────────── */}
-      {!carregando && !isError && (
+      {!carregando && !isError && !(futuro && (repasses ?? []).length === 0) && (
         (repasses ?? []).length === 0 ? (
           <EmptyState
             icon={<TrendingUp size={28} />}

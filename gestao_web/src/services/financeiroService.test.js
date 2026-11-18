@@ -385,3 +385,98 @@ describe('financeiroService.excluirCobrancasEmAberto (ILU-70)', () => {
     await expect(financeiroService.excluirCobrancasEmAberto([5])).rejects.toThrow('sem permissão');
   });
 });
+
+describe('financeiroService — pagamento que cobre o ciclo inteiro (ILU-125)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('confirmarPagamento com ciclo_id liga ao ciclo antes de gerar os repasses', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: [], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    const ordem = [];
+    supabase.rpc.mockImplementation(async (nome) => {
+      ordem.push(nome);
+      return { data: { meses: 3, cobrancas_removidas: 1 }, error: null };
+    });
+    gerarRepassesDaMensalidade.mockImplementation(async () => { ordem.push('gerar'); return { gerados: 1, avisos: [] }; });
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 570, ciclo_id: 'h1' });
+
+    expect(supabase.rpc).toHaveBeenCalledWith('ligar_pagamento_ao_ciclo', { p_mensalidade_id: 5, p_historico_id: 'h1' });
+    expect(ordem).toEqual(['ligar_pagamento_ao_ciclo', 'gerar']);
+    expect(r.resultado.ciclo).toEqual({ meses: 3, cobrancas_removidas: 1 });
+    expect(r.resultado.avisos).toEqual(['1 mensalidade(s) em aberto que o ciclo já cobre foram removidas.']);
+  });
+
+  it('confirmarPagamento: falha ao ligar vira aviso e os repasses ainda são gerados', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: [], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'Este ciclo já tem o pagamento integral recebido (lançamento #9).' } });
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 1, avisos: [] });
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 570, ciclo_id: 'h1' });
+
+    expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(5);
+    expect(r.ok).toBe(true);
+    expect(r.resultado.avisos[0]).toMatch(/não foi ligado ao ciclo \(Este ciclo já tem o pagamento integral recebido \(lançamento #9\)\)/);
+  });
+
+  it('confirmarPagamento sem ciclo_id não chama a RPC', async () => {
+    const mensal = criarQueryMock({ data: [{ id: 5 }], error: null });
+    const repasses = criarQueryMock({ data: [], error: null });
+    supabase.from.mockImplementation((t) => (t === 'repasses_lancamentos' ? repasses.query : mensal.query));
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 1 });
+
+    const r = await financeiroService.confirmarPagamento(5, { tipo_aula: 'regular', valor_pago: 190 });
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: true, resultado: { gerados: 1 } });
+  });
+
+  it('adicionarPagamentoManual com ciclo_id liga a cobrança nova e junta os avisos', async () => {
+    const { query } = criarQueryMock({ data: { id: 715 }, error: null });
+    supabase.from.mockReturnValue(query);
+    supabase.rpc.mockResolvedValue({ data: { meses: 3, cobrancas_removidas: 0 }, error: null });
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 1, avisos: [] });
+
+    const r = await financeiroService.adicionarPagamentoManual({
+      aluno_id: 156, tipo_aula: 'regular', plano_id: 45, valor_pago: '570', forma_pagamento: 'pix',
+      data_vencimento: '2026-11-17', ciclo_id: 'h156',
+    });
+
+    expect(supabase.rpc).toHaveBeenCalledWith('ligar_pagamento_ao_ciclo', { p_mensalidade_id: 715, p_historico_id: 'h156' });
+    expect(gerarRepassesDaMensalidade).toHaveBeenCalledWith(715);
+    expect(r._ciclo).toEqual({ meses: 3, cobrancas_removidas: 0 });
+    expect(r._avisosRepasse).toEqual([]);
+  });
+
+  it('adicionarPagamentoManual de produto ignora ciclo_id', async () => {
+    const { query } = criarQueryMock({ data: { id: 20 }, error: null });
+    supabase.from.mockReturnValue(query);
+
+    await financeiroService.adicionarPagamentoManual({
+      tipo_aula: 'produto', valor_pago: '10', forma_pagamento: 'pix', data_vencimento: '2026-11-17', ciclo_id: 'h1',
+    });
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('buscarCicloDoVencimento procura na janela do banco (15 dias antes do início até o fim)', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 'h1' }], error: null });
+    supabase.from.mockReturnValue(query);
+
+    const ciclo = await financeiroService.buscarCicloDoVencimento(156, '2026-11-17');
+
+    expect(supabase.from).toHaveBeenCalledWith('historico_planos');
+    expect(chamadas).toContainEqual(['eq', 'aluno_id', 156]);
+    expect(chamadas).toContainEqual(['lte', 'data_inicio', '2026-12-02']);
+    expect(chamadas).toContainEqual(['gte', 'data_fim', '2026-11-17']);
+    expect(ciclo).toEqual({ id: 'h1' });
+  });
+
+  it('buscarCicloDoVencimento sem aluno ou vencimento não consulta', async () => {
+    expect(await financeiroService.buscarCicloDoVencimento(null, '2026-11-17')).toBeNull();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});

@@ -160,6 +160,10 @@ export const CONSULTAS_FINANCEIRAS = [
   ['repasses'],
   ['dre'],
   ['dre-historico'],
+  // ILU-125: a previsão dos meses seguintes e o ciclo do recebimento mudam
+  // quando um pagamento é ligado ao ciclo.
+  ['repasses-previstos'],
+  ['ciclo-do-vencimento'],
 ];
 
 export function invalidarConsultasFinanceiras(queryClient) {

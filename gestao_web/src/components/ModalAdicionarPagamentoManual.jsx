@@ -8,6 +8,9 @@ import { financeiroService } from '../services/financeiroService';
 import { showToast } from './shared/showToast';
 import { formatarMoeda, hojeBrasilia, valorDevidoMensalidade } from '../lib/utils';
 import { invalidarConsultasFinanceiras, mensagemErroLancamento, ErroLancamento } from '../lib/mensalidades';
+import { valorDoCiclo } from '../lib/repasses';
+import CoberturaDoCiclo from './financeiro/CoberturaDoCiclo';
+import { useCoberturaDoCiclo } from './financeiro/useCoberturaDoCiclo';
 import { User, DollarSign, Calendar, BookOpen, GraduationCap, Package, CreditCard, LayoutList, Loader2 } from 'lucide-react';
 
 /**
@@ -82,6 +85,29 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto
     ? cobrancasEmAberto.find(c => String(c.id) === cobrancaId)
     : null;
+
+  // ILU-125: mensalidade de um ciclo de vários meses pode cobrir o ciclo
+  // inteiro (à vista). O ciclo é o do vencimento da cobrança quitada ou, num
+  // lançamento novo, o da data de vencimento informada.
+  const precoDoPlano = Number(planos.find(p => String(p.id) === String(form.plano_id))?.preco);
+  const valorDoMes = cobrancaParaQuitar ? valorDevidoMensalidade(cobrancaParaQuitar) : (precoDoPlano || '');
+  const cobertura = useCoberturaDoCiclo({
+    alunoId: alunoFixo?.id ?? form.aluno_id,
+    vencimento: cobrancaParaQuitar ? cobrancaParaQuitar.data_vencimento : form.data_vencimento,
+    mensalidadeId: cobrancaParaQuitar?.id ?? null,
+    ativo: isOpen && form.tipo_aula === 'regular' && !isVisitante,
+    onSugerir: (cobre, ciclo, origem) => {
+      setForm(f => {
+        if (origem === 'padrao') {
+          const atual = Number(f.valor_pago);
+          return !f.valor_pago || atual === precoDoPlano || atual === Number(valorDoMes)
+            ? { ...f, valor_pago: valorDoCiclo(ciclo) }
+            : f;
+        }
+        return { ...f, valor_pago: cobre ? valorDoCiclo(ciclo) : valorDoMes };
+      });
+    },
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -173,6 +199,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           status: 'pendente',
           valor_esperado: form.valor_pago,
           data_vencimento: form.data_vencimento,
+          ciclo_id: cobertura.cicloIdParaLigar,
         };
         if (form.tipo_aula === 'regular' && form.plano_id) {
           payloadAberto.plano_id = form.plano_id;
@@ -183,8 +210,13 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           payloadAberto.modalidade_nome = form.modalidade_nome;
         }
 
-        await financeiroService.adicionarPagamentoManual(payloadAberto);
-        showToast.success(`Cobrança de ${nomeAluno} lançada em aberto.`);
+        const resAberto = await financeiroService.adicionarPagamentoManual(payloadAberto);
+        showToast.success(resAberto?._ciclo
+          ? `Cobrança de ${nomeAluno} lançada em aberto, cobrindo os ${resAberto._ciclo.meses} meses do ciclo.`
+          : `Cobrança de ${nomeAluno} lançada em aberto.`);
+        (resAberto?._avisosRepasse ?? []).forEach((aviso, i) => {
+          setTimeout(() => showToast.warning(`⚠️ ${aviso}`), 600 * (i + 1));
+        });
         invalidarConsultasFinanceiras(queryClient);
         onSucesso?.();
         onClose();
@@ -199,9 +231,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           tipo_aula: cobrancaParaQuitar.tipo_aula,
           modalidade_id: form.modalidade_id || null,
           data_pagamento: form.data_pagamento,
+          ciclo_id: cobertura.cicloIdParaLigar,
         });
 
-        showToast.success(`✅ Pagamento de ${nomeAluno} registrado na mensalidade em aberto!`);
+        showToast.success(resultado?.ciclo
+          ? `✅ Pagamento de ${nomeAluno} registrado, cobrindo os ${resultado.ciclo.meses} meses do ciclo!`
+          : `✅ Pagamento de ${nomeAluno} registrado na mensalidade em aberto!`);
         // Avisos em toasts separados — não substituem a confirmação de sucesso
         const avisos = [resultado?.aviso, ...(resultado?.avisos || [])].filter(Boolean);
         avisos.forEach((aviso, i) => {
@@ -233,13 +268,16 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         payload.professor_id = form.professor_id;
         payload.modalidade_nome = form.modalidade_nome;
       }
+      if (!isVisitante) payload.ciclo_id = cobertura.cicloIdParaLigar;
 
       const resultado = await financeiroService.adicionarPagamentoManual(payload);
 
       // Toast contextual de sucesso
       const nomeExibicao = isVisitante ? form.nome_visitante : nomeAluno;
 
-      showToast.success(`✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
+      showToast.success(resultado?._ciclo
+        ? `✅ Pagamento de ${nomeExibicao} registrado, cobrindo os ${resultado._ciclo.meses} meses do ciclo!`
+        : `✅ Pagamento de ${nomeExibicao} registrado com sucesso!`);
 
       // Avisos em toasts separados — não substituem a confirmação de sucesso
       const avisosRepasse = resultado._avisosRepasse
@@ -416,6 +454,8 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             </Input>
           </div>
         )}
+
+        {form.tipo_aula === 'regular' && !isVisitante && <CoberturaDoCiclo cobertura={cobertura} />}
 
         {form.tipo_aula === 'regular' && modalidadesDoAluno.length > 1 && (
           <div>

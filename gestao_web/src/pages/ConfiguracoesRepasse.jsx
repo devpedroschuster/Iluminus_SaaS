@@ -205,20 +205,20 @@ export default function ConfiguracoesRepasse() {
           </h2>
           <div className="grid grid-cols-1 gap-6">
             <Field
-              label="Valor 1 Modalidade"
+              label="Valor por modalidade"
               name="valor_1_modalidade"
               suffix="R$"
               icon={DollarSign}
-              tooltip="Comissão do professor por mês, quando o aluno tem uma única modalidade com professor."
+              tooltip="Comissão do professor por modalidade, por mês. Vale para Treinamento Físico e para o aluno com uma só modalidade de dança."
               error={errors.valor_1_modalidade}
               register={register}
             />
             <Field
-              label="Valor por Modalidade (2 ou mais)"
+              label="Valor por dança (2 ou mais danças)"
               name="valor_multi_modalidade"
               suffix="R$"
               icon={DollarSign}
-              tooltip="Comissão do professor por modalidade, por mês, quando o aluno tem duas ou mais modalidades com professor."
+              tooltip="Comissão do professor por modalidade de dança, por mês, quando o aluno tem duas ou mais modalidades de dança com professor. Meses anteriores à mudança de 2026 seguem a regra antiga (qualquer 2+ modalidades)."
               error={errors.valor_multi_modalidade}
               register={register}
             />

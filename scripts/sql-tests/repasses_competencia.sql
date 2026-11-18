@@ -131,6 +131,13 @@ BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = (v_mes - interval '12 months')::date;
   EXCEPTION WHEN OTHERS THEN NULL; -- sem a coluna o S1 já falhou
   END;
+  -- Fixa a regra antiga de valor (R3 espera valor_multi para Dança + Corpo);
+  -- a regra por danças (ILU-128) tem teste próprio, comissao_valor_dancas.sql.
+  -- Sem a coluna (antes da ILU-128 ou depois da down dela) não há o que fixar.
+  BEGIN
+    EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = NULL';
+  EXCEPTION WHEN undefined_column THEN NULL;
+  END;
 
   -- S2: o índice parcial serve de árbitro do ON CONFLICT (com o predicado exato)
   v_total := v_total + 1;

@@ -12,9 +12,51 @@ const SELECT_MENSALIDADE = `
 
 const TIPOS_SEM_REPASSE = ['produto', 'evento'];
 
+// 'AAAA-MM-DD' + n dias, sem fuso.
+function somarDias(data, dias) {
+  const [a, m, d] = String(data).slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
 // Mensagem real da falha do repasse, sem o ponto final (o aviso continua a frase).
 function motivoDaFalha(erro) {
   return String(erro?.message || erro || 'erro desconhecido').replace(/[.\s]+$/, '');
+}
+
+/**
+ * ILU-125: "este pagamento cobre o ciclo inteiro". Liga a cobrança ao ciclo
+ * como integral antes de gerar os repasses, para a apuração contar os meses
+ * do ciclo. Nunca desfaz o pagamento: a falha vira aviso. Sem ciclo
+ * escolhido, não faz nada (devolve null).
+ */
+async function ligarAoCicloEscolhido(mensalidadeId, cicloId) {
+  if (!cicloId) return null;
+  try {
+    const ciclo = await financeiroService.ligarPagamentoAoCiclo(mensalidadeId, cicloId);
+    const removidas = Number(ciclo?.cobrancas_removidas) || 0;
+    return {
+      ciclo,
+      avisos: removidas > 0
+        ? [`${removidas} mensalidade(s) em aberto que o ciclo já cobre foram removidas.`]
+        : [],
+    };
+  } catch (erro) {
+    console.warn('[financeiroService] Pagamento não ligado ao ciclo.', erro);
+    return {
+      ciclo: null,
+      avisos: [`O pagamento foi salvo, mas não foi ligado ao ciclo (${motivoDaFalha(erro)}): ele conta só para o mês do vencimento.`],
+    };
+  }
+}
+
+// Junta o resultado da ligação ao ciclo (se houve) ao da geração de repasses.
+function comLigacaoAoCiclo(resultado, ligacao) {
+  if (!ligacao) return resultado;
+  return {
+    ...resultado,
+    ciclo: ligacao.ciclo,
+    avisos: [...(resultado?.avisos ?? []), ...ligacao.avisos],
+  };
 }
 
 export const financeiroService = {
@@ -152,24 +194,32 @@ async listarModalidadesDoAluno(alunoId) {
       throw error;
     }
 
+    // ILU-125: "cobre o ciclo inteiro" — liga antes de gerar os repasses.
+    // Em aberto também: quando for recebida, ela já é a integral do ciclo.
+    const ligacao = ['regular', 'plano_livre'].includes(dados.tipo_aula)
+      ? await ligarAoCicloEscolhido(data.id, dados.ciclo_id)
+      : null;
+    const avisosCiclo = ligacao?.avisos ?? [];
+    const extrasCiclo = ligacao ? { _ciclo: ligacao.ciclo } : {};
+
     // Venda de produto e evento não remuneram professor — não há repasse a
     // calcular (gerar-repasses não tem regra para esses tipos).
     if (status === 'pago' && !TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       try {
         const resultado = await gerarRepassesDaMensalidade(data.id);
-        const avisos = [resultado?.aviso, ...(resultado?.avisos ?? [])].filter(Boolean);
-        return { ...data, _avisosRepasse: avisos };
+        const avisos = [resultado?.aviso, ...(resultado?.avisos ?? []), ...avisosCiclo].filter(Boolean);
+        return { ...data, _avisosRepasse: avisos, ...extrasCiclo };
       } catch (repasseError) {
         // Pagamento salvo com sucesso; apenas o repasse falhou.
         // Sinaliza ao chamador sem lançar exceção (não reverter o pagamento).
         console.warn('[financeiroService] Repasse não gerado automaticamente.', repasseError);
-        return {
-          ...data,
-          _avisoRepasse: `Pagamento registrado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
-        };
+        const avisoRepasse = `Pagamento registrado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`;
+        return ligacao
+          ? { ...data, _avisosRepasse: [avisoRepasse, ...avisosCiclo], ...extrasCiclo }
+          : { ...data, _avisoRepasse: avisoRepasse };
       }
     }
-    return data;
+    return ligacao ? { ...data, _avisosRepasse: avisosCiclo, ...extrasCiclo } : data;
   },
 
   /**
@@ -214,6 +264,11 @@ async listarModalidadesDoAluno(alunoId) {
       throw new ErroLancamento('Este lançamento já está pago. Atualize a tela para ver a situação atual.');
     }
 
+    // ILU-125: "cobre o ciclo inteiro" — liga antes de gerar os repasses.
+    const ligacao = ['regular', 'plano_livre'].includes(payload.tipo_aula)
+      ? await ligarAoCicloEscolhido(id, dados.ciclo_id)
+      : null;
+
     // Produto e evento não remuneram professor.
     if (TIPOS_SEM_REPASSE.includes(dados.tipo_aula)) {
       return { ok: true, resultado: { gerados: 0, itens: [], avisos: [] } };
@@ -233,12 +288,12 @@ async listarModalidadesDoAluno(alunoId) {
       console.warn('[financeiroService.confirmarPagamento] Não foi possível verificar as comissões.', errComissoes);
       return {
         ok: true,
-        resultado: {
+        resultado: comLigacaoAoCiclo({
           gerados: 0,
           itens: [],
           avisos: [],
           aviso: 'Pagamento confirmado, mas não foi possível verificar as comissões. Verifique na aba "Reprocessar".',
-        },
+        }, ligacao),
       };
     }
     // Só avulsa/experimental reaproveitam a comissão mantida; regular e plano
@@ -256,15 +311,15 @@ async listarModalidadesDoAluno(alunoId) {
 
     try {
       const resultado = await gerarRepassesDaMensalidade(id);
-      return { ok: true, resultado };
+      return { ok: true, resultado: comLigacaoAoCiclo(resultado, ligacao) };
     } catch (repasseError) {
       console.warn('[financeiroService.confirmarPagamento] Repasse não gerado automaticamente.', repasseError);
       return {
         ok: true,
-        resultado: {
+        resultado: comLigacaoAoCiclo({
           aviso: `Pagamento confirmado, mas o repasse não pôde ser gerado: ${motivoDaFalha(repasseError)}. Verifique na aba "Reprocessar".`,
           gerados: 0,
-        },
+        }, ligacao),
       };
     }
   },
@@ -315,6 +370,36 @@ async listarModalidadesDoAluno(alunoId) {
    * aberto — uma que tenha sido paga entre abrir o modal e salvar é
    * preservada. Retorna quantas foram de fato removidas.
    */
+  /**
+   * ILU-125: o ciclo do aluno em que cai uma mensalidade com este vencimento
+   * (de 15 dias antes do início até o fim, a mesma janela do banco), o mais
+   * recente. É ele que o "cobre o ciclo inteiro" do recebimento liga.
+   */
+  async buscarCicloDoVencimento(alunoId, vencimento) {
+    if (!alunoId || !vencimento) return null;
+    const { data, error } = await supabase
+      .from('historico_planos')
+      .select('id, data_inicio, data_fim, status, forma_recebimento, cobranca_integral_id, valor_pago, planos(nome, preco)')
+      .eq('aluno_id', alunoId)
+      .in('status', ['ativo', 'agendado', 'finalizado'])
+      .lte('data_inicio', somarDias(vencimento, 15))
+      .gte('data_fim', vencimento)
+      .order('data_inicio', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    return data?.[0] ?? null;
+  },
+
+  /** ILU-125: liga a cobrança ao ciclo como integral (RPC ligar_pagamento_ao_ciclo). */
+  async ligarPagamentoAoCiclo(mensalidadeId, historicoId) {
+    const { data, error } = await supabase.rpc('ligar_pagamento_ao_ciclo', {
+      p_mensalidade_id: mensalidadeId,
+      p_historico_id: historicoId,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async excluirCobrancasEmAberto(ids) {
     if (!ids?.length) return 0;
     const { data, error } = await supabase

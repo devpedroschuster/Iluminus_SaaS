@@ -53,6 +53,19 @@ export const comissoesService = {
     };
   },
 
+  /**
+   * ILU-125: comissões que um mês futuro vai gerar (ciclos à vista pagos,
+   * mensalidades pagas adiantadas), pela apuração em simulação. A gestão
+   * recebe todas; o professor, só as dele (o banco filtra). Mês corrente ou
+   * passado devolve lista vazia.
+   * @param {string} mesAno - 'AAAA-MM'
+   */
+  async preverRepasses(mesAno) {
+    const { data, error } = await supabase.rpc('prever_repasses', { p_competencia: `${mesAno}-01` });
+    if (error) throw error;
+    return data || [];
+  },
+
   // UX-04: resumo consolidado de todos os professores para um mês.
   async resumoMensal(mesAno) {
     const inicio = `${mesAno}-01`;

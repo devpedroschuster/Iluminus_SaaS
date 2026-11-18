@@ -203,10 +203,10 @@ describe('rotuloMesReferencia', () => {
 });
 
 describe('invalidarConsultasFinanceiras', () => {
-  it('invalida as nove famílias de consultas (financeiro, comissões e Resultado Financeiro)', () => {
+  it('invalida as onze famílias de consultas (financeiro, comissões, previsão e Resultado Financeiro)', () => {
     const cliente = { invalidateQueries: vi.fn() };
     invalidarConsultasFinanceiras(cliente);
-    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(9);
+    expect(cliente.invalidateQueries).toHaveBeenCalledTimes(11);
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['financeiro'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['financeiro-aluno'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['aluno-cobrancas-em-aberto'] });
@@ -216,7 +216,9 @@ describe('invalidarConsultasFinanceiras', () => {
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(7, { queryKey: ['repasses'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(8, { queryKey: ['dre'] });
     expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(9, { queryKey: ['dre-historico'] });
-    expect(CONSULTAS_FINANCEIRAS).toHaveLength(9);
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(10, { queryKey: ['repasses-previstos'] });
+    expect(cliente.invalidateQueries).toHaveBeenNthCalledWith(11, { queryKey: ['ciclo-do-vencimento'] });
+    expect(CONSULTAS_FINANCEIRAS).toHaveLength(11);
   });
 });
 

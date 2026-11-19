@@ -10,11 +10,15 @@
 --     diferenças;
 --   - vários planos (mais de um planos_aluno): só listados, a regra mudou de
 --     propósito para eles.
--- SEMPRE termina em RAISE EXCEPTION:
+-- SEMPRE termina em RAISE EXCEPTION, com um de três resultados:
+--   ENSAIO 3C: SEM DADOS (...): o "antes" não tem nenhuma linha de apuração;
+--     comparação vazia nunca vale como aprovação.
 --   ENSAIO 3C: IDENTICO (n linhas de apuração, k aniversários; alunos com
---     vários planos: <ids> com d diferenças)
+--     vários planos: <ids> com d diferenças) seguido das 40 primeiras
+--     diferenças dos vários planos (fonte, aluno, lado so_antes/so_depois e a
+--     linha em JSON), para conferir se são as esperadas. k = 0 é aceito.
 --   ENSAIO 3C: DIFERENTE (...) seguido das 20 primeiras diferenças do grupo
---     um plano (lado so_antes/so_depois e a linha em JSON).
+--     um plano (mesmo formato).
 
 CREATE TEMP TABLE ap_depois AS
 SELECT mm.m, a.*
@@ -37,6 +41,7 @@ DECLARE
   v_dif_varios int;
   v_ids text;
   v_lista text;
+  v_lista_varios text;
 BEGIN
   SELECT count(*) INTO v_n_ap FROM ap_antes;
   SELECT count(*) INTO v_n_an FROM an_antes;
@@ -67,12 +72,25 @@ BEGIN
    WHERE EXISTS (SELECT 1 FROM varios v WHERE v.aluno_id = d.aluno_id);
   SELECT coalesce(string_agg(v.aluno_id::text, ',' ORDER BY v.aluno_id), 'nenhum') INTO v_ids FROM varios v;
 
-  IF v_dif_um = 0 THEN
-    RAISE EXCEPTION 'ENSAIO 3C: IDENTICO (% linhas de apuração, % aniversários; alunos com vários planos: % com % diferenças)',
-      v_n_ap, v_n_an, v_ids, v_dif_varios;
+  IF v_n_ap = 0 THEN
+    RAISE EXCEPTION 'ENSAIO 3C: SEM DADOS (0 linhas de apuração no antes, % aniversários; nada a comparar)', v_n_an;
   END IF;
 
-  SELECT string_agg(format('%s/%s: %s', t.fonte, t.lado, t.linha), E'\n' ORDER BY t.fonte, t.aluno_id, t.lado, t.linha)
+  IF v_dif_um = 0 THEN
+    SELECT string_agg(format('%s/%s aluno %s: %s', t.fonte, t.lado, t.aluno_id, t.linha), E'
+'
+                      ORDER BY t.fonte, t.aluno_id, t.lado, t.linha)
+      INTO v_lista_varios
+      FROM (SELECT d.* FROM dif d
+             WHERE EXISTS (SELECT 1 FROM varios v WHERE v.aluno_id = d.aluno_id)
+             ORDER BY d.fonte, d.aluno_id, d.lado, d.linha
+             LIMIT 40) t;
+    RAISE EXCEPTION E'ENSAIO 3C: IDENTICO (% linhas de apuração, % aniversários; alunos com vários planos: % com % diferenças)
+%',
+      v_n_ap, v_n_an, v_ids, v_dif_varios, coalesce(v_lista_varios, '(sem diferenças nos vários planos)');
+  END IF;
+
+  SELECT string_agg(format('%s/%s aluno %s: %s', t.fonte, t.lado, t.aluno_id, t.linha), E'\n' ORDER BY t.fonte, t.aluno_id, t.lado, t.linha)
     INTO v_lista
     FROM (SELECT d.* FROM dif d
            WHERE NOT EXISTS (SELECT 1 FROM varios v WHERE v.aluno_id = d.aluno_id)

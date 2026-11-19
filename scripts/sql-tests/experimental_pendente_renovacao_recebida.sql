@@ -92,10 +92,10 @@ BEGIN
   END IF;
 
   v_total := v_total + 1;
-  IF to_regprocedure('public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date)') IS NULL THEN
+  IF to_regprocedure('public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date,uuid,boolean)') IS NULL THEN
     v_falhas := v_falhas || 'S4: nova assinatura de renovar_plano_aluno não existe'::text;
-  ELSIF has_function_privilege('anon', 'public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date)', 'EXECUTE')
-     OR NOT has_function_privilege('authenticated', 'public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date)', 'EXECUTE') THEN
+  ELSIF has_function_privilege('anon', 'public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date,uuid,boolean)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.renovar_plano_aluno(bigint,integer,date,date,numeric,text,boolean,text,date,uuid,boolean)', 'EXECUTE') THEN
     v_falhas := v_falhas || 'S4: permissões erradas em renovar_plano_aluno'::text;
   END IF;
 

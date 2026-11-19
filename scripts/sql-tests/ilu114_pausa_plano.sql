@@ -116,9 +116,9 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     FOREACH v_txt IN ARRAY ARRAY[
-      'public.pausar_plano_aluno(bigint,date,date,text,bigint[])',
-      'public.retomar_plano_aluno(bigint,date,bigint[])',
-      'public.ajustar_previsao_pausa(bigint,date)',
+      'public.pausar_plano_aluno(bigint,date,date,text,bigint[],uuid)',
+      'public.retomar_plano_aluno(bigint,date,bigint[],uuid)',
+      'public.ajustar_previsao_pausa(bigint,date,uuid)',
       'public.listar_periodos_pausa()'
     ] LOOP
       IF to_regprocedure(v_txt) IS NULL THEN

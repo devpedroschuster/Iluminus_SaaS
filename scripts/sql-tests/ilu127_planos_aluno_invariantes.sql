@@ -10,11 +10,11 @@
 --   I4: toda pausa tem plano_aluno_id do mesmo aluno.
 --   I5: alunos_modalidades (expandida por vezes) reproduz o multiconjunto de
 --       modalidades_selecionadas (só modalidades existentes) de todo aluno
---       com principal.
+--       com algum plano do aluno.
 --   I6: ciclo ativo/agendado de plano diferente do cadastro está ligado a um
 --       plano do aluno não principal, de mesmo plano_id.
---   I7: aluno com dois ou mais planos não encerrados só existe quando há
---       ciclo aberto de outro plano.
+--   I8: plano do aluno com pausado_desde <=> pausa aberta daquele plano
+--       (ILU-131; o antigo I7 saiu: um aluno pode ter vários planos).
 --
 -- Resultado: "RESULTADO ILU127-INVARIANTES: PASSOU (n/n)" ou
 --            "RESULTADO ILU127-INVARIANTES: FALHOU (k falha(s) em n casos): ...",
@@ -37,10 +37,11 @@ BEGIN
   SELECT string_agg(x.id::text, ',') INTO v_ids FROM (
     SELECT a.id FROM alunos a
       LEFT JOIN planos_aluno pa ON pa.id = public._plano_aluno_principal(a.id)
-     WHERE a.plano_id IS NOT NULL
-       AND (pa.id IS NULL
-            OR (pa.plano_id, pa.data_inicio, pa.data_fim, pa.pausado_desde)
-               IS DISTINCT FROM (a.plano_id, a.data_inicio_plano, a.data_fim_plano, a.plano_pausado_desde))
+     -- ILU-131: também quem não tem plano no cadastro mas tem plano do aluno
+     -- (o cadastro é a cópia do principal; sem principal, tudo nulo).
+     WHERE (a.plano_id IS NOT NULL OR EXISTS (SELECT 1 FROM planos_aluno p0 WHERE p0.aluno_id = a.id))
+       AND (pa.plano_id, pa.data_inicio, pa.data_fim, pa.pausado_desde)
+           IS DISTINCT FROM (a.plano_id, a.data_inicio_plano, a.data_fim_plano, a.plano_pausado_desde)
      ORDER BY a.id LIMIT 5) x;
   IF v_ids IS NOT NULL THEN v_falhas := v_falhas || ('I1: principal ausente ou diferente do cadastro: ' || v_ids); END IF;
 
@@ -77,7 +78,7 @@ BEGIN
   v_total := v_total + 1;
   SELECT string_agg(x.id::text, ',') INTO v_ids FROM (
     SELECT a.id FROM alunos a
-     WHERE public._plano_aluno_principal(a.id) IS NOT NULL
+     WHERE EXISTS (SELECT 1 FROM planos_aluno p3 WHERE p3.aluno_id = a.id)
        AND coalesce((SELECT array_agg(u.m ORDER BY u.m)
                        FROM unnest(a.modalidades_selecionadas) AS u(m)
                        JOIN modalidades mo ON mo.id = u.m), '{}'::uuid[])
@@ -101,18 +102,14 @@ BEGIN
      ORDER BY h.aluno_id LIMIT 5) x;
   IF v_ids IS NOT NULL THEN v_falhas := v_falhas || ('I6: ciclo aberto de outro plano no principal: ' || v_ids); END IF;
 
-  -- I7
+  -- I8 (ILU-131): plano do aluno pausado <=> pausa aberta daquele plano
   v_total := v_total + 1;
   SELECT string_agg(x.aluno_id::text, ',') INTO v_ids FROM (
     SELECT pa.aluno_id FROM planos_aluno pa
-     WHERE pa.encerrado_em IS NULL
-     GROUP BY pa.aluno_id
-    HAVING count(*) > 1
-       AND NOT EXISTS (SELECT 1 FROM historico_planos h JOIN alunos a ON a.id = h.aluno_id
-                        WHERE h.aluno_id = pa.aluno_id AND h.status IN ('ativo', 'agendado')
-                          AND h.plano_id <> a.plano_id)
+     WHERE (pa.pausado_desde IS NOT NULL)
+           <> EXISTS (SELECT 1 FROM pausas_plano pp WHERE pp.plano_aluno_id = pa.id AND pp.data_retorno IS NULL)
      ORDER BY pa.aluno_id LIMIT 5) x;
-  IF v_ids IS NOT NULL THEN v_falhas := v_falhas || ('I7: mais de um plano sem ciclo aberto de outro plano: ' || v_ids); END IF;
+  IF v_ids IS NOT NULL THEN v_falhas := v_falhas || ('I8: plano pausado sem pausa aberta (ou o contrário): ' || v_ids); END IF;
 
   IF cardinality(v_falhas) = 0 THEN
     RAISE EXCEPTION 'RESULTADO ILU127-INVARIANTES: PASSOU (%/%)', v_total, v_total;

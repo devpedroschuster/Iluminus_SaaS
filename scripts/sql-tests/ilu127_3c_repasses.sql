@@ -19,6 +19,11 @@
 --       (_aniversarios_ciclo e apuração).
 --   P2: pausar A marca a pausa no ciclo de A: linha pausado, sem Dança 1.
 --   B1: bolsista com dois planos dá uma única linha bolsista.
+--   Z1: aluno sem nenhum planos_aluno (modalidades só no cadastro, sem
+--       alunos_modalidades) com cobrança regular paga: igual a hoje (cada
+--       modalidade do cadastro gerada com a cobrança; repetida conta uma vez).
+--   Z2: o mesmo aluno sem plano, com cobrança de plano livre paga e
+--       presenças: igual a hoje (o livre divide entre todas as frequentadas).
 --
 -- Cria os próprios dados ([TESTE 3C], e-mails teste-3c-*@iluminus.test) e
 -- SEMPRE termina em RAISE EXCEPTION, então tudo é desfeito, inclusive o corte
@@ -436,6 +441,72 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('B1: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- Z1: sem planos_aluno, regular
+  v_total := v_total + 1;
+  BEGIN
+    v_f := '{}';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
+    VALUES ('[TESTE 3C] Z1', 'teste-3c-z1@iluminus.test', 'aluno', true, false, ARRAY[v_d1, v_d1, v_tr])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, p_r1, v_ant + 9, 'pago', 'regular', 300, 'pix', v_ant + 9) RETURNING id INTO m_a;
+    IF EXISTS (SELECT 1 FROM planos_aluno WHERE aluno_id = v_al)
+       OR EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al)
+       OR (SELECT plano_aluno_id FROM mensalidades WHERE id = m_a) IS NOT NULL THEN
+      v_f := v_f || 'dados: o aluno ganhou planos_aluno/alunos_modalidades, ou a cobrança ganhou plano';
+    END IF;
+    v_got := pg_temp.resumo_3c(v_ant, v_al);
+    v_exp := format('Dança 1=gerada:%s Treino=gerada:%s', v_v1, v_v1);
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_f := v_f || format('esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    IF pg_temp.cobranca_3c(v_ant, v_al, v_d1) IS DISTINCT FROM m_a
+       OR pg_temp.cobranca_3c(v_ant, v_al, v_tr) IS DISTINCT FROM m_a THEN
+      v_f := v_f || format('cobranças Dança 1=%s Treino=%s, esperava %s',
+                           pg_temp.cobranca_3c(v_ant, v_al, v_d1), pg_temp.cobranca_3c(v_ant, v_al, v_tr), m_a);
+    END IF;
+    IF cardinality(v_f) > 0 THEN v_falhas := v_falhas || ('Z1: ' || array_to_string(v_f, ' ; ')); END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('Z1: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- Z2: sem planos_aluno, plano livre
+  -- Treino no cadastro; presenças em Dança 1, Dança 2 e Treino: as três
+  -- dividem o livre, como hoje.
+  v_total := v_total + 1;
+  BEGIN
+    v_f := '{}';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
+    VALUES ('[TESTE 3C] Z2', 'teste-3c-z2@iluminus.test', 'aluno', true, false, ARRAY[v_tr])
+    RETURNING id INTO v_al;
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
+    VALUES (v_al, p_l, v_ant + 9, 'pago', 'plano_livre', 300, 'pix', v_ant + 9) RETURNING id INTO m_a;
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
+      (v_al, g_d1, v_ant + 2, 'presente', 'avulso', (v_ant + 2 + time '19:00') AT TIME ZONE 'America/Sao_Paulo'),
+      (v_al, g_d2, v_ant + 3, 'presente', 'avulso', (v_ant + 3 + time '19:00') AT TIME ZONE 'America/Sao_Paulo'),
+      (v_al, g_tr, v_ant + 4, 'presente', 'avulso', (v_ant + 4 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    IF EXISTS (SELECT 1 FROM planos_aluno WHERE aluno_id = v_al)
+       OR EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al) THEN
+      v_f := v_f || 'dados: o aluno ganhou planos_aluno/alunos_modalidades';
+    END IF;
+    -- Três modalidades: div(c, 3) e o resto, em centavos, para as últimas por modalidade_id.
+    SELECT string_agg(replace(m.nome, '[TESTE 3C] ', '') || '=gerada:'
+                      || round((div(v_c, 3) + CASE WHEN m.ordem > 3 - mod(v_c, 3) THEN 1 ELSE 0 END) / 100, 2)::text,
+                      ' ' ORDER BY m.nome COLLATE "C")
+      INTO v_exp
+      FROM (SELECT mo.nome, row_number() OVER (ORDER BY mo.id) AS ordem
+              FROM modalidades mo WHERE mo.id IN (v_d1, v_d2, v_tr)) m;
+    v_got := pg_temp.resumo_3c(v_ant, v_al);
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_f := v_f || format('esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    IF cardinality(v_f) > 0 THEN v_falhas := v_falhas || ('Z2: ' || array_to_string(v_f, ' ; ')); END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('Z2: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

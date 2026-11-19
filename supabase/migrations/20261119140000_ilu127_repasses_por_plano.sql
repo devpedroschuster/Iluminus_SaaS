@@ -272,7 +272,8 @@ BEGIN
   -- Regular: cada modalidade distinta selecionada, com a cobrança que a cobre
   -- (a do mês antes da integral; depois o vencimento e o id, para ser estável).
   -- ILU-127 3c: as modalidades ligadas ao plano coberto, cobertas só por fonte
-  -- desse plano.
+  -- desse plano. Aluno sem nenhum planos_aluno (só o grupo de plano NULL) não
+  -- tem alunos_modalidades: as modalidades dele vêm do cadastro, como antes.
   cobertura AS (
     SELECT e.id AS aluno_id, e.nome_completo, mo.id AS mod_id, mo.nome AS mod_nome, mo.professor_id,
            mo.area AS mod_area,
@@ -285,8 +286,19 @@ BEGIN
              LIMIT 1) AS mensalidade_id,
            e.plano_aluno_id
       FROM estados e
-      JOIN alunos_modalidades am ON am.aluno_id = e.id AND am.plano_aluno_id = e.plano_aluno_id
-      JOIN modalidades mo ON mo.id = am.modalidade_id
+      CROSS JOIN LATERAL (
+        -- am.plano_aluno_id é NOT NULL: aqui "=" vale IS NOT DISTINCT FROM.
+        SELECT am.modalidade_id AS mod_id
+          FROM alunos_modalidades am
+         WHERE am.aluno_id = e.id AND am.plano_aluno_id = e.plano_aluno_id
+        UNION ALL
+        SELECT mc.id  -- repetida no array conta uma vez
+          FROM modalidades mc
+         WHERE mc.id = ANY (e.modalidades_selecionadas)
+           AND e.plano_aluno_id IS NULL
+           AND NOT EXISTS (SELECT 1 FROM planos_aluno pal WHERE pal.aluno_id = e.id)
+      ) md
+      JOIN modalidades mo ON mo.id = md.mod_id
      WHERE e.estado = 'coberto'
   ),
   regular AS (
@@ -322,14 +334,16 @@ BEGIN
       JOIN presencas pr ON pr.aluno_id = lp.aluno_id
       JOIN agenda ag ON ag.id = pr.aula_id
       LEFT JOIN alunos_modalidades am ON am.aluno_id = pr.aluno_id AND am.modalidade_id = ag.modalidade_id
-      LEFT JOIN planos_aluno pa ON pa.id = lp.plano_aluno_id
+      LEFT JOIN planos_aluno pal ON pal.id = lp.plano_aluno_id
      WHERE v_mes < v_mes_atual
        AND pr.status = 'presente'
        AND pr.aula_id IS NOT NULL
        AND pr.data_checkin >= v_ini_ts AND pr.data_checkin < v_fim_ts
        AND ag.modalidade_id IS NOT NULL
+       -- am.plano_aluno_id é NOT NULL (NULL aqui = sem ligação): "=" vale IS NOT
+       -- DISTINCT FROM, e plano livre NULL nunca leva modalidade ligada.
        AND (am.plano_aluno_id IS NULL OR am.plano_aluno_id = lp.plano_aluno_id)
-     ORDER BY pr.aluno_id, ag.modalidade_id, pa.created_at, pa.id
+     ORDER BY pr.aluno_id, ag.modalidade_id, pal.created_at, pal.id
   ),
   -- centavos = preço × pct (em centavos, arredondado); ordem = posição da
   -- modalidade entre as com professor, por modalidade_id.
@@ -406,10 +420,11 @@ BEGIN
   -- Plano livre, tudo ou nada: a parte do aluno é dividida entre todas as
   -- frequentadas, então uma linha a mais (presença confirmada depois, linha
   -- antiga parcial) a completaria acima do preço × pct. Já havendo comissão
-  -- de mensalidade dele contando para o mês, de qualquer modalidade, ou
-  -- marca de removida numa das frequentadas, nada do mês é gravado.
-  -- ILU-127 3c (decisão 6): por aluno × plano livre; só bloqueia a comissão
-  -- de modalidade que não é ligada a outro plano (ou sem modalidade_id).
+  -- de mensalidade dele contando para o mês, de modalidade do domínio do
+  -- plano livre, ou marca de removida numa das frequentadas, nada do mês
+  -- daquele plano é gravado.
+  -- ILU-127 3c (decisão 6): por aluno × plano livre; o domínio são as
+  -- modalidades não ligadas a outro plano (e as comissões sem modalidade_id).
   livre_bloqueado AS (
     SELECT av.aluno_id, av.plano_aluno_id,
            EXISTS (SELECT 1 FROM contadas c

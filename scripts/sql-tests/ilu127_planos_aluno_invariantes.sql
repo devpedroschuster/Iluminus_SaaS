@@ -37,10 +37,11 @@ BEGIN
   SELECT string_agg(x.id::text, ',') INTO v_ids FROM (
     SELECT a.id FROM alunos a
       LEFT JOIN planos_aluno pa ON pa.id = public._plano_aluno_principal(a.id)
-     WHERE a.plano_id IS NOT NULL
-       AND (pa.id IS NULL
-            OR (pa.plano_id, pa.data_inicio, pa.data_fim, pa.pausado_desde)
-               IS DISTINCT FROM (a.plano_id, a.data_inicio_plano, a.data_fim_plano, a.plano_pausado_desde))
+     -- ILU-131: também quem não tem plano no cadastro mas tem plano do aluno
+     -- (o cadastro é a cópia do principal; sem principal, tudo nulo).
+     WHERE (a.plano_id IS NOT NULL OR EXISTS (SELECT 1 FROM planos_aluno p0 WHERE p0.aluno_id = a.id))
+       AND (pa.plano_id, pa.data_inicio, pa.data_fim, pa.pausado_desde)
+           IS DISTINCT FROM (a.plano_id, a.data_inicio_plano, a.data_fim_plano, a.plano_pausado_desde)
      ORDER BY a.id LIMIT 5) x;
   IF v_ids IS NOT NULL THEN v_falhas := v_falhas || ('I1: principal ausente ou diferente do cadastro: ' || v_ids); END IF;
 

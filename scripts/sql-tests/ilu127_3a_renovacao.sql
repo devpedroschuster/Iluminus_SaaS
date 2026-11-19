@@ -198,11 +198,12 @@ BEGIN
   END;
   RESET ROLE;
 
-  ---------------------------------------------------------------- R7: aluno sem plano
+  ---------------------------------------------------------------- R7: aluno sem plano (com modalidades marcadas)
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso)
-    VALUES ('[TESTE 3A-R] R7', 'teste-3ar-r7@iluminus.test', 'aluno', true, false) RETURNING id INTO v_al;
+    INSERT INTO modalidades (nome, area, capacidade_padrao) VALUES ('[TESTE 3A-R] M', 'Dança', 10) RETURNING id INTO v_pc;
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
+    VALUES ('[TESTE 3A-R] R7', 'teste-3ar-r7@iluminus.test', 'aluno', true, false, ARRAY[v_pc, v_pc]) RETURNING id INTO v_al;
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     v_res := public.renovar_plano_aluno(v_al, v_p1, v_hoje, v_hoje + 29);
@@ -213,6 +214,13 @@ BEGIN
        OR (SELECT plano_id FROM alunos WHERE id = v_al) IS DISTINCT FROM v_p1
        OR (SELECT data_fim_plano FROM alunos WHERE id = v_al) IS DISTINCT FROM v_hoje + 29 THEN
       v_falhas := v_falhas || 'R7: aluno sem plano não ganhou plano, ciclo e cobrança ligados'::text;
+    END IF;
+    -- As modalidades já marcadas no cadastro ficam (ligadas ao plano novo).
+    IF (SELECT modalidades_selecionadas FROM alunos WHERE id = v_al) IS DISTINCT FROM ARRAY[v_pc, v_pc]
+       OR NOT EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al AND modalidade_id = v_pc
+                         AND vezes = 2 AND plano_aluno_id = v_pa) THEN
+      v_falhas := v_falhas || format('R7: modalidades do cadastro perdidas ao nascer o plano: %s',
+        (SELECT modalidades_selecionadas FROM alunos WHERE id = v_al));
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;

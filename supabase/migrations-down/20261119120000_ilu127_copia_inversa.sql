@@ -3,7 +3,7 @@
 -- entrega 2 (20261118130000_ilu127_planos_aluno_schema). Rodar as downs da
 -- entrega 3a em ordem inversa (esta é a última).
 
-DROP TRIGGER IF EXISTS trg_planos_aluno_liga_orfaos ON public.planos_aluno;
+DROP TRIGGER IF EXISTS trg_planos_aluno_0_liga_orfaos ON public.planos_aluno;
 DROP TRIGGER IF EXISTS trg_planos_aluno_copia_cadastro ON public.planos_aluno;
 DROP TRIGGER IF EXISTS trg_alunos_modalidades_copia_cadastro ON public.alunos_modalidades;
 DROP FUNCTION IF EXISTS public._trg_planos_aluno_liga_orfaos();

@@ -231,7 +231,10 @@ BEGIN
 END;
 $$;
 
--- 5. Ao nascer o único plano do aluno, cobranças e pausas sem plano vão para ele.
+-- 5. Ao nascer o único plano do aluno: as modalidades já marcadas no cadastro
+--    são ligadas a ele (senão a cópia, que roda logo depois, apagaria o
+--    array), e cobranças e pausas sem plano vão para ele. O nome começa com
+--    "0_" para rodar antes de trg_planos_aluno_copia_cadastro.
 CREATE FUNCTION public._trg_planos_aluno_liga_orfaos()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER
@@ -239,6 +242,8 @@ SET search_path = ''
 AS $$
 BEGIN
   IF (SELECT count(*) FROM public.planos_aluno pa WHERE pa.aluno_id = NEW.aluno_id) = 1 THEN
+    PERFORM public._sinc_modalidades_aluno(
+      NEW.aluno_id, (SELECT a.modalidades_selecionadas FROM public.alunos a WHERE a.id = NEW.aluno_id));
     UPDATE public.mensalidades m
        SET plano_aluno_id = NEW.id
      WHERE m.aluno_id = NEW.aluno_id
@@ -253,7 +258,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_planos_aluno_liga_orfaos
+CREATE TRIGGER trg_planos_aluno_0_liga_orfaos
 AFTER INSERT ON public.planos_aluno
 FOR EACH ROW EXECUTE FUNCTION public._trg_planos_aluno_liga_orfaos();
 

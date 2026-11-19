@@ -35,6 +35,7 @@ Só banco, sem mudança de frontend. As assinaturas só ganham parâmetros opcio
   - com vários planos, `Seu plano <nome> termina em DD/MM.`;
   - a checagem fica logo antes de `plano_vencido`.
   - Isso só acontece depois do clique em "Encerrar plano". Vencer sem o clique continua com a regra de 5 dias da ILU-78, e nada além dela.
+- **Reforço do usuário (2026-11-19, ao aprovar):** "não mudar nada de como é hoje em relação ao plano encerrado por chegar no fim dele. Apenas tirar das aulas futuras, caso seja encerrado o plano manualmente pela gestão através do botão de encerrar". Nenhuma regra desta entrega pode depender só de `data_fim` ter passado; `plano_encerrado` e o cancelamento de reservas dependem de `encerrado_em` (o clique).
 - **Ficam como estão:**
   - `_em_pausa(bigint, date)` e `_uso_semanal(bigint, text, date)`, que contam pelo aluno inteiro. `_aniversarios_ciclo` usa `_em_pausa` até a 3c, e os testes ILU-78/114 chamam as duas;
   - `agendar_aula`, `cancelar_meu_agendamento`, `_ocupacao` (muda só por `_fixo_valido`) e `fn_confirmar_presencas_automaticas`.

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   somarDias, formatarDiaMes, montarDias, aulasDoDia, inicioDaSemana, consumoDaSemana,
   acaoDoCartao, avisoDoPlano, rotuloStatus, nomeProfessor, diasComAula, painelDeErro, aulasParaMostrar,
+  avisosDosPlanos, consumoVisivel,
 } from './agendaAluno';
 
 // ILU-114: com o plano pausado não há o que agendar; a lista só mostra o que já
@@ -175,5 +176,84 @@ describe('rótulos', () => {
     ];
     expect([...diasComAula(aulas)].sort()).toEqual(['2026-10-13', '2026-10-15']);
     expect(diasComAula(undefined).size).toBe(0);
+  });
+});
+
+// ILU-127 (entrega 4): cada plano do aluno tem o próprio aviso.
+describe('avisosDosPlanos', () => {
+  const hoje = '2026-10-09';
+  const A = { plano_aluno_id: 'a', nome: 'Mensal', data_fim: '2026-11-30', bloqueia_a_partir_de: '2026-12-05', pausado_desde: null, encerrado_em: null };
+
+  it('A1: um plano vencido devolve exatamente o aviso de hoje', () => {
+    const plano = { plano_aluno_id: 'a', nome: 'Mensal', data_fim: '2026-10-07', bloqueia_a_partir_de: '2026-10-12', pausado_desde: null, encerrado_em: null };
+    const [aviso] = avisosDosPlanos([plano], hoje);
+    expect({ tom: aviso.tom, texto: aviso.texto }).toEqual(avisoDoPlano(plano, hoje));
+    expect(aviso.planoAlunoId).toBe('a');
+  });
+
+  it('sem avisos: lista vazia', () => {
+    expect(avisosDosPlanos([A], hoje)).toEqual([]);
+    expect(avisosDosPlanos([], hoje)).toEqual([]);
+  });
+
+  it('A2: dois planos, só o B vencido: um aviso com o nome do B', () => {
+    const B = { plano_aluno_id: 'b', nome: 'Dança', data_fim: '2026-10-06', bloqueia_a_partir_de: '2026-10-11', pausado_desde: null, encerrado_em: null };
+    expect(avisosDosPlanos([A, B], hoje)).toEqual([{
+      tom: 'aviso', planoAlunoId: 'b',
+      texto: 'Seu plano Dança venceu em 06/10. Renove até 10/10 para continuar agendando.',
+    }]);
+  });
+
+  it('pausa com vários planos leva o nome', () => {
+    const B = { ...A, plano_aluno_id: 'b', nome: 'Dança', pausado_desde: '2026-09-20' };
+    expect(avisosDosPlanos([A, B], hoje)[0].texto)
+      .toBe('Seu plano Dança está pausado desde 20/09. Para voltar às aulas, fale com a recepção.');
+  });
+
+  it('A4: plano encerrado avisa que termina', () => {
+    const B = { ...A, plano_aluno_id: 'b', nome: 'Dança', encerrado_em: '2026-10-11' };
+    expect(avisosDosPlanos([A, B], hoje)).toEqual([{
+      tom: 'aviso', planoAlunoId: 'b', texto: 'Seu plano Dança termina em 11/10.',
+    }]);
+  });
+
+  it('plano encerrado, a partir do bloqueio: terminou', () => {
+    const B = { ...A, plano_aluno_id: 'b', nome: 'Dança', encerrado_em: '2026-10-01', data_fim: '2026-10-01', bloqueia_a_partir_de: '2026-10-06' };
+    expect(avisosDosPlanos([A, B], hoje)).toEqual([{
+      tom: 'bloqueio', planoAlunoId: 'b', texto: 'Seu plano Dança terminou em 01/10.',
+    }]);
+  });
+
+  it('um plano encerrado, sem nome no texto', () => {
+    expect(avisosDosPlanos([{ ...A, encerrado_em: '2026-10-11' }], hoje)[0].texto).toBe('Seu plano termina em 11/10.');
+  });
+});
+
+describe('aulasParaMostrar com vários planos', () => {
+  const aulas = [
+    { aula_id: 1, data: '2026-11-09', meu_status: null, plano_aluno_id: 'a' },
+    { aula_id: 2, data: '2026-11-09', meu_status: null, plano_aluno_id: 'b' },
+    { aula_id: 3, data: '2026-11-09', meu_status: 'agendado', plano_aluno_id: 'b' },
+  ];
+  const ids = (l) => l.map((a) => a.aula_id);
+
+  it('A3: B pausado esconde as aulas livres de B; A e a já agendada ficam', () => {
+    const planos = [{ plano_aluno_id: 'a', pausado_desde: null }, { plano_aluno_id: 'b', pausado_desde: '2026-11-01' }];
+    expect(ids(aulasParaMostrar(aulas, planos, '2026-11-09'))).toEqual([1, 3]);
+  });
+
+  it('um plano pausado só: igual a hoje', () => {
+    expect(ids(aulasParaMostrar(aulas, [{ plano_aluno_id: 'a', pausado_desde: '2026-11-01' }], '2026-11-09'))).toEqual([3]);
+  });
+});
+
+describe('consumoVisivel', () => {
+  const consumo = [{ plano_aluno_id: 'a', area: 'Dança' }, { plano_aluno_id: 'b', area: 'Funcional' }];
+  it('esconde o consumo de plano pausado', () => {
+    const planos = [{ plano_aluno_id: 'a', pausado_desde: null }, { plano_aluno_id: 'b', pausado_desde: '2026-11-01' }];
+    expect(consumoVisivel(consumo, planos)).toEqual([consumo[0]]);
+  });
+  it('um plano pausado só: nada', () => {
+    expect(consumoVisivel(consumo, [{ plano_aluno_id: 'a', pausado_desde: '2026-11-01' }])).toEqual([]);
   });
 });

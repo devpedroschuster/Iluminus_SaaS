@@ -10,10 +10,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
-  hojeBrasilia, derivarPlanoVigente, camposDoPlanoNoCadastro, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
+  hojeBrasilia, derivarPlanoVigente, ehCobrancaIntegralDoCiclo, formatarMoeda, valorDevidoMensalidade,
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
+import { planosValidos, rotuloPlanoAluno } from '../lib/planosAluno';
 import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -27,6 +28,7 @@ import Input from '../components/ui/Input';
 import Modal, { ModalConfirmacao } from '../components/ui/Modal';
 import ModalCredenciaisAcesso from '../components/ModalCredenciaisAcesso';
 import AbaFinanceiroAluno from '../components/financeiro/AbaFinanceiroAluno';
+import PlanosDoAluno from '../components/aluno/PlanosDoAluno';
 
 // ─────────────────────────────────────────────────────────────
 // Avatar
@@ -377,8 +379,13 @@ function ModalEditarCadastro({ aluno, alunoId, queryClient, onClose }) {
 // ─────────────────────────────────────────────────────────────
 // Card Uso do Plano
 // ─────────────────────────────────────────────────────────────
-function CardUsoPlan({ aluno, planos, frequencia, pausas }) {
-  if (!aluno?.plano_id) {
+// ILU-127: mostra o plano principal do aluno (`planoAluno`, primeiro dos
+// válidos) e os ciclos dele (`planos`). `planoAluno` undefined: carregando.
+function CardUsoPlan({ planoAluno, planos, frequencia, pausas }) {
+  if (planoAluno === undefined) {
+    return <div className="bg-muted rounded-3xl min-h-[140px] border border-border animate-pulse" />;
+  }
+  if (!planoAluno) {
     return (
       <div className="bg-muted p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center min-h-[140px] border border-border">
         <div className="relative z-10">
@@ -397,7 +404,7 @@ function CardUsoPlan({ aluno, planos, frequencia, pausas }) {
           <p className="text-foreground/80 text-xs font-bold uppercase tracking-wider mb-2">Uso do Plano</p>
           <h3 className="text-xl font-black text-foreground leading-tight">Histórico pendente</h3>
           <p className="text-foreground/80 text-xs font-medium mt-2">
-            Acesse "Histórico" e clique em Renovar para registrar o ciclo atual
+            Acesse "Planos" e clique em Renovar para registrar o ciclo atual
           </p>
         </div>
       </div>
@@ -443,7 +450,7 @@ function CardUsoPlan({ aluno, planos, frequencia, pausas }) {
           <span className="text-lg font-medium text-primary-foreground/60">{rest.join(' ')}</span>
         </h3>
         <p className="text-primary-foreground/60 text-xs font-medium mt-2">
-          {aluno.plano_pausado_desde ? `Pausado desde ${formatarDataBR(aluno.plano_pausado_desde)}` : subtituloFrequencia}
+          {planoAluno.pausado_desde ? `Pausado desde ${formatarDataBR(planoAluno.pausado_desde)}` : subtituloFrequencia}
         </p>
       </div>
       <div className="absolute bottom-0 left-0 w-full h-2 bg-black/10">
@@ -1293,8 +1300,8 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
     form.forma_recebimento === 'a_vista' &&
     !!form.data_inicio && !!form.data_fim && form.data_inicio <= form.data_fim;
   const { data: cobrancasEmAberto = [], isLoading: carregandoCobrancas } = useQuery({
-    queryKey: ['aluno-cobrancas-em-aberto', alunoId, form.data_inicio, form.data_fim],
-    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, form.data_inicio, form.data_fim),
+    queryKey: ['aluno-cobrancas-em-aberto', alunoId, form.data_inicio, form.data_fim, registro?.plano_aluno_id],
+    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, form.data_inicio, form.data_fim, registro?.plano_aluno_id),
     enabled: !!alunoId && verificaCobrancas,
   });
   // Só valem as marcações que continuam na lista do período atual.
@@ -1345,19 +1352,20 @@ function ModalEditarHistoricoPlano({ registro, planosList, alunoId, queryClient,
         })
         .eq('id', registro.id);
       if (error) throw error;
-      // Recalcula os campos do plano com o histórico já atualizado e
-      // sincroniza alunos com eles — em vez de assumir que o registro editado
-      // é o vigente só porque seu status é 'ativo' (podia deixar a
-      // lista/perfil desatualizados ao editar um registro antigo, ou não
-      // atualizar quando a edição tirava o registro da vigência). Depois de
-      // uma renovação antecipada, plano e fim continuam os do ciclo novo
-      // (ILU-108).
-      const historicoAtualizado = await alunosService.buscarHistoricoPlanos(alunoId);
-      const campos = camposDoPlanoNoCadastro(historicoAtualizado);
-      if (campos) {
-        await supabase.from('alunos').update(campos).eq('id', alunoId);
+      // ILU-127: o servidor refaz plano, início e fim do plano do aluno a
+      // partir dos ciclos dele (mesma regra da ILU-108: depois de uma
+      // renovação antecipada, plano e fim continuam os do ciclo novo). Uma
+      // falha aqui não desfaz a edição do ciclo.
+      if (registro?.plano_aluno_id) {
+        try {
+          await alunosService.recalcularPlanoAluno(registro.plano_aluno_id);
+        } catch (errRecalculo) {
+          console.error('[PerfilAluno] Erro ao recalcular o plano do aluno:', errRecalculo);
+          showToast.error(errRecalculo.message);
+        }
       }
       queryClient.invalidateQueries(['aluno-planos', alunoId]);
+      queryClient.invalidateQueries(['aluno-planos-aluno', alunoId]);
       queryClient.invalidateQueries(['aluno', alunoId]);
       // Só depois do histórico salvo: uma falha aqui não desfaz a edição,
       // vira um aviso.
@@ -1644,7 +1652,7 @@ function formatarDataBR(iso) {
 // ILU-114: aviso de plano pausado, no topo de todas as abas. A previsão de volta
 // é só um lembrete: quando chega, pede para retomar ou ajustar a data.
 // ─────────────────────────────────────────────────────────────
-function AvisoPlanoPausado({ pausa, onRetomar, onAjustar }) {
+function AvisoPlanoPausado({ pausa, rotuloPlano, onRetomar, onAjustar }) {
   const previsaoChegou = pausa.data_prevista_volta <= hojeBrasilia();
   return (
     <div className={`flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border text-foreground ${
@@ -1653,7 +1661,9 @@ function AvisoPlanoPausado({ pausa, onRetomar, onAjustar }) {
       <div className="flex items-start gap-3 min-w-0">
         <Pause size={18} className={`mt-0.5 shrink-0 ${previsaoChegou ? 'text-warning' : 'text-info'}`} />
         <div className="min-w-0">
-          <p className="font-bold text-sm">Plano pausado desde {formatarDataBR(pausa.data_inicio)}</p>
+          <p className="font-bold text-sm">
+            {rotuloPlano ? `Plano ${rotuloPlano} pausado` : 'Plano pausado'} desde {formatarDataBR(pausa.data_inicio)}
+          </p>
           <p className="text-xs font-medium mt-0.5 text-foreground/80">
             {previsaoChegou
               ? `A previsão de volta era ${formatarDataBR(pausa.data_prevista_volta)}. Retome o plano ou ajuste a data.`
@@ -1682,11 +1692,13 @@ export default function PerfilAluno() {
   const location = useLocation();
   const queryClient = useQueryClient();
   // A edição do cadastro (NovoAluno) manda para cá quem quer trocar o plano.
+  // Com vários planos não há um só para renovar: abre só a aba Planos.
   const abrirRenovarPlano = !!location.state?.abrirRenovarPlano;
   const [abaAtiva, setAbaAtiva] = useState(abrirRenovarPlano ? 'planos' : 'resumo');
-  const [modalRenovarAberto, setModalRenovarAberto] = useState(abrirRenovarPlano);
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
-  const [modalPausa, setModalPausa] = useState(null); // 'pausar' | 'retomar' | 'ajustar'
+  // ILU-127: modal de um plano do aluno.
+  // { tipo: 'renovar' | 'adicionar' | 'pausar' | 'retomar' | 'ajustar', planoAluno, rotulo }
+  const [modalPlano, setModalPlano] = useState(null);
   const [observacoesMedicas, setObservacoesMedicas] = useState('');
   const [salvandoMedico, setSalvandoMedico] = useState(false);
   const [registroEditando, setRegistroEditando] = useState(null);
@@ -1719,6 +1731,11 @@ export default function PerfilAluno() {
     queryFn: () => alunosService.listarPausas(id),
     enabled: !!aluno,
   });
+  const { data: planosAluno } = useQuery({
+    queryKey: ['aluno-planos-aluno', id],
+    queryFn: () => alunosService.listarPlanosDoAluno(id),
+    enabled: !!aluno,
+  });
 
   React.useEffect(() => {
     if (aluno?.observacoes_medicas !== undefined) {
@@ -1726,8 +1743,8 @@ export default function PerfilAluno() {
     }
   }, [aluno?.observacoes_medicas]);
 
-  // Consome o pedido de abrir a renovação — o state do histórico sobrevive a
-  // um F5, e o modal não deve reabrir sozinho depois.
+  // Consome o pedido de abrir a aba Planos — o state do histórico sobrevive a
+  // um F5, e a aba não deve reabrir sozinha depois.
   React.useEffect(() => {
     if (location.state?.abrirRenovarPlano) {
       navigate(location.pathname, { replace: true, state: null });
@@ -1737,12 +1754,14 @@ export default function PerfilAluno() {
   const handleRenovacaoSucesso = () => {
     queryClient.invalidateQueries({ queryKey: ['aluno', id] });
     queryClient.invalidateQueries({ queryKey: ['aluno-planos', id] });
+    queryClient.invalidateQueries({ queryKey: ['aluno-planos-aluno', id] });
     // A renovação cria a mensalidade do novo ciclo.
     queryClient.invalidateQueries({ queryKey: ['financeiro'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
-  // ILU-114: pausar/retomar mexe no vencimento, nas cobranças, na grade e nos avisos.
+  // ILU-114: pausar/retomar mexe no vencimento, nas cobranças, na grade e nos
+  // avisos. ILU-127: encerrar e desfazer o encerramento também.
   const handlePausaSucesso = () => {
     consultasAfetadasPelaPausa(id).forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
   };
@@ -1781,15 +1800,36 @@ export default function PerfilAluno() {
   // Early return APÓS todos os hooks
   if (loadingAluno) return <TableSkeleton />;
 
-  const planoAtivo   = derivarPlanoVigente(planos);
-  const semHistorico = Array.isArray(planos) && planos.length === 0 && aluno?.plano_id;
-  const pausaAberta  = pausas?.find(p => !p.data_retorno) ?? null;
+  // ILU-127: vários planos por aluno. O principal (primeiro dos válidos) é o
+  // que o cartão superior, o uso do plano e o heatmap mostram. O nome do plano
+  // só aparece fora dos cartões quando há mais de um válido.
+  const hojeStr         = hojeBrasilia();
+  const validos         = planosValidos(planosAluno, hojeStr);
+  const principal       = planosAluno ? (validos[0] ?? null) : undefined;
+  const variosPlanos    = validos.length > 1;
+  const ciclosDe        = (planoAlunoId) => (planos ?? []).filter(c => c.plano_aluno_id === planoAlunoId);
+  const planoAtivo      = principal ? derivarPlanoVigente(ciclosDe(principal.id)) : null;
+  const rotuloDe        = (planoAluno) =>
+    rotuloPlanoAluno(planoAluno, validos.some(v => v.id === planoAluno.id) ? validos : planosAluno);
+  const planoAlunoPorId = (planoAlunoId) => (planosAluno ?? []).find(pa => pa.id === planoAlunoId) ?? null;
+  const rotuloPorId     = (planoAlunoId) => {
+    const planoAluno = planoAlunoPorId(planoAlunoId);
+    return planoAluno ? rotuloDe(planoAluno) : '—';
+  };
+  const planosSemCiclo  = Array.isArray(planos) ? validos.filter(pa => ciclosDe(pa.id).length === 0) : [];
+  const pausasAbertas   = (pausas ?? []).filter(p => !p.data_retorno);
+  const pausaDoPlano    = (planoAluno) => pausasAbertas.find(p => p.plano_aluno_id === planoAluno.id) ?? null;
+
+  const abrirModalPlano  = (tipo, planoAluno, rotulo) => setModalPlano({ tipo, planoAluno, rotulo });
+  const fecharModalPlano = () => setModalPlano(null);
+  const pausaDoModal     = modalPlano?.planoAluno ? pausaDoPlano(modalPlano.planoAluno) : null;
+  const rotuloNoModalDePausa = modalPlano?.planoAluno && variosPlanos ? rotuloDe(modalPlano.planoAluno) : null;
 
   const abas = [
     { id: 'resumo',      label: 'Dados Gerais',    icon: <FileText size={18} />    },
     { id: 'modalidades', label: 'Modalidades',      icon: <BookOpen size={18} />    },
     { id: 'agenda',      label: 'Agenda Fixa',      icon: <CalendarDays size={18} /> },
-    { id: 'planos',      label: 'Histórico',        icon: <CreditCard size={18} />  },
+    { id: 'planos',      label: 'Planos',           icon: <CreditCard size={18} />  },
     { id: 'financeiro',  label: 'Financeiro',       icon: <Wallet size={18} />      },
     { id: 'frequencia',  label: 'Frequência',      icon: <Calendar size={18} />    },
     { id: 'anamnese',    label: 'Saúde/Anamnese',   icon: <Activity size={18} />    },
@@ -1810,9 +1850,13 @@ export default function PerfilAluno() {
               {aluno?.bolsista && (
                 <Badge tone="brand" variant="soft">Bolsista</Badge>
               )}
-              {pausaAberta && (
-                <Badge tone="info" variant="soft">Plano pausado</Badge>
-              )}
+              {pausasAbertas.map(p => (
+                <Badge key={p.id} tone="info" variant="soft">
+                  {variosPlanos && planoAlunoPorId(p.plano_aluno_id)
+                    ? `Plano ${rotuloPorId(p.plano_aluno_id)} pausado`
+                    : 'Plano pausado'}
+                </Badge>
+              ))}
             </h1>
             <p className="text-muted-foreground font-medium">Gestão de Aluno</p>
           </div>
@@ -1826,24 +1870,31 @@ export default function PerfilAluno() {
         </div>
       </div>
 
-      {pausaAberta && (
-        <AvisoPlanoPausado
-          pausa={pausaAberta}
-          onRetomar={() => setModalPausa('retomar')}
-          onAjustar={() => setModalPausa('ajustar')}
-        />
-      )}
+      {pausasAbertas.map(p => {
+        const planoDaPausa = planoAlunoPorId(p.plano_aluno_id);
+        return (
+          <AvisoPlanoPausado
+            key={p.id}
+            pausa={p}
+            rotuloPlano={variosPlanos && planoDaPausa ? rotuloDe(planoDaPausa) : null}
+            onRetomar={() => planoDaPausa && abrirModalPlano('retomar', planoDaPausa)}
+            onAjustar={() => planoDaPausa && abrirModalPlano('ajustar', planoDaPausa)}
+          />
+        );
+      })}
 
-      {/* Aviso de histórico ausente */}
-      {semHistorico && (
+      {/* Aviso de histórico ausente: plano do aluno sem nenhum ciclo */}
+      {planosSemCiclo.length > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-foreground">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" />
           <div>
             <p className="font-bold text-sm">Histórico de plano não registrado</p>
             <p className="text-xs font-medium mt-0.5 text-foreground/80">
-              Este aluno possui um plano vinculado, mas nenhum ciclo foi gravado em{' '}
+              {variosPlanos
+                ? `O plano ${planosSemCiclo.map(rotuloDe).join(', ')} não tem nenhum ciclo gravado em `
+                : 'Este aluno possui um plano vinculado, mas nenhum ciclo foi gravado em '}
               <code className="font-mono">historico_planos</code>. Use o botão{' '}
-              <strong>Renovar / Alterar Plano</strong> na aba Histórico para registrar o ciclo atual.
+              <strong>Renovar</strong> no cartão do plano, na aba Planos, para registrar o ciclo atual.
             </p>
           </div>
         </div>
@@ -1860,15 +1911,25 @@ export default function PerfilAluno() {
                 {aluno?.status}
               </span>
             </div>
-            <h2 className="text-xl font-bold text-foreground">
-              {planoAtivo?.planos?.nome || aluno?.planos?.nome || 'Sem plano ativo'}
+            <h2 className="text-xl font-bold text-foreground flex flex-wrap items-baseline gap-2">
+              {planoAtivo?.planos?.nome || principal?.planos?.nome || 'Sem plano ativo'}
+              {variosPlanos && (
+                <span className="text-sm font-bold text-muted-foreground">
+                  +{validos.length - 1} plano{validos.length - 1 === 1 ? '' : 's'}
+                </span>
+              )}
             </h2>
             <p className="text-muted-foreground text-sm">
               Desde {new Date(aluno?.created_at).toLocaleDateString('pt-BR')}
             </p>
           </div>
         </Surface>
-        <CardUsoPlan aluno={aluno} planos={planos} frequencia={frequencia} pausas={pausas} />
+        <CardUsoPlan
+          planoAluno={principal}
+          planos={principal ? ciclosDe(principal.id) : []}
+          frequencia={frequencia}
+          pausas={pausas}
+        />
       </div>
 
       {/* ABAS */}
@@ -1970,7 +2031,7 @@ export default function PerfilAluno() {
             <div className="space-y-4 animate-in slide-in-from-bottom-4">
               <ResumoFrequenciaAluno alunoId={id} />
               <Surface variant="card" padding="lg">
-                <HeatmapFrequencia frequencia={frequencia} planoAtivo={planoAtivo} pausado={!!pausaAberta} />
+                <HeatmapFrequencia frequencia={frequencia} planoAtivo={planoAtivo} pausado={!!principal?.pausado_desde} />
               </Surface>
               <Surface variant="card" padding="md" className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1">
@@ -2033,45 +2094,28 @@ export default function PerfilAluno() {
         {/* ABA: Planos / Histórico */}
         {abaAtiva === 'planos' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4">
-            <div className="flex flex-wrap justify-between items-center gap-4">
-              <div>
-                <h3 className="font-black text-foreground text-xl">Contratos e Histórico</h3>
-                <p className="text-muted-foreground text-sm">
-                  Visualize, edite ou remova ciclos de plano deste aluno.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {pausaAberta ? (
-                  <Button variant="outline" size="lg" leftIcon={<Play size={16} />} onClick={() => setModalPausa('retomar')}>
-                    Retomar plano
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    leftIcon={<Pause size={16} />}
-                    disabled={!aluno?.plano_id}
-                    title={aluno?.plano_id ? 'Pausa o plano sem cancelar nem inativar o aluno' : 'Este aluno não tem plano para pausar'}
-                    onClick={() => setModalPausa('pausar')}
-                  >
-                    Pausar plano
-                  </Button>
-                )}
-                <Button
-                  variant="brand"
-                  size="lg"
-                  disabled={!!pausaAberta}
-                  title={pausaAberta ? 'Retome o plano antes de renovar' : undefined}
-                  onClick={() => setModalRenovarAberto(true)}
-                >
-                  + Renovar / Alterar Plano
-                </Button>
-              </div>
+            <PlanosDoAluno
+              planosAluno={planosAluno}
+              ciclos={planos}
+              hoje={hojeStr}
+              onAdicionar={() => abrirModalPlano('adicionar', null)}
+              onRenovar={(planoAluno, rotulo) => abrirModalPlano('renovar', planoAluno, rotulo)}
+              onPausar={(planoAluno) => abrirModalPlano('pausar', planoAluno)}
+              onRetomar={(planoAluno) => abrirModalPlano('retomar', planoAluno)}
+              onAjustar={(planoAluno) => abrirModalPlano('ajustar', planoAluno)}
+              onAlterado={handlePausaSucesso}
+            />
+            <div>
+              <h3 className="font-black text-foreground text-xl">Histórico de ciclos</h3>
+              <p className="text-muted-foreground text-sm">
+                Visualize, edite ou remova ciclos de plano deste aluno.
+              </p>
             </div>
             <Surface variant="card" padding="none" className="overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-muted/50">
                   <tr>
+                    {variosPlanos && <Th>Plano do aluno</Th>}
                     <Th>Plano</Th>
                     <Th>Período</Th>
                     <Th>Status</Th>
@@ -2081,6 +2125,9 @@ export default function PerfilAluno() {
                 <tbody className="divide-y divide-border">
                   {planos?.map(p => (
                     <tr key={p.id} className={`hover:bg-muted/30 transition-colors ${confirmDeleteId === p.id ? 'bg-destructive-soft/30' : ''}`}>
+                      {variosPlanos && (
+                        <td className="p-5 font-bold text-foreground">{rotuloPorId(p.plano_aluno_id)}</td>
+                      )}
                       <td className="p-5">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-foreground">{p.planos?.nome}</p>
@@ -2097,7 +2144,7 @@ export default function PerfilAluno() {
                         </p>
                       </td>
                       <td className="p-5">
-                        {pausaAberta?.historico_plano_id === p.id ? (
+                        {pausasAbertas.some(pausa => pausa.historico_plano_id === p.id) ? (
                           <Badge tone="info" variant="soft">pausado</Badge>
                         ) : (
                           <Badge tone={p.status === 'ativo' ? 'success' : 'neutral'} variant="soft">
@@ -2143,10 +2190,10 @@ export default function PerfilAluno() {
                   ))}
                   {(!planos || planos.length === 0) && (
                     <tr>
-                      <td colSpan="4" className="p-8 text-center text-muted-foreground font-medium">
+                      <td colSpan={variosPlanos ? 5 : 4} className="p-8 text-center text-muted-foreground font-medium">
                         Nenhum histórico formal de plano encontrado.
                         <br />
-                        <span className="text-sm">Clique no botão acima para registrar o ciclo atual.</span>
+                        <span className="text-sm">Use Renovar no cartão do plano para registrar o ciclo atual.</span>
                       </td>
                     </tr>
                   )}
@@ -2162,6 +2209,7 @@ export default function PerfilAluno() {
                   <table className="w-full text-left">
                     <thead className="bg-muted/50">
                       <tr>
+                        {variosPlanos && <Th>Plano do aluno</Th>}
                         <Th>Período</Th>
                         <Th>Dias devolvidos</Th>
                         <Th>Motivo</Th>
@@ -2170,6 +2218,9 @@ export default function PerfilAluno() {
                     <tbody className="divide-y divide-border">
                       {pausas.map(p => (
                         <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                          {variosPlanos && (
+                            <td className="p-5 font-bold text-foreground">{rotuloPorId(p.plano_aluno_id)}</td>
+                          )}
                           <td className="p-5 font-bold text-foreground">
                             {formatarDataBR(p.data_inicio)} até{' '}
                             {p.data_retorno
@@ -2213,23 +2264,29 @@ export default function PerfilAluno() {
         )}
       </div>
 
-      {/* MODAL: Renovar Plano */}
+      {/* MODAL: Renovar um plano do aluno ou adicionar outro (ILU-127) */}
       <ModalRenovarPlano
-        isOpen={modalRenovarAberto}
-        onClose={() => setModalRenovarAberto(false)}
+        isOpen={modalPlano?.tipo === 'renovar' || modalPlano?.tipo === 'adicionar'}
+        onClose={fecharModalPlano}
         alunoId={id}
+        planoAluno={modalPlano?.tipo === 'renovar' ? modalPlano.planoAluno : undefined}
+        novoPlano={modalPlano?.tipo === 'adicionar'}
+        rotulo={modalPlano?.rotulo}
         onSucesso={handleRenovacaoSucesso}
       />
 
-      {/* MODAIS: Pausa do plano (ILU-114) */}
-      {modalPausa === 'pausar' && aluno && (
-        <ModalPausarPlano aluno={aluno} onClose={() => setModalPausa(null)} onSucesso={handlePausaSucesso} />
+      {/* MODAIS: Pausa de um plano do aluno (ILU-114 / ILU-127) */}
+      {modalPlano?.tipo === 'pausar' && aluno && (
+        <ModalPausarPlano aluno={aluno} planoAluno={modalPlano.planoAluno} rotuloPlano={rotuloNoModalDePausa}
+          onClose={fecharModalPlano} onSucesso={handlePausaSucesso} />
       )}
-      {modalPausa === 'retomar' && aluno && pausaAberta && (
-        <ModalRetomarPlano aluno={aluno} pausa={pausaAberta} onClose={() => setModalPausa(null)} onSucesso={handlePausaSucesso} />
+      {modalPlano?.tipo === 'retomar' && aluno && pausaDoModal && (
+        <ModalRetomarPlano aluno={aluno} planoAluno={modalPlano.planoAluno} rotuloPlano={rotuloNoModalDePausa}
+          pausa={pausaDoModal} onClose={fecharModalPlano} onSucesso={handlePausaSucesso} />
       )}
-      {modalPausa === 'ajustar' && aluno && pausaAberta && (
-        <ModalAjustarPrevisao aluno={aluno} pausa={pausaAberta} onClose={() => setModalPausa(null)} onSucesso={handlePausaSucesso} />
+      {modalPlano?.tipo === 'ajustar' && aluno && pausaDoModal && (
+        <ModalAjustarPrevisao aluno={aluno} planoAluno={modalPlano.planoAluno} rotuloPlano={rotuloNoModalDePausa}
+          pausa={pausaDoModal} onClose={fecharModalPlano} onSucesso={handlePausaSucesso} />
       )}
 
       {/* MODAL: Editar Cadastro */}

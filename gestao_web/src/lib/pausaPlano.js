@@ -66,12 +66,12 @@ export function cobrancasRemoviveis(cobrancas) {
   return (cobrancas || []).filter((c) => !ehCobrancaIntegralDoCiclo(c));
 }
 
-// Consultas que pausar/retomar deixam velhas: vencimento, cobranças, reservas
-// e fixos da grade ('agenda' cobre as reservas do mês) e avisos. `alunoId` é o
-// da URL do perfil (texto).
+// Consultas que pausar/retomar (e encerrar um plano) deixam velhas: vencimento,
+// planos do aluno, cobranças, reservas e fixos da grade ('agenda' cobre as
+// reservas do mês) e avisos. `alunoId` é o da URL do perfil (texto).
 export function consultasAfetadasPelaPausa(alunoId) {
   return [
-    ...['aluno', 'aluno-planos', 'aluno-pausas', 'aluno-resumo-frequencia', 'aluno-cobrancas-em-aberto']
+    ...['aluno', 'aluno-planos', 'aluno-planos-aluno', 'aluno-pausas', 'aluno-resumo-frequencia', 'aluno-cobrancas-em-aberto']
       .map((chave) => [chave, alunoId]),
     ...['agenda', 'matriculas-fixas', 'financeiro', 'dashboard', 'alunos', 'notificacoes-gerais']
       .map((chave) => [chave]),

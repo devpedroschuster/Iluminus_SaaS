@@ -18,6 +18,7 @@ describe('consultasAfetadasPelaPausa', () => {
   it('atualiza o perfil do aluno, o financeiro e os avisos', () => {
     expect(chaves).toContainEqual(['aluno', '7']);
     expect(chaves).toContainEqual(['aluno-pausas', '7']);
+    expect(chaves).toContainEqual(['aluno-planos-aluno', '7']);
     expect(chaves).toContainEqual(['financeiro']);
     expect(chaves).toContainEqual(['notificacoes-gerais']);
   });

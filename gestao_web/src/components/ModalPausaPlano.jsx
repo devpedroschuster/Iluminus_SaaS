@@ -13,22 +13,27 @@ import Input, { Label } from './ui/Input';
 
 // ILU-114: pausar, retomar e ajustar a previsão de volta do plano de um aluno.
 // As regras ficam nas RPCs; aqui a gestão vê o efeito antes de confirmar.
+// ILU-127: cada modal age sobre um plano do aluno (`planoAluno`, linha de
+// planos_aluno): datas, cobranças e a RPC são as daquele plano. `rotuloPlano`
+// só vem quando o aluno tem mais de um plano, e entra na descrição.
 
 const formatarData = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR') : '—');
 const plural = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;
+const descricao = (aluno, rotuloPlano) => (rotuloPlano ? `${aluno.nome_completo} · ${rotuloPlano}` : aluno.nome_completo);
 
-// Cobranças em aberto que vencem de `inicio` até a véspera de `fimExclusivo`.
-// Entram marcadas para sair, porque vencimento dentro da pausa não é cobrado; a
-// gestão pode desmarcar. Quem some da lista depois de trocar as datas não vai.
-function useCobrancasDaPausa(alunoId, inicio, fimExclusivo) {
+// Cobranças em aberto do plano que vencem de `inicio` até a véspera de
+// `fimExclusivo`. Entram marcadas para sair, porque vencimento dentro da pausa
+// não é cobrado; a gestão pode desmarcar. Quem some da lista depois de trocar
+// as datas não vai.
+function useCobrancasDaPausa(alunoId, planoAlunoId, inicio, fimExclusivo) {
   const [desmarcadas, setDesmarcadas] = useState([]);
   const fim = fimExclusivo ? somarDias(fimExclusivo, -1) : '';
   const periodoValido = !!inicio && !!fim && inicio <= fim;
 
   // String: o perfil invalida esta chave com o id da URL, que é texto.
   const { data, isLoading } = useQuery({
-    queryKey: ['aluno-cobrancas-em-aberto', String(alunoId), inicio, fim],
-    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, inicio, fim),
+    queryKey: ['aluno-cobrancas-em-aberto', String(alunoId), inicio, fim, planoAlunoId],
+    queryFn: () => financeiroService.listarCobrancasPlanoEmAberto(alunoId, inicio, fim, planoAlunoId),
     enabled: periodoValido,
   });
 
@@ -83,13 +88,13 @@ function ListaCobrancas({ periodoValido, cobrancas, carregando, desmarcadas, alt
   );
 }
 
-export function ModalPausarPlano({ aluno, onClose, onSucesso }) {
+export function ModalPausarPlano({ aluno, planoAluno, rotuloPlano, onClose, onSucesso }) {
   const hoje = hojeBrasilia();
   const [dataInicio, setDataInicio] = useState(hoje);
   const [dataPrevista, setDataPrevista] = useState('');
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
-  const lista = useCobrancasDaPausa(aluno.id, dataInicio, dataPrevista);
+  const lista = useCobrancasDaPausa(aluno.id, planoAluno.id, dataInicio, dataPrevista);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,6 +105,7 @@ export function ModalPausarPlano({ aluno, onClose, onSucesso }) {
         data_prevista_volta: dataPrevista,
         motivo,
         cobrancas_remover: lista.idsParaRemover,
+        plano_aluno_id: planoAluno.id,
       });
       const detalhes = [
         r.reservas_canceladas > 0 && `${plural(r.reservas_canceladas, 'reserva')} cancelada${r.reservas_canceladas === 1 ? '' : 's'}`,
@@ -116,7 +122,7 @@ export function ModalPausarPlano({ aluno, onClose, onSucesso }) {
   };
 
   return (
-    <Modal aberto fechar={onClose} title="Pausar plano" description={aluno.nome_completo} size="md">
+    <Modal aberto fechar={onClose} title="Pausar plano" description={descricao(aluno, rotuloPlano)} size="md">
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -160,7 +166,7 @@ export function ModalPausarPlano({ aluno, onClose, onSucesso }) {
         <ul className="space-y-1.5 p-4 rounded-xl bg-muted text-xs font-medium text-muted-foreground list-disc list-inside">
           <li>Enquanto estiver pausado, o aluno não é cobrado, sai da grade e da chamada, libera a vaga e não agenda pelo app.</li>
           <li>Reservas a partir do início são canceladas, sem contar como falta.</li>
-          <li>A previsão é só um lembrete: a volta é registrada à mão, e os dias pausados são somados ao vencimento (hoje {formatarData(aluno.data_fim_plano)}).</li>
+          <li>A previsão é só um lembrete: a volta é registrada à mão, e os dias pausados são somados ao vencimento (hoje {formatarData(planoAluno.data_fim)}).</li>
         </ul>
 
         <ListaCobrancas {...lista} />
@@ -174,16 +180,16 @@ export function ModalPausarPlano({ aluno, onClose, onSucesso }) {
   );
 }
 
-export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
+export function ModalRetomarPlano({ aluno, planoAluno, rotuloPlano, pausa, onClose, onSucesso }) {
   const hoje = hojeBrasilia();
   const [dataRetorno, setDataRetorno] = useState(hoje);
   const [salvando, setSalvando] = useState(false);
-  const lista = useCobrancasDaPausa(aluno.id, pausa.data_inicio, dataRetorno);
+  const lista = useCobrancasDaPausa(aluno.id, planoAluno.id, pausa.data_inicio, dataRetorno);
   const retomada = calcularRetomada({
     dataInicioPausa: pausa.data_inicio,
     dataRetorno,
-    dataInicioPlano: aluno.data_inicio_plano,
-    dataFimPlano: aluno.data_fim_plano,
+    dataInicioPlano: planoAluno.data_inicio,
+    dataFimPlano: planoAluno.data_fim,
   });
 
   const handleSubmit = async (e) => {
@@ -193,6 +199,7 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
       const r = await alunosService.retomarPlano(aluno.id, {
         data_retorno: dataRetorno,
         cobrancas_remover: lista.idsParaRemover,
+        plano_aluno_id: planoAluno.id,
       });
       showToast.success(`Plano retomado: ${plural(r.dias_devolvidos, 'dia')} de volta, novo vencimento em ${formatarData(r.data_fim_plano)}.`);
       onSucesso();
@@ -205,7 +212,7 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
   };
 
   return (
-    <Modal aberto fechar={onClose} title="Retomar plano" description={aluno.nome_completo} size="md">
+    <Modal aberto fechar={onClose} title="Retomar plano" description={descricao(aluno, rotuloPlano)} size="md">
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         <div>
           <Label htmlFor="pausa-retorno" className="block mb-1.5">Data da volta</Label>
@@ -227,7 +234,7 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
         {retomada && (
           <div className="p-4 rounded-xl bg-muted">
             <p className="font-bold text-sm text-foreground">
-              {plural(retomada.dias, 'dia')} de volta: vencimento passa de {formatarData(aluno.data_fim_plano)} para {formatarData(retomada.novoFim)}.
+              {plural(retomada.dias, 'dia')} de volta: vencimento passa de {formatarData(planoAluno.data_fim)} para {formatarData(retomada.novoFim)}.
             </p>
             <p className="text-xs font-medium text-muted-foreground mt-1">
               O aluno volta aos mesmos horários fixos. A volta não gera cobrança: a automática retorna na geração do mês seguinte, e o que precisar antes disso é lançado à mão no Financeiro.
@@ -246,7 +253,7 @@ export function ModalRetomarPlano({ aluno, pausa, onClose, onSucesso }) {
   );
 }
 
-export function ModalAjustarPrevisao({ aluno, pausa, onClose, onSucesso }) {
+export function ModalAjustarPrevisao({ aluno, planoAluno, rotuloPlano, pausa, onClose, onSucesso }) {
   const [dataPrevista, setDataPrevista] = useState(pausa.data_prevista_volta);
   const [salvando, setSalvando] = useState(false);
 
@@ -254,7 +261,7 @@ export function ModalAjustarPrevisao({ aluno, pausa, onClose, onSucesso }) {
     e.preventDefault();
     setSalvando(true);
     try {
-      await alunosService.ajustarPrevisaoPausa(aluno.id, dataPrevista);
+      await alunosService.ajustarPrevisaoPausa(aluno.id, dataPrevista, planoAluno.id);
       showToast.success(`Previsão de volta ajustada para ${formatarData(dataPrevista)}.`);
       onSucesso();
       onClose();
@@ -266,7 +273,7 @@ export function ModalAjustarPrevisao({ aluno, pausa, onClose, onSucesso }) {
   };
 
   return (
-    <Modal aberto fechar={onClose} title="Ajustar previsão de volta" description={aluno.nome_completo} size="sm">
+    <Modal aberto fechar={onClose} title="Ajustar previsão de volta" description={descricao(aluno, rotuloPlano)} size="sm">
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         <div>
           <Label htmlFor="pausa-nova-previsao" className="block mb-1.5">Nova previsão</Label>

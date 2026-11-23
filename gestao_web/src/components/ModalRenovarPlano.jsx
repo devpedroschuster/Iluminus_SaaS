@@ -4,36 +4,54 @@ import { alunosService } from '../services/alunosService';
 import { showToast } from './shared/showToast';
 import { Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
 import { formatarMoeda, hojeBrasilia, calcularFimPlano } from '../lib/utils';
+import { somarDias } from '../lib/agendaAluno';
 
 import Modal, { ModalConfirmacao } from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
 import SelectFormaPagamento from './SelectFormaPagamento';
 
-export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso }) {
+// ILU-127: renova um plano do aluno (`planoAluno`, linha de planos_aluno; o
+// ciclo novo começa no dia seguinte ao fim dele) ou adiciona outro plano
+// (`novoPlano`, começa hoje). `rotulo` é o nome do plano no título; sem ele,
+// vale o nome do plano.
+const formVazio = (dataInicio) => ({
+  plano_id: '',
+  data_inicio: dataInicio,
+  data_fim: '',
+  valor_pago: '',
+  forma_recebimento: 'recorrente',
+  ja_recebido: false,
+  forma_pagamento: '',
+  data_pagamento: hojeBrasilia()
+});
+
+// Novo ciclo começa no dia seguinte ao fim do anterior — reaproveitar o mesmo
+// dia (sem +1) sobrepunha 1 dia entre os dois ciclos.
+const inicioSugerido = (planoAluno, novoPlano) =>
+  !novoPlano && planoAluno?.data_fim ? somarDias(planoAluno.data_fim, 1) : hojeBrasilia();
+
+export default function ModalRenovarPlano({ isOpen, onClose, alunoId, planoAluno, novoPlano, rotulo, onSucesso }) {
   const [planos, setPlanos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [confirmandoValor, setConfirmandoValor] = useState(false);
-  const [form, setForm] = useState({
-    plano_id: '',
-    data_inicio: hojeBrasilia(),
-    data_fim: '',
-    valor_pago: '',
-    forma_recebimento: 'recorrente',
-    ja_recebido: false,
-    forma_pagamento: '',
-    data_pagamento: hojeBrasilia()
-  });
+  const [form, setForm] = useState(() => formVazio(inicioSugerido(planoAluno, novoPlano)));
+  const adicionando = !!novoPlano;
+  const titulo = adicionando
+    ? 'Adicionar plano'
+    : `Renovar ${rotulo || planoAluno?.planos?.nome || 'plano'}`;
 
   // Valor total quando o ciclo é pago de uma vez (preço mensal × duração) —
   // mesma conta usada no servidor (renovar_plano_aluno), sem desconto.
   const calcularValorAVista = (planoSelecionado) =>
     planoSelecionado ? Number(planoSelecionado.preco) * (planoSelecionado.duracao_meses || 1) : '';
 
+  const planoAlunoFim = planoAluno?.data_fim;
   useEffect(() => {
     if (isOpen && alunoId) {
-      // "Já recebido" nunca vem marcado de uma renovação anterior.
-      setForm(prev => ({ ...prev, ja_recebido: false, forma_pagamento: '', data_pagamento: hojeBrasilia() }));
+      // Cada abertura começa do zero: o plano renovado (ou o novo) pode ser
+      // outro, e "Já recebido" nunca vem marcado de uma renovação anterior.
+      setForm(formVazio(inicioSugerido({ data_fim: planoAlunoFim }, novoPlano)));
 
       supabase.from('planos').select('id, nome, preco, duracao_meses').order('preco').then(({ data, error }) => {
         if (error) {
@@ -43,26 +61,8 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         }
         if (data) setPlanos(data);
       });
-
-      supabase.from('alunos').select('data_fim_plano').eq('id', alunoId).single().then(({ data, error }) => {
-        if (error) {
-          // Não bloqueia o fluxo: o campo data_inicio já tem um valor padrão (hoje).
-          // Mas o usuário precisa saber que a data pré-preenchida pode não refletir
-          // o vencimento real do plano atual.
-          console.error('[ModalRenovarPlano] Erro ao carregar data_fim_plano do aluno:', error);
-          showToast.error('Não foi possível carregar a data de término do plano atual. Confira a data de início manualmente.');
-          return;
-        }
-        if (data && data.data_fim_plano) {
-          // Novo ciclo começa no dia seguinte ao fim do anterior — reaproveitar
-          // o mesmo dia (sem +1) sobrepunha 1 dia entre os dois ciclos.
-          const proximoDia = new Date(data.data_fim_plano + 'T12:00:00');
-          proximoDia.setDate(proximoDia.getDate() + 1);
-          setForm(prev => ({ ...prev, data_inicio: proximoDia.toISOString().split('T')[0] }));
-        }
-      });
     }
-  }, [isOpen, alunoId]);
+  }, [isOpen, alunoId, planoAlunoFim, novoPlano]);
 
   const handlePlanoChange = (e) => {
   const planoId = e.target.value;
@@ -104,14 +104,16 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         forma_recebimento: form.forma_recebimento,
         ja_recebido: form.ja_recebido,
         forma_pagamento: form.forma_pagamento,
-        data_pagamento: form.data_pagamento
+        data_pagamento: form.data_pagamento,
+        ...(adicionando ? { novo_plano: true } : planoAluno ? { plano_aluno_id: planoAluno.id } : {}),
       });
       // O vencimento é o início do novo ciclo, que pode cair em outro mês — a
       // cobrança aparece no Financeiro do mês do vencimento, não no de hoje.
       const vencimento = new Date(`${form.data_inicio}T12:00:00`).toLocaleDateString('pt-BR');
+      const feito = adicionando ? 'Plano adicionado!' : 'Plano renovado!';
       showToast.success(resultado.pago
-        ? `Plano renovado! Mensalidade registrada como paga no Financeiro (vencimento ${vencimento}).`
-        : `Plano renovado! Mensalidade pendente no Financeiro, com vencimento em ${vencimento}. Dê baixa em "Receber" quando pagarem.`);
+        ? `${feito} Mensalidade registrada como paga no Financeiro (vencimento ${vencimento}).`
+        : `${feito} Mensalidade pendente no Financeiro, com vencimento em ${vencimento}. Dê baixa em "Receber" quando pagarem.`);
       // Avisos em toasts separados — não substituem a confirmação de sucesso.
       // avisoRepasse: a geração falhou; avisosRepasse: o que a apuração avisou.
       const avisos = resultado.avisoRepasse ? [resultado.avisoRepasse] : (resultado.avisosRepasse ?? []);
@@ -121,7 +123,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
       onSucesso();
       onClose();
     } catch (error) {
-      showToast.error("Erro ao renovar plano: " + error.message);
+      showToast.error(`${adicionando ? 'Erro ao adicionar plano' : 'Erro ao renovar plano'}: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -159,7 +161,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
   const planoSelecionadoAtual = planos.find(p => p.id === Number(form.plano_id));
 
   return (
-    <Modal aberto={isOpen} fechar={onClose} title="Renovar Plano do Aluno" size="md">
+    <Modal aberto={isOpen} fechar={onClose} title={titulo} size="md">
       <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         
         <div>
@@ -312,7 +314,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
             {loading ? (
               <><Loader2 className="animate-spin" size={20} /> Processando...</>
             ) : (
-              'Confirmar Renovação'
+              adicionando ? 'Adicionar plano' : 'Confirmar Renovação'
             )}
           </Button>
         </Modal.Footer>
@@ -324,7 +326,7 @@ export default function ModalRenovarPlano({ isOpen, onClose, alunoId, onSucesso 
         onConfirm={confirmarValorEEnviar}
         tipo="warning"
         titulo="Confirmar valor fora do padrão"
-        mensagem={`O valor negociado (${formatarMoeda(form.valor_pago)}) difere em mais de 20% do preço de tabela do plano ${planoSelecionadoAtual ? `(${formatarMoeda(planoSelecionadoAtual.preco)})` : ''}. Confirma a renovação com este valor?`}
+        mensagem={`O valor negociado (${formatarMoeda(form.valor_pago)}) difere em mais de 20% do preço de tabela do plano ${planoSelecionadoAtual ? `(${formatarMoeda(planoSelecionadoAtual.preco)})` : ''}. Confirma ${adicionando ? 'o plano' : 'a renovação'} com este valor?`}
         textoConfirmar="Confirmar valor"
         loading={loading}
       />

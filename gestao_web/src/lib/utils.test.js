@@ -4,7 +4,7 @@ import {
   contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
   ehPlanoLivre, calcularFrequenciaMedia, statusAcessoApp, STATUS_ACESSO_APP, montarInstrucoesAcesso,
-  statusMensalidadeAluno, camposDoPlanoNoCadastro,
+  statusMensalidadeAluno,
 } from './utils';
 
 describe('valorDevidoMensalidade', () => {
@@ -125,63 +125,6 @@ describe('hojeBrasilia (regressão ILU-19)', () => {
     vi.setSystemTime(new Date('2026-06-10T15:00:00.000Z'));
 
     expect(hojeBrasilia()).toBe('2026-06-10');
-  });
-});
-
-describe('camposDoPlanoNoCadastro (ILU-108)', () => {
-  // "Hoje" é 2026-11-17 em Brasília.
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-  const comHoje = () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-17T15:00:00.000Z'));
-  };
-  const atual = { plano_id: 1, data_inicio: '2026-10-24', data_fim: '2026-11-23', status: 'finalizado' };
-
-  it('renovação antecipada: início do ciclo atual, plano e fim do ciclo novo', () => {
-    comHoje();
-    const novo = { plano_id: 2, data_inicio: '2026-11-24', data_fim: '2026-12-23', status: 'agendado' };
-    expect(camposDoPlanoNoCadastro([novo, atual])).toEqual({
-      plano_id: 2, data_inicio_plano: '2026-10-24', data_fim_plano: '2026-12-23',
-    });
-  });
-
-  it('com dois ciclos à frente, plano e fim são os do mais recente', () => {
-    comHoje();
-    const b = { plano_id: 2, data_inicio: '2026-11-24', data_fim: '2026-12-23', status: 'finalizado' };
-    const c = { plano_id: 3, data_inicio: '2026-12-24', data_fim: '2027-01-23', status: 'agendado' };
-    expect(camposDoPlanoNoCadastro([atual, c, b])).toEqual({
-      plano_id: 3, data_inicio_plano: '2026-10-24', data_fim_plano: '2027-01-23',
-    });
-  });
-
-  it('ciclo novo cancelado não conta', () => {
-    comHoje();
-    const cancelado = { plano_id: 2, data_inicio: '2026-11-24', data_fim: '2026-12-23', status: 'cancelado' };
-    expect(camposDoPlanoNoCadastro([atual, cancelado])).toEqual({
-      plano_id: 1, data_inicio_plano: '2026-10-24', data_fim_plano: '2026-11-23',
-    });
-  });
-
-  it('sem ciclo seguinte, os campos são os do vigente (como antes)', () => {
-    comHoje();
-    expect(camposDoPlanoNoCadastro([atual])).toEqual({
-      plano_id: 1, data_inicio_plano: '2026-10-24', data_fim_plano: '2026-11-23',
-    });
-  });
-
-  it('vencido e renovado para o futuro: os campos são os do ciclo novo (como antes)', () => {
-    comHoje();
-    const vencido = { plano_id: 1, data_inicio: '2026-09-01', data_fim: '2026-10-31', status: 'finalizado' };
-    const novo = { plano_id: 2, data_inicio: '2026-11-24', data_fim: '2026-12-23', status: 'agendado' };
-    expect(camposDoPlanoNoCadastro([vencido, novo])).toEqual({
-      plano_id: 2, data_inicio_plano: '2026-11-24', data_fim_plano: '2026-12-23',
-    });
-  });
-
-  it('sem histórico devolve null', () => {
-    expect(camposDoPlanoNoCadastro([])).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
 import { MOTIVO_CANCELAMENTO_PAUSA } from '../lib/pausaPlano';
 import { gerarRepassesDaMensalidade } from './repasseService';
+import { montarItensModalidades } from '../lib/planosAluno';
 
 // ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
 // string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
@@ -298,7 +299,7 @@ export const alunosService = {
    * Renova o plano de um aluno de forma atômica via RPC.
    * Função SQL correspondente: renovar_plano_aluno()
    *
-   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, avisosRepasse?: string[], avisoRepasse?: string }}
+   * @returns {{ sucesso: true, mensalidade_id: number, pago: boolean, plano_aluno_id?: string, avisosRepasse?: string[], avisoRepasse?: string }}
    *   avisosRepasse: o aviso e os avisos da geração do repasse (pagamento já recebido);
    *   avisoRepasse: a geração do repasse falhou.
    */
@@ -315,11 +316,19 @@ export const alunosService = {
         p_ja_recebido:       jaRecebido,
         p_forma_pagamento:   jaRecebido ? dadosRenovacao.forma_pagamento : null,
         p_data_pagamento:    jaRecebido ? dadosRenovacao.data_pagamento : null,
+        // ILU-127: só vão quando informados (aluno com um plano só não muda nada).
+        ...(dadosRenovacao.plano_aluno_id ? { p_plano_aluno_id: dadosRenovacao.plano_aluno_id } : {}),
+        ...(dadosRenovacao.novo_plano ? { p_novo_plano: true } : {}),
       });
 
       if (error) throw error;
 
-      const resultado = { sucesso: true, mensalidade_id: data?.mensalidade_id, pago: !!data?.pago };
+      const resultado = {
+        sucesso: true,
+        mensalidade_id: data?.mensalidade_id,
+        pago: !!data?.pago,
+        plano_aluno_id: data?.plano_aluno_id,
+      };
 
       // Mesmo padrão não-bloqueante de financeiroService.confirmarPagamento:
       // a renovação/pagamento nunca é desfeita por falha no repasse.
@@ -346,9 +355,12 @@ export const alunosService = {
   // faltas, reposições feitas/pendentes) para o período do plano vigente.
   // ─────────────────────────────────────────────────────────────
 
-  async buscarResumoFrequencia(alunoId) {
+  async buscarResumoFrequencia(alunoId, planoAlunoId) {
     const { data, error } = await supabase
-      .rpc('fn_resumo_frequencia_aluno', { p_aluno_id: alunoId })
+      .rpc('fn_resumo_frequencia_aluno', {
+        p_aluno_id: alunoId,
+        ...(planoAlunoId ? { p_plano_aluno_id: planoAlunoId } : {}),
+      })
       .single();
 
     if (error) throw error;
@@ -402,6 +414,7 @@ export const alunosService = {
         p_data_prevista_volta: dados.data_prevista_volta,
         p_motivo:              dados.motivo,
         p_cobrancas_remover:   dados.cobrancas_remover ?? [],
+        ...(dados.plano_aluno_id ? { p_plano_aluno_id: dados.plano_aluno_id } : {}),
       });
       if (error) throw error;
       return data;
@@ -417,6 +430,7 @@ export const alunosService = {
         p_aluno_id:          alunoId,
         p_data_retorno:      dados.data_retorno,
         p_cobrancas_remover: dados.cobrancas_remover ?? [],
+        ...(dados.plano_aluno_id ? { p_plano_aluno_id: dados.plano_aluno_id } : {}),
       });
       if (error) throw error;
       return data;
@@ -426,10 +440,11 @@ export const alunosService = {
     }
   },
 
-  async ajustarPrevisaoPausa(alunoId, dataPrevista) {
+  async ajustarPrevisaoPausa(alunoId, dataPrevista, planoAlunoId) {
     const { data, error } = await supabase.rpc('ajustar_previsao_pausa', {
       p_aluno_id:            alunoId,
       p_data_prevista_volta: dataPrevista,
+      ...(planoAlunoId ? { p_plano_aluno_id: planoAlunoId } : {}),
     });
     if (error) throw error;
     return data;
@@ -446,62 +461,97 @@ export const alunosService = {
     return data;
   },
 
-  async normalizarHistoricoPlanos() {
-    const { data: alunos, error: errAlunos } = await supabase
-      .from('alunos')
-      .select('id, plano_id, data_inicio_plano, data_fim_plano, created_at')
-      .not('plano_id', 'is', null);
+  // ─────────────────────────────────────────────────────────────
+  // ILU-127: vários planos por aluno. Cada plano é uma linha de
+  // `planos_aluno`; as modalidades ligam-se a um plano.
+  // ─────────────────────────────────────────────────────────────
 
-    if (errAlunos) throw errAlunos;
-    if (!alunos?.length) return { normalizados: 0, ignorados: 0 };
+  async listarPlanosDoAluno(alunoId) {
+    const { data, error } = await supabase
+      .from('planos_aluno')
+      .select('id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome, regras_acesso, is_plano_livre, preco, duracao_meses)')
+      .eq('aluno_id', alunoId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
 
-    const { data: historicosAtivos, error: errHistoricos } = await supabase
-      .from('historico_planos')
-      .select('aluno_id')
-      .eq('status', 'ativo')
-      .in('aluno_id', alunos.map(a => a.id));
+  async listarModalidadesLigadas(alunoId) {
+    const { data, error } = await supabase
+      .from('alunos_modalidades')
+      .select('modalidade_id, vezes, plano_aluno_id')
+      .eq('aluno_id', alunoId);
+    if (error) throw error;
+    return data ?? [];
+  },
 
-    if (errHistoricos) throw errHistoricos;
+  async salvarModalidades(alunoId, itens) {
+    const { error } = await supabase.rpc('salvar_modalidades_aluno', {
+      p_aluno_id: alunoId,
+      p_itens: itens,
+    });
+    if (error) throw error;
+  },
 
-    const comHistorico = new Set(historicosAtivos?.map(h => h.aluno_id));
+  async encerrarPlano(planoAlunoId) {
+    const { data, error } = await supabase.rpc('encerrar_plano_aluno', { p_plano_aluno_id: planoAlunoId });
+    if (error) throw error;
+    return data;
+  },
 
-    const calcularDataFimFallback = () => {
-      // ILU-66: parte de hojeBrasilia() (não de `new Date()` em UTC) para
-      // que o fallback de 30 dias não erre por um dia perto da meia-noite
-      // em Brasília.
-      const fallback = new Date(`${hojeBrasilia()}T12:00:00`);
-      fallback.setDate(fallback.getDate() + 30);
-      return fallback.toISOString().split('T')[0];
-    };
+  async desfazerEncerramento(planoAlunoId) {
+    const { data, error } = await supabase.rpc('desfazer_encerramento_plano', { p_plano_aluno_id: planoAlunoId });
+    if (error) throw error;
+    return data;
+  },
 
-    const alunosSemHistorico = alunos.filter(a => !comHistorico.has(a.id));
-    const ignorados = alunos.length - alunosSemHistorico.length;
+  async recalcularPlanoAluno(planoAlunoId) {
+    const { data, error } = await supabase.rpc('recalcular_plano_aluno', { p_plano_aluno_id: planoAlunoId });
+    if (error) throw error;
+    return data;
+  },
 
-    if (!alunosSemHistorico.length) {
-      console.info('[normalizarHistoricoPlanos] Nenhum aluno sem histórico ativo.');
-      return { normalizados: 0, ignorados };
+  /**
+   * Cadastro do primeiro plano + modalidades. Idempotente: se um passo
+   * anterior já criou o plano (ex.: salvar falhou e o usuário tenta de novo),
+   * usa o primeiro plano do aluno (ordem created_at, id) sem nova cobrança.
+   *
+   * @param {number} alunoId
+   * @param {{ plano_id, data_inicio, data_fim, valor_pago, forma_recebimento, modalidades: Object<string, number> }} dados
+   * @returns {Promise<{ plano_aluno_id: string, mensalidade_id: number|null }>}
+   */
+  async criarPrimeiroPlano(alunoId, dados) {
+    try {
+      const existentes = await this.listarPlanosDoAluno(alunoId);
+      let planoAlunoId;
+      let mensalidadeId = null;
+
+      if (existentes.length > 0) {
+        planoAlunoId = existentes[0].id;
+      } else {
+        const r = await this.renovarPlano(alunoId, {
+          plano_id: dados.plano_id,
+          data_inicio: dados.data_inicio,
+          data_fim: dados.data_fim,
+          valor_pago: dados.valor_pago,
+          forma_recebimento: dados.forma_recebimento,
+          novo_plano: true,
+        });
+        planoAlunoId = r.plano_aluno_id;
+        mensalidadeId = r.mensalidade_id ?? null;
+      }
+
+      const mapa = Object.fromEntries(Object.keys(dados.modalidades || {}).map((id) => [id, planoAlunoId]));
+      const itens = montarItensModalidades(dados.modalidades, mapa);
+      // Plano recém-criado não tem vínculos a limpar: sem modalidades, nada a salvar.
+      if (itens.length > 0) await this.salvarModalidades(alunoId, itens);
+
+      return { plano_aluno_id: planoAlunoId, mensalidade_id: mensalidadeId };
+    } catch (error) {
+      console.error('[alunosService.criarPrimeiroPlano]', error);
+      throw error;
     }
-
-    const inserts = alunosSemHistorico.map(a => ({
-      aluno_id:    a.id,
-      plano_id:    a.plano_id,
-      data_inicio: a.data_inicio_plano ?? a.created_at.split('T')[0],
-      data_fim:    a.data_fim_plano    ?? calcularDataFimFallback(),
-      status:      'ativo',
-      valor_pago:  0,
-    }));
-
-    const { error: errInsert } = await supabase
-      .from('historico_planos')
-      .insert(inserts);
-
-    if (errInsert) throw errInsert;
-
-    const normalizados = inserts.length;
-    console.info(
-      `[normalizarHistoricoPlanos] Normalizados: ${normalizados}, Ignorados: ${ignorados}`
-    );
-    return { normalizados, ignorados };
   },
 
   // ─────────────────────────────────────────────────────────────

@@ -79,6 +79,7 @@ export default function ModalReceberPagamento({ mensalidade, aberto, fechar, onS
     alunoId: mensalidade.aluno_id,
     vencimento: mensalidade.data_vencimento,
     mensalidadeId: mensalidade.id,
+    planoAlunoId: mensalidade.plano_aluno_id ?? null,
     ativo: aberto && ['regular', 'plano_livre'].includes(tipoAula),
     onSugerir: (cobre, ciclo, origem) => {
       if (origem === 'padrao') {

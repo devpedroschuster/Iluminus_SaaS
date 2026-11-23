@@ -88,7 +88,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   const [planoAlunoEscolhido, setPlanoAlunoEscolhido] = useState('');
   const alunoIdAtual = alunoFixo?.id ?? form.aluno_id;
   const cobrancaDePlano = (form.tipo_aula === 'regular' || form.tipo_aula === 'plano_livre') && !isVisitante;
-  const { data: planosDoAluno = [], isLoading: carregandoPlanosDoAluno } = useQuery({
+  const { data: planosDoAluno = [], isLoading: carregandoPlanosDoAluno, isError: erroPlanosDoAluno } = useQuery({
     queryKey: ['aluno-planos-aluno', String(alunoIdAtual)],
     queryFn: () => alunosService.listarPlanosDoAluno(alunoIdAtual),
     enabled: isOpen && cobrancaDePlano && !!alunoIdAtual,
@@ -98,7 +98,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   const planoAlunoId = cobrancaDePlano
     ? planoSugerido(validosDoAluno, planoAlunoEscolhido || null)
     : null;
-  const planoAlunoSelecionado = planosDoAluno.find(p => p.id === planoAlunoId) || null;
+  const bloqueadoPorPlanos = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || erroPlanosDoAluno);
   const aguardandoPlano = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || (precisaEscolherPlano && !planoAlunoId));
 
   const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto
@@ -115,7 +115,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     vencimento: cobrancaParaQuitar ? cobrancaParaQuitar.data_vencimento : form.data_vencimento,
     mensalidadeId: cobrancaParaQuitar?.id ?? null,
     planoAlunoId,
-    ativo: isOpen && form.tipo_aula === 'regular' && !isVisitante,
+    ativo: isOpen && form.tipo_aula === 'regular' && !isVisitante && !aguardandoPlano,
     onSugerir: (cobre, ciclo, origem) => {
       setForm(f => {
         if (origem === 'padrao') {
@@ -140,14 +140,6 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, alunoFixo?.id]);
-
-  // O plano escolhido define o plano da cobrança (e o valor padrão).
-  useEffect(() => {
-    if (!planoAlunoSelecionado) return;
-    setForm(f => (f.plano_id === planoAlunoSelecionado.plano_id
-      ? f
-      : { ...f, plano_id: planoAlunoSelecionado.plano_id, valor_pago: planoAlunoSelecionado.planos?.preco ?? f.valor_pago }));
-  }, [planoAlunoSelecionado]);
 
   useEffect(() => {
     setCobrancasEmAberto([]);
@@ -210,6 +202,11 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (erroPlanosDoAluno && cobrancaDePlano && alunoIdAtual) {
+      showToast.error('Não foi possível carregar os planos do aluno.');
+      return;
+    }
+    if (carregandoPlanosDoAluno && cobrancaDePlano && alunoIdAtual) return;
     if (precisaEscolherPlano && !planoAlunoId) {
       showToast.error('Escolha o plano do aluno.');
       return;
@@ -452,7 +449,15 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               as="select"
               leftIcon={<Package size={18} />}
               value={planoAlunoId ? String(planoAlunoId) : ''}
-              onChange={e => setPlanoAlunoEscolhido(e.target.value)}
+              onChange={e => {
+                const escolhido = e.target.value;
+                setPlanoAlunoEscolhido(escolhido);
+                // Escolha ativa da recepção: o plano da cobrança acompanha o do aluno.
+                const linha = validosDoAluno.find(p => String(p.id) === escolhido);
+                if (linha) {
+                  setForm(f => ({ ...f, plano_id: linha.plano_id, valor_pago: linha.planos?.preco ?? f.valor_pago }));
+                }
+              }}
             >
               <option value="">Selecione o plano...</option>
               {validosDoAluno.map(p => (
@@ -499,7 +504,6 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
                 const p = planos.find(pl => String(pl.id) === e.target.value);
                 setForm({ ...form, plano_id: e.target.value, valor_pago: p ? p.preco : '' });
               }}
-              disabled={!!planoAlunoSelecionado}
               required
             >
               <option value="">Selecione o plano...</option>
@@ -624,6 +628,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             size="lg"
             fullWidth
             loading={loading}
+            disabled={bloqueadoPorPlanos}
           >
             {loading ? (
               <><Loader2 className="animate-spin" size={20} /> Registrando...</>

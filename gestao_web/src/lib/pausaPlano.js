@@ -62,6 +62,7 @@ export function notificacoesDePausa(pausasAbertas, hoje) {
           ? `pausa-${p.alunos?.id}-${p.plano_aluno_id}-${p.data_prevista_volta}`
           : `pausa-${p.alunos?.id}-${p.data_prevista_volta}`,
         tipo: 'pausa',
+        plano: varias ? nomePlano : undefined,
         aluno: varias && nomePlano ? { ...p.alunos, planos: { nome: nomePlano } } : p.alunos,
         dataAlvo: p.data_prevista_volta,
         diasFaltando: diferencaDias(hoje, p.data_prevista_volta),

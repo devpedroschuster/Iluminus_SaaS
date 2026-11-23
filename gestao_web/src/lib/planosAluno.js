@@ -172,6 +172,7 @@ export function notificacoesDeVencimento(linhas, hoje) {
           : `venc-${l.alunos.id}-${l.data_fim}`,
         tipo: 'vencimento',
         aluno: { ...l.alunos, planos: { nome: rotuloPlanoAluno(l, doAluno) } },
+        plano: varios ? rotuloPlanoAluno(l, doAluno) : undefined,
         dataAlvo: l.data_fim,
         diasFaltando: diferencaDias(hoje, l.data_fim),
       };

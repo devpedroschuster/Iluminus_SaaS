@@ -47,6 +47,7 @@ describe('planosAluno', () => {
     expect(n.diasFaltando).toBe(2);
     expect(n.dataAlvo).toBe('2026-11-25');
     expect(n.aluno.planos.nome).toBe('Mensal');
+    expect(n.plano).toBeUndefined();
   });
 
   it('U3: dois planos levam o id do plano e o nome de cada um', () => {
@@ -62,6 +63,7 @@ describe('planosAluno', () => {
       `venc-10-${B.id}-2026-11-26`,
     ]);
     expect(ns.map((n) => n.aluno.planos.nome)).toEqual(['Ballet', 'Jazz']);
+    expect(ns.map((n) => n.plano)).toEqual(['Ballet', 'Jazz']);
   });
 
   it('S1: situacaoPlano nas bordas', () => {

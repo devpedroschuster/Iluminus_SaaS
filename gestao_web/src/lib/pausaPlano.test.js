@@ -159,6 +159,7 @@ describe('notificacoesDePausa', () => {
   it('N1: uma pausa aberta mantém o id de sempre', () => {
     const [n] = notificacoesDePausa([{ ...pausa('2026-11-20'), plano_aluno_id: 'pa1', planos_aluno: { planos: { nome: 'Mensal' } } }], '2026-11-20');
     expect(n.idUnico).toBe('pausa-7-2026-11-20');
+    expect(n.plano).toBeUndefined();
     expect(n.aluno).toEqual({ id: 7, nome_completo: 'Ana', ativo: true });
   });
 
@@ -169,6 +170,7 @@ describe('notificacoesDePausa', () => {
     ], '2026-11-20');
     expect(lista.map((n) => n.idUnico)).toEqual(['pausa-7-pa1-2026-11-20', 'pausa-7-pa2-2026-11-20']);
     expect(lista.map((n) => n.aluno.planos.nome)).toEqual(['Yoga', 'Pilates']);
+    expect(lista.map((n) => n.plano)).toEqual(['Yoga', 'Pilates']);
   });
 
   it('ignora aluno desativado', () => {

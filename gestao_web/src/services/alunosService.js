@@ -49,7 +49,7 @@ export const alunosService = {
       let query = supabase
         .from('alunos')
         .select(
-          '*, planos(nome), planos_aluno(id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome))',
+          '*, planos_aluno(id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome))',
           { count: 'exact' }
         );
 

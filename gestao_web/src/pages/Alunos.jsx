@@ -145,6 +145,8 @@ export default function Alunos() {
     pagina,
   );
 
+  const hoje = hojeBrasilia();
+
   // Cálculo do intervalo exibido na barra de paginação
   const inicioRegistro = total === 0 ? 0 : (pagina - 1) * PAGE_SIZE + 1;
   const fimRegistro    = Math.min(pagina * PAGE_SIZE, total);
@@ -328,7 +330,6 @@ export default function Alunos() {
                 <tbody className="divide-y divide-border">
                   {alunos.map((aluno) => {
                     // ILU-127: a situação vem dos planos válidos do aluno, não dos campos copiados.
-                    const hoje = hojeBrasilia();
                     const situacaoPrincipal = situacaoAluno(aluno.planos_aluno, hoje);
                     const planoPrincipal = situacaoPrincipal?.plano;
                     const vencimento = calcularStatusVencimento(planoPrincipal?.data_fim, hoje);

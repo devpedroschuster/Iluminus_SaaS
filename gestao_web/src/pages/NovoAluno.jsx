@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
+import { alunosService } from '../services/alunosService';
 import { alunoSchema } from '../lib/validation';
 import { consultasAfetadasPeloCadastro } from '../lib/matriculas';
 import { invalidarConsultasFinanceiras } from '../lib/mensalidades';
@@ -257,13 +257,10 @@ export default function NovoAluno() {
             nome_completo:    aluno.nome_completo    || '',
             email:            aluno.email            || '',
             role:             aluno.role             || 'aluno',
-            plano_id:         aluno.plano_id         || '',
             cpf:              aluno.cpf              || '',
             data_nascimento:  aluno.data_nascimento  || '',
             telefone:         aluno.telefone         || '',
-            data_inicio_plano:aluno.data_inicio_plano|| '',
-            data_fim_plano:   aluno.data_fim_plano   || '',
-            cep:              aluno.cep              || '',
+            cep:             aluno.cep              || '',
             rua:              aluno.rua              || '',
             numero:           aluno.numero           || '',
             complemento:      aluno.complemento      || '',
@@ -447,90 +444,33 @@ export default function NovoAluno() {
     }
   }
 
-  // ILU-31: histórico do plano + primeira mensalidade, extraídos para uma
-  // função própria para que a mesma lógica possa ser chamada de novo em
-  // caso de retry (ver avisarFalhaFinanceira abaixo). Cada insert só roda
-  // se ainda não existir um registro equivalente — assim um retry depois de
-  // uma falha parcial (ex.: histórico foi criado mas a mensalidade falhou)
-  // não duplica o que já tinha sido salvo com sucesso na tentativa anterior.
-  async function criarRegistrosFinanceiros(alunoId, planoId, planoInfo, dataInicio, dataFim, vencimento, formaRecebimento = 'recorrente') {
-    // 'a_vista': o ciclo inteiro é cobrado de uma vez (preço mensal ×
-    // duração, congelado) — mesma conta usada nas RPCs matricular_aluno /
-    // renovar_plano_aluno para manter os dois caminhos consistentes.
-    const valorIntegral = Number(planoInfo.preco || 0) * (planoInfo.duracao_meses || 1);
-    const valorCiclo = formaRecebimento === 'a_vista' ? valorIntegral : (planoInfo.preco || 0);
-
-    const { data: histExistente } = await supabase
-      .from('historico_planos')
-      .select('id')
-      .match({ aluno_id: alunoId, plano_id: planoId, data_inicio: dataInicio, status: 'ativo' })
-      .maybeSingle();
-
-    let historicoId = histExistente?.id ?? null;
-
-    if (!histExistente) {
-      const { data: histCriado, error: errHist } = await supabase.from('historico_planos').insert([{
-        aluno_id:          alunoId,
-        plano_id:          planoId,
-        data_inicio:       dataInicio,
-        data_fim:          dataFim,
-        status:            'ativo',
-        valor_pago:        valorCiclo,
-        forma_recebimento: formaRecebimento,
-      }]).select('id').single();
-      if (errHist) throw errHist;
-      historicoId = histCriado?.id ?? null;
-    }
-
-    const { data: mensExistente } = await supabase
-      .from('mensalidades')
-      .select('id')
-      .match({ aluno_id: alunoId, plano_id: planoId, data_vencimento: vencimento })
-      .maybeSingle();
-
-    if (!mensExistente) {
-      const { error: errMensalidade } = await supabase.from('mensalidades').insert([{
-        aluno_id:        alunoId,
-        plano_id:        planoId,
-        data_vencimento: vencimento,
-        status:          'pendente',
-        valor_esperado:  valorCiclo,
-        descricao:       formaRecebimento === 'a_vista' ? 'Pagamento integral do plano' : null,
-      }]);
-      if (errMensalidade) throw errMensalidade;
-    }
-
-    // ILU-122: liga o ciclo à vista à cobrança integral, para as comissões
-    // dos meses seguintes. Falha aqui não desfaz o cadastro: vira um aviso.
-    if (formaRecebimento === 'a_vista' && historicoId) {
-      try {
-        const vinculada = await alunosService.vincularCobrancaIntegral(historicoId);
-        if (vinculada == null) showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
-      } catch (errVinculo) {
-        console.warn('[NovoAluno] Não foi possível ligar a cobrança integral ao ciclo à vista:', errVinculo);
-        showToast.warning(AVISO_CICLO_A_VISTA_SEM_COBRANCA);
-      }
-    }
+  // ILU-127: as modalidades do formulário são uma lista com repetição (uma
+  // entrada por vez na semana); criarPrimeiroPlano recebe { id: vezes }.
+  function contarModalidades(lista) {
+    return (lista || []).reduce((acc, id) => {
+      acc[id] = (acc[id] || 0) + 1;
+      return acc;
+    }, {});
   }
 
-  // ILU-31: aviso persistente (com botão de retry) quando o histórico do
-  // plano/primeira mensalidade falha depois que o aluno já foi salvo.
-  function avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento = 'recorrente') {
+  // ILU-31/ILU-127: aviso persistente (com botão de retry) quando o primeiro
+  // plano falha depois que o aluno já foi salvo. criarPrimeiroPlano é
+  // idempotente: se o plano já tinha sido criado, o retry só salva as
+  // modalidades, sem nova cobrança.
+  function avisarFalhaFinanceira(nomeAluno, alunoId, dadosPlano) {
     async function tentarNovamente() {
       try {
-        await criarRegistrosFinanceiros(
-          alunoId, planoId, planoInfo,
-          payload.data_inicio_plano, payload.data_fim_plano, vencimento, formaRecebimento,
-        );
+        await alunosService.criarPrimeiroPlano(alunoId, dadosPlano);
         showToast.success('Registro financeiro criado com sucesso!');
         invalidarConsultasFinanceiras(queryClient);
+        await invalidarConsultasDoCadastro();
       } catch (novoErro) {
-        console.error('[NovoAluno] Nova falha ao registrar histórico/mensalidade:', novoErro);
-        avisarFalhaFinanceira(nomeAluno, alunoId, planoId, planoInfo, payload, vencimento, formaRecebimento);
+        console.error('[NovoAluno] Nova falha ao registrar o primeiro plano:', novoErro);
+        avisarFalhaFinanceira(nomeAluno, alunoId, dadosPlano);
       }
     }
     showToast.custom(
-      `Cadastro de ${nomeAluno} salvo, mas falhou o registro do histórico do plano e da 1ª mensalidade.`,
+      `Cadastro de ${nomeAluno} salvo, mas falhou o registro do plano e da 1ª mensalidade.`,
       tentarNovamente, 'Tentar novamente', 15000,
     );
   }
@@ -552,11 +492,11 @@ export default function NovoAluno() {
       const planoFinal = (roleSanitizado === 'aluno' && data.plano_id) ? data.plano_id : null;
       let planoInfos = null;
 
+      // ILU-127: o cadastro não grava plano nem modalidades em `alunos`
+      // (plano_id, data_inicio_plano, data_fim_plano, modalidades_selecionadas
+      // são cópias mantidas pelo banco). Na criação, o primeiro plano passa
+      // por criarPrimeiroPlano; na edição, pelo perfil do aluno.
       const payloadBase = {
-        plano_id:                  planoFinal,
-        modalidades_selecionadas:  roleSanitizado === 'aluno' ? modalidadesSelecionadas : [],
-        data_inicio_plano:         data.data_inicio_plano || null,
-        data_fim_plano:            data.data_fim_plano    || null,
         cpf:                       data.cpf               || null,
         data_nascimento:           data.data_nascimento   || null,
         telefone:                  data.telefone          || null,
@@ -573,22 +513,12 @@ export default function NovoAluno() {
 
       if (planoFinal) {
         planoInfos = planos.find(p => String(p.id) === String(planoFinal));
-        // ILU-13/ILU-30: data_inicio_plano/data_fim_plano já vêm corretos do
-        // formulário (payloadBase acima) tanto em criação quanto em edição —
-        // em criação, "Início do Contrato" é mantido sincronizado com "Data
-        // do 1º Pagamento" (ver efeito acima), e "Fim (Calculado)" é sempre
-        // derivado dele via cálculo calendarizado (setMonth), o mesmo do
-        // preview da tela. Recalcular aqui com outra fórmula reintroduziria
-        // a divergência entre o que a equipe vê e o que é salvo.
       }
 
-      // EDIT MODE – unchanged behaviour
+      // EDIT MODE — só dados cadastrais; planos e modalidades ficam no perfil.
       if (alunoParaEditar) {
-        // plano_id fica de fora: a troca de plano passa pelo "Renovar / Alterar
-        // Plano" (ver renderEditForm), que cria histórico e mensalidade.
-        const { plano_id: _plano, ...dadosCadastro } = payloadBase;
         await alunosService.atualizar(alunoParaEditar.id, {
-          ...dadosCadastro, nome_completo: data.nome_completo,
+          ...payloadBase, nome_completo: data.nome_completo,
         });
         showToast.success('Cadastro atualizado com sucesso!');
         await invalidarConsultasDoCadastro();
@@ -631,21 +561,33 @@ export default function NovoAluno() {
         novoAlunoId = alunoInserido.id;
       }
 
-      // Financial records
+      // Primeiro plano (ILU-127): plano + ciclo + 1ª cobrança (vencimento =
+      // início do plano) + modalidades, pelo mesmo caminho da aba Planos.
       // ILU-31: uma falha aqui não pode passar batido — o aluno já foi
-      // criado, então em vez de só logar no console e seguir direto pra
-      // tela de sucesso como se nada tivesse acontecido, avisamos o admin
-      // com uma ação de retry (o toast fica na tela mesmo que o fluxo
-      // navegue para outra rota logo em seguida).
+      // criado, então avisamos o admin com uma ação de retry (o toast fica
+      // na tela mesmo que o fluxo navegue para outra rota logo em seguida).
       if (novoAlunoId && planoFinal && planoInfos) {
+        const formaRecebimento = data.forma_recebimento || 'recorrente';
+        // 'a_vista': o ciclo inteiro é cobrado de uma vez (preço mensal ×
+        // duração) — mesma conta de renovar_plano_aluno.
+        const valorIntegral = Number(planoInfos.preco || 0) * (planoInfos.duracao_meses || 1);
+        const valorCiclo = formaRecebimento === 'a_vista' ? valorIntegral : (planoInfos.preco || 0);
+        // ILU-13/ILU-30: as datas vêm do formulário — "Início do Contrato"
+        // espelha "Data do 1º Pagamento" e "Fim (Calculado)" deriva dele pelo
+        // mesmo cálculo calendarizado do preview da tela.
+        const dadosPlano = {
+          plano_id:          planoFinal,
+          data_inicio:       data.data_inicio_plano || null,
+          data_fim:          data.data_fim_plano    || null,
+          valor_pago:        valorCiclo,
+          forma_recebimento: formaRecebimento,
+          modalidades:       contarModalidades(modalidadesSelecionadas),
+        };
         try {
-          await criarRegistrosFinanceiros(
-            novoAlunoId, planoFinal, planoInfos,
-            payloadBase.data_inicio_plano, payloadBase.data_fim_plano, dataVencimento, data.forma_recebimento,
-          );
+          await alunosService.criarPrimeiroPlano(novoAlunoId, dadosPlano);
         } catch (errFinanceiro) {
-          console.error('[NovoAluno] Falha ao registrar histórico/mensalidade:', errFinanceiro);
-          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, planoFinal, planoInfos, payloadBase, dataVencimento, data.forma_recebimento);
+          console.error('[NovoAluno] Falha ao registrar o primeiro plano:', errFinanceiro);
+          avisarFalhaFinanceira(data.nome_completo, novoAlunoId, dadosPlano);
         }
       }
 
@@ -725,10 +667,14 @@ export default function NovoAluno() {
                 left-4 bg-white px-1">
                 Início do Contrato
               </label>
+              {/* Só leitura: espelha "Data do 1º Pagamento" (ILU-30), que é
+                  também o vencimento da 1ª cobrança (renovar_plano_aluno). */}
               <input
                 {...register('data_inicio_plano')}
                 type="date"
-                className="w-full px-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600"
+                readOnly
+                className="w-full px-4 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-gray-600
+                  cursor-not-allowed"
               />
             </div>
             <div className="relative animate-in fade-in">
@@ -1211,25 +1157,33 @@ export default function NovoAluno() {
                 <option value="aluno">Aluno</option>
               </select>
             </div>
-            {/* O plano não se troca aqui: quem fecha o ciclo anterior, grava o
-                histórico e cria a mensalidade é o "Renovar / Alterar Plano".
-                Trocar só o cadastro deixava o Financeiro sem nada. */}
-            <div className="flex flex-col gap-2">
-              <div className="relative">
-                <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <div className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl font-bold text-gray-600">
-                  {planoSelecionadoObj?.nome || 'Sem plano vinculado'}
-                </div>
+            {/* ILU-127: planos e modalidades não se editam aqui. Com vários
+                planos, gravar os campos copiados em `alunos` desfazia em
+                silêncio o que o perfil tinha salvo. */}
+            <div className="md:col-span-2 bg-gray-50 rounded-2xl p-4 flex flex-col gap-3">
+              <p className="text-sm font-bold text-gray-600 flex items-center gap-2">
+                <Package size={18} className="text-gray-400" />
+                Planos e modalidades ficam no perfil do aluno.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/alunos/${alunoParaEditar.id}`, { state: { abrirRenovarPlano: true } })}
+                  className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-primary font-bold text-sm
+                    hover:bg-orange-50 transition-colors"
+                >
+                  Abrir planos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/alunos/${alunoParaEditar.id}`, { state: { aba: 'modalidades' } })}
+                  className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-primary font-bold text-sm
+                    hover:bg-orange-50 transition-colors"
+                >
+                  Abrir modalidades
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => navigate(`/alunos/${alunoParaEditar.id}`, { state: { abrirRenovarPlano: true } })}
-                className="text-primary font-bold text-xs uppercase tracking-wider hover:underline text-left px-1"
-              >
-                Trocar plano em Renovar / Alterar Plano
-              </button>
             </div>
-            <PlanoSlots />
           </div>
         </div>
 

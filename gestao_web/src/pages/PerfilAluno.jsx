@@ -1772,6 +1772,9 @@ function AvisoPlanoPausado({ pausa, rotuloPlano, onRetomar, onAjustar }) {
   );
 }
 
+// Abas que outra tela pode pedir via location.state.aba.
+const ABAS_PERFIL = ['resumo', 'modalidades', 'agenda', 'planos', 'financeiro', 'frequencia', 'anamnese'];
+
 // ─────────────────────────────────────────────────────────────
 // Deriva o ciclo de plano "vigente" a partir do histórico por DATA,
 // em vez de confiar apenas no campo `status` armazenado — que pode
@@ -1785,8 +1788,14 @@ export default function PerfilAluno() {
   const queryClient = useQueryClient();
   // A edição do cadastro (NovoAluno) manda para cá quem quer trocar o plano.
   // Com vários planos não há um só para renovar: abre só a aba Planos.
+  // Ela também pode pedir outra aba pelo nome (ex.: { aba: 'modalidades' }).
   const abrirRenovarPlano = !!location.state?.abrirRenovarPlano;
-  const [abaAtiva, setAbaAtiva] = useState(abrirRenovarPlano ? 'planos' : 'resumo');
+  const abaPedida = location.state?.aba;
+  const [abaAtiva, setAbaAtiva] = useState(() => {
+    if (abrirRenovarPlano) return 'planos';
+    if (typeof abaPedida === 'string' && ABAS_PERFIL.includes(abaPedida)) return abaPedida;
+    return 'resumo';
+  });
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   // ILU-127: modal de um plano do aluno.
   // { tipo: 'renovar' | 'adicionar' | 'pausar' | 'retomar' | 'ajustar', planoAluno, rotulo }
@@ -1835,10 +1844,10 @@ export default function PerfilAluno() {
     }
   }, [aluno?.observacoes_medicas]);
 
-  // Consome o pedido de abrir a aba Planos — o state do histórico sobrevive a
-  // um F5, e a aba não deve reabrir sozinha depois.
+  // Consome o pedido de abrir a aba Planos (ou outra aba) — o state do
+  // histórico sobrevive a um F5, e a aba não deve reabrir sozinha depois.
   React.useEffect(() => {
-    if (location.state?.abrirRenovarPlano) {
+    if (location.state?.abrirRenovarPlano || location.state?.aba) {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.state, location.pathname, navigate]);

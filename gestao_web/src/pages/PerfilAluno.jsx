@@ -14,7 +14,10 @@ import {
   statusAcessoApp, STATUS_ACESSO_APP,
 } from '../lib/utils';
 import { consultasAfetadasPelaPausa, diasDevolvidosNoCiclo } from '../lib/pausaPlano';
-import { planosValidos, rotuloPlanoAluno } from '../lib/planosAluno';
+import {
+  planosValidos, rotuloPlanoAluno, planoSugerido, usoPorPlanoEArea,
+  validarModalidades, montarItensModalidades,
+} from '../lib/planosAluno';
 import { alunosService, AVISO_CICLO_A_VISTA_SEM_COBRANCA } from '../services/alunosService';
 import { financeiroService } from '../services/financeiroService';
 import { TableSkeleton } from '../components/shared/Loading';
@@ -722,13 +725,24 @@ function AbaAnamnese({ aluno, alunoId, queryClient, observacoesMedicas, setObser
 // ─────────────────────────────────────────────────────────────
 // Aba Modalidades
 // ─────────────────────────────────────────────────────────────
-function AbaModalidades({ aluno, alunoId, queryClient }) {
+function AbaModalidades({ alunoId, queryClient, planosAluno }) {
   const [modalidades, setModalidades] = useState([]);
-  const [modalidadesSelecionadas, setModalidadesSelecionadas] = useState(
-    aluno?.modalidades_selecionadas || []
-  );
+  const [contagem, setContagem] = useState({});
+  const [planoPorModalidade, setPlanoPorModalidade] = useState({});
   const [salvando, setSalvando] = useState(false);
-  const regrasPlano = aluno?.planos?.regras_acesso || [];
+
+  const hoje = hojeBrasilia();
+  const carregouPlanos = planosAluno !== undefined;
+  const validos = React.useMemo(() => planosValidos(planosAluno, hoje), [planosAluno, hoje]);
+  const planosTodos = planosAluno || [];
+  const varios = validos.length > 1;
+  const semPlano = carregouPlanos && validos.length === 0;
+
+  const { data: ligadas } = useQuery({
+    queryKey: ['aluno-modalidades', alunoId],
+    queryFn: () => alunosService.listarModalidadesLigadas(alunoId),
+    enabled: !!alunoId,
+  });
 
   React.useEffect(() => {
     supabase.from('modalidades').select('id, nome, area').order('area').order('nome')
@@ -736,35 +750,60 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
   }, []);
 
   React.useEffect(() => {
-    setModalidadesSelecionadas(aluno?.modalidades_selecionadas || []);
-  }, [aluno?.modalidades_selecionadas]);
-
-  // Helpers de contagem
-  const getCountModEspecifica = (modId) =>
-    modalidadesSelecionadas.filter(id => id === modId).length;
-  const getUsoPorArea = (areaNome) =>
-    modalidadesSelecionadas.filter(id =>
-      modalidades.find(m => m.id === id)?.area === areaNome
-    ).length;
-  const getRegraDaArea   = (areaNome) => regrasPlano.find(r => r.modalidade === areaNome);
-  const podeAdicionarMod = (modArea) => {
-    const regra = getRegraDaArea(modArea);
-    if (!regra) return false;
-    if (regra.limite === 999) return true;
-    return getUsoPorArea(modArea) < regra.limite;
-  };
-  const addModalidade    = (modId) => setModalidadesSelecionadas(prev => [...prev, modId]);
-  const removeModalidade = (modId) => {
-    setModalidadesSelecionadas(prev => {
-      const index = prev.lastIndexOf(modId);
-      if (index > -1) {
-        const nova = [...prev];
-        nova.splice(index, 1);
-        return nova;
-      }
-      return prev;
+    if (!ligadas) return;
+    const c = {};
+    const p = {};
+    ligadas.forEach((l) => {
+      c[l.modalidade_id] = l.vezes;
+      p[l.modalidade_id] = l.plano_aluno_id;
     });
+    setContagem(c);
+    setPlanoPorModalidade(p);
+  }, [ligadas]);
+
+  const areaPorModalidade = React.useMemo(
+    () => Object.fromEntries(modalidades.map((m) => [m.id, m.area])),
+    [modalidades]
+  );
+
+  // Plano efetivo de cada modalidade ativa: a escolha, se ainda válida; com um
+  // plano válido só, esse; senão, nenhum (a gestão precisa escolher).
+  const planoEfetivo = (modId) => planoSugerido(validos, planoPorModalidade[modId]);
+  const efetivoPorModalidade = React.useMemo(() => {
+    const m = {};
+    Object.keys(contagem).forEach((id) => {
+      m[id] = planoSugerido(validos, planoPorModalidade[id]);
+    });
+    return m;
+  }, [contagem, planoPorModalidade, validos]);
+
+  const uso = React.useMemo(
+    () => usoPorPlanoEArea(contagem, efetivoPorModalidade, areaPorModalidade),
+    [contagem, efetivoPorModalidade, areaPorModalidade]
+  );
+  const usoDaArea = (planoId, area) => uso.get(planoId)?.get(area) || 0;
+  const regraDoPlano = (plano, area) =>
+    (plano.planos?.regras_acesso || []).find((r) => r.modalidade === area);
+
+  const areaTemRegra = (area) => validos.some((p) => regraDoPlano(p, area));
+  const podeAdicionar = (area) => {
+    if (!varios) {
+      const plano = validos[0];
+      const regra = plano && regraDoPlano(plano, area);
+      if (!regra) return false;
+      return regra.limite === 999 || usoDaArea(plano.id, area) < regra.limite;
+    }
+    return areaTemRegra(area);
   };
+
+  const addModalidade = (modId) => {
+    setContagem((prev) => ({ ...prev, [modId]: (prev[modId] || 0) + 1 }));
+    setPlanoPorModalidade((prev) => (prev[modId] ? prev : { ...prev, [modId]: planoSugerido(validos, null) }));
+  };
+  const removeModalidade = (modId) =>
+    setContagem((prev) => ({ ...prev, [modId]: Math.max(0, (prev[modId] || 0) - 1) }));
+  const escolherPlano = (modId, planoId) =>
+    setPlanoPorModalidade((prev) => ({ ...prev, [modId]: planoId || null }));
 
   const modalidadesAgrupadas = modalidades.reduce((acc, mod) => {
     const area = mod.area || 'Outros';
@@ -774,22 +813,39 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
   }, {});
 
   const handleSalvar = async () => {
+    const erro = validarModalidades({
+      contagem,
+      planoPorModalidade: efetivoPorModalidade,
+      planos: validos,
+      areaPorModalidade,
+    });
+    if (erro) {
+      showToast.error(erro);
+      return;
+    }
     setSalvando(true);
     try {
-      await alunosService.atualizar(alunoId, {
-        modalidades_selecionadas: modalidadesSelecionadas,
-      });
-      queryClient.invalidateQueries(['aluno', alunoId]);
+      await alunosService.salvarModalidades(
+        alunoId,
+        montarItensModalidades(contagem, efetivoPorModalidade)
+      );
+      queryClient.invalidateQueries({ queryKey: ['aluno', alunoId] });
+      queryClient.invalidateQueries({ queryKey: ['aluno-modalidades', alunoId] });
       showToast.success('Modalidades atualizadas com sucesso!');
     } catch (err) {
       console.error('[PerfilAluno] Erro ao salvar modalidades:', err);
-      showToast.error('Erro ao salvar. Tente novamente.');
+      showToast.error(err?.message || 'Erro ao salvar. Tente novamente.');
     } finally {
       setSalvando(false);
     }
   };
 
-  const semPlano = !aluno?.plano_id;
+  // Plano antigo (encerrado e já fora da validade) ao qual a modalidade ainda está ligada.
+  const planoAntigoDe = (modId) => {
+    const atual = planoPorModalidade[modId];
+    if (!atual || validos.some((p) => p.id === atual)) return null;
+    return planosTodos.find((p) => p.id === atual) || null;
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 max-w-3xl">
@@ -797,46 +853,49 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
         <div className="flex items-start gap-3 p-4 rounded-2xl bg-warning-soft border border-warning/30 text-foreground">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" />
           <div>
-            <p className="font-bold text-sm">Nenhum plano vinculado</p>
+            <p className="font-bold text-sm">Cadastre um plano antes de escolher as modalidades.</p>
             <p className="text-xs font-medium mt-0.5 text-foreground/80">
-              Vincule um plano ao aluno para que as regras de modalidade sejam aplicadas.
               As modalidades salvas aqui são usadas para controle de turma e repasses.
             </p>
           </div>
         </div>
       )}
 
-      {!semPlano && regrasPlano.length > 0 && (
-        <Surface variant="card" padding="md" className="bg-info-soft border-info/20">
-          <div className="flex items-center gap-2 mb-3">
-            <Info size={18} className="text-info" />
-            <h4 className="font-black text-info-foreground text-sm">
-              Regras do Plano: {aluno?.planos?.nome}
-            </h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {regrasPlano.map((r, i) => {
-              const usoAtual   = getUsoPorArea(r.modalidade);
-              const limiteText = r.limite === 999 ? 'Ilimitado' : `${r.limite}x`;
-              const isFull     = r.limite !== 999 && usoAtual >= r.limite;
-              return (
-                <span key={i} className={`border px-3 py-1.5 rounded-xl font-bold text-xs transition-colors
-                  ${isFull
-                    ? 'bg-info text-info-foreground border-info'
-                    : 'bg-background text-info border-info/30'}`}>
-                  {limiteText} em {r.modalidade}
-                  {isFull && <CheckCircle size={12} className="inline ml-1" />}
-                </span>
-              );
-            })}
-          </div>
-        </Surface>
-      )}
+      {validos.map((plano) => {
+        const regras = plano.planos?.regras_acesso || [];
+        if (regras.length === 0) return null;
+        return (
+          <Surface key={plano.id} variant="card" padding="md" className="bg-info-soft border-info/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Info size={18} className="text-info" />
+              <h4 className="font-black text-info-foreground text-sm">
+                Regras do Plano: {rotuloPlanoAluno(plano, validos)}
+              </h4>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {regras.map((r, i) => {
+                const usoAtual   = usoDaArea(plano.id, r.modalidade);
+                const limiteText = r.limite === 999 ? 'Ilimitado' : `${r.limite}x`;
+                const isFull     = r.limite !== 999 && usoAtual >= r.limite;
+                return (
+                  <span key={i} className={`border px-3 py-1.5 rounded-xl font-bold text-xs transition-colors
+                    ${isFull
+                      ? 'bg-info text-info-foreground border-info'
+                      : 'bg-background text-info border-info/30'}`}>
+                    {limiteText} em {r.modalidade}
+                    {isFull && <CheckCircle size={12} className="inline ml-1" />}
+                  </span>
+                );
+              })}
+            </div>
+          </Surface>
+        );
+      })}
 
       <div className="space-y-4">
         {Object.entries(modalidadesAgrupadas).map(([areaNome, modsArea]) => {
-          const regra           = getRegraDaArea(areaNome);
-          const isAreaBloqueada = !regra && !semPlano;
+          const isAreaBloqueada = !areaTemRegra(areaNome);
+          const regraUnica = !varios && validos[0] ? regraDoPlano(validos[0], areaNome) : null;
           return (
             <Surface
               key={areaNome}
@@ -850,48 +909,79 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
                   {areaNome}
                   {isAreaBloqueada && <Lock size={13} className="text-muted-foreground" />}
                 </h4>
-                {!isAreaBloqueada && regra && regra.limite !== 999 && (
+                {regraUnica && regraUnica.limite !== 999 && (
                   <span className="text-xs font-bold text-info bg-info-soft px-2 py-1 rounded-lg">
-                    {getUsoPorArea(areaNome)} / {regra.limite} usados
+                    {usoDaArea(validos[0].id, areaNome)} / {regraUnica.limite} usados
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {modsArea.map(mod => {
-                  const count    = getCountModEspecifica(mod.id);
+                  const count    = contagem[mod.id] || 0;
                   const isAtivo  = count > 0;
-                  const allowAdd = podeAdicionarMod(areaNome) || semPlano;
+                  const allowAdd = podeAdicionar(areaNome);
+                  const antigo   = isAtivo ? planoAntigoDe(mod.id) : null;
                   return (
-                    <div key={mod.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all
-                      ${isAreaBloqueada
+                    <div key={mod.id} className={`p-3 rounded-xl border transition-all
+                      ${isAreaBloqueada && !isAtivo
                         ? 'bg-muted border-border'
                         : isAtivo
                           ? 'bg-primary-soft border-primary/20'
                           : 'bg-background border-border hover:border-primary/30'}`}>
-                      <span className={`text-sm font-bold ${isAtivo ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {mod.nome}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => removeModalidade(mod.id)}
-                          disabled={!isAtivo}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm text-muted-foreground font-black hover:bg-destructive-soft hover:text-destructive disabled:opacity-30 disabled:shadow-none transition-colors"
-                        >
-                          −
-                        </button>
-                        <span className={`font-black w-5 text-center text-sm ${isAtivo ? 'text-primary' : 'text-muted-foreground/40'}`}>
-                          {count}x
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-bold ${isAtivo ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {mod.nome}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => addModalidade(mod.id)}
-                          disabled={(!allowAdd && !semPlano) || isAreaBloqueada}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm font-black transition-colors text-info hover:bg-info-soft disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
-                        >
-                          +
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => removeModalidade(mod.id)}
+                            disabled={!isAtivo}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm text-muted-foreground font-black hover:bg-destructive-soft hover:text-destructive disabled:opacity-30 disabled:shadow-none transition-colors"
+                          >
+                            −
+                          </button>
+                          <span className={`font-black w-5 text-center text-sm ${isAtivo ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                            {count}x
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => addModalidade(mod.id)}
+                            disabled={!allowAdd || semPlano}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm font-black transition-colors text-info hover:bg-info-soft disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
+                      {isAtivo && varios && (
+                        <div className="mt-2">
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1" htmlFor={`plano-${mod.id}`}>
+                            Plano
+                          </label>
+                          <select
+                            id={`plano-${mod.id}`}
+                            value={planoEfetivo(mod.id) || ''}
+                            onChange={(e) => escolherPlano(mod.id, e.target.value)}
+                            className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground"
+                          >
+                            {!planoEfetivo(mod.id) && <option value="">Escolha o plano…</option>}
+                            {validos.map((p) => (
+                              <option key={p.id} value={p.id}>{rotuloPlanoAluno(p, validos)}</option>
+                            ))}
+                          </select>
+                          {antigo && (
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              Ligada ao plano {rotuloPlanoAluno(antigo, planosTodos)} (encerrado)
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {isAtivo && !varios && antigo && (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Estava ligada ao plano {rotuloPlanoAluno(antigo, planosTodos)} (encerrado)
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -901,12 +991,14 @@ function AbaModalidades({ aluno, alunoId, queryClient }) {
         })}
       </div>
 
-      <div className="flex justify-end pt-2">
-        <Button variant="brand" size="lg" leftIcon={<Save size={16} />}
-          onClick={handleSalvar} disabled={salvando}>
-          {salvando ? 'Salvando...' : 'Salvar Modalidades'}
-        </Button>
-      </div>
+      {!semPlano && (
+        <div className="flex justify-end pt-2">
+          <Button variant="brand" size="lg" leftIcon={<Save size={16} />}
+            onClick={handleSalvar} disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar Modalidades'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2006,7 +2098,7 @@ export default function PerfilAluno() {
 
         {/* ABA: Modalidades */}
         {abaAtiva === 'modalidades' && (
-          <AbaModalidades aluno={aluno} alunoId={id} queryClient={queryClient} />
+          <AbaModalidades alunoId={id} queryClient={queryClient} planosAluno={planosAluno} />
         )}
 
         {/* ABA: Agenda Fixa */}

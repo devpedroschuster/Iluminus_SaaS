@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -205,9 +205,19 @@ export default function NovoAluno() {
   const planoSelecionadoObj = planos.find(p => String(p.id) === String(planoSelecionado));
   const regrasPlano         = planoSelecionadoObj?.regras_acesso || [];
 
+  // Valor atual de "Data do 1º Pagamento" para os resets de criação abaixo:
+  // reset() apaga "Início do Contrato", e o efeito espelho só roda de novo
+  // quando dataVencimento muda. Pela ref, o reset não depende dela. Este
+  // efeito vem antes dos resets, então eles já leem o valor atualizado.
+  const dataVencimentoRef = useRef(dataVencimento);
+  useEffect(() => { dataVencimentoRef.current = dataVencimento; }, [dataVencimento]);
+
   useEffect(() => {
     if (!alunoParaEditar && !leadParaConversao) {
-      reset({ nome_completo: '', email: '', role: 'aluno', bolsista: false });
+      reset({
+        nome_completo: '', email: '', role: 'aluno', bolsista: false,
+        forma_recebimento: 'recorrente', data_inicio_plano: dataVencimentoRef.current,
+      });
       setModalidadesSelecionadas([]);
       setCpfDisplay('');
       setCpfErro('');
@@ -277,6 +287,9 @@ export default function NovoAluno() {
           nome_completo: leadParaConversao.nome_visitante     || '',
           telefone:      leadParaConversao.telefone_visitante || '',
           role:          'aluno',
+          bolsista:      false,
+          forma_recebimento: 'recorrente',
+          data_inicio_plano: dataVencimentoRef.current,
         });
       }
     }

@@ -15,15 +15,20 @@
 --       100.
 --   D7: um plano só (Dança 1 + Dança 2), cobrança com modalidade_id da Dança
 --       1: igual a hoje (Dança 1 = 100, Dança 2 sem cobertura).
---   L1: plano livre L com Dança 1 frequentada; a Dança 1 religada a um plano
---       novo B, sem fonte no mês, antes da apuração: a Dança 1 continua
---       gerada no livre, com o mesmo valor que sem a religação (achado 2).
+--   L1: plano livre L com Dança 1 frequentada; a Dança 1 religada, antes do
+--       dia 1, a um plano regular novo B que só começa no mês seguinte: a
+--       Dança 1 continua gerada no livre, com o mesmo valor que sem a
+--       religação (achado 2).
 --   L2: dois planos livres, presenças na Dança 1 (sem ligação) e na Dança 2
 --       (ligada a L2); só L pago, apura: L grava só a Dança 1; L2 pago depois,
 --       apura: as linhas de L2 são gravadas, não ja_existia (achado 3).
 --   L3: dois planos livres, L pago e L2 ainda não; Dança 2 ligada a L2 com
 --       presença: apurando L, a Dança 2 não é gerada no L (modalidade de
 --       outro plano livre fica sempre fora, spec 3.2).
+--   L4: L pago; B regular começado dentro da competência, cobrança do mês
+--       pendente; Dança 2 ligada a B e Dança 1 sem ligação, ambas com
+--       presença: a Dança 2 não é gerada no L, e L divide só a Dança 1.
+-- Sem dados (RAISE 'SEM DADOS') se valor_1_modalidade = valor_multi_modalidade.
 --
 -- Competência: o mês anterior ao corrente (v_ant), com regra_danca_desde =
 -- v_ant: só um mês fechado grava e olha as presenças do plano livre.
@@ -105,6 +110,10 @@ BEGIN
          regra_danca_desde = v_ant;
   SELECT valor_1_modalidade, valor_multi_modalidade, plano_livre_pct_prof INTO v_v1, v_vm, v_pct
     FROM configuracoes_repasse LIMIT 1;
+  -- Com os dois valores iguais, os casos D passariam sem provar nada.
+  IF v_v1 IS NOT DISTINCT FROM v_vm THEN
+    RAISE EXCEPTION 'RESULTADO ILU134-CONTAGEM-DANCAS: SEM DADOS (valor_1_modalidade = valor_multi_modalidade = %)', v_v1;
+  END IF;
   -- Plano livre numa modalidade só: preço × pct inteiro para ela.
   v_l  := round(round(300 * v_pct) / 100, 2);
   v_l2 := round(round(200 * v_pct) / 100, 2);
@@ -316,7 +325,7 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('D7: ' || SQLERRM);
   END;
 
-  ---------------------------------------------------------------- L1: religar a dança do livre a um plano sem fonte
+  ---------------------------------------------------------------- L1: religar a dança do livre a um plano que ainda não começou
   v_total := v_total + 1;
   BEGIN
     v_f := '{}';
@@ -335,8 +344,9 @@ BEGIN
     IF v_antes IS DISTINCT FROM v_exp THEN
       v_f := v_f || format('sem religar: esperava [%s], veio [%s]', v_exp, v_antes);
     END IF;
-    -- Plano novo B (regular, sem cobrança no mês) e a Dança 1 religada a ele.
-    pa_b := (public.renovar_plano_aluno(v_al, p_r2, v_ant, v_fim, p_novo_plano => true)->>'plano_aluno_id')::uuid;
+    -- Plano novo B (regular, começa no mês seguinte à competência) e a Dança
+    -- 1 religada a ele antes do dia 1.
+    pa_b := (public.renovar_plano_aluno(v_al, p_r2, v_mes, v_fim, p_novo_plano => true)->>'plano_aluno_id')::uuid;
     UPDATE planos_aluno SET created_at = now() + interval '1 second' WHERE id = pa_b;
     UPDATE alunos_modalidades SET plano_aluno_id = pa_b WHERE aluno_id = v_al AND modalidade_id = v_d1;
     v_got := pg_temp.resumo_4(v_ant, v_al);
@@ -428,6 +438,48 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('L3: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- L4: regular já começado, cobrança pendente
+  -- L pago; B regular começa dentro da competência, com a cobrança do mês
+  -- pendente; Dança 2 ligada a B e Dança 1 sem ligação, as duas com presença.
+  v_total := v_total + 1;
+  BEGIN
+    v_f := '{}';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso)
+    VALUES ('[TESTE 4] L4', 'teste-4-l4@iluminus.test', 'aluno', true, false) RETURNING id INTO v_al;
+    pa_a := (public.renovar_plano_aluno(v_al, p_l, v_ant, v_fim)->>'plano_aluno_id')::uuid;
+    pa_b := (public.renovar_plano_aluno(v_al, p_r2, v_ant + 5, v_fim, p_novo_plano => true)->>'plano_aluno_id')::uuid;
+    UPDATE planos_aluno SET created_at = now() + interval '1 second' WHERE id = pa_b;
+    INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id)
+    VALUES (v_al, v_d2, 1, pa_b);
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, plano_aluno_id)
+    VALUES (v_al, p_l, v_ant + 4, 'pago', 'plano_livre', 300, 'pix', v_ant + 4, pa_a);
+    IF NOT EXISTS (SELECT 1 FROM mensalidades m
+                    WHERE m.plano_aluno_id = pa_b AND m.status = 'pendente'
+                      AND m.data_vencimento >= v_ant AND m.data_vencimento < v_mes) THEN
+      INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, plano_aluno_id)
+      VALUES (v_al, p_r2, v_ant + 5, 'pendente', 'regular', pa_b);
+    END IF;
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
+      (v_al, g_d1, v_ant + 7, 'presente', 'avulso', (v_ant + 7 + time '19:00') AT TIME ZONE 'America/Sao_Paulo'),
+      (v_al, g_d2, v_ant + 8, 'presente', 'avulso', (v_ant + 8 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    -- L divide só a Dança 1 (inteira); a Dança 2 fica com B, sem cobertura.
+    v_got := pg_temp.resumo_4(v_ant, v_al);
+    v_exp := format('-=sem_cobertura Dança 1=gerada:%s', v_l);
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_f := v_f || format('esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    PERFORM pg_temp.apura_4(v_ant, v_al);
+    v_got := pg_temp.gravadas_4(v_al);
+    v_exp := format('Dança 1=plano_livre:%s', v_l);
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_f := v_f || format('gravadas: esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    IF cardinality(v_f) > 0 THEN v_falhas := v_falhas || ('L4: ' || array_to_string(v_f, ' ; ')); END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('L4: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

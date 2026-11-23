@@ -15,12 +15,15 @@
 --      (não encerrado antes dele, início até o fim dele), com o plano atual
 --      não livre e sem pausa em nenhum dia do mês. Plano pausado ou livre não
 --      entra. Com um plano só, o segundo grupo é vazio: igual a antes.
---   2. Plano livre (frequentadas): a modalidade ligada a outro plano regular
---      só fica fora do livre quando esse outro plano tem fonte no mês. Religar
---      uma dança do livre a um plano novo, ainda sem cobrança, antes do dia 1
---      não apaga mais a divisão do livre. A ligada a outro plano livre fica
---      sempre fora (spec 3.2: segue a regra do plano dela, que conta as
---      presências dela quando for pago).
+--   2. Plano livre (frequentadas): a modalidade ligada a outro plano do aluno
+--      continua no livre só quando esse outro plano é regular (plano atual
+--      com is_plano_livre = false) e ainda não tinha começado no mês
+--      (data_inicio depois do último dia da competência; data_inicio NULL não
+--      conta). Religar uma dança do livre, antes do dia 1, a um plano novo que
+--      começa no mês seguinte não apaga mais a divisão do livre. Qualquer
+--      outro plano já começado no mês (pago, pendente ou atrasado) e
+--      qualquer outro plano livre ficam com a modalidade (spec 3.2: segue a
+--      regra do plano dela).
 --   3. Tudo ou nada do livre (livre_bloqueado): só bloqueiam as comissões já
 --      contadas das modalidades que frequentadas deu a esse plano livre (e,
 --      como antes, as sem modalidade_id). A modalidade sem ligação que o
@@ -282,8 +285,9 @@ BEGIN
            count(*) FILTER (WHERE cb.mensalidade_id IS NOT NULL AND cb.professor_id IS NOT NULL)
              OVER (PARTITION BY cb.aluno_id) AS n_com_professor,
            -- ILU-134: as danças cobertas e as dos outros planos ainda sem cobertura.
-           coalesce((SELECT dn.n FROM dancas dn WHERE dn.aluno_id = cb.aluno_id), 0) AS n_danca_com_professor
+           coalesce(dn.n, 0) AS n_danca_com_professor
       FROM cobertura cb
+      LEFT JOIN dancas dn ON dn.aluno_id = cb.aluno_id
   ),
   -- Plano livre: a fonte de plano livre que justifica o mês (com preço antes
   -- de sem; a recorrente antes da integral; depois vencimento e id) dá a
@@ -317,15 +321,14 @@ BEGIN
        AND ag.modalidade_id IS NOT NULL
        -- am.plano_aluno_id é NOT NULL (NULL aqui = sem ligação): "=" vale IS NOT
        -- DISTINCT FROM, e plano livre NULL nunca leva modalidade ligada.
-       -- ILU-134: a ligada a outro plano regular só fica de fora se ele tem
-       -- fonte no mês; a ligada a outro plano livre fica sempre de fora (ele
-       -- conta as presências dela quando for pago).
+       -- ILU-134: a ligada a outro plano fica de fora, salvo se ele é regular
+       -- e só começa depois do mês (data_inicio NULL não conta: fica de fora).
        AND (am.plano_aluno_id IS NULL OR am.plano_aluno_id = lp.plano_aluno_id
-            OR (NOT EXISTS (SELECT 1 FROM fontes f
-                             WHERE f.aluno_id = pr.aluno_id AND f.plano_aluno_id = am.plano_aluno_id)
-                AND EXISTS (SELECT 1 FROM planos_aluno pb
-                              JOIN planos plb ON plb.id = pb.plano_id
-                             WHERE pb.id = am.plano_aluno_id AND NOT coalesce(plb.is_plano_livre, false))))
+            OR EXISTS (SELECT 1 FROM planos_aluno pb
+                         JOIN planos plb ON plb.id = pb.plano_id
+                        WHERE pb.id = am.plano_aluno_id
+                          AND NOT coalesce(plb.is_plano_livre, false)
+                          AND pb.data_inicio >= v_fim))
      ORDER BY pr.aluno_id, ag.modalidade_id, pal.created_at, pal.id
   ),
   -- centavos = preço × pct (em centavos, arredondado); ordem = posição da

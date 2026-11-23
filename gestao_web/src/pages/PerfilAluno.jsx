@@ -1658,13 +1658,14 @@ function CardMetricaFrequencia({ titulo, valor, subtitulo, icone, tone = 'brand'
 }
 
 function ResumoFrequenciaAluno({ alunoId, planos }) {
-  const validosResumo = planosValidos(planos, hojeBrasilia());
+  const validosResumo = React.useMemo(() => planosValidos(planos, hojeBrasilia()), [planos]);
   const variosResumo = validosResumo.length > 1;
   const [planoEscolhido, setPlanoEscolhido] = React.useState(null);
   // Começa no principal; se o escolhido deixar de valer, volta a ele.
-  const planoAlunoId = variosResumo
-    ? (validosResumo.some((p) => p.id === planoEscolhido) ? planoEscolhido : validosResumo[0].id)
-    : undefined;
+  const planoSelecionado = variosResumo
+    ? (validosResumo.find((p) => String(p.id) === String(planoEscolhido)) ?? validosResumo[0])
+    : null;
+  const planoAlunoId = planoSelecionado?.id;
 
   const { data: resumo, isLoading } = useQuery({
     queryKey: ['aluno-resumo-frequencia', alunoId, planoAlunoId ?? null],

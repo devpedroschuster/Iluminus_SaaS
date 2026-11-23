@@ -15,15 +15,19 @@
 --      (não encerrado antes dele, início até o fim dele), com o plano atual
 --      não livre e sem pausa em nenhum dia do mês. Plano pausado ou livre não
 --      entra. Com um plano só, o segundo grupo é vazio: igual a antes.
---   2. Plano livre (frequentadas): a modalidade ligada a outro plano só fica
---      fora do livre quando esse outro plano tem fonte no mês. Religar uma
---      dança do livre a um plano novo, ainda sem cobrança, antes do dia 1 não
---      apaga mais a divisão do livre.
+--   2. Plano livre (frequentadas): a modalidade ligada a outro plano regular
+--      só fica fora do livre quando esse outro plano tem fonte no mês. Religar
+--      uma dança do livre a um plano novo, ainda sem cobrança, antes do dia 1
+--      não apaga mais a divisão do livre. A ligada a outro plano livre fica
+--      sempre fora (spec 3.2: segue a regra do plano dela, que conta as
+--      presências dela quando for pago).
 --   3. Tudo ou nada do livre (livre_bloqueado): só bloqueiam as comissões já
 --      contadas das modalidades que frequentadas deu a esse plano livre (e,
 --      como antes, as sem modalidade_id). A modalidade sem ligação que o
 --      primeiro plano livre levou e gravou não bloqueia mais o segundo plano
---      livre pago depois.
+--      livre pago depois. Efeito colateral raro, aceito: se um plano livre já
+--      gravou X e Y e depois todas as presências em X e Y somem e aparece uma
+--      em Z, Z é gerada além de X e Y (na 3c, X e Y sem ligação bloqueavam).
 -- Não mudam: assinatura, retorno e permissões, as outras funções, as portas
 -- (apurar_repasses, apurar_repasses_da_cobranca, prever_repasses), a
 -- unicidade (aluno, modalidade, competência), o corte e "mês futuro só na
@@ -313,10 +317,15 @@ BEGIN
        AND ag.modalidade_id IS NOT NULL
        -- am.plano_aluno_id é NOT NULL (NULL aqui = sem ligação): "=" vale IS NOT
        -- DISTINCT FROM, e plano livre NULL nunca leva modalidade ligada.
-       -- ILU-134: a ligada a outro plano só fica de fora se ele tem fonte no mês.
+       -- ILU-134: a ligada a outro plano regular só fica de fora se ele tem
+       -- fonte no mês; a ligada a outro plano livre fica sempre de fora (ele
+       -- conta as presências dela quando for pago).
        AND (am.plano_aluno_id IS NULL OR am.plano_aluno_id = lp.plano_aluno_id
-            OR NOT EXISTS (SELECT 1 FROM fontes f
-                            WHERE f.aluno_id = pr.aluno_id AND f.plano_aluno_id = am.plano_aluno_id))
+            OR (NOT EXISTS (SELECT 1 FROM fontes f
+                             WHERE f.aluno_id = pr.aluno_id AND f.plano_aluno_id = am.plano_aluno_id)
+                AND EXISTS (SELECT 1 FROM planos_aluno pb
+                              JOIN planos plb ON plb.id = pb.plano_id
+                             WHERE pb.id = am.plano_aluno_id AND NOT coalesce(plb.is_plano_livre, false))))
      ORDER BY pr.aluno_id, ag.modalidade_id, pal.created_at, pal.id
   ),
   -- centavos = preço × pct (em centavos, arredondado); ordem = posição da

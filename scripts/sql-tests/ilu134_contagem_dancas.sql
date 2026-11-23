@@ -18,11 +18,12 @@
 --   L1: plano livre L com Dança 1 frequentada; a Dança 1 religada a um plano
 --       novo B, sem fonte no mês, antes da apuração: a Dança 1 continua
 --       gerada no livre, com o mesmo valor que sem a religação (achado 2).
---   L2: dois planos livres; L grava a Dança 1 (sem ligação); a presença na
---       Dança 2 (ligada a L2) é confirmada depois e L2 é pago depois: as
---       linhas de L2 são gravadas, não ja_existia (achado 3). A presença
---       entra depois porque, com o achado 2, a Dança 2 de L2 ainda sem fonte
---       iria para L na primeira apuração.
+--   L2: dois planos livres, presenças na Dança 1 (sem ligação) e na Dança 2
+--       (ligada a L2); só L pago, apura: L grava só a Dança 1; L2 pago depois,
+--       apura: as linhas de L2 são gravadas, não ja_existia (achado 3).
+--   L3: dois planos livres, L pago e L2 ainda não; Dança 2 ligada a L2 com
+--       presença: apurando L, a Dança 2 não é gerada no L (modalidade de
+--       outro plano livre fica sempre fora, spec 3.2).
 --
 -- Competência: o mês anterior ao corrente (v_ant), com regra_danca_desde =
 -- v_ant: só um mês fechado grava e olha as presenças do plano livre.
@@ -370,16 +371,15 @@ BEGIN
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, plano_aluno_id)
     VALUES (v_al, p_l, v_ant + 4, 'pago', 'plano_livre', 300, 'pix', v_ant + 4, pa_a);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
-      (v_al, g_d1, v_ant + 2, 'presente', 'avulso', (v_ant + 2 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+      (v_al, g_d1, v_ant + 2, 'presente', 'avulso', (v_ant + 2 + time '19:00') AT TIME ZONE 'America/Sao_Paulo'),
+      (v_al, g_d2, v_ant + 3, 'presente', 'avulso', (v_ant + 3 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
     PERFORM pg_temp.apura_4(v_ant, v_al);
     v_got := pg_temp.gravadas_4(v_al);
     v_exp := format('Dança 1=plano_livre:%s', v_l);
     IF v_got IS DISTINCT FROM v_exp THEN
       v_f := v_f || format('L gravou: esperava [%s], veio [%s]', v_exp, v_got);
     END IF;
-    -- Presença na Dança 2 confirmada depois; L2 pago depois.
-    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
-      (v_al, g_d2, v_ant + 3, 'presente', 'avulso', (v_ant + 3 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    -- L2 pago depois.
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, plano_aluno_id)
     VALUES (v_al, p_l2, v_ant + 19, 'pago', 'plano_livre', 200, 'pix', v_ant + 19, pa_b);
     v_got := pg_temp.resumo_4(v_ant, v_al);
@@ -397,6 +397,37 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('L2: ' || SQLERRM);
+  END;
+
+  ---------------------------------------------------------------- L3: dança de outro livre, ainda não pago
+  v_total := v_total + 1;
+  BEGIN
+    v_f := '{}';
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso)
+    VALUES ('[TESTE 4] L3', 'teste-4-l3@iluminus.test', 'aluno', true, false) RETURNING id INTO v_al;
+    pa_a := (public.renovar_plano_aluno(v_al, p_l, v_ant, v_fim)->>'plano_aluno_id')::uuid;
+    pa_b := (public.renovar_plano_aluno(v_al, p_l2, v_ant, v_fim, p_novo_plano => true)->>'plano_aluno_id')::uuid;
+    UPDATE planos_aluno SET created_at = now() + interval '1 second' WHERE id = pa_b;
+    INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id)
+    VALUES (v_al, v_d2, 1, pa_b);
+    INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, plano_aluno_id)
+    VALUES (v_al, p_l, v_ant + 4, 'pago', 'plano_livre', 300, 'pix', v_ant + 4, pa_a);
+    INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
+      (v_al, g_d2, v_ant + 3, 'presente', 'avulso', (v_ant + 3 + time '19:00') AT TIME ZONE 'America/Sao_Paulo');
+    v_got := pg_temp.resumo_4(v_ant, v_al);
+    v_exp := '-=plano_livre_sem_presenca -=sem_cobertura';
+    IF v_got IS DISTINCT FROM v_exp THEN
+      v_f := v_f || format('esperava [%s], veio [%s]', v_exp, v_got);
+    END IF;
+    PERFORM pg_temp.apura_4(v_ant, v_al);
+    v_got := pg_temp.gravadas_4(v_al);
+    IF v_got IS DISTINCT FROM '' THEN
+      v_f := v_f || format('gravadas: esperava nada, veio [%s]', v_got);
+    END IF;
+    IF cardinality(v_f) > 0 THEN v_falhas := v_falhas || ('L3: ' || array_to_string(v_f, ' ; ')); END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('L3: ' || SQLERRM);
   END;
 
   ---------------------------------------------------------------- resultado

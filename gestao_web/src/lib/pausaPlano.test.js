@@ -156,6 +156,21 @@ describe('notificacoesDePausa', () => {
     expect(novo.idUnico).not.toBe(antigo.idUnico);
   });
 
+  it('N1: uma pausa aberta mantém o id de sempre', () => {
+    const [n] = notificacoesDePausa([{ ...pausa('2026-11-20'), plano_aluno_id: 'pa1', planos_aluno: { planos: { nome: 'Mensal' } } }], '2026-11-20');
+    expect(n.idUnico).toBe('pausa-7-2026-11-20');
+    expect(n.aluno).toEqual({ id: 7, nome_completo: 'Ana', ativo: true });
+  });
+
+  it('duas pausas de planos diferentes do mesmo aluno levam o plano no id e no nome', () => {
+    const lista = notificacoesDePausa([
+      { ...pausa('2026-11-20'), plano_aluno_id: 'pa1', planos_aluno: { planos: { nome: 'Yoga' } } },
+      { ...pausa('2026-11-20'), plano_aluno_id: 'pa2', planos_aluno: { planos: { nome: 'Pilates' } } },
+    ], '2026-11-20');
+    expect(lista.map((n) => n.idUnico)).toEqual(['pausa-7-pa1-2026-11-20', 'pausa-7-pa2-2026-11-20']);
+    expect(lista.map((n) => n.aluno.planos.nome)).toEqual(['Yoga', 'Pilates']);
+  });
+
   it('ignora aluno desativado', () => {
     const desativado = { data_prevista_volta: '2026-11-01', alunos: { id: 7, nome_completo: 'Ana', ativo: false } };
     expect(notificacoesDePausa([desativado], '2026-11-04')).toEqual([]);

@@ -5,7 +5,8 @@ import {
   Calendar, Eye, ChevronLeft, ChevronRight, GraduationCap,
 } from 'lucide-react';
 import { alunosService } from '../services/alunosService';
-import { statusAcessoApp, STATUS_ACESSO_APP } from '../lib/utils';
+import { statusAcessoApp, STATUS_ACESSO_APP, hojeBrasilia } from '../lib/utils';
+import { situacaoAluno, planosValidos, rotuloPlanoAluno } from '../lib/planosAluno';
 import { useDebounce } from '../hooks/useDebounce';
 import { useAlunos, PAGE_SIZE } from '../hooks/useAlunos';
 import Surface from '../components/ui/Surface';
@@ -41,16 +42,17 @@ const ROLE_LABEL = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Calcula o status de vencimento do plano a partir de data_fim_plano.
+ * Calcula o status de vencimento de um plano a partir do data_fim.
  *
  * @param {string|null} dataFim  formato 'YYYY-MM-DD'
+ * @param {string} hoje  'YYYY-MM-DD' (hojeBrasilia())
  * @returns {{ tone: string, label: string, dias: number|null }}
  */
-function calcularStatusVencimento(dataFim) {
+function calcularStatusVencimento(dataFim, hoje) {
   if (!dataFim) return { tone: 'neutral', label: 'Sem data', dias: null };
 
-  const hoje = new Date();
-  const hojeUTC = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const [anoH, mesH, diaH] = hoje.split('-').map(Number);
+  const hojeUTC = Date.UTC(anoH, mesH - 1, diaH);
   const [ano, mes, dia] = dataFim.split('-').map(Number);
   const fimUTC = Date.UTC(ano, mes - 1, dia);
   const dias = Math.round((fimUTC - hojeUTC) / (1000 * 60 * 60 * 24));
@@ -325,7 +327,13 @@ export default function Alunos() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {alunos.map((aluno) => {
-                    const vencimento = calcularStatusVencimento(aluno.data_fim_plano);
+                    // ILU-127: a situação vem dos planos válidos do aluno, não dos campos copiados.
+                    const hoje = hojeBrasilia();
+                    const situacaoPrincipal = situacaoAluno(aluno.planos_aluno, hoje);
+                    const planoPrincipal = situacaoPrincipal?.plano;
+                    const vencimento = calcularStatusVencimento(planoPrincipal?.data_fim, hoje);
+                    const validosDoAluno = planosValidos(aluno.planos_aluno, hoje);
+                    const rotuloPrincipal = planoPrincipal ? rotuloPlanoAluno(planoPrincipal, validosDoAluno) : '';
 
                     /**
                      * PROBLEMA 3 — Normalização do status.
@@ -373,7 +381,9 @@ export default function Alunos() {
                         {/* Plano / Cargo — role normalizado via mapa */}
                         <td className="px-6 md:px-8 py-4 md:py-6">
                           <span className="text-xs font-bold text-foreground block">
-                            {aluno.planos?.nome || 'Sem Plano'}
+                            {planoPrincipal
+                              ? `${rotuloPrincipal}${situacaoPrincipal.varios ? ` +${validosDoAluno.length - 1}` : ''}`
+                              : 'Sem Plano'}
                           </span>
                           <span className="text-[10px] font-black uppercase text-muted-foreground">
                             {ROLE_LABEL[aluno.role?.toLowerCase()] ?? aluno.role}
@@ -413,15 +423,18 @@ export default function Alunos() {
 
                         {/* Vencimento */}
                         <td className="px-6 md:px-8 py-4 md:py-6">
-                          {aluno.role === 'admin' || !aluno.plano_id ? (
+                          {aluno.role === 'admin' || !planoPrincipal ? (
                             <Badge tone="neutral" variant="soft">—</Badge>
-                          ) : aluno.plano_pausado_desde ? (
+                          ) : situacaoPrincipal.situacao.codigo === 'pausado' ? (
                             // ILU-114: o vencimento fica parado durante a pausa.
                             <div className="flex flex-col gap-0.5">
                               <Badge tone="info" variant="soft">Pausado</Badge>
                               <span className="text-[10px] font-black text-muted-foreground">
-                                desde {aluno.plano_pausado_desde.split('-').reverse().join('/')}
+                                desde {planoPrincipal.pausado_desde.split('-').reverse().join('/')}
                               </span>
+                              {situacaoPrincipal.varios && (
+                                <span className="text-[10px] font-bold text-muted-foreground">{rotuloPrincipal}</span>
+                              )}
                             </div>
                           ) : (
                             <div className="flex flex-col gap-0.5">
@@ -440,6 +453,14 @@ export default function Alunos() {
                                     ? 'Vence hoje'
                                     : `${vencimento.dias}d restantes`}
                                 </span>
+                              )}
+                              {situacaoPrincipal.situacao.encerrando && (
+                                <span className="text-[10px] font-black text-muted-foreground">
+                                  Encerra em {planoPrincipal.encerrado_em.split('-').reverse().slice(0, 2).join('/')}
+                                </span>
+                              )}
+                              {situacaoPrincipal.varios && (
+                                <span className="text-[10px] font-bold text-muted-foreground">{rotuloPrincipal}</span>
                               )}
                             </div>
                           )}

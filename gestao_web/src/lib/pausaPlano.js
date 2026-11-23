@@ -49,15 +49,24 @@ export function fixosForaDePausa(fixos) {
 // Previsão de volta é só um lembrete: quando chega, a gestão recebe o aviso para
 // retomar ou ajustar. O id leva a previsão: ajustar a data gera um aviso novo.
 export function notificacoesDePausa(pausasAbertas, hoje) {
-  return (pausasAbertas || [])
-    .filter((p) => p.alunos?.ativo !== false)
-    .map((p) => ({
-      idUnico: `pausa-${p.alunos?.id}-${p.data_prevista_volta}`,
-      tipo: 'pausa',
-      aluno: p.alunos,
-      dataAlvo: p.data_prevista_volta,
-      diasFaltando: diferencaDias(hoje, p.data_prevista_volta),
-    }))
+  const ativas = (pausasAbertas || []).filter((p) => p.alunos?.ativo !== false);
+  const porAluno = new Map();
+  ativas.forEach((p) => porAluno.set(p.alunos?.id, (porAluno.get(p.alunos?.id) || 0) + 1));
+
+  return ativas
+    .map((p) => {
+      const varias = porAluno.get(p.alunos?.id) > 1;
+      const nomePlano = p.planos_aluno?.planos?.nome;
+      return {
+        idUnico: varias
+          ? `pausa-${p.alunos?.id}-${p.plano_aluno_id}-${p.data_prevista_volta}`
+          : `pausa-${p.alunos?.id}-${p.data_prevista_volta}`,
+        tipo: 'pausa',
+        aluno: varias && nomePlano ? { ...p.alunos, planos: { nome: nomePlano } } : p.alunos,
+        dataAlvo: p.data_prevista_volta,
+        diasFaltando: diferencaDias(hoje, p.data_prevista_volta),
+      };
+    })
     .filter((n) => n.diasFaltando <= 0);
 }
 

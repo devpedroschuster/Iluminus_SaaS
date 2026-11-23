@@ -141,21 +141,33 @@ async obterComissoes(inicioMes) {
   },
 
   /**
-   * Retorna alunos cujo plano vence entre `hojeIso` e `limiteIso` (inclusive).
-   * Usado para o alerta âmbar de "planos vencendo em ≤7 dias".
+   * Retorna os planos que vencem entre `hojeIso` e `limiteIso` (inclusive), uma
+   * linha por plano do aluno. Usado para o alerta âmbar de "planos vencendo em ≤7 dias".
+   * `plano_nome` só vem quando o aluno tem mais de um plano válido.
    */
   async obterAlunosPlanosVencendo(hojeIso, limiteIso) {
     const { data, error } = await supabase
-      .from('alunos')
-      .select('id, nome_completo, data_fim_plano')
-      .eq('ativo', true)
-      .eq('role', 'aluno')
-      .not('data_fim_plano', 'is', null)
-      .is('plano_pausado_desde', null) // ILU-114: o vencimento fica parado durante a pausa
-      .gte('data_fim_plano', hojeIso)
-      .lte('data_fim_plano', limiteIso)
-      .order('data_fim_plano', { ascending: true });
+      .from('planos_aluno')
+      .select('id, data_fim, planos(nome), alunos!inner(id, nome_completo, ativo, role, planos_aluno(id, encerrado_em))')
+      .eq('alunos.ativo', true)
+      .eq('alunos.role', 'aluno')
+      .not('data_fim', 'is', null)
+      .is('pausado_desde', null) // ILU-114: o vencimento fica parado durante a pausa
+      .gte('data_fim', hojeIso)
+      .lte('data_fim', limiteIso)
+      .or(`encerrado_em.is.null,encerrado_em.gte.${hojeIso}`)
+      .order('data_fim', { ascending: true });
     if (error) throw error;
-    return data || [];
+    return (data || []).map((l) => {
+      const validos = (l.alunos.planos_aluno || []).filter(
+        (p) => !p.encerrado_em || p.encerrado_em >= hojeIso
+      ).length;
+      return {
+        id: l.alunos.id,
+        nome_completo: l.alunos.nome_completo,
+        data_fim_plano: l.data_fim,
+        plano_nome: validos > 1 ? l.planos?.nome : undefined,
+      };
+    });
   },
 };

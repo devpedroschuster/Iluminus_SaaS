@@ -1657,31 +1657,60 @@ function CardMetricaFrequencia({ titulo, valor, subtitulo, icone, tone = 'brand'
   );
 }
 
-function ResumoFrequenciaAluno({ alunoId }) {
+function ResumoFrequenciaAluno({ alunoId, planos }) {
+  const validosResumo = planosValidos(planos, hojeBrasilia());
+  const variosResumo = validosResumo.length > 1;
+  const [planoEscolhido, setPlanoEscolhido] = React.useState(null);
+  // Começa no principal; se o escolhido deixar de valer, volta a ele.
+  const planoAlunoId = variosResumo
+    ? (validosResumo.some((p) => p.id === planoEscolhido) ? planoEscolhido : validosResumo[0].id)
+    : undefined;
+
   const { data: resumo, isLoading } = useQuery({
-    queryKey: ['aluno-resumo-frequencia', alunoId],
-    queryFn: () => alunosService.buscarResumoFrequencia(alunoId),
+    queryKey: ['aluno-resumo-frequencia', alunoId, planoAlunoId ?? null],
+    queryFn: () => (planoAlunoId
+      ? alunosService.buscarResumoFrequencia(alunoId, planoAlunoId)
+      : alunosService.buscarResumoFrequencia(alunoId)),
     enabled: !!alunoId,
   });
 
+  const seletorPlano = variosResumo && (
+    <select
+      aria-label="Plano do resumo de frequência"
+      value={planoAlunoId}
+      onChange={(e) => setPlanoEscolhido(e.target.value)}
+      className="rounded-xl border border-border bg-background px-3 py-2 text-sm font-bold"
+    >
+      {validosResumo.map((p) => (
+        <option key={p.id} value={p.id}>{rotuloPlanoAluno(p, validosResumo)}</option>
+      ))}
+    </select>
+  );
+
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Surface key={i} variant="card" padding="lg" className="rounded-[32px] h-32 animate-pulse" />
-        ))}
+      <div className="space-y-3">
+        {seletorPlano}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Surface key={i} variant="card" padding="lg" className="rounded-[32px] h-32 animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!resumo?.periodo_inicio) {
     return (
-      <Surface variant="card" padding="lg" className="flex items-center gap-3 text-muted-foreground">
-        <Info size={18} className="shrink-0" />
-        <p className="text-sm font-medium">
-          Este aluno ainda não tem um plano com vigência definida — não é possível calcular o resumo de frequência.
-        </p>
-      </Surface>
+      <div className="space-y-3">
+        {seletorPlano}
+        <Surface variant="card" padding="lg" className="flex items-center gap-3 text-muted-foreground">
+          <Info size={18} className="shrink-0" />
+          <p className="text-sm font-medium">
+            Este aluno ainda não tem um plano com vigência definida — não é possível calcular o resumo de frequência.
+          </p>
+        </Surface>
+      </div>
     );
   }
 
@@ -1692,6 +1721,7 @@ function ResumoFrequenciaAluno({ alunoId }) {
 
   return (
     <div className="space-y-3">
+      {seletorPlano}
       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
         Período do plano vigente: {formatarDataBR(periodo_inicio)} – {formatarDataBR(periodo_fim)}
       </p>
@@ -2130,7 +2160,7 @@ export default function PerfilAluno() {
           });
           return (
             <div className="space-y-4 animate-in slide-in-from-bottom-4">
-              <ResumoFrequenciaAluno alunoId={id} />
+              <ResumoFrequenciaAluno alunoId={id} planos={planosAluno} />
               <Surface variant="card" padding="lg">
                 <HeatmapFrequencia frequencia={frequencia} planoAtivo={planoAtivo} pausado={!!principal?.pausado_desde} />
               </Surface>

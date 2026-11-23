@@ -27,17 +27,29 @@ export function calcularRetomada({ dataInicioPausa, dataRetorno, dataInicioPlano
   return { dias, novoFim: somarDias(dataFimPlano, dias) };
 }
 
-// Grade: cada aluno da matrícula recebe os próprios períodos de pausa.
+// ILU-127: o período vale para a aula só se ela segue o plano pausado. Sem
+// `aula_ids` (payload antigo) vale para todas; lista vazia, para nenhuma.
+// O bigint[] pode chegar como número ou texto.
+const periodoVale = (p, aulaId) =>
+  !p.aula_ids || p.aula_ids.some((id) => Number(id) === Number(aulaId));
+
+// Grade: cada aluno da matrícula recebe os períodos de pausa do plano da aula.
 export function anexarPausas(matriculas, periodos) {
   return (matriculas || []).map((m) => (m.alunos
-    ? { ...m, alunos: { ...m.alunos, pausas: (periodos || []).filter((p) => p.aluno_id === m.alunos.id) } }
+    ? {
+      ...m,
+      alunos: {
+        ...m.alunos,
+        pausas: (periodos || []).filter((p) => p.aluno_id === m.alunos.id && periodoVale(p, m.aula_id)),
+      },
+    }
     : m));
 }
 
 // Chamada de um dia: tira os fixos pausados naquela data.
 export function removerFixosEmPausa(fixos, periodos, data) {
   return (fixos || []).filter((f) =>
-    !emPausaNaData((periodos || []).filter((p) => p.aluno_id === f.aluno_id), data)
+    !emPausaNaData((periodos || []).filter((p) => p.aluno_id === f.aluno_id && periodoVale(p, f.aula_id)), data)
   );
 }
 

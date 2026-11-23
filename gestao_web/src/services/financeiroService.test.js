@@ -342,6 +342,24 @@ describe('financeiroService.listarCobrancasEmAbertoDoAluno', () => {
     expect(resultado).toEqual(linhas);
   });
 
+  it('sem plano do aluno não filtra por plano_aluno_id', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+
+    await financeiroService.listarCobrancasEmAbertoDoAluno(7);
+
+    expect(chamadas.some(c => c[0] === 'eq' && c[1] === 'plano_aluno_id')).toBe(false);
+  });
+
+  it('com plano do aluno filtra por plano_aluno_id', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+
+    await financeiroService.listarCobrancasEmAbertoDoAluno(7, 'pa-2');
+
+    expect(chamadas).toEqual(expect.arrayContaining([['eq', 'plano_aluno_id', 'pa-2']]));
+  });
+
   it('propaga erro da consulta', async () => {
     const { query } = criarQueryMock({ data: null, error: new Error('falhou') });
     supabase.from.mockReturnValue(query);

@@ -360,14 +360,17 @@ async listarModalidadesDoAluno(alunoId) {
    * outra ao lado dela (que deixava a original atrasada para sempre, ou era
    * recusada pelo índice único aluno + plano + vencimento).
    */
-  async listarCobrancasEmAbertoDoAluno(alunoId) {
-    const { data, error } = await supabase
+  async listarCobrancasEmAbertoDoAluno(alunoId, planoAlunoId) {
+    let query = supabase
       .from('mensalidades')
       .select('id, data_vencimento, status, descricao, tipo_aula, valor_esperado, valor_pago, planos(nome, preco)')
       .eq('aluno_id', alunoId)
       .in('status', ['pendente', 'atrasado'])
       .in('tipo_aula', ['regular', 'plano_livre'])
       .order('data_vencimento', { ascending: false });
+    // Vários planos: só as cobranças do plano escolhido.
+    if (planoAlunoId) query = query.eq('plano_aluno_id', planoAlunoId);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },

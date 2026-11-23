@@ -12,7 +12,7 @@ const formatarDia = (data) => new Date(`${data}T12:00:00`).toLocaleDateString('p
 
 const nomeDoLancamento = (item) => item.alunos?.nome_completo || item.nome_visitante || 'Visitante';
 
-function Referencia({ item }) {
+function ReferenciaBase({ item }) {
   if (item.tipo_aula === 'regular') {
     return item.modalidades?.nome
       ? <Badge tone="info" variant="soft">{item.modalidades.nome}</Badge>
@@ -24,12 +24,24 @@ function Referencia({ item }) {
     : <span className="text-muted-foreground text-xs">—</span>;
 }
 
+// Com vários planos, o plano do aluno vai embaixo da referência.
+function Referencia({ item, rotuloPlano }) {
+  const plano = rotuloPlano?.(item);
+  if (!plano) return <ReferenciaBase item={item} />;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <ReferenciaBase item={item} />
+      <Badge tone="neutral">{plano}</Badge>
+    </div>
+  );
+}
+
 /**
  * Tabela de cobranças usada pela tela Mensalidades e pela aba Financeiro do
  * aluno. Recebe `itens` já filtrados e ordenados; `acoes` = { receber, editar,
  * reverter, excluir }, cada uma chamada com o item da linha.
  */
-export default function TabelaMensalidades({ itens, mostrarAluno = false, acoes, hoje = hojeBrasilia(), vazio = null }) {
+export default function TabelaMensalidades({ itens, mostrarAluno = false, acoes, hoje = hojeBrasilia(), vazio = null, rotuloPlano }) {
   if (!itens?.length) return vazio;
 
   const total = itens.reduce((acc, item) => acc + valorDevidoMensalidade(item), 0);
@@ -97,7 +109,7 @@ export default function TabelaMensalidades({ itens, mostrarAluno = false, acoes,
                       : <span className="text-xs">—</span>}
                   </td>
                   <td className="p-4">
-                    <Referencia item={item} />
+                    <Referencia item={item} rotuloPlano={rotuloPlano} />
                   </td>
                   <td className="p-4">
                     <Badge

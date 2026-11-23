@@ -14,11 +14,11 @@ import { situacaoCoberturaCiclo } from '../../lib/repasses';
  * um valor que ainda é o mensal).
  * `cicloIdParaLigar` vai como `ciclo_id` para o financeiroService.
  */
-export function useCoberturaDoCiclo({ alunoId, vencimento, mensalidadeId = null, ativo = true, onSugerir }) {
+export function useCoberturaDoCiclo({ alunoId, vencimento, mensalidadeId = null, planoAlunoId = null, ativo = true, onSugerir }) {
   const habilitado = !!ativo && !!alunoId && !!vencimento;
   const { data: ciclo = null } = useQuery({
-    queryKey: ['ciclo-do-vencimento', alunoId, vencimento],
-    queryFn: () => financeiroService.buscarCicloDoVencimento(alunoId, vencimento),
+    queryKey: ['ciclo-do-vencimento', alunoId, vencimento, planoAlunoId],
+    queryFn: () => financeiroService.buscarCicloDoVencimento(alunoId, vencimento, planoAlunoId || undefined),
     enabled: habilitado,
     staleTime: 1000 * 30,
   });

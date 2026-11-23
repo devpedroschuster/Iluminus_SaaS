@@ -260,7 +260,7 @@ export default function NovoAluno() {
             cpf:              aluno.cpf              || '',
             data_nascimento:  aluno.data_nascimento  || '',
             telefone:         aluno.telefone         || '',
-            cep:             aluno.cep              || '',
+            cep:              aluno.cep              || '',
             rua:              aluno.rua              || '',
             numero:           aluno.numero           || '',
             complemento:      aluno.complemento      || '',
@@ -461,7 +461,7 @@ export default function NovoAluno() {
     async function tentarNovamente() {
       try {
         await alunosService.criarPrimeiroPlano(alunoId, dadosPlano);
-        showToast.success('Registro financeiro criado com sucesso!');
+        showToast.success('Plano registrado com sucesso!');
         invalidarConsultasFinanceiras(queryClient);
         await invalidarConsultasDoCadastro();
       } catch (novoErro) {
@@ -572,13 +572,16 @@ export default function NovoAluno() {
         // duração) — mesma conta de renovar_plano_aluno.
         const valorIntegral = Number(planoInfos.preco || 0) * (planoInfos.duracao_meses || 1);
         const valorCiclo = formaRecebimento === 'a_vista' ? valorIntegral : (planoInfos.preco || 0);
-        // ILU-13/ILU-30: as datas vêm do formulário — "Início do Contrato"
-        // espelha "Data do 1º Pagamento" e "Fim (Calculado)" deriva dele pelo
-        // mesmo cálculo calendarizado do preview da tela.
+        // ILU-13/ILU-30: o início do plano (e vencimento da 1ª cobrança) é a
+        // "Data do 1º Pagamento", lida direto do estado: o campo espelho
+        // "Início do Contrato" pode ter sido limpo por um reset (conversão de
+        // lead, troca de rota) sem o efeito rodar de novo. "Fim (Calculado)"
+        // vem do formulário ou, se vazio, do mesmo cálculo calendarizado.
         const dadosPlano = {
           plano_id:          planoFinal,
-          data_inicio:       data.data_inicio_plano || null,
-          data_fim:          data.data_fim_plano    || null,
+          data_inicio:       dataVencimento,
+          data_fim:          data.data_fim_plano
+            || calcularFimPlano(dataVencimento, planoInfos.duracao_meses || 1),
           valor_pago:        valorCiclo,
           forma_recebimento: formaRecebimento,
           modalidades:       contarModalidades(modalidadesSelecionadas),
@@ -589,6 +592,8 @@ export default function NovoAluno() {
           console.error('[NovoAluno] Falha ao registrar o primeiro plano:', errFinanceiro);
           avisarFalhaFinanceira(data.nome_completo, novoAlunoId, dadosPlano);
         }
+      } else if (novoAlunoId && planoFinal && !planoInfos) {
+        showToast.warning('Cadastro salvo sem plano: a lista de planos não carregou. Adicione o plano no perfil do aluno.');
       }
 
       // Lead conversion

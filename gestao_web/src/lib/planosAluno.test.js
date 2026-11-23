@@ -141,6 +141,20 @@ describe('planosAluno', () => {
     });
   });
 
+  it('S5c: pausado prevalece sobre encerrando', () => {
+    const p = plano({ pausado_desde: '2026-11-10', encerrado_em: '2026-12-03', data_fim: '2026-12-03' });
+    expect(situacaoPlano(p, HOJE)).toMatchObject({
+      codigo: 'pausado', rotulo: 'Pausado desde 10/11', tone: 'info', encerrando: true,
+    });
+  });
+
+  it('planosValidos ordena por (created_at, id)', () => {
+    const c = plano({ id: 'b', created_at: '2026-09-02T10:00:00Z' });
+    const a = plano({ id: 'z', created_at: '2026-09-01T10:00:00Z' });
+    const d = plano({ id: 'a', created_at: '2026-09-02T10:00:00Z' });
+    expect(planosValidos([c, a, d], HOJE).map((p) => p.id)).toEqual(['z', 'a', 'b']);
+  });
+
   it('S6: plano encerrado ontem some de tudo', () => {
     const aluno = { id: 10, nome_completo: 'Ana', telefone: '1', ativo: true };
     const p = plano({ encerrado_em: '2026-11-22', data_fim: '2026-11-25' });

@@ -12,8 +12,13 @@ const JANELA_NOTIFICACAO = { de: -60, ate: 7 };
 const diferencaDias = (de, ate) =>
   Math.round((new Date(`${ate}T12:00:00Z`) - new Date(`${de}T12:00:00Z`)) / 86400000);
 
+const instante = (v) => {
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? 0 : t;
+};
+
 const ordemPlano = (a, b) =>
-  String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')) ||
+  instante(a.created_at) - instante(b.created_at) ||
   String(a.id ?? '').localeCompare(String(b.id ?? ''));
 
 const plural = (n) => (n === 1 ? 'dia' : 'dias');
@@ -51,7 +56,7 @@ export function situacaoPlano(plano, hoje) {
     }
   }
 
-  if (encerrando && base.codigo !== 'vencido') {
+  if (encerrando && base.codigo !== 'vencido' && base.codigo !== 'pausado') {
     return { ...base, encerrando, rotulo: `Encerra em ${formatarDiaMes(plano.encerrado_em)}`, tone: 'neutral' };
   }
   return { ...base, encerrando };

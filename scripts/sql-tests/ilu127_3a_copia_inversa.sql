@@ -2,9 +2,9 @@
 --
 -- O que garante:
 --   C1-C2: mudança no plano principal vai para o cadastro; no não principal, não.
---   C3-C4: escrita direta no cadastro (telas atuais): com dois planos é desfeita
---          (o cadastro volta a ser a cópia do principal); com um, vai para o
---          principal, como na entrega 2.
+--   C3-C4: escrita direta no cadastro (telas atuais): com dois planos é recusada
+--          (guarda de 20261124120000; antes era desfeita) e nada muda; com um,
+--          vai para o principal, como na entrega 2.
 --   C5:    alunos_modalidades de qualquer plano → modalidades_selecionadas.
 --   C6:    plano encerrado continua principal até encerrado_em; depois, o
 --          próximo assume.
@@ -24,7 +24,7 @@ DECLARE
   v_p1 int; v_p2 int;
   m_a uuid; m_b uuid;
   v_al bigint; v_pa uuid; v_pa2 uuid; v_m bigint; v_pz uuid;
-  r record;
+  r record; v_msg text;
   v_falhas text[] := '{}';
   v_total int := 0;
 BEGIN
@@ -66,7 +66,7 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('C2: ' || SQLERRM);
   END;
 
-  ---------------------------------------------------------------- C3: dois planos, escrita direta no cadastro é desfeita
+  ---------------------------------------------------------------- C3: dois planos, escrita direta no cadastro é recusada
   v_total := v_total + 1;
   BEGIN
     INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
@@ -74,7 +74,16 @@ BEGIN
     v_pa := public._plano_aluno_principal(v_al);
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje, v_hoje + 29, now() + interval '1 second') RETURNING id INTO v_pa2;
-    UPDATE alunos SET plano_id = v_p2, data_fim_plano = v_hoje + 90 WHERE id = v_al;
+    -- Desde 20261124120000 (guarda) a escrita é recusada em vez de desfeita;
+    -- o resto do caso (nada muda) continua igual.
+    v_msg := NULL;
+    BEGIN
+      UPDATE alunos SET plano_id = v_p2, data_fim_plano = v_hoje + 90 WHERE id = v_al;
+    EXCEPTION WHEN OTHERS THEN v_msg := SQLERRM;
+    END;
+    IF v_msg IS DISTINCT FROM 'Este aluno tem mais de um plano. Edite planos e modalidades no perfil do aluno (abas Planos e Modalidades).' THEN
+      v_falhas := v_falhas || format('C3: escrita direta não foi recusada (mensagem=%s)', v_msg);
+    END IF;
     SELECT * INTO r FROM alunos WHERE id = v_al;
     IF r.plano_id <> v_p1 OR r.data_fim_plano <> v_hoje + 29
        OR (SELECT plano_id FROM planos_aluno WHERE id = v_pa) <> v_p1

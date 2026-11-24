@@ -165,7 +165,11 @@ BEGIN
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje, v_hoje + 29, now() + interval '1 second') RETURNING id INTO v_pa2;
     INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id) VALUES (v_al, m_c, 1, v_pa2);
-    UPDATE alunos SET modalidades_selecionadas = ARRAY[m_a, m_c, m_c] WHERE id = v_al;
+    -- Desde 20261124120000 (guarda) o UPDATE direto do cadastro de aluno com
+    -- dois planos é recusado; a regra de ligação testada aqui (ligação ao
+    -- segundo plano preservada) vive em _sinc_modalidades_aluno, chamada com
+    -- o mesmo array.
+    PERFORM public._sinc_modalidades_aluno(v_al, ARRAY[m_a, m_c, m_c]);
     SELECT count(*) FILTER (WHERE modalidade_id = m_a AND vezes = 1 AND plano_aluno_id = v_pa)
          + count(*) FILTER (WHERE modalidade_id = m_c AND vezes = 2 AND plano_aluno_id = v_pa2),
            count(*)

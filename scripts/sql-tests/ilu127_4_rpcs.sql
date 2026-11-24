@@ -12,6 +12,8 @@
 --   R1: recalcular com ciclo vigente e ciclo seguinte agendado: início do
 --       vigente; plano e fim do agendado.
 --   R2: recalcular B só mexe em B; o cadastro (cópia de A) fica igual.
+--   R3: ciclo que cobre hoje + ciclo mais antigo sem data de fim: vale o que
+--       cobre hoje (ciclo sem fim nunca "cobre hoje").
 --
 -- Dados [TESTE 4], e-mails teste-4-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-4-RPCS: PASSOU (n/n)" ou "... FALHOU (...)".
@@ -275,6 +277,32 @@ BEGIN
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_falhas := v_falhas || ('R2: ' || SQLERRM);
+  END;
+  RESET ROLE;
+
+  ---------------------------------------------------------------- R3: ciclo sem fim não vence o que cobre hoje
+  v_total := v_total + 1;
+  BEGIN
+    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
+    VALUES ('[TESTE 4] R3', 'teste-4-r3@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 5, v_hoje + 25)
+    RETURNING id INTO v_al;
+    v_pa := public._plano_aluno_principal(v_al);
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
+    VALUES (v_al, v_p1, v_hoje - 5, v_hoje + 25, 'ativo', v_pa);
+    INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
+    VALUES (v_al, v_p2, v_hoje - 60, NULL, 'ativo', v_pa);
+
+    PERFORM set_config('request.jwt.claims', c_admin, true);
+    SET LOCAL ROLE authenticated;
+    PERFORM public.recalcular_plano_aluno(v_pa);
+    RESET ROLE;
+    SELECT * INTO r FROM planos_aluno WHERE id = v_pa;
+    IF r.data_inicio IS DISTINCT FROM v_hoje - 5 OR r.data_fim IS DISTINCT FROM v_hoje + 25 OR r.plano_id <> v_p1 THEN
+      v_falhas := v_falhas || format('R3: inicio=%s plano=%s fim=%s', r.data_inicio, r.plano_id, r.data_fim);
+    END IF;
+    RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
+  EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
+  WHEN OTHERS THEN v_falhas := v_falhas || ('R3: ' || SQLERRM);
   END;
   RESET ROLE;
 

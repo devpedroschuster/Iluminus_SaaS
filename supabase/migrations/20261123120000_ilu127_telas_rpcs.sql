@@ -15,7 +15,7 @@
 -- Down:  supabase/migrations-down/20261123120000_ilu127_telas_rpcs.sql
 
 -- 1. Modalidades do aluno, cada uma no seu plano.
-CREATE FUNCTION public.salvar_modalidades_aluno(p_aluno_id bigint, p_itens jsonb)
+CREATE OR REPLACE FUNCTION public.salvar_modalidades_aluno(p_aluno_id bigint, p_itens jsonb)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -38,7 +38,9 @@ BEGIN
     RAISE EXCEPTION 'Usuário sem permissão para alterar modalidades do aluno.';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM public.alunos a WHERE a.id = p_aluno_id) THEN
+  -- Trava o aluno: dois salvamentos ao mesmo tempo viram um depois do outro.
+  PERFORM 1 FROM public.alunos a WHERE a.id = p_aluno_id FOR UPDATE;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Aluno não encontrado.';
   END IF;
   IF p_itens IS NULL OR jsonb_typeof(p_itens) <> 'array' THEN
@@ -103,7 +105,7 @@ END;
 $$;
 
 -- 2. Plano, início e fim do plano do aluno a partir dos ciclos.
-CREATE FUNCTION public.recalcular_plano_aluno(p_plano_aluno_id uuid)
+CREATE OR REPLACE FUNCTION public.recalcular_plano_aluno(p_plano_aluno_id uuid)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -134,7 +136,7 @@ BEGIN
     FROM public.historico_planos h
    WHERE h.plano_aluno_id = p_plano_aluno_id
      AND h.status <> 'cancelado'
-   ORDER BY (h.data_inicio <= v_hoje AND h.data_fim >= v_hoje) DESC, h.data_inicio DESC, h.id
+   ORDER BY coalesce(h.data_inicio <= v_hoje AND h.data_fim >= v_hoje, false) DESC, h.data_inicio DESC, h.id
    LIMIT 1;
   IF NOT FOUND THEN
     RETURN;

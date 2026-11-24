@@ -43,12 +43,31 @@ export function aulasDoDia(aulas = [], data) {
   return aulas.filter((a) => a.data === data);
 }
 
+// Lista de planos do payload de listar_aulas_aluno. Payload antigo (só
+// `plano`) vira lista de um; aceita também um plano solto.
+export function planosDoPayload(dados) {
+  if (Array.isArray(dados?.planos)) return dados.planos;
+  return dados?.plano ? [dados.plano] : [];
+}
+
+const comoLista = (planos) => (Array.isArray(planos) ? planos : (planos ? [planos] : []));
+
+// IDs dos planos pausados; `todos` quando o aluno só tem um plano e ele está
+// pausado (vale também para aulas sem plano_aluno_id, como no payload antigo).
+function pausados(planos) {
+  const lista = comoLista(planos);
+  const ids = new Set(lista.filter((p) => p.pausado_desde).map((p) => p.plano_aluno_id));
+  return { ids, todos: lista.length === 1 && ids.size === 1 };
+}
+
 // ILU-114: com o plano pausado não há o que agendar; fica só o que já tem
-// registro ativo (ex.: a gestão agendou o aluno mesmo pausado).
-export function aulasParaMostrar(aulas, plano, data) {
+// registro ativo (ex.: a gestão agendou o aluno mesmo pausado). ILU-127: com
+// vários planos, só as aulas do plano pausado somem.
+export function aulasParaMostrar(aulas, planos, data) {
   const doDia = aulasDoDia(aulas, data);
-  if (!plano?.pausado_desde) return doDia;
-  return doDia.filter((a) => a.meu_status && a.meu_status !== 'cancelado');
+  const { ids, todos } = pausados(planos);
+  if (!todos && ids.size === 0) return doDia;
+  return doDia.filter((a) => (a.meu_status && a.meu_status !== 'cancelado') || !(todos || ids.has(a.plano_aluno_id)));
 }
 
 // Segunda-feira da semana (mesma regra do servidor: date_trunc('week')).
@@ -62,6 +81,13 @@ export function consumoDaSemana(consumo = [], data) {
   return consumo.filter((c) => c.semana_inicio === semana);
 }
 
+// O consumo de um plano pausado não aparece (não há o que agendar nele).
+export function consumoVisivel(consumo = [], planos) {
+  const { ids, todos } = pausados(planos);
+  if (todos) return [];
+  return consumo.filter((c) => !ids.has(c.plano_aluno_id));
+}
+
 export function acaoDoCartao(aula) {
   if (aula.pode_cancelar) return { tipo: 'cancelar', texto: 'Cancelar' };
   if (aula.pode_agendar) {
@@ -70,20 +96,41 @@ export function acaoDoCartao(aula) {
   return { tipo: 'info', texto: aula.motivo || '' };
 }
 
-export function avisoDoPlano(plano, hoje) {
+// `nome` só é passado quando o aluno tem mais de um plano: "Seu plano <nome>".
+export function avisoDoPlano(plano, hoje, nome) {
+  const seuPlano = nome ? `Seu plano ${nome}` : 'Seu plano';
   // ILU-114: o vencimento fica parado durante a pausa, então vem antes dele.
   if (plano?.pausado_desde) {
-    return { tom: 'pausa', texto: `Seu plano está pausado desde ${formatarDiaMes(plano.pausado_desde)}. Para voltar às aulas, fale com a recepção.` };
+    return { tom: 'pausa', texto: `${seuPlano} está pausado desde ${formatarDiaMes(plano.pausado_desde)}. Para voltar às aulas, fale com a recepção.` };
+  }
+  // ILU-127: plano encerrado pela gestão avisa que termina e, depois, que terminou.
+  if (plano?.encerrado_em) {
+    if (plano.bloqueia_a_partir_de && hoje >= plano.bloqueia_a_partir_de) {
+      return { tom: 'bloqueio', texto: `${seuPlano} terminou em ${formatarDiaMes(plano.encerrado_em)}.` };
+    }
+    if (hoje <= plano.encerrado_em) {
+      return { tom: 'aviso', texto: `${seuPlano} termina em ${formatarDiaMes(plano.encerrado_em)}.` };
+    }
   }
   if (!plano?.data_fim || !plano.bloqueia_a_partir_de) return null;
   if (hoje >= plano.bloqueia_a_partir_de) {
-    return { tom: 'bloqueio', texto: `Seu plano venceu em ${formatarDiaMes(plano.data_fim)}. Renove para voltar a agendar.` };
+    return { tom: 'bloqueio', texto: `${seuPlano} venceu em ${formatarDiaMes(plano.data_fim)}. Renove para voltar a agendar.` };
   }
   if (hoje > plano.data_fim) {
     const ultimoDia = formatarDiaMes(somarDias(plano.bloqueia_a_partir_de, -1));
-    return { tom: 'aviso', texto: `Seu plano venceu em ${formatarDiaMes(plano.data_fim)}. Renove até ${ultimoDia} para continuar agendando.` };
+    return { tom: 'aviso', texto: `${seuPlano} venceu em ${formatarDiaMes(plano.data_fim)}. Renove até ${ultimoDia} para continuar agendando.` };
   }
   return null;
+}
+
+// Um aviso por plano; o nome do plano só entra quando há mais de um.
+export function avisosDosPlanos(planos, hoje) {
+  const lista = comoLista(planos);
+  const varios = lista.length > 1;
+  return lista.flatMap((plano) => {
+    const aviso = avisoDoPlano(plano, hoje, varios ? plano.nome : undefined);
+    return aviso ? [{ ...aviso, planoAlunoId: plano.plano_aluno_id }] : [];
+  });
 }
 
 export function rotuloStatus(meuStatus) {

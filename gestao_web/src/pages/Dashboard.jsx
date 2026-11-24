@@ -327,8 +327,8 @@ export default function Dashboard() {
               <div className="space-y-1">
                 {alunosPlanosVencendo.map(a => (
                   <CardAluno
-                    key={a.id}
-                    nome={a.nome_completo}
+                    key={`${a.id}-${a.plano_nome ?? ''}-${a.data_fim_plano}`}
+                    nome={a.plano_nome ? `${a.nome_completo} · ${a.plano_nome}` : a.nome_completo}
                     info={`Vence em ${format(new Date(a.data_fim_plano + 'T12:00:00'), 'dd/MM/yyyy')}`}
                     badge={
                       <Badge tone="warning">

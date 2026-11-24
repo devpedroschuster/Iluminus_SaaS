@@ -115,6 +115,9 @@ export default function Notificacoes() {
                       <h3 className="font-black text-foreground truncate">
                         {notif.aluno.nome_completo}
                       </h3>
+                      {notif.plano && (
+                        <p className="text-xs text-muted-foreground font-medium">Plano: {notif.plano}</p>
+                      )}
                       <p className={cn(
                         'text-sm mt-1 flex items-center gap-1 font-bold',
                         isAtrasado
@@ -182,6 +185,9 @@ export default function Notificacoes() {
                     <span className="text-xs text-muted-foreground ml-2">
                       ({ROTULO_POR_TIPO[notif.tipo]})
                     </span>
+                    {notif.plano && (
+                      <span className="text-xs text-muted-foreground ml-2">Plano: {notif.plano}</span>
+                    )}
                   </div>
                 </div>
 

@@ -18,6 +18,7 @@ describe('consultasAfetadasPelaPausa', () => {
   it('atualiza o perfil do aluno, o financeiro e os avisos', () => {
     expect(chaves).toContainEqual(['aluno', '7']);
     expect(chaves).toContainEqual(['aluno-pausas', '7']);
+    expect(chaves).toContainEqual(['aluno-planos-aluno', '7']);
     expect(chaves).toContainEqual(['financeiro']);
     expect(chaves).toContainEqual(['notificacoes-gerais']);
   });
@@ -155,6 +156,23 @@ describe('notificacoesDePausa', () => {
     expect(novo.idUnico).not.toBe(antigo.idUnico);
   });
 
+  it('N1: uma pausa aberta mantém o id de sempre', () => {
+    const [n] = notificacoesDePausa([{ ...pausa('2026-11-20'), plano_aluno_id: 'pa1', planos_aluno: { planos: { nome: 'Mensal' } } }], '2026-11-20');
+    expect(n.idUnico).toBe('pausa-7-2026-11-20');
+    expect(n.plano).toBeUndefined();
+    expect(n.aluno).toEqual({ id: 7, nome_completo: 'Ana', ativo: true });
+  });
+
+  it('duas pausas de planos diferentes do mesmo aluno levam o plano no id e no nome', () => {
+    const lista = notificacoesDePausa([
+      { ...pausa('2026-11-20'), plano_aluno_id: 'pa1', planos_aluno: { planos: { nome: 'Yoga' } } },
+      { ...pausa('2026-11-20'), plano_aluno_id: 'pa2', planos_aluno: { planos: { nome: 'Pilates' } } },
+    ], '2026-11-20');
+    expect(lista.map((n) => n.idUnico)).toEqual(['pausa-7-pa1-2026-11-20', 'pausa-7-pa2-2026-11-20']);
+    expect(lista.map((n) => n.aluno.planos.nome)).toEqual(['Yoga', 'Pilates']);
+    expect(lista.map((n) => n.plano)).toEqual(['Yoga', 'Pilates']);
+  });
+
   it('ignora aluno desativado', () => {
     const desativado = { data_prevista_volta: '2026-11-01', alunos: { id: 7, nome_completo: 'Ana', ativo: false } };
     expect(notificacoesDePausa([desativado], '2026-11-04')).toEqual([]);
@@ -183,5 +201,48 @@ describe('diasDevolvidosNoCiclo', () => {
 
   it('sem pausas, zero', () => {
     expect(diasDevolvidosNoCiclo(undefined, 'c1')).toBe(0);
+  });
+});
+
+// ILU-127 (entrega 4): a pausa de um plano só esconde as aulas fixas desse plano.
+describe('pausa por plano: aula_ids', () => {
+  const pausaB = { aluno_id: 1, data_inicio: '2026-11-10', data_retorno: null, plano_aluno_id: 22, aula_ids: [30] };
+
+  it('removerFixosEmPausa mantém o fixo de outro plano do mesmo aluno', () => {
+    const fixos = [{ aluno_id: 1, aula_id: 20 }, { aluno_id: 1, aula_id: 30 }];
+    expect(removerFixosEmPausa(fixos, [pausaB], '2026-11-15')).toEqual([{ aluno_id: 1, aula_id: 20 }]);
+  });
+
+  it('compara ids como número, venham como texto ou número', () => {
+    const fixos = [{ aluno_id: 1, aula_id: '30' }, { aluno_id: 1, aula_id: 20 }];
+    const periodo = { ...pausaB, aula_ids: ['30'] };
+    expect(removerFixosEmPausa(fixos, [periodo], '2026-11-15')).toEqual([{ aluno_id: 1, aula_id: 20 }]);
+  });
+
+  it('aula_ids vazio não pausa nenhum fixo', () => {
+    const fixos = [{ aluno_id: 1, aula_id: 20 }];
+    expect(removerFixosEmPausa(fixos, [{ ...pausaB, aula_ids: [] }], '2026-11-15')).toEqual(fixos);
+  });
+
+  it('sem aula_ids, vale para todos os fixos do aluno', () => {
+    const antigo = { ...pausaB }; delete antigo.aula_ids;
+    const fixos = [{ aluno_id: 1, aula_id: 20 }, { aluno_id: 1, aula_id: 30 }];
+    expect(removerFixosEmPausa(fixos, [antigo], '2026-11-15')).toEqual([]);
+  });
+
+  it('anexarPausas só anexa à matrícula da aula do plano pausado', () => {
+    const matriculas = [
+      { aula_id: 20, alunos: { id: 1 } },
+      { aula_id: 30, alunos: { id: 1 } },
+    ];
+    const r = anexarPausas(matriculas, [pausaB]);
+    expect(r[0].alunos.pausas).toEqual([]);
+    expect(r[1].alunos.pausas).toEqual([pausaB]);
+  });
+
+  it('anexarPausas sem aula_ids anexa a todas, como antes', () => {
+    const antigo = { ...pausaB }; delete antigo.aula_ids;
+    const r = anexarPausas([{ aula_id: 20, alunos: { id: 1 } }], [antigo]);
+    expect(r[0].alunos.pausas).toEqual([antigo]);
   });
 });

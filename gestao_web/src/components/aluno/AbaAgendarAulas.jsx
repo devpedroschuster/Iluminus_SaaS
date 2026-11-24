@@ -5,7 +5,7 @@ import { areaAlunoService } from '../../services/areaAlunoService';
 import { showToast } from '../shared/showToast';
 import { ModalConfirmacao } from '../ui/Modal';
 import {
-  montarDias, aulasParaMostrar, consumoDaSemana, acaoDoCartao, avisoDoPlano, rotuloStatus,
+  montarDias, aulasParaMostrar, consumoDaSemana, acaoDoCartao, avisosDosPlanos, planosDoPayload, consumoVisivel, rotuloStatus,
   nomeProfessor, diasComAula, formatarDiaMes, inicioDaSemana, somarDias, painelDeErro,
 } from '../../lib/agendaAluno';
 
@@ -67,31 +67,37 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
   }
 
   const diaAtivo = dias.some((d) => d.data === diaEscolhido) ? diaEscolhido : dias[0]?.data;
-  const pausado = !!dados.plano?.pausado_desde;
-  const aulas = aulasParaMostrar(dados.aulas, dados.plano, diaAtivo);
+  const planos = planosDoPayload(dados);
+  const varios = planos.length > 1;
+  const pausado = planos.length > 0 && planos.every((p) => p.pausado_desde);
+  const aulas = aulasParaMostrar(dados.aulas, planos, diaAtivo);
   const feriado = dados.feriados.find((f) => f.data === diaAtivo);
-  const consumo = consumoDaSemana(dados.consumo, diaAtivo);
+  const consumo = consumoVisivel(consumoDaSemana(dados.consumo, diaAtivo), planos);
   const semana = inicioDaSemana(diaAtivo);
-  const aviso = avisoDoPlano(dados.plano, dados.hoje);
+  const avisos = avisosDosPlanos(planos, dados.hoje);
   const rotuloDia = (data) => dias.find((d) => d.data === data)?.rotulo ?? '';
 
   return (
     <>
-      {aviso && (
-        <div className={`mb-6 p-4 rounded-2xl border ${aviso.tom === 'bloqueio' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-          <p className="font-bold text-sm">{aviso.texto}</p>
-          {aviso.tom !== 'aviso' && (
-            <button
-              className="btn btn-wa btn-sm mt-3"
-              onClick={() => onFalarComRecepcao(aviso.tom === 'pausa'
-                ? 'Olá! Meu plano está pausado e quero voltar às aulas.'
-                : 'Olá! Quero renovar meu plano para voltar a agendar aulas.')}
-            >
-              💬 Falar com a recepção
-            </button>
-          )}
-        </div>
-      )}
+      {avisos.map((aviso) => {
+        const nomePlano = varios ? planos.find((p) => p.plano_aluno_id === aviso.planoAlunoId)?.nome : null;
+        const planoTexto = nomePlano ? `plano ${nomePlano}` : 'plano';
+        return (
+          <div key={`${aviso.planoAlunoId}-${aviso.tom}`} className={`mb-6 p-4 rounded-2xl border ${aviso.tom === 'bloqueio' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            <p className="font-bold text-sm">{aviso.texto}</p>
+            {aviso.tom !== 'aviso' && (
+              <button
+                className="btn btn-wa btn-sm mt-3"
+                onClick={() => onFalarComRecepcao(aviso.tom === 'pausa'
+                  ? `Olá! Meu ${planoTexto} está pausado e quero voltar às aulas.`
+                  : `Olá! Quero renovar meu ${planoTexto} para voltar a agendar aulas.`)}
+              >
+                💬 Falar com a recepção
+              </button>
+            )}
+          </div>
+        );
+      })}
 
       {consumo.length > 0 && !pausado && (
         <div className="mb-8 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
@@ -103,8 +109,8 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
             {consumo.map((c) => {
               const pct = c.livre ? 0 : Math.min((c.uso / c.limite) * 100, 100);
               return (
-                <div key={c.area} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                  <p className="font-bold text-gray-700 text-sm">{c.area}</p>
+                <div key={`${c.plano_aluno_id}-${c.area}`} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                  <p className="font-bold text-gray-700 text-sm">{varios && c.plano_nome ? `${c.area} · ${c.plano_nome}` : c.area}</p>
                   <p className="text-xs text-gray-400 font-medium mt-0.5">
                     {c.livre ? 'Sem limite' : <>Usado: <span className="font-bold text-sm" style={{ color: 'var(--txt)' }}>{c.uso}</span> / {c.limite}</>}
                   </p>
@@ -136,7 +142,7 @@ export default function AbaAgendarAulas({ onFalarComRecepcao }) {
       </div>
 
       <div id="class-list">
-        {!dados.plano && aulas.length === 0 ? (
+        {planos.length === 0 && aulas.length === 0 ? (
           <div className="text-center py-14 bg-white rounded-3xl border border-gray-100 shadow-sm">
             <AlertCircle className="mx-auto text-gray-300 mb-3" size={40} />
             <p className="text-gray-800 font-bold text-lg mb-1">Sem plano ativo</p>

@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Clock, CheckCircle, CalendarCheck } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { alunosService } from '../../services/alunosService';
+import { rotuloPlanoAluno } from '../../lib/planosAluno';
 import { useMensalidadesDoAluno } from '../../hooks/useFinanceiro';
 import { TableSkeleton } from '../shared/Loading';
 import EmptyState from '../ui/EmptyState';
@@ -47,6 +50,17 @@ export default function AbaFinanceiroAluno({ aluno, alunoId }) {
   const { acoes, modais } = useModaisLancamento();
   const [filtro, setFiltro] = useState('todos');
   const [modalAberto, setModalAberto] = useState(false);
+
+  // Vários planos: cada cobrança mostra de qual plano é.
+  const { data: planosDoAluno = [] } = useQuery({
+    queryKey: ['aluno-planos-aluno', String(alunoId)],
+    queryFn: () => alunosService.listarPlanosDoAluno(alunoId),
+    enabled: !!alunoId,
+  });
+  const rotuloPlano = useMemo(() => {
+    if (planosDoAluno.length <= 1) return undefined;
+    return (item) => (item.plano_aluno ? rotuloPlanoAluno(item.plano_aluno, planosDoAluno) : null);
+  }, [planosDoAluno]);
 
   const resumo = useMemo(() => resumoFinanceiroAluno(mensalidades, hoje), [mensalidades, hoje]);
   const lista = useMemo(
@@ -121,6 +135,7 @@ export default function AbaFinanceiroAluno({ aluno, alunoId }) {
           mostrarAluno={false}
           acoes={acoes}
           hoje={hoje}
+          rotuloPlano={rotuloPlano}
           vazio={<EmptyState titulo="Nenhuma cobrança" mensagem="Nenhuma cobrança lançada para este aluno." />}
         />
       )}

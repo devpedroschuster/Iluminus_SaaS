@@ -218,7 +218,7 @@ async agendarAulaAdmin(dados) {
         .eq('data_aula', dataAula),
       supabase
         .from('agenda_fixa')
-        .select('id, aluno_id, alunos(id, nome_completo)')
+        .select('id, aluno_id, aula_id, alunos(id, nome_completo)')
         .eq('aula_id', aulaId),
       supabase
         .from('leads')

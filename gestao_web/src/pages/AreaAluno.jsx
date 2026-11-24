@@ -10,6 +10,7 @@ import { statusMensalidadeAluno, hojeBrasilia, formatarCPF, formatarTelefone } f
 import {
   montarAtualizacaoPerfil, validarArquivoAvatar, caminhoAvatar, caminhoDoAvatarSalvo, AVATAR_TIPOS,
 } from '../lib/perfilAluno';
+import { planosValidos, rotuloPlanoAluno } from '../lib/planosAluno';
 import { areaAlunoService } from '../services/areaAlunoService';
 import { useAuth } from '../hooks/useAuth';
 
@@ -51,6 +52,20 @@ export default function AreaAluno() {
       if (error) throw error;
       return data;
     }
+  });
+
+  // ILU-127: o aluno pode ter vários planos; o RLS deixa ler os próprios.
+  const { data: planosAluno } = useQuery({
+    queryKey: ['meus-planos', aluno?.id],
+    enabled: !!aluno?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('planos_aluno')
+        .select('id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos (nome, preco)')
+        .eq('aluno_id', aluno.id);
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: mensalidades, isLoading: loadingMensalidades } = useQuery({
@@ -154,7 +169,18 @@ export default function AreaAluno() {
     const [ano, mes, dia] = dataStr.split('-');
     return `${dia}/${mes}/${ano}`;
   };
+  const formatarDataCurta = (dataStr) => {
+    const [ano, mes, dia] = dataStr.split('-');
+    return `${dia}/${mes}/${ano.slice(-2)}`;
+  };
   const formatarMoeda = (valor) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // Planos válidos do aluno; sem a lista (carregando/erro), vale o plano de hoje em `alunos`.
+  const meusPlanos = planosAluno ? planosValidos(planosAluno, hojeBrasilia()) : [];
+  const planoPrincipal = meusPlanos[0]?.planos ?? aluno?.planos ?? null;
+  const nomePlanoCabecalho = planoPrincipal
+    ? `${planoPrincipal.nome}${meusPlanos.length > 1 ? ` +${meusPlanos.length - 1}` : ''}`
+    : 'Sem plano ativo';
 
   if (loadingAluno) return <div className="h-screen w-screen flex items-center justify-center bg-[#FDF8F5]"><RefreshCw className="animate-spin text-orange-600" size={48} /></div>;
   if (erroAluno || !aluno) return <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FDF8F5]"><p className="text-gray-600 mb-4">Erro ao carregar dados do aluno.</p><button onClick={doLogout} className="btn btn-primary">Voltar para o Início</button></div>;
@@ -173,7 +199,7 @@ export default function AreaAluno() {
           </div>
           <div>
             <div className="user-card-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>{aluno.nome_completo}</div>
-            <div className="user-card-plan">{aluno.planos ? aluno.planos.nome : 'Sem plano ativo'}</div>
+            <div className="user-card-plan">{nomePlanoCabecalho}</div>
           </div>
         </div>
         <div className="nav-section">Menu</div>
@@ -243,15 +269,37 @@ export default function AreaAluno() {
                     <div className="profile-since">Aluno Iluminus</div>
                   </div>
                 </div>
-                <div className="profile-plan-card card">
-                  <div className="profile-plan-label">{aluno.plano_pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
-                  <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
-                  <div className="profile-plan-desc">
-                    {aluno.plano_pausado_desde
-                      ? `Pausado desde ${formatarData(aluno.plano_pausado_desde)}. Para voltar às aulas, fale com a recepção.`
-                      : aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}
+                {meusPlanos.length > 1 ? meusPlanos.map((pa) => (
+                  <div key={pa.id} className="profile-plan-card card">
+                    <div className="profile-plan-label">{pa.pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
+                    <div className="profile-plan-name">{rotuloPlanoAluno(pa, meusPlanos)}</div>
+                    <div className="profile-plan-desc">
+                      {pa.pausado_desde
+                        ? `Pausado desde ${formatarData(pa.pausado_desde)}. Para voltar às aulas, fale com a recepção.`
+                        : pa.data_fim ? `${pa.data_fim < hojeBrasilia() ? 'Venceu' : 'Vence'} em ${formatarDataCurta(pa.data_fim)}` : 'Sem data de vencimento'}
+                    </div>
                   </div>
-                </div>
+                )) : meusPlanos.length === 1 ? (
+                  <div className="profile-plan-card card">
+                    <div className="profile-plan-label">{meusPlanos[0].pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
+                    <div className="profile-plan-name">{meusPlanos[0].planos?.nome ?? 'Nenhum'}</div>
+                    <div className="profile-plan-desc">
+                      {meusPlanos[0].pausado_desde
+                        ? `Pausado desde ${formatarData(meusPlanos[0].pausado_desde)}. Para voltar às aulas, fale com a recepção.`
+                        : meusPlanos[0].planos ? `Valor: ${formatarMoeda(meusPlanos[0].planos.preco)}` : 'Você ainda não possui um plano vinculado.'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="profile-plan-card card">
+                    <div className="profile-plan-label">{aluno.plano_pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
+                    <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
+                    <div className="profile-plan-desc">
+                      {aluno.plano_pausado_desde
+                        ? `Pausado desde ${formatarData(aluno.plano_pausado_desde)}. Para voltar às aulas, fale com a recepção.`
+                        : aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="card" style={{ marginBottom: '24px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--muted)', marginBottom: '24px' }}>Dados Pessoais</div>

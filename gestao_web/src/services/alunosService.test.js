@@ -281,3 +281,125 @@ describe('alunosService — matrículas recentes', () => {
       .rejects.toMatchObject({ message: 'falhou' });
   });
 });
+
+// ILU-127 (entrega 4): serviços por plano do aluno.
+describe('alunosService — por plano (ILU-127)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renovarPlano com plano_aluno_id manda p_plano_aluno_id e devolve o plano_aluno_id', async () => {
+    supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 55, pago: false, plano_aluno_id: 'pa1' }, error: null });
+    const r = await alunosService.renovarPlano(10, {
+      plano_id: 2, data_inicio: '2026-10-01', data_fim: '2026-10-31', plano_aluno_id: 'pa1',
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith('renovar_plano_aluno', expect.objectContaining({ p_plano_aluno_id: 'pa1' }));
+    expect(supabase.rpc.mock.calls[0][1]).not.toHaveProperty('p_novo_plano');
+    expect(r.plano_aluno_id).toBe('pa1');
+  });
+
+  it('renovarPlano com novo_plano manda p_novo_plano: true', async () => {
+    supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 55, pago: false, plano_aluno_id: 'pa2' }, error: null });
+    await alunosService.renovarPlano(10, { plano_id: 2, data_inicio: '2026-10-01', data_fim: '2026-10-31', novo_plano: true });
+    expect(supabase.rpc).toHaveBeenCalledWith('renovar_plano_aluno', expect.objectContaining({ p_novo_plano: true }));
+    expect(supabase.rpc.mock.calls[0][1]).not.toHaveProperty('p_plano_aluno_id');
+  });
+
+  it('salvarModalidades manda p_itens', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: null });
+    const itens = [{ modalidade_id: 3, vezes: 2, plano_aluno_id: 'pa1' }];
+    await alunosService.salvarModalidades(10, itens);
+    expect(supabase.rpc).toHaveBeenCalledWith('salvar_modalidades_aluno', { p_aluno_id: 10, p_itens: itens });
+  });
+
+  it('pausarPlano, retomarPlano, ajustarPrevisaoPausa e resumo mandam p_plano_aluno_id só quando informado', async () => {
+    supabase.rpc.mockResolvedValue({ data: {}, error: null });
+    await alunosService.pausarPlano(10, { data_inicio: 'a', data_prevista_volta: 'b', motivo: 'm', plano_aluno_id: 'pa1' });
+    expect(supabase.rpc).toHaveBeenLastCalledWith('pausar_plano_aluno', expect.objectContaining({ p_plano_aluno_id: 'pa1' }));
+    await alunosService.retomarPlano(10, { data_retorno: 'a', plano_aluno_id: 'pa1' });
+    expect(supabase.rpc).toHaveBeenLastCalledWith('retomar_plano_aluno', expect.objectContaining({ p_plano_aluno_id: 'pa1' }));
+    await alunosService.ajustarPrevisaoPausa(10, '2026-12-15', 'pa1');
+    expect(supabase.rpc).toHaveBeenLastCalledWith('ajustar_previsao_pausa', {
+      p_aluno_id: 10, p_data_prevista_volta: '2026-12-15', p_plano_aluno_id: 'pa1',
+    });
+    supabase.rpc.mockReturnValue({ single: () => Promise.resolve({ data: {}, error: null }) });
+    await alunosService.buscarResumoFrequencia(10, 'pa1');
+    expect(supabase.rpc).toHaveBeenLastCalledWith('fn_resumo_frequencia_aluno', { p_aluno_id: 10, p_plano_aluno_id: 'pa1' });
+  });
+
+  it('encerrarPlano, desfazerEncerramento e recalcularPlanoAluno chamam as RPCs', async () => {
+    supabase.rpc.mockResolvedValue({ data: {}, error: null });
+    await alunosService.encerrarPlano('pa1');
+    expect(supabase.rpc).toHaveBeenLastCalledWith('encerrar_plano_aluno', { p_plano_aluno_id: 'pa1' });
+    await alunosService.desfazerEncerramento('pa1');
+    expect(supabase.rpc).toHaveBeenLastCalledWith('desfazer_encerramento_plano', { p_plano_aluno_id: 'pa1' });
+    await alunosService.recalcularPlanoAluno('pa1');
+    expect(supabase.rpc).toHaveBeenLastCalledWith('recalcular_plano_aluno', { p_plano_aluno_id: 'pa1' });
+  });
+
+  it('listarPlanosDoAluno e listarModalidadesLigadas consultam as tabelas por aluno', async () => {
+    const planos = criarQueryMock({ data: [{ id: 'pa1' }], error: null });
+    supabase.from.mockReturnValue(planos.query);
+    expect(await alunosService.listarPlanosDoAluno(10)).toEqual([{ id: 'pa1' }]);
+    expect(supabase.from).toHaveBeenCalledWith('planos_aluno');
+    expect(planos.chamadas).toContainEqual(['eq', 'aluno_id', 10]);
+    expect(planos.chamadas).toContainEqual(['order', 'created_at', { ascending: true }]);
+    expect(planos.chamadas).toContainEqual(['order', 'id', { ascending: true }]);
+
+    const mods = criarQueryMock({ data: [{ modalidade_id: 1 }], error: null });
+    supabase.from.mockReturnValue(mods.query);
+    expect(await alunosService.listarModalidadesLigadas(10)).toEqual([{ modalidade_id: 1 }]);
+    expect(supabase.from).toHaveBeenLastCalledWith('alunos_modalidades');
+    expect(mods.chamadas).toContainEqual(['eq', 'aluno_id', 10]);
+  });
+
+  describe('criarPrimeiroPlano', () => {
+    const dados = {
+      plano_id: 2, data_inicio: '2026-11-01', data_fim: '2026-11-30',
+      valor_pago: 150, forma_recebimento: 'recorrente', modalidades: { 3: 2, 4: 0 },
+    };
+
+    it('CP1: sem planos, renova como novo plano e liga as modalidades ao plano devolvido', async () => {
+      supabase.from.mockReturnValue(criarQueryMock({ data: [], error: null }).query);
+      supabase.rpc.mockImplementation(async (nome) => (nome === 'renovar_plano_aluno'
+        ? { data: { mensalidade_id: 9, pago: false, plano_aluno_id: 'pa9' }, error: null }
+        : { data: null, error: null }));
+
+      const r = await alunosService.criarPrimeiroPlano(10, dados);
+
+      expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'renovar_plano_aluno', expect.objectContaining({ p_novo_plano: true, p_plano_id: 2 }));
+      expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'salvar_modalidades_aluno', {
+        p_aluno_id: 10, p_itens: [{ modalidade_id: '3', vezes: 2, plano_aluno_id: 'pa9' }],
+      });
+      expect(r).toEqual({ plano_aluno_id: 'pa9', mensalidade_id: 9 });
+    });
+
+    it('CP2: falha ao salvar as modalidades rejeita com a mensagem do servidor', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      supabase.from.mockReturnValue(criarQueryMock({ data: [], error: null }).query);
+      supabase.rpc.mockImplementation(async (nome) => (nome === 'renovar_plano_aluno'
+        ? { data: { mensalidade_id: 9, plano_aluno_id: 'pa9' }, error: null }
+        : { data: null, error: { message: 'Limite do plano excedido.' } }));
+
+      await expect(alunosService.criarPrimeiroPlano(10, dados)).rejects.toMatchObject({ message: 'Limite do plano excedido.' });
+    });
+
+    it('CP3: com um plano já existente, não renova: só liga as modalidades a ele', async () => {
+      supabase.from.mockReturnValue(criarQueryMock({ data: [{ id: 'pa1' }, { id: 'pa2' }], error: null }).query);
+      supabase.rpc.mockResolvedValue({ data: null, error: null });
+
+      const r = await alunosService.criarPrimeiroPlano(10, dados);
+
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+      expect(supabase.rpc).toHaveBeenCalledWith('salvar_modalidades_aluno', {
+        p_aluno_id: 10, p_itens: [{ modalidade_id: '3', vezes: 2, plano_aluno_id: 'pa1' }],
+      });
+      expect(r).toEqual({ plano_aluno_id: 'pa1', mensalidade_id: null });
+    });
+
+    it('sem modalidades com vezes > 0, não chama salvar_modalidades_aluno', async () => {
+      supabase.from.mockReturnValue(criarQueryMock({ data: [], error: null }).query);
+      supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 9, plano_aluno_id: 'pa9' }, error: null });
+      await alunosService.criarPrimeiroPlano(10, { ...dados, modalidades: {} });
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    });
+  });
+});

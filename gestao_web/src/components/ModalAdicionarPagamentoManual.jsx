@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import Input, { Label } from './ui/Input';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { financeiroService } from '../services/financeiroService';
+import { alunosService } from '../services/alunosService';
+import { planosValidos, planoSugerido, rotuloPlanoAluno } from '../lib/planosAluno';
 import { showToast } from './shared/showToast';
 import { formatarMoeda, hojeBrasilia, valorDevidoMensalidade } from '../lib/utils';
 import { invalidarConsultasFinanceiras, mensagemErroLancamento, ErroLancamento } from '../lib/mensalidades';
@@ -82,6 +84,23 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
   const [form, setForm] = useState(getInitialForm);
 
+  // Vários planos por aluno: a cobrança de plano pertence a um deles.
+  const [planoAlunoEscolhido, setPlanoAlunoEscolhido] = useState('');
+  const alunoIdAtual = alunoFixo?.id ?? form.aluno_id;
+  const cobrancaDePlano = (form.tipo_aula === 'regular' || form.tipo_aula === 'plano_livre') && !isVisitante;
+  const { data: planosDoAluno = [], isLoading: carregandoPlanosDoAluno, isError: erroPlanosDoAluno } = useQuery({
+    queryKey: ['aluno-planos-aluno', String(alunoIdAtual)],
+    queryFn: () => alunosService.listarPlanosDoAluno(alunoIdAtual),
+    enabled: isOpen && cobrancaDePlano && !!alunoIdAtual,
+  });
+  const validosDoAluno = planosValidos(planosDoAluno, hojeBrasilia());
+  const precisaEscolherPlano = cobrancaDePlano && validosDoAluno.length > 1;
+  const planoAlunoId = cobrancaDePlano
+    ? planoSugerido(validosDoAluno, planoAlunoEscolhido || null)
+    : null;
+  const bloqueadoPorPlanos = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || erroPlanosDoAluno);
+  const aguardandoPlano = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || (precisaEscolherPlano && !planoAlunoId));
+
   const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto
     ? cobrancasEmAberto.find(c => String(c.id) === cobrancaId)
     : null;
@@ -95,7 +114,8 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     alunoId: alunoFixo?.id ?? form.aluno_id,
     vencimento: cobrancaParaQuitar ? cobrancaParaQuitar.data_vencimento : form.data_vencimento,
     mensalidadeId: cobrancaParaQuitar?.id ?? null,
-    ativo: isOpen && form.tipo_aula === 'regular' && !isVisitante,
+    planoAlunoId,
+    ativo: isOpen && form.tipo_aula === 'regular' && !isVisitante && !aguardandoPlano,
     onSugerir: (cobre, ciclo, origem) => {
       setForm(f => {
         if (origem === 'padrao') {
@@ -116,6 +136,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       setForm(getInitialForm());
       setIsVisitante(false);
       setEmAberto(false);
+      setPlanoAlunoEscolhido('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, alunoFixo?.id]);
@@ -123,11 +144,11 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
   useEffect(() => {
     setCobrancasEmAberto([]);
     setCobrancaId('');
-    if (!isOpen || isVisitante || lancarEmAberto || !form.aluno_id) return;
+    if (!isOpen || isVisitante || lancarEmAberto || !form.aluno_id || aguardandoPlano) return;
 
     // Ignora resposta obsoleta se o aluno mudar antes de resolver.
     let cancelado = false;
-    financeiroService.listarCobrancasEmAbertoDoAluno(form.aluno_id)
+    financeiroService.listarCobrancasEmAbertoDoAluno(form.aluno_id, planoAlunoId || undefined)
       .then(cobrancas => {
         if (cancelado) return;
         setCobrancasEmAberto(cobrancas);
@@ -145,7 +166,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         showToast.warning('Não foi possível verificar as cobranças em aberto deste aluno. Confira no Financeiro antes de lançar.');
       });
     return () => { cancelado = true; };
-  }, [isOpen, isVisitante, lancarEmAberto, form.aluno_id]);
+  }, [isOpen, isVisitante, lancarEmAberto, form.aluno_id, planoAlunoId, aguardandoPlano]);
 
   const handleCobrancaChange = (id) => {
     setCobrancaId(id);
@@ -181,6 +202,15 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (erroPlanosDoAluno && cobrancaDePlano && alunoIdAtual) {
+      showToast.error('Não foi possível carregar os planos do aluno.');
+      return;
+    }
+    if (carregandoPlanosDoAluno && cobrancaDePlano && alunoIdAtual) return;
+    if (precisaEscolherPlano && !planoAlunoId) {
+      showToast.error('Escolha o plano do aluno.');
+      return;
+    }
     setLoading(true);
     // Aluno travado: o id vem direto de alunoFixo, mesmo que o envio seja
     // mais rápido que o carregarDados preencher form.aluno_id.
@@ -205,6 +235,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
           payloadAberto.plano_id = form.plano_id;
           payloadAberto.modalidade_id = form.modalidade_id || null;
         }
+        if (cobrancaDePlano && planoAlunoId) payloadAberto.plano_aluno_id = planoAlunoId;
         if (form.tipo_aula === 'avulsa') {
           payloadAberto.professor_id = form.professor_id;
           payloadAberto.modalidade_nome = form.modalidade_nome;
@@ -264,6 +295,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
         payload.plano_id = form.plano_id;
         payload.modalidade_id = form.modalidade_id || null;
       }
+      if (cobrancaDePlano && planoAlunoId) payload.plano_aluno_id = planoAlunoId;
       if (form.tipo_aula === 'avulsa') {
         payload.professor_id = form.professor_id;
         payload.modalidade_nome = form.modalidade_nome;
@@ -376,6 +408,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
                   valor_pago: planoObj ? planoObj.preco : form.valor_pago,
                   modalidade_id: '', // reseta referência ao trocar de aluno
                 });
+                setPlanoAlunoEscolhido('');
                 if (e.target.value) {
                   setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(e.target.value));
                 } else {
@@ -407,6 +440,32 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             <option value="produto">Venda de Produto (Água, Camiseta, etc)</option>
           </Input>
         </div>
+
+        {/* Vários planos: a cobrança é de um deles */}
+        {precisaEscolherPlano && (
+          <div>
+            <Label className="block mb-1.5">Plano do aluno</Label>
+            <Input
+              as="select"
+              leftIcon={<Package size={18} />}
+              value={planoAlunoId ? String(planoAlunoId) : ''}
+              onChange={e => {
+                const escolhido = e.target.value;
+                setPlanoAlunoEscolhido(escolhido);
+                // Escolha ativa da recepção: o plano da cobrança acompanha o do aluno.
+                const linha = validosDoAluno.find(p => String(p.id) === escolhido);
+                if (linha) {
+                  setForm(f => ({ ...f, plano_id: linha.plano_id, valor_pago: linha.planos?.preco ?? f.valor_pago }));
+                }
+              }}
+            >
+              <option value="">Selecione o plano...</option>
+              {validosDoAluno.map(p => (
+                <option key={p.id} value={p.id}>{rotuloPlanoAluno(p, planosDoAluno)}</option>
+              ))}
+            </Input>
+          </div>
+        )}
 
         {/* Mensalidade que este lançamento vai quitar */}
         {form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto && cobrancasEmAberto.length > 0 && (
@@ -569,6 +628,7 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
             size="lg"
             fullWidth
             loading={loading}
+            disabled={bloqueadoPorPlanos}
           >
             {loading ? (
               <><Loader2 className="animate-spin" size={20} /> Registrando...</>

@@ -342,6 +342,24 @@ describe('financeiroService.listarCobrancasEmAbertoDoAluno', () => {
     expect(resultado).toEqual(linhas);
   });
 
+  it('sem plano do aluno não filtra por plano_aluno_id', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+
+    await financeiroService.listarCobrancasEmAbertoDoAluno(7);
+
+    expect(chamadas.some(c => c[0] === 'eq' && c[1] === 'plano_aluno_id')).toBe(false);
+  });
+
+  it('com plano do aluno filtra por plano_aluno_id', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+
+    await financeiroService.listarCobrancasEmAbertoDoAluno(7, 'pa-2');
+
+    expect(chamadas).toEqual(expect.arrayContaining([['eq', 'plano_aluno_id', 'pa-2']]));
+  });
+
   it('propaga erro da consulta', async () => {
     const { query } = criarQueryMock({ data: null, error: new Error('falhou') });
     supabase.from.mockReturnValue(query);
@@ -478,5 +496,53 @@ describe('financeiroService — pagamento que cobre o ciclo inteiro (ILU-125)', 
   it('buscarCicloDoVencimento sem aluno ou vencimento não consulta', async () => {
     expect(await financeiroService.buscarCicloDoVencimento(null, '2026-11-17')).toBeNull();
     expect(supabase.from).not.toHaveBeenCalled();
+  });
+});
+
+// ILU-127 (entrega 4): cobranças por plano.
+describe('financeiroService — por plano (ILU-127)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('F1: adicionarPagamentoManual regular leva plano_aluno_id no payload; avulsa não', async () => {
+    const { query, chamadas } = criarQueryMock({ data: { id: 1 }, error: null });
+    supabase.from.mockReturnValue(query);
+    gerarRepassesDaMensalidade.mockResolvedValue({ gerados: 0 });
+
+    await financeiroService.adicionarPagamentoManual({
+      aluno_id: 7, tipo_aula: 'regular', plano_aluno_id: 'pa1', valor_pago: '100', forma_pagamento: 'pix', data_vencimento: '2026-12-10',
+    });
+    expect(chamadas.find(([m]) => m === 'insert')[1][0]).toMatchObject({ plano_aluno_id: 'pa1' });
+
+    const outra = criarQueryMock({ data: { id: 2 }, error: null });
+    supabase.from.mockReturnValue(outra.query);
+    await financeiroService.adicionarPagamentoManual({
+      aluno_id: 7, tipo_aula: 'avulsa', plano_aluno_id: 'pa1', valor_pago: '30', forma_pagamento: 'pix', data_vencimento: '2026-12-10',
+    });
+    expect(outra.chamadas.find(([m]) => m === 'insert')[1][0]).not.toHaveProperty('plano_aluno_id');
+  });
+
+  it('F2: listarCobrancasPlanoEmAberto filtra por plano_aluno_id quando informado', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(query);
+    await financeiroService.listarCobrancasPlanoEmAberto(7, '2026-10-01', '2026-12-31', 'pa1');
+    expect(chamadas).toContainEqual(['eq', 'plano_aluno_id', 'pa1']);
+  });
+
+  it('F3: buscarCicloDoVencimento filtra por plano_aluno_id quando informado', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 'h1' }], error: null });
+    supabase.from.mockReturnValue(query);
+    await financeiroService.buscarCicloDoVencimento(156, '2026-11-17', 'pa1');
+    expect(chamadas).toContainEqual(['eq', 'plano_aluno_id', 'pa1']);
+  });
+
+  it('sem plano informado, nenhum dos dois filtra por plano_aluno_id', async () => {
+    const a = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(a.query);
+    await financeiroService.listarCobrancasPlanoEmAberto(7, '2026-10-01', '2026-12-31');
+    expect(a.chamadas.some(([m, c]) => m === 'eq' && c === 'plano_aluno_id')).toBe(false);
+    const b = criarQueryMock({ data: [], error: null });
+    supabase.from.mockReturnValue(b.query);
+    await financeiroService.buscarCicloDoVencimento(156, '2026-11-17');
+    expect(b.chamadas.some(([m, c]) => m === 'eq' && c === 'plano_aluno_id')).toBe(false);
   });
 });

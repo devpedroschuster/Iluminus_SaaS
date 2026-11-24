@@ -27,17 +27,29 @@ export function calcularRetomada({ dataInicioPausa, dataRetorno, dataInicioPlano
   return { dias, novoFim: somarDias(dataFimPlano, dias) };
 }
 
-// Grade: cada aluno da matrícula recebe os próprios períodos de pausa.
+// ILU-127: o período vale para a aula só se ela segue o plano pausado. Sem
+// `aula_ids` (payload antigo) vale para todas; lista vazia, para nenhuma.
+// O bigint[] pode chegar como número ou texto.
+const periodoVale = (p, aulaId) =>
+  !p.aula_ids || p.aula_ids.some((id) => Number(id) === Number(aulaId));
+
+// Grade: cada aluno da matrícula recebe os períodos de pausa do plano da aula.
 export function anexarPausas(matriculas, periodos) {
   return (matriculas || []).map((m) => (m.alunos
-    ? { ...m, alunos: { ...m.alunos, pausas: (periodos || []).filter((p) => p.aluno_id === m.alunos.id) } }
+    ? {
+      ...m,
+      alunos: {
+        ...m.alunos,
+        pausas: (periodos || []).filter((p) => p.aluno_id === m.alunos.id && periodoVale(p, m.aula_id)),
+      },
+    }
     : m));
 }
 
 // Chamada de um dia: tira os fixos pausados naquela data.
 export function removerFixosEmPausa(fixos, periodos, data) {
   return (fixos || []).filter((f) =>
-    !emPausaNaData((periodos || []).filter((p) => p.aluno_id === f.aluno_id), data)
+    !emPausaNaData((periodos || []).filter((p) => p.aluno_id === f.aluno_id && periodoVale(p, f.aula_id)), data)
   );
 }
 
@@ -49,15 +61,25 @@ export function fixosForaDePausa(fixos) {
 // Previsão de volta é só um lembrete: quando chega, a gestão recebe o aviso para
 // retomar ou ajustar. O id leva a previsão: ajustar a data gera um aviso novo.
 export function notificacoesDePausa(pausasAbertas, hoje) {
-  return (pausasAbertas || [])
-    .filter((p) => p.alunos?.ativo !== false)
-    .map((p) => ({
-      idUnico: `pausa-${p.alunos?.id}-${p.data_prevista_volta}`,
-      tipo: 'pausa',
-      aluno: p.alunos,
-      dataAlvo: p.data_prevista_volta,
-      diasFaltando: diferencaDias(hoje, p.data_prevista_volta),
-    }))
+  const ativas = (pausasAbertas || []).filter((p) => p.alunos?.ativo !== false);
+  const porAluno = new Map();
+  ativas.forEach((p) => porAluno.set(p.alunos?.id, (porAluno.get(p.alunos?.id) || 0) + 1));
+
+  return ativas
+    .map((p) => {
+      const varias = porAluno.get(p.alunos?.id) > 1;
+      const nomePlano = p.planos_aluno?.planos?.nome;
+      return {
+        idUnico: varias
+          ? `pausa-${p.alunos?.id}-${p.plano_aluno_id}-${p.data_prevista_volta}`
+          : `pausa-${p.alunos?.id}-${p.data_prevista_volta}`,
+        tipo: 'pausa',
+        plano: varias ? nomePlano : undefined,
+        aluno: varias && nomePlano ? { ...p.alunos, planos: { nome: nomePlano } } : p.alunos,
+        dataAlvo: p.data_prevista_volta,
+        diasFaltando: diferencaDias(hoje, p.data_prevista_volta),
+      };
+    })
     .filter((n) => n.diasFaltando <= 0);
 }
 
@@ -66,12 +88,12 @@ export function cobrancasRemoviveis(cobrancas) {
   return (cobrancas || []).filter((c) => !ehCobrancaIntegralDoCiclo(c));
 }
 
-// Consultas que pausar/retomar deixam velhas: vencimento, cobranças, reservas
-// e fixos da grade ('agenda' cobre as reservas do mês) e avisos. `alunoId` é o
-// da URL do perfil (texto).
+// Consultas que pausar/retomar (e encerrar um plano) deixam velhas: vencimento,
+// planos do aluno, cobranças, reservas e fixos da grade ('agenda' cobre as
+// reservas do mês) e avisos. `alunoId` é o da URL do perfil (texto).
 export function consultasAfetadasPelaPausa(alunoId) {
   return [
-    ...['aluno', 'aluno-planos', 'aluno-pausas', 'aluno-resumo-frequencia', 'aluno-cobrancas-em-aberto']
+    ...['aluno', 'aluno-planos', 'aluno-planos-aluno', 'aluno-pausas', 'aluno-resumo-frequencia', 'aluno-cobrancas-em-aberto']
       .map((chave) => [chave, alunoId]),
     ...['agenda', 'matriculas-fixas', 'financeiro', 'dashboard', 'alunos', 'notificacoes-gerais']
       .map((chave) => [chave]),

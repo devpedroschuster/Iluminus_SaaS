@@ -7,6 +7,7 @@ const SELECT_MENSALIDADE = `
       *,
       alunos (nome_completo),
       planos (nome, preco, is_plano_livre),
+      plano_aluno:plano_aluno_id (id, data_inicio, planos (nome)),
       modalidades:modalidade_id (id, nome)
     `;
 
@@ -182,6 +183,10 @@ async listarModalidadesDoAluno(alunoId) {
       data_pagamento: status === 'pago' ? (dados.data_pagamento ?? dados.data_vencimento) : null,
     };
     if (emAberto) payload.valor_esperado = Number(dados.valor_esperado);
+    // ILU-127: a cobrança de plano pertence a um plano do aluno.
+    if (['regular', 'plano_livre'].includes(dados.tipo_aula)) {
+      payload.plano_aluno_id = dados.plano_aluno_id || null;
+    }
 
     const { data, error } = await supabase
       .from('mensalidades')
@@ -332,8 +337,8 @@ async listarModalidadesDoAluno(alunoId) {
    * (a própria cobrança integral do ciclo pode estar legitimamente
    * pendente), então o admin escolhe o que remover.
    */
-  async listarCobrancasPlanoEmAberto(alunoId, inicio, fim) {
-    const { data, error } = await supabase
+  async listarCobrancasPlanoEmAberto(alunoId, inicio, fim, planoAlunoId) {
+    let query = supabase
       .from('mensalidades')
       .select('id, data_vencimento, status, descricao, valor_esperado, planos(preco)')
       .eq('aluno_id', alunoId)
@@ -342,6 +347,8 @@ async listarModalidadesDoAluno(alunoId) {
       .gte('data_vencimento', inicio)
       .lte('data_vencimento', fim)
       .order('data_vencimento', { ascending: true });
+    if (planoAlunoId) query = query.eq('plano_aluno_id', planoAlunoId);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -353,14 +360,17 @@ async listarModalidadesDoAluno(alunoId) {
    * outra ao lado dela (que deixava a original atrasada para sempre, ou era
    * recusada pelo índice único aluno + plano + vencimento).
    */
-  async listarCobrancasEmAbertoDoAluno(alunoId) {
-    const { data, error } = await supabase
+  async listarCobrancasEmAbertoDoAluno(alunoId, planoAlunoId) {
+    let query = supabase
       .from('mensalidades')
       .select('id, data_vencimento, status, descricao, tipo_aula, valor_esperado, valor_pago, planos(nome, preco)')
       .eq('aluno_id', alunoId)
       .in('status', ['pendente', 'atrasado'])
       .in('tipo_aula', ['regular', 'plano_livre'])
       .order('data_vencimento', { ascending: false });
+    // Vários planos: só as cobranças do plano escolhido.
+    if (planoAlunoId) query = query.eq('plano_aluno_id', planoAlunoId);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -375,9 +385,9 @@ async listarModalidadesDoAluno(alunoId) {
    * (de 15 dias antes do início até o fim, a mesma janela do banco), o mais
    * recente. É ele que o "cobre o ciclo inteiro" do recebimento liga.
    */
-  async buscarCicloDoVencimento(alunoId, vencimento) {
+  async buscarCicloDoVencimento(alunoId, vencimento, planoAlunoId) {
     if (!alunoId || !vencimento) return null;
-    const { data, error } = await supabase
+    let query = supabase
       .from('historico_planos')
       .select('id, data_inicio, data_fim, status, forma_recebimento, cobranca_integral_id, valor_pago, planos(nome, preco)')
       .eq('aluno_id', alunoId)
@@ -386,6 +396,8 @@ async listarModalidadesDoAluno(alunoId) {
       .gte('data_fim', vencimento)
       .order('data_inicio', { ascending: false })
       .limit(1);
+    if (planoAlunoId) query = query.eq('plano_aluno_id', planoAlunoId);
+    const { data, error } = await query;
     if (error) throw error;
     return data?.[0] ?? null;
   },

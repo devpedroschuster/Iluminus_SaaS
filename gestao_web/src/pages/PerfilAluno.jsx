@@ -737,14 +737,14 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
   const planosTodos = planosAluno || [];
   const varios = validos.length > 1;
   const semPlano = carregouPlanos && validos.length === 0;
-  // Sem carregar as ligações e os planos, salvar mandaria [] e apagaria tudo.
-  const carregando = ligadas === undefined || !carregouPlanos;
 
   const { data: ligadas, isError: erroLigadas } = useQuery({
     queryKey: ['aluno-modalidades', alunoId],
     queryFn: () => alunosService.listarModalidadesLigadas(alunoId),
     enabled: !!alunoId,
   });
+  // Sem carregar as ligações e os planos, salvar mandaria [] e apagaria tudo.
+  const carregando = ligadas === undefined || !carregouPlanos;
 
   React.useEffect(() => {
     supabase.from('modalidades').select('id, nome, area').order('area').order('nome')

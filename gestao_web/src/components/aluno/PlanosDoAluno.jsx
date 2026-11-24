@@ -239,9 +239,11 @@ export default function PlanosDoAluno({
         fechar={() => setConfirmandoEncerrar(null)}
         onConfirm={encerrar}
         titulo="Encerrar plano?"
-        mensagem={confirmandoEncerrar
-          ? `O plano ${rotuloValido(confirmandoEncerrar)} vale até ${formatarDataCurta(confirmandoEncerrar.data_fim ?? hoje)}. Depois disso ele sai dos avisos, e as modalidades e horários fixos dele são liberados. Cobranças em aberto com vencimento depois dessa data são removidas.`
-          : ''}
+        mensagem={!confirmandoEncerrar
+          ? ''
+          : confirmandoEncerrar.data_fim && confirmandoEncerrar.data_fim < hoje
+            ? `O plano ${rotuloValido(confirmandoEncerrar)} já venceu em ${formatarDataCurta(confirmandoEncerrar.data_fim)}. O encerramento vale agora: ele sai dos avisos, e as modalidades e horários fixos dele são liberados. Cobranças em aberto com vencimento depois dessa data são removidas.`
+            : `O plano ${rotuloValido(confirmandoEncerrar)} vale até ${formatarDataCurta(confirmandoEncerrar.data_fim ?? hoje)}. Depois disso ele sai dos avisos, e as modalidades e horários fixos dele são liberados. Cobranças em aberto com vencimento depois dessa data são removidas.`}
         textoConfirmar="Encerrar plano"
         tipo="warning"
         loading={!!confirmandoEncerrar && processando === confirmandoEncerrar.id}

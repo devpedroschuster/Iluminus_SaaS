@@ -737,8 +737,10 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
   const planosTodos = planosAluno || [];
   const varios = validos.length > 1;
   const semPlano = carregouPlanos && validos.length === 0;
+  // Sem carregar as ligações e os planos, salvar mandaria [] e apagaria tudo.
+  const carregando = ligadas === undefined || !carregouPlanos;
 
-  const { data: ligadas } = useQuery({
+  const { data: ligadas, isError: erroLigadas } = useQuery({
     queryKey: ['aluno-modalidades', alunoId],
     queryFn: () => alunosService.listarModalidadesLigadas(alunoId),
     enabled: !!alunoId,
@@ -847,6 +849,15 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
     return planosTodos.find((p) => p.id === atual) || null;
   };
 
+  if (erroLigadas) {
+    return (
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-destructive-soft border border-destructive/30 text-foreground max-w-3xl">
+        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-destructive" />
+        <p className="font-bold text-sm">Não foi possível carregar as modalidades do aluno. Recarregue a página e tente de novo.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 max-w-3xl">
       {semPlano && (
@@ -936,7 +947,7 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
                           <button
                             type="button"
                             onClick={() => removeModalidade(mod.id)}
-                            disabled={!isAtivo}
+                            disabled={!isAtivo || carregando}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm text-muted-foreground font-black hover:bg-destructive-soft hover:text-destructive disabled:opacity-30 disabled:shadow-none transition-colors"
                           >
                             −
@@ -947,7 +958,7 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
                           <button
                             type="button"
                             onClick={() => addModalidade(mod.id)}
-                            disabled={!allowAdd || semPlano}
+                            disabled={!allowAdd || semPlano || carregando}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-background shadow-sm font-black transition-colors text-info hover:bg-info-soft disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
                           >
                             +
@@ -994,7 +1005,7 @@ function AbaModalidades({ alunoId, queryClient, planosAluno }) {
       {!semPlano && (
         <div className="flex justify-end pt-2">
           <Button variant="brand" size="lg" leftIcon={<Save size={16} />}
-            onClick={handleSalvar} disabled={salvando}>
+            onClick={handleSalvar} disabled={salvando || carregando || erroLigadas}>
             {salvando ? 'Salvando...' : 'Salvar Modalidades'}
           </Button>
         </div>
@@ -1910,16 +1921,28 @@ export default function PerfilAluno() {
     staleTime: 1000 * 60 * 10,
   });
 
-  const handleDeletarHistorico = async (registroId) => {
+  const handleDeletarHistorico = async (registro) => {
     setDeletando(true);
     try {
       const { error } = await supabase
         .from('historico_planos')
         .delete()
-        .eq('id', registroId);
+        .eq('id', registro.id);
       if (error) throw error;
-      queryClient.invalidateQueries(['aluno-planos', id]);
-      showToast.success('Registro removido.');
+      let recalculou = true;
+      if (registro.plano_aluno_id) {
+        try {
+          await alunosService.recalcularPlanoAluno(registro.plano_aluno_id);
+        } catch (errRec) {
+          recalculou = false;
+          console.error('[PerfilAluno] Erro ao recalcular plano após excluir ciclo:', errRec);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['aluno-planos-aluno', id] });
+      queryClient.invalidateQueries({ queryKey: ['aluno', id] });
+      queryClient.invalidateQueries({ queryKey: ['aluno-planos', id] });
+      if (recalculou) showToast.success('Registro removido.');
+      else showToast.warning('Ciclo removido, mas as datas do plano não foram recalculadas. Edite um ciclo do plano para refazer.');
     } catch (err) {
       console.error('[PerfilAluno] Erro ao deletar histórico:', err);
       showToast.error('Erro ao remover. Tente novamente.');
@@ -2290,7 +2313,7 @@ export default function PerfilAluno() {
                             <>
                               <span className="text-xs font-bold text-destructive mr-1">Confirmar?</span>
                               <Button variant="destructive" size="sm" disabled={deletando}
-                                onClick={() => handleDeletarHistorico(p.id)}>
+                                onClick={() => handleDeletarHistorico(p)}>
                                 {deletando ? '...' : 'Sim'}
                               </Button>
                               <Button variant="ghost" size="sm"

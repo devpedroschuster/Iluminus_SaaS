@@ -276,7 +276,7 @@ export default function AreaAluno() {
                     <div className="profile-plan-desc">
                       {pa.pausado_desde
                         ? `Pausado desde ${formatarData(pa.pausado_desde)}. Para voltar às aulas, fale com a recepção.`
-                        : pa.data_fim ? `Vence em ${formatarDataCurta(pa.data_fim)}` : 'Sem data de vencimento'}
+                        : pa.data_fim ? `${pa.data_fim < hojeBrasilia() ? 'Venceu' : 'Vence'} em ${formatarDataCurta(pa.data_fim)}` : 'Sem data de vencimento'}
                     </div>
                   </div>
                 )) : meusPlanos.length === 1 ? (

@@ -1,7 +1,7 @@
 -- Teste das colunas protegidas de public.alunos (ILU-75).
 --
 -- O que garante, com um aluno logado (não admin) editando a PRÓPRIA linha:
---   P. campos administrativos (plano, vigência, bolsista, modalidades,
+--   P. campos administrativos (bolsista, endereço, contato de emergência,
 --      e-mail, nome, dados médicos, role, ativo...) são RECUSADOS com erro
 --      — nunca aceitos nem revertidos em silêncio (lição do ILU-61);
 --   L. os campos que a Área do Aluno edita (telefone, cpf, data_nascimento,
@@ -31,7 +31,6 @@ DECLARE
   v_aluno_auth  uuid;
   v_outro_id    bigint;
   v_admin_auth  uuid;
-  v_plano       int;
   v_falhas      text[] := '{}';
   v_total       int := 0;
   v_set         text;
@@ -64,7 +63,6 @@ BEGIN
   v_claims_aluno := json_build_object('role', 'authenticated', 'sub', v_aluno_auth)::text;
   v_claims_admin := json_build_object('role', 'authenticated', 'sub', v_admin_auth)::text;
 
-  INSERT INTO planos (nome, preco) VALUES ('[TESTE ILU-75] plano', 1) RETURNING id INTO v_plano;
   -- estado conhecido (como postgres, sem restrição)
   UPDATE alunos SET primeiro_acesso = true, bolsista = false WHERE id = v_aluno_id;
 
@@ -72,10 +70,10 @@ BEGIN
   -- esconder a linha do próprio aluno e mascararia os casos seguintes.
   v_protegidos := ARRAY[
     'bolsista = true',
-    'plano_id = ' || v_plano,
-    'data_inicio_plano = ''2000-01-01''',
-    'data_fim_plano = ''2099-12-31''',
-    'modalidades_selecionadas = ARRAY[gen_random_uuid()]',
+    'cep = ''00000-000''',
+    'cidade = ''[TESTE ILU-75] hack''',
+    'contato_emergencia = ''hack''',
+    'acesso_gerado_em = now()',
     'email = ''ilu75-hack@iluminus.test''',
     'nome_completo = ''[TESTE ILU-75] hack''',
     'observacoes_medicas = ''hack''',
@@ -166,7 +164,7 @@ BEGIN
     PERFORM set_config('request.jwt.claims', v_claims_admin, true);
     SET LOCAL ROLE authenticated;
     UPDATE public.alunos
-       SET bolsista = NOT coalesce(bolsista, false), plano_id = v_plano, data_fim_plano = '2099-06-30'
+       SET bolsista = NOT coalesce(bolsista, false), contato_emergencia = '[TESTE ILU-75] admin', cep = '99999-999'
      WHERE id = v_aluno_id;
     GET DIAGNOSTICS v_rows = ROW_COUNT;
   EXCEPTION WHEN OTHERS THEN
@@ -182,7 +180,7 @@ BEGIN
   v_erro := NULL;
   BEGIN
     PERFORM set_config('request.jwt.claims', '', true);
-    UPDATE public.alunos SET data_fim_plano = '2099-07-31', bolsista = true WHERE id = v_aluno_id;
+    UPDATE public.alunos SET contato_emergencia = '[TESTE ILU-75] sem usuário', bolsista = true WHERE id = v_aluno_id;
   EXCEPTION WHEN OTHERS THEN
     v_erro := SQLERRM;
   END;

@@ -8,8 +8,10 @@
 --
 -- O que garante:
 --   1. nenhuma das cinco tabelas existe;
---   2. a coluna alunos.modalidades_selecionadas_old não existe e a nova,
---      modalidades_selecionadas, continua lá;
+--   2. a coluna alunos.modalidades_selecionadas_old não existe; a
+--      modalidades_selecionadas também não (saiu na fase 2 de ILU-127,
+--      20261125121000_ilu127_f2_remove_copia: as modalidades do aluno moram
+--      em alunos_modalidades);
 --   3. nenhuma realizar_agendamento / matricular_aluno existe;
 --   4. nenhuma função, view ou política do schema public cita o que saiu;
 --   5. o que fica está intacto: presencas_old e espacos existem; o id de
@@ -38,14 +40,14 @@ BEGIN
     v_falhas := v_falhas || ('1: ainda existem ' || v_lista);
   END IF;
 
-  -- 2. coluna antiga removida, nova intacta
+  -- 2. coluna antiga removida; a que a substituía também (ILU-127 fase 2)
   IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.alunos'::regclass
              AND attname = 'modalidades_selecionadas_old' AND NOT attisdropped) THEN
     v_falhas := v_falhas || '2: alunos.modalidades_selecionadas_old ainda existe'::text;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.alunos'::regclass
-                 AND attname = 'modalidades_selecionadas' AND NOT attisdropped) THEN
-    v_falhas := v_falhas || '2: alunos.modalidades_selecionadas sumiu'::text;
+  IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.alunos'::regclass
+             AND attname = 'modalidades_selecionadas' AND NOT attisdropped) THEN
+    v_falhas := v_falhas || '2: alunos.modalidades_selecionadas ainda existe'::text;
   END IF;
 
   -- 3. funções removidas

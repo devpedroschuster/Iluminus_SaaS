@@ -1,5 +1,6 @@
 // Helpers das telas de repasse por mês de referência (ILU-122).
 import { hojeBrasilia } from './utils';
+import { rotuloPlanoAluno } from './planosAluno';
 
 /** Mês atual 'AAAA-MM' no fuso de Brasília (não o do navegador). */
 export function mesAnoAtual() {
@@ -84,6 +85,37 @@ export function alunosSemComissao(linhas, nomePlano = () => null) {
   return [...porAluno.values()].sort((a, b) =>
     String(a.aluno_nome).localeCompare(String(b.aluno_nome), 'pt-BR'),
   );
+}
+
+/** aluno_id das linhas sem cobertura/pausadas que trazem plano_aluno_id (sem repetir). */
+export function alunosComPlanoNaLinha(linhas) {
+  const ids = new Set();
+  for (const l of linhas ?? []) {
+    if ((l.situacao === 'sem_cobertura' || l.situacao === 'pausado') && l.plano_aluno_id != null) {
+      ids.add(l.aluno_id);
+    }
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/**
+ * Monta o `nomePlano` de alunosSemComissao: o rótulo do plano da linha, só
+ * quando o aluno tem mais de um plano (válido ou não). Sem plano_aluno_id na
+ * linha (apuração antiga) ou sem os planos carregados, devolve null.
+ */
+export function criarNomePlano(planos) {
+  const porAluno = new Map();
+  for (const p of planos ?? []) {
+    if (!porAluno.has(p.aluno_id)) porAluno.set(p.aluno_id, []);
+    porAluno.get(p.aluno_id).push(p);
+  }
+  return (linha) => {
+    if (linha.plano_aluno_id == null) return null;
+    const doAluno = porAluno.get(linha.aluno_id) ?? [];
+    if (doAluno.length < 2) return null;
+    const plano = doAluno.find((p) => p.id === linha.plano_aluno_id);
+    return plano ? rotuloPlanoAluno(plano, doAluno) : null;
+  };
 }
 
 /** 'AAAA-MM' -> 'Novembro de 2026'. */

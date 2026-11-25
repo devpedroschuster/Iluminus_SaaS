@@ -5,6 +5,8 @@ import {
   mesAntesDoCorte,
   rotuloSituacao,
   alunosSemComissao,
+  alunosComPlanoNaLinha,
+  criarNomePlano,
   nomeDoMes,
   resultadoReprocessar,
   mesesDoCiclo,
@@ -191,5 +193,38 @@ describe('previstosPorProfessor', () => {
   });
   it('lista vazia', () => {
     expect(previstosPorProfessor(undefined)).toEqual([]);
+  });
+});
+
+describe('criarNomePlano', () => {
+  const p = (id, nome, data_inicio = '2026-01-01') => ({ id, aluno_id: 1, data_inicio, planos: { nome } });
+  const linha = { aluno_id: 1, situacao: 'sem_cobertura', plano_aluno_id: 10 };
+  it('com um plano só, devolve null', () => {
+    expect(criarNomePlano([p(10, 'Mensal')])(linha)).toBeNull();
+  });
+  it('com dois planos, devolve o rótulo do plano da linha', () => {
+    expect(criarNomePlano([p(10, 'Mensal'), p(11, 'Trimestral')])(linha)).toBe('Mensal');
+  });
+  it('com dois planos de mesmo nome, inclui a data de início', () => {
+    const f = criarNomePlano([p(10, 'Mensal', '2026-01-05'), p(11, 'Mensal', '2026-03-05')]);
+    expect(f(linha)).toBe('Mensal (desde 05/01/26)');
+  });
+  it('linha sem plano_aluno_id ou planos não carregados, devolve null', () => {
+    const doisPlanos = [p(10, 'Mensal'), p(11, 'Trimestral')];
+    expect(criarNomePlano(doisPlanos)({ aluno_id: 1, situacao: 'pausado' })).toBeNull();
+    expect(criarNomePlano(undefined)(linha)).toBeNull();
+  });
+});
+
+describe('alunosComPlanoNaLinha', () => {
+  it('lista alunos sem repetir, só de linhas sem cobertura/pausadas com plano_aluno_id', () => {
+    expect(
+      alunosComPlanoNaLinha([
+        { aluno_id: 2, situacao: 'pausado', plano_aluno_id: 5 },
+        { aluno_id: 2, situacao: 'sem_cobertura', plano_aluno_id: 6 },
+        { aluno_id: 3, situacao: 'sem_cobertura' },
+        { aluno_id: 4, situacao: 'bolsista', plano_aluno_id: 7 },
+      ]),
+    ).toEqual([2]);
   });
 });

@@ -50,11 +50,12 @@ Não mudam:
 
 Nenhuma view, política RLS ou grant por coluna cita as colunas.
 
-## Decisões (a confirmar com o usuário)
+## Decisões (do usuário, 2026-11-25)
 
-1. **Alunos 16 e 71** (inativos, plano até junho de 2026, sem `alunos_modalidades`): o array deles some com a coluna, porque não há outro registro dessas modalidades. Proposta: aceitar. O backup da Task 7 guarda o valor.
-2. **Produção:** um PR com A e B, aplicados em sequência depois do backup. O merge não muda o frontend. Alternativa: A primeiro, esperar uma apuração diária (03:00) e só então B.
-3. **Chave `plano` (singular) de `listar_aulas_aluno`** e o fallback `planosDoPayload` em `agendaAluno.js`: ficam. Não dependem das colunas, e removê-los é uma limpeza à parte.
+1. **Alunos 16 e 71** (inativos, plano até junho de 2026, sem `alunos_modalidades`): aceitar que o array deles some com a coluna. O backup da Task 7 guarda o valor.
+2. **Produção:** um PR com A e B, aplicados em sequência depois do backup e do ensaio da Task 6. O merge não muda o frontend.
+3. **Execução:** subagent-driven.
+4. **Chave `plano` (singular) de `listar_aulas_aluno`** e o fallback `planosDoPayload` em `agendaAluno.js`: ficam. Não dependem das colunas, e removê-los é uma limpeza à parte.
 
 ## Review Focus
 

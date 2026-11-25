@@ -1060,7 +1060,7 @@ function ordemDiaSemana(valor) {
   return idx !== undefined ? idx : 99;
 }
  
-function AbaAgendaFixa({ aluno, alunoId }) {
+function AbaAgendaFixa({ alunoId }) {
   const [aulasGrade, setAulasGrade]           = useState([]);
   const [matriculasAluno, setMatriculasAluno] = useState([]);
   const [loading, setLoading]                 = useState(true);
@@ -1070,6 +1070,12 @@ function AbaAgendaFixa({ aluno, alunoId }) {
   const [modalidadeAberta, setModalidadeAberta] = useState(null);
   // Filtro de dia da semana dentro do modal ('todos' | nome do dia)
   const [diaFiltro, setDiaFiltro]              = useState('todos');
+  // Modalidades ligadas aos planos do aluno (mesma chave da aba Modalidades).
+  const { data: ligadas, isLoading: carregandoLigadas } = useQuery({
+    queryKey: ['aluno-modalidades', alunoId],
+    queryFn: () => alunosService.listarModalidadesLigadas(alunoId),
+    enabled: !!alunoId,
+  });
  
   const carregarAgendaFixa = React.useCallback(async () => {
     setLoading(true);
@@ -1107,9 +1113,9 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     carregarAgendaFixa();
   }, [carregarAgendaFixa]);
  
-  // Conta quantas vezes uma modalidade (id) aparece em modalidades_selecionadas do aluno
+  // Conta quantas vezes uma modalidade (id) aparece nas modalidades ligadas do aluno
   const getCountModEspecifica = (modId) =>
-    (aluno?.modalidades_selecionadas || []).filter(id => id === modId).length;
+    (ligadas || []).find(l => l.modalidade_id === modId)?.vezes ?? 0;
  
   const countUsoModNaGrade = (modId) =>
     matriculasAluno.filter(aulaId =>
@@ -1163,7 +1169,7 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     }
   }
  
-  if (loading) {
+  if (loading || carregandoLigadas) {
     return (
       <div className="flex justify-center p-16">
         <RefreshCw className="animate-spin text-muted-foreground" size={32} />
@@ -1171,9 +1177,9 @@ function AbaAgendaFixa({ aluno, alunoId }) {
     );
   }
  
-  // Agrupa as aulas disponíveis por modalidade (somente as que o aluno tem em modalidades_selecionadas)
+  // Agrupa as aulas disponíveis por modalidade (somente as ligadas aos planos do aluno)
   // Se o aluno não tiver modalidades definidas, exibe todas as aulas
-  const modIdsDoAluno = [...new Set(aluno?.modalidades_selecionadas || [])];
+  const modIdsDoAluno = [...new Set((ligadas || []).map(l => l.modalidade_id))];
   const aulasDoAluno = modIdsDoAluno.length > 0
     ? aulasGrade.filter(a => modIdsDoAluno.includes(a.modalidades?.id))
     : aulasGrade;
@@ -2166,7 +2172,7 @@ export default function PerfilAluno() {
 
         {/* ABA: Agenda Fixa */}
         {abaAtiva === 'agenda' && (
-          <AbaAgendaFixa aluno={aluno} alunoId={id} />
+          <AbaAgendaFixa alunoId={id} />
         )}
 
         {/* ABA: Financeiro */}

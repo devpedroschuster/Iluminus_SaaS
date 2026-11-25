@@ -46,7 +46,7 @@ export default function AreaAluno() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alunos')
-        .select(`*, planos (nome, preco, regras_acesso)`)
+        .select('*')
         .eq('auth_id', authId)
         .single();
       if (error) throw error;
@@ -177,7 +177,7 @@ export default function AreaAluno() {
 
   // Planos válidos do aluno; sem a lista (carregando/erro), vale o plano de hoje em `alunos`.
   const meusPlanos = planosAluno ? planosValidos(planosAluno, hojeBrasilia()) : [];
-  const planoPrincipal = meusPlanos[0]?.planos ?? aluno?.planos ?? null;
+  const planoPrincipal = meusPlanos[0]?.planos ?? null;
   const nomePlanoCabecalho = planoPrincipal
     ? `${planoPrincipal.nome}${meusPlanos.length > 1 ? ` +${meusPlanos.length - 1}` : ''}`
     : 'Sem plano ativo';
@@ -291,13 +291,9 @@ export default function AreaAluno() {
                   </div>
                 ) : (
                   <div className="profile-plan-card card">
-                    <div className="profile-plan-label">{aluno.plano_pausado_desde ? 'Plano Pausado' : 'Plano Ativo'}</div>
-                    <div className="profile-plan-name">{aluno.planos ? aluno.planos.nome : 'Nenhum'}</div>
-                    <div className="profile-plan-desc">
-                      {aluno.plano_pausado_desde
-                        ? `Pausado desde ${formatarData(aluno.plano_pausado_desde)}. Para voltar às aulas, fale com a recepção.`
-                        : aluno.planos ? `Valor: ${formatarMoeda(aluno.planos.preco)}` : 'Você ainda não possui um plano vinculado.'}
-                    </div>
+                    <div className="profile-plan-label">Plano Ativo</div>
+                    <div className="profile-plan-name">Nenhum</div>
+                    <div className="profile-plan-desc">Você ainda não possui um plano vinculado.</div>
                   </div>
                 )}
               </div>

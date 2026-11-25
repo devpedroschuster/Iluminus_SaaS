@@ -280,7 +280,6 @@ export default function NovoAluno() {
             bolsista:         aluno.bolsista           || false,
           });
           if (aluno.cpf) setCpfDisplay(formatarCPF(aluno.cpf));
-          setModalidadesSelecionadas(aluno.modalidades_selecionadas || []);
         }
       } else if (leadParaConversao) {
         reset({

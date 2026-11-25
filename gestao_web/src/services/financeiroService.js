@@ -75,7 +75,7 @@ export const financeiroService = {
 
 /**
  * Retorna as modalidades vinculadas a um aluno (para popular o select de
- * referência). Usa `modalidades_selecionadas` (array de IDs), não a lista
+ * referência). Usa os vínculos de `alunos_modalidades`, não a lista
  * completa da escola — só o que o aluno realmente está matriculado.
  */
 async listarModalidadesDoAluno(alunoId) {

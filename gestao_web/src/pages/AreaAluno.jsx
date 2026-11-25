@@ -55,7 +55,7 @@ export default function AreaAluno() {
   });
 
   // ILU-127: o aluno pode ter vários planos; o RLS deixa ler os próprios.
-  const { data: planosAluno } = useQuery({
+  const { data: planosAluno, isLoading: loadingPlanos, isError: erroPlanos } = useQuery({
     queryKey: ['meus-planos', aluno?.id],
     enabled: !!aluno?.id,
     queryFn: async () => {
@@ -175,12 +175,12 @@ export default function AreaAluno() {
   };
   const formatarMoeda = (valor) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  // Planos válidos do aluno; sem a lista (carregando/erro), vale o plano de hoje em `alunos`.
+  // Planos válidos do aluno. Enquanto a lista carrega (ou se falhar) não afirmamos "sem plano".
   const meusPlanos = planosAluno ? planosValidos(planosAluno, hojeBrasilia()) : [];
   const planoPrincipal = meusPlanos[0]?.planos ?? null;
   const nomePlanoCabecalho = planoPrincipal
     ? `${planoPrincipal.nome}${meusPlanos.length > 1 ? ` +${meusPlanos.length - 1}` : ''}`
-    : 'Sem plano ativo';
+    : loadingPlanos ? '…' : erroPlanos ? 'Planos indisponíveis' : 'Sem plano ativo';
 
   if (loadingAluno) return <div className="h-screen w-screen flex items-center justify-center bg-[#FDF8F5]"><RefreshCw className="animate-spin text-orange-600" size={48} /></div>;
   if (erroAluno || !aluno) return <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FDF8F5]"><p className="text-gray-600 mb-4">Erro ao carregar dados do aluno.</p><button onClick={doLogout} className="btn btn-primary">Voltar para o Início</button></div>;
@@ -292,8 +292,8 @@ export default function AreaAluno() {
                 ) : (
                   <div className="profile-plan-card card">
                     <div className="profile-plan-label">Plano Ativo</div>
-                    <div className="profile-plan-name">Nenhum</div>
-                    <div className="profile-plan-desc">Você ainda não possui um plano vinculado.</div>
+                    <div className="profile-plan-name">{loadingPlanos ? '…' : erroPlanos ? '—' : 'Nenhum'}</div>
+                    <div className="profile-plan-desc">{loadingPlanos ? '' : erroPlanos ? 'Não foi possível carregar seus planos.' : 'Você ainda não possui um plano vinculado.'}</div>
                   </div>
                 )}
               </div>

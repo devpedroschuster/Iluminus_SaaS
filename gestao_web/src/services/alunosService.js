@@ -377,7 +377,7 @@ export const alunosService = {
     return data;
   },
 
-  // Faltas (sem ou com aviso) do aluno, dentro do período do plano vigente,
+  // Faltas (sem ou com aviso) do aluno, dentro do período do plano de cada falta (com um só plano válido, o período desse plano),
   // que ainda não têm uma reposição vinculada. Usado para popular o seletor
   // "é reposição de qual falta" ao marcar presença numa aula avulsa.
   async listarFaltasPendentesReposicao(alunoId) {

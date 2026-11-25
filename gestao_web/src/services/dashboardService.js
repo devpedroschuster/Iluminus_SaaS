@@ -14,7 +14,7 @@ export const dashboardService = {
 
   /**
    * Retorna a distribuição de alunos ativos por área (Dança, Funcional, Ambos).
-   * Usa modalidades_selecionadas (array de IDs) cruzado com a tabela modalidades.
+   * Usa os vínculos de alunos_modalidades cruzado com a tabela modalidades.
    */
   async obterDistribuicaoPorArea() {
     // Busca todas as modalidades para montar o mapa id → area

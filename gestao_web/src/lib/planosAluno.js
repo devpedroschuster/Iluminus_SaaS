@@ -3,6 +3,7 @@
 // plano e avisos de vencimento. Sem supabase nem React; `hoje` é sempre
 // parâmetro ('AAAA-MM-DD', de hojeBrasilia() nos chamadores).
 import { formatarDiaMes } from './agendaAluno';
+import { ehPlanoLivre, formatarFrequenciaSemanal } from './utils';
 
 const LIMITE_LIVRE = 999;
 const JANELA_VENCENDO = 7;
@@ -178,4 +179,77 @@ export function notificacoesDeVencimento(linhas, hoje) {
       };
     })
     .filter((n) => n.diasFaltando >= JANELA_NOTIFICACAO.de && n.diasFaltando <= JANELA_NOTIFICACAO.ate);
+}
+
+// Espelho de _plano_da_aula: o plano ligado à modalidade em alunos_modalidades
+// (entre todos os planos do aluno, válidos ou não); sem ligação, o principal;
+// sem principal, null. Sem modalidade (null), o principal.
+export function planoDaModalidade(modalidadeId, vinculos, planos, hoje) {
+  const vinculo = modalidadeId == null
+    ? null
+    : (vinculos || []).find((v) => v.modalidade_id === modalidadeId);
+  const ligado = vinculo && (planos || []).find((p) => p.id === vinculo.plano_aluno_id);
+  return ligado || planosValidos(planos, hoje)[0] || null;
+}
+
+// A aula está com o plano pausado (o plano que ela segue, não qualquer um).
+export function pausadoNaAula(modalidadeId, vinculos, planos, hoje) {
+  return !!planoDaModalidade(modalidadeId, vinculos, planos, hoje)?.pausado_desde;
+}
+
+export function periodoDoPlano(plano) {
+  return plano
+    ? { inicio: plano.data_inicio, fim: plano.data_fim }
+    : { inicio: null, fim: null };
+}
+
+// Aulas por semana que o aluno deve cumprir: sem plano válido, 1; só planos
+// livres, null (fica fora da média); senão a soma dos planos não livres.
+export function metaSemanal(planos, hoje) {
+  const validos = planosValidos(planos, hoje);
+  if (validos.length === 0) return 1;
+  const comMeta = validos.filter((p) => !ehPlanoLivre(p.planos));
+  if (comMeta.length === 0) return null;
+  return comMeta.reduce((soma, p) => soma + (Number(p.planos?.frequencia_semanal) || 1), 0);
+}
+
+// Texto da frequência: um por plano válido, unidos por " + " quando são vários.
+export function textoFrequencia(planos, hoje) {
+  const validos = planosValidos(planos, hoje);
+  if (validos.length === 0) return '—';
+  return validos
+    .map((p) => (ehPlanoLivre(p.planos) ? 'Livre' : formatarFrequenciaSemanal(p.planos?.frequencia_semanal) || '—'))
+    .join(' + ');
+}
+
+// `periodos`: Map<planoAlunoId, { inicio, fim }>. A falta fica se a data cai no
+// período do plano da modalidade dela (sem vínculo, o principal); plano sem
+// período, a falta sai.
+export function faltasPendentesPorPlano(faltas, periodos, vinculos, principalId) {
+  return (faltas || []).filter((f) => {
+    const vinculo = (vinculos || []).find((v) => v.modalidade_id === f.agenda?.modalidade_id);
+    const periodo = periodos?.get(vinculo?.plano_aluno_id ?? principalId);
+    return !!periodo?.inicio && !!periodo?.fim && f.data_aula >= periodo.inicio && f.data_aula <= periodo.fim;
+  });
+}
+
+// `linhas`: alunos_modalidades com alunos(...) e planos_aluno(planos(nome))
+// embutidos. `modalidades` repete cada id `vezes` vezes, em ordem de id, como
+// o array copiado; `planosNomes` são os nomes distintos dos planos ligados.
+export function agruparVinculosPorAluno(linhas) {
+  const ordenadas = [...(linhas || [])].sort((a, b) =>
+    a.modalidade_id < b.modalidade_id ? -1 : a.modalidade_id > b.modalidade_id ? 1 : 0);
+  const porAluno = new Map();
+  ordenadas.forEach((l) => {
+    if (!l.alunos) return;
+    if (!porAluno.has(l.alunos.id)) {
+      porAluno.set(l.alunos.id, { ...l.alunos, modalidades: [], planosNomes: [] });
+    }
+    const item = porAluno.get(l.alunos.id);
+    for (let i = 0; i < (l.vezes ?? 1); i += 1) item.modalidades.push(l.modalidade_id);
+    const nome = l.planos_aluno?.planos?.nome;
+    if (nome && !item.planosNomes.includes(nome)) item.planosNomes.push(nome);
+  });
+  return [...porAluno.values()].sort((a, b) =>
+    String(a.nome_completo).localeCompare(String(b.nome_completo), 'pt-BR'));
 }

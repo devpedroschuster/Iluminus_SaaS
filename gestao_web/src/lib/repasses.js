@@ -64,15 +64,20 @@ export function rotuloSituacao(s) {
   return ROTULOS_SITUACAO[s] ?? s;
 }
 
-/** Alunos que ficaram sem comissão no mês, com os motivos (sem repetição). */
-export function alunosSemComissao(linhas) {
+/**
+ * Alunos que ficaram sem comissão no mês, com os motivos (sem repetição).
+ * `nomePlano(linha)` dá o plano das linhas sem cobertura/pausadas (só quando o
+ * aluno tem mais de um); com nome, o motivo vira "Rótulo (nome)".
+ */
+export function alunosSemComissao(linhas, nomePlano = () => null) {
   const porAluno = new Map();
   for (const l of linhas ?? []) {
     if (SITUACOES_COM_COMISSAO.includes(l.situacao)) continue;
     if (!porAluno.has(l.aluno_id)) {
       porAluno.set(l.aluno_id, { aluno_id: l.aluno_id, aluno_nome: l.aluno_nome, motivos: [] });
     }
-    const motivo = rotuloSituacao(l.situacao);
+    const nome = l.situacao === 'sem_cobertura' || l.situacao === 'pausado' ? nomePlano(l) : null;
+    const motivo = nome ? `${rotuloSituacao(l.situacao)} (${nome})` : rotuloSituacao(l.situacao);
     const item = porAluno.get(l.aluno_id);
     if (!item.motivos.includes(motivo)) item.motivos.push(motivo);
   }

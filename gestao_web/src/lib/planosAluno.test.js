@@ -9,6 +9,13 @@ import {
   validarModalidades,
   montarItensModalidades,
   notificacoesDeVencimento,
+  planoDaModalidade,
+  pausadoNaAula,
+  periodoDoPlano,
+  metaSemanal,
+  textoFrequencia,
+  faltasPendentesPorPlano,
+  agruparVinculosPorAluno,
 } from './planosAluno';
 
 const HOJE = '2026-11-23';
@@ -241,6 +248,138 @@ describe('planosAluno', () => {
       expect(montarItensModalidades({ X: 2, Y: 0 }, { X: A.id })).toEqual([
         { modalidade_id: 'X', vezes: 2, plano_aluno_id: A.id },
       ]);
+    });
+  });
+});
+
+// ILU-127 6: regras por plano (hoje = 24/11/2026).
+describe('regras por plano (entrega 6)', () => {
+  const HOJE6 = '2026-11-24';
+  const freq = (n, extra = {}) => ({ nome: `${n}x`, frequencia_semanal: n, is_plano_livre: false, ...extra });
+  const vinculo = (modalidade_id, plano_aluno_id) => ({ modalidade_id, plano_aluno_id });
+
+  describe('planoDaModalidade / pausadoNaAula', () => {
+    it('PM1P: um plano, sem vínculo para a modalidade, é o plano da modalidade', () => {
+      const A = plano({}, 'A');
+      expect(planoDaModalidade('x', [], [A], HOJE6)).toBe(A);
+      expect(planoDaModalidade(null, [], [A], HOJE6)).toBe(A);
+      expect(planoDaModalidade('x', [], [], HOJE6)).toBeNull();
+    });
+
+    it('PM2: o vínculo manda; sem vínculo, o principal; vínculo para plano encerrado ainda vale', () => {
+      const A = plano({ created_at: '2026-09-01T10:00:00Z' }, 'A');
+      const B = plano({ created_at: '2026-10-01T10:00:00Z' }, 'B');
+      const velho = plano({ encerrado_em: '2026-10-31' }, 'Velho');
+      expect(planoDaModalidade('x', [vinculo('x', B.id)], [A, B], HOJE6)).toBe(B);
+      expect(planoDaModalidade('y', [vinculo('x', B.id)], [A, B], HOJE6)).toBe(A);
+      expect(planoDaModalidade('z', [vinculo('z', velho.id)], [A, B, velho], HOJE6)).toBe(velho);
+    });
+
+    it('PZ1P: um plano pausado vale para qualquer modalidade', () => {
+      const A = plano({ pausado_desde: '2026-11-10' }, 'A');
+      expect(pausadoNaAula('x', [], [A], HOJE6)).toBe(true);
+      expect(pausadoNaAula(null, [], [A], HOJE6)).toBe(true);
+    });
+
+    it('PZ2/PZ3: só pausa a aula cuja modalidade segue o plano pausado', () => {
+      const A = plano({ created_at: '2026-09-01T10:00:00Z' }, 'A');
+      const B = plano({ created_at: '2026-10-01T10:00:00Z', pausado_desde: '2026-11-10' }, 'B');
+      const vinculos = [vinculo('x', A.id), vinculo('z', B.id)];
+      expect(pausadoNaAula('x', vinculos, [A, B], HOJE6)).toBe(false);
+      expect(pausadoNaAula('z', vinculos, [A, B], HOJE6)).toBe(true);
+    });
+  });
+
+  it('periodoDoPlano: devolve o período ou vazio sem plano', () => {
+    expect(periodoDoPlano(plano({ data_inicio: '2026-11-01', data_fim: '2026-11-30' })))
+      .toEqual({ inicio: '2026-11-01', fim: '2026-11-30' });
+    expect(periodoDoPlano(null)).toEqual({ inicio: null, fim: null });
+  });
+
+  describe('metaSemanal', () => {
+    it('MS1P: um plano 2x vale 2; livre vale null; sem plano vale 1', () => {
+      expect(metaSemanal([plano({ planos: freq(2) })], HOJE6)).toBe(2);
+      expect(metaSemanal([plano({ planos: freq(999) })], HOJE6)).toBeNull();
+      expect(metaSemanal([plano({ planos: freq(30, { is_plano_livre: true }) })], HOJE6)).toBeNull();
+      expect(metaSemanal([], HOJE6)).toBe(1);
+      expect(metaSemanal(null, HOJE6)).toBe(1);
+    });
+
+    it('MS2: soma os planos não livres; livre junto de outro não conta', () => {
+      expect(metaSemanal([plano({ planos: freq(2) }), plano({ planos: freq(999) })], HOJE6)).toBe(2);
+      expect(metaSemanal([plano({ planos: freq(2) }), plano({ planos: freq(3) })], HOJE6)).toBe(5);
+    });
+
+    it('plano encerrado fora da validade não entra na meta', () => {
+      expect(metaSemanal([plano({ planos: freq(2) }), plano({ planos: freq(3), encerrado_em: '2026-10-01' })], HOJE6)).toBe(2);
+    });
+  });
+
+  describe('textoFrequencia', () => {
+    it('TF1P: um plano mostra o texto de hoje', () => {
+      expect(textoFrequencia([plano({ planos: freq(2) })], HOJE6)).toBe('2x por semana');
+      expect(textoFrequencia([plano({ planos: freq(999) })], HOJE6)).toBe('Livre');
+      expect(textoFrequencia([plano({ planos: freq(null) })], HOJE6)).toBe('—');
+      expect(textoFrequencia([], HOJE6)).toBe('—');
+    });
+
+    it('TF2: vários planos unem o texto de cada um', () => {
+      const planos = [
+        plano({ planos: freq(2), created_at: '2026-09-01T10:00:00Z' }),
+        plano({ planos: freq(999), created_at: '2026-10-01T10:00:00Z' }),
+      ];
+      expect(textoFrequencia(planos, HOJE6)).toBe('2x por semana + Livre');
+    });
+  });
+
+  describe('faltasPendentesPorPlano', () => {
+    const falta = (id, data, modalidade) => ({ id, data_aula: data, agenda: { modalidade_id: modalidade } });
+
+    it('FP1P: um plano deixa as faltas do período, com ou sem vínculo', () => {
+      const periodos = new Map([['A', { inicio: '2026-11-01', fim: '2026-11-30' }]]);
+      const faltas = [falta(1, '2026-11-05', 'x'), falta(2, '2026-10-31', 'x'), falta(3, '2026-12-01', 'y')];
+      expect(faltasPendentesPorPlano(faltas, periodos, [], 'A').map((f) => f.id)).toEqual([1]);
+      expect(faltasPendentesPorPlano(faltas, periodos, [vinculo('x', 'A')], 'A').map((f) => f.id)).toEqual([1]);
+    });
+
+    it('FP2: cada modalidade usa o período do seu plano', () => {
+      const periodos = new Map([
+        ['A', { inicio: '2026-10-01', fim: '2026-10-31' }],
+        ['B', { inicio: '2026-11-01', fim: '2026-11-30' }],
+      ]);
+      const vinculos = [vinculo('danca', 'A'), vinculo('treino', 'B')];
+      const faltas = [falta(1, '2026-11-05', 'danca'), falta(2, '2026-11-05', 'treino')];
+      expect(faltasPendentesPorPlano(faltas, periodos, vinculos, 'B').map((f) => f.id)).toEqual([2]);
+    });
+
+    it('FP3: modalidade sem vínculo usa o período do principal; plano sem período tira a falta', () => {
+      const periodos = new Map([['B', { inicio: '2026-11-01', fim: '2026-11-30' }]]);
+      expect(faltasPendentesPorPlano([falta(1, '2026-11-05', 'outra')], periodos, [vinculo('x', 'A')], 'B')).toHaveLength(1);
+      expect(faltasPendentesPorPlano([falta(1, '2026-11-05', 'x')], periodos, [vinculo('x', 'A')], 'B')).toHaveLength(0);
+    });
+  });
+
+  describe('agruparVinculosPorAluno', () => {
+    const linha = (aluno, modalidade_id, vezes, nomePlano) => ({
+      modalidade_id, vezes, alunos: aluno, planos_aluno: { planos: { nome: nomePlano } },
+    });
+    const ana = { id: 1, nome_completo: 'Ana' };
+    const bia = { id: 2, nome_completo: 'Bia' };
+
+    it('AG1P: repete o id pelas vezes, em ordem, e lista o plano uma vez', () => {
+      const r = agruparVinculosPorAluno([linha(ana, 'y', 1, 'Mensal'), linha(ana, 'x', 2, 'Mensal')]);
+      expect(r).toEqual([{ ...ana, modalidades: ['x', 'x', 'y'], planosNomes: ['Mensal'] }]);
+    });
+
+    it('AG2: vários planos dão vários nomes sem repetir; ordena por nome', () => {
+      const r = agruparVinculosPorAluno([
+        linha(bia, 'x', 1, 'Mensal'),
+        linha(ana, 'x', 1, 'Mensal'),
+        linha(ana, 'y', 1, 'Treino'),
+        linha(ana, 'z', 1, 'Treino'),
+      ]);
+      expect(r.map((a) => a.nome_completo)).toEqual(['Ana', 'Bia']);
+      expect(r[0].planosNomes).toEqual(['Mensal', 'Treino']);
     });
   });
 });

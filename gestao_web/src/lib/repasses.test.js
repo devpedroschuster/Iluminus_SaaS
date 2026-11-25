@@ -69,6 +69,25 @@ describe('alunosSemComissao', () => {
   });
 });
 
+describe('alunosSemComissao com nome do plano', () => {
+  const linhas = [{ aluno_id: 1, aluno_nome: 'Ana', situacao: 'sem_cobertura' }];
+
+  it('R1: com nomePlano, o motivo leva o nome do plano', () => {
+    const r = alunosSemComissao(linhas, () => '2x Treino');
+    expect(r[0].motivos).toEqual(['Mês não pago (2x Treino)']);
+  });
+
+  it('R1P: sem nomePlano, o motivo fica como hoje', () => {
+    expect(alunosSemComissao(linhas)[0].motivos).toEqual(['Mês não pago']);
+    expect(alunosSemComissao(linhas, () => null)[0].motivos).toEqual(['Mês não pago']);
+  });
+
+  it('só as situações sem_cobertura e pausado levam o nome', () => {
+    const r = alunosSemComissao([{ aluno_id: 1, aluno_nome: 'Ana', situacao: 'bolsista' }], () => '2x Treino');
+    expect(r[0].motivos).toEqual([rotuloSituacao('bolsista')]);
+  });
+});
+
 describe('mesAnoAtual', () => {
   afterEach(() => vi.useRealTimers());
 

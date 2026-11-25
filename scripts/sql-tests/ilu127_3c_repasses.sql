@@ -19,10 +19,11 @@
 --       (_aniversarios_ciclo e apuração).
 --   P2: pausar A marca a pausa no ciclo de A: linha pausado, sem Dança 1.
 --   B1: bolsista com dois planos dá uma única linha bolsista.
---   Z1: aluno sem nenhum planos_aluno (modalidades só no cadastro, sem
---       alunos_modalidades) com cobrança regular paga: igual a hoje (cada
---       modalidade do cadastro gerada com a cobrança; repetida conta uma vez).
---   Z2: o mesmo aluno sem plano, com cobrança de plano livre paga e
+--   Z1: aluno sem nenhum planos_aluno (e sem modalidades) com cobrança
+--       regular paga: não é avaliado, nenhuma linha. (Até a fase 2 de
+--       ILU-127 o caso tinha modalidades só no cadastro; esse aluno deixou de
+--       existir com a remoção das cópias.)
+--   Z2: aluno sem plano e sem modalidades, com cobrança de plano livre paga e
 --       presenças: igual a hoje (o livre divide entre todas as frequentadas).
 --
 -- Cria os próprios dados ([TESTE 3C], e-mails teste-3c-*@iluminus.test) e
@@ -448,9 +449,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     v_f := '{}';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
-    VALUES ('[TESTE 3C] Z1', 'teste-3c-z1@iluminus.test', 'aluno', true, false, ARRAY[v_d1, v_d1, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3C] Z1', 'teste-3c-z1@iluminus.test', NULL, NULL, NULL) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, p_r1, v_ant + 9, 'pago', 'regular', 300, 'pix', v_ant + 9) RETURNING id INTO m_a;
     IF EXISTS (SELECT 1 FROM planos_aluno WHERE aluno_id = v_al)
@@ -459,14 +459,8 @@ BEGIN
       v_f := v_f || 'dados: o aluno ganhou planos_aluno/alunos_modalidades, ou a cobrança ganhou plano';
     END IF;
     v_got := pg_temp.resumo_3c(v_ant, v_al);
-    v_exp := format('Dança 1=gerada:%s Treino=gerada:%s', v_v1, v_v1);
-    IF v_got IS DISTINCT FROM v_exp THEN
-      v_f := v_f || format('esperava [%s], veio [%s]', v_exp, v_got);
-    END IF;
-    IF pg_temp.cobranca_3c(v_ant, v_al, v_d1) IS DISTINCT FROM m_a
-       OR pg_temp.cobranca_3c(v_ant, v_al, v_tr) IS DISTINCT FROM m_a THEN
-      v_f := v_f || format('cobranças Dança 1=%s Treino=%s, esperava %s',
-                           pg_temp.cobranca_3c(v_ant, v_al, v_d1), pg_temp.cobranca_3c(v_ant, v_al, v_tr), m_a);
+    IF v_got IS DISTINCT FROM '' THEN
+      v_f := v_f || format('esperava nenhuma linha, veio [%s]', v_got);
     END IF;
     IF cardinality(v_f) > 0 THEN v_falhas := v_falhas || ('Z1: ' || array_to_string(v_f, ' ; ')); END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
@@ -475,14 +469,13 @@ BEGIN
   END;
 
   ---------------------------------------------------------------- Z2: sem planos_aluno, plano livre
-  -- Treino no cadastro; presenças em Dança 1, Dança 2 e Treino: as três
+  -- Sem modalidades; presenças em Dança 1, Dança 2 e Treino: as três
   -- dividem o livre, como hoje.
   v_total := v_total + 1;
   BEGIN
     v_f := '{}';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
-    VALUES ('[TESTE 3C] Z2', 'teste-3c-z2@iluminus.test', 'aluno', true, false, ARRAY[v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3C] Z2', 'teste-3c-z2@iluminus.test', NULL, NULL, NULL) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, p_l, v_ant + 9, 'pago', 'plano_livre', 300, 'pix', v_ant + 9) RETURNING id INTO m_a;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES

@@ -9,9 +9,8 @@ import {
 } from 'lucide-react';
 import { showToast } from '../components/shared/showToast';
 import { fixosForaDePausa } from '../lib/pausaPlano';
-import {
-  hojeBrasilia, ehPlanoLivre, calcularFrequenciaMedia, formatarFrequenciaSemanal,
-} from '../lib/utils';
+import { pausadoNaAula, textoFrequencia } from '../lib/planosAluno';
+import { hojeBrasilia, calcularFrequenciaMedia } from '../lib/utils';
 import Modal from '../components/ui/Modal';
 import { useModal } from '../components/ui/useModal';
 import Button from '../components/ui/Button';
@@ -98,7 +97,8 @@ export default function Presenca({ isAdmin = false }) {
 
   const [aulaAtiva, setAulaAtiva]               = useState(null);
   const [checkinsDaAula, setCheckinsDaAula]       = useState(new Set());
-  const [alunosFixosDaAula, setAlunosFixosDaAula] = useState(new Set());
+  // Fixos da aula como vêm do banco; quem está pausado nela é filtrado em `alunosFixosDaAula`.
+  const [fixosDaAula, setFixosDaAula] = useState([]);
   const [loadingCheckin, setLoadingCheckin]       = useState(null);
 
   const [metricas, setMetricas] = useState({
@@ -121,7 +121,7 @@ export default function Presenca({ isAdmin = false }) {
       // Alunos ativos
       const { data: alunosData, error: errAlunos } = await supabase
         .from('alunos')
-        .select('id, nome_completo, email, plano_id, plano_pausado_desde, planos(frequencia_semanal, is_plano_livre)')
+        .select('id, nome_completo, email, planos_aluno(id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome, frequencia_semanal, is_plano_livre)), alunos_modalidades(modalidade_id, plano_aluno_id)')
         .eq('ativo', true)
         .eq('role', 'aluno')
         .order('nome_completo');
@@ -144,7 +144,7 @@ export default function Presenca({ isAdmin = false }) {
       // Todas as aulas ativas — usado no seletor manual da Chamada Rápida
       const todasAulasQuery = supabase
         .from('agenda')
-        .select('id, atividade, horario, dia_semana')
+        .select('id, atividade, horario, dia_semana, modalidade_id')
         .eq('ativa', true)
         .order('dia_semana')
         .order('horario');
@@ -176,7 +176,7 @@ export default function Presenca({ isAdmin = false }) {
 
       if (aulaEmCurso) {
         const hojeDateStr = hojeBrasilia();
-        const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+        const [{ data: todasPresencasHoje, error: errHoje }, { data: fixosDaAulaData, error: errFixos }] =
           await Promise.all([
             supabase
               .from('presencas')
@@ -185,7 +185,7 @@ export default function Presenca({ isAdmin = false }) {
               .eq('data_aula', hojeDateStr),
             supabase
               .from('agenda_fixa')
-              .select('aluno_id, alunos(plano_pausado_desde)')
+              .select('aluno_id')
               .eq('aula_id', aulaEmCurso.id),
           ]);
         if (errHoje) throw errHoje;
@@ -198,11 +198,10 @@ export default function Presenca({ isAdmin = false }) {
 
         setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
         setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-        // ILU-114: aluno com o plano pausado não entra como fixo da aula.
-        setAlunosFixosDaAula(fixosForaDePausa(fixosDaAula));
+        setFixosDaAula(fixosDaAulaData || []);
       } else {
         setCheckinsDaAula(new Set());
-        setAlunosFixosDaAula(new Set());
+        setFixosDaAula([]);
       }
 
       // FIX 1.2: a troca automática de aba agora acontece de fato, mas só na
@@ -231,7 +230,7 @@ export default function Presenca({ isAdmin = false }) {
     if (aulaAtiva || !aulaSelecionada) {
       if (!aulaAtiva) {
         setCheckinsDaAula(new Set());
-        setAlunosFixosDaAula(new Set());
+        setFixosDaAula([]);
       }
       return;
     }
@@ -243,7 +242,7 @@ export default function Presenca({ isAdmin = false }) {
     async function buscarDadosAulaSelecionada() {
       const hojeDateStr = hojeBrasilia();
       try {
-        const [{ data: todasHoje, error: errHoje }, { data: fixosDaAula, error: errFixos }] =
+        const [{ data: todasHoje, error: errHoje }, { data: fixosDaAulaData, error: errFixos }] =
           await Promise.all([
             supabase
               .from('presencas')
@@ -252,7 +251,7 @@ export default function Presenca({ isAdmin = false }) {
               .eq('data_aula', hojeDateStr),
             supabase
               .from('agenda_fixa')
-              .select('aluno_id, alunos(plano_pausado_desde)')
+              .select('aluno_id')
               .eq('aula_id', aulaSelecionada),
           ]);
         if (errHoje) throw errHoje;
@@ -265,8 +264,7 @@ export default function Presenca({ isAdmin = false }) {
         );
         setCheckinsDaAula(new Set(confirmados.map(c => c.aluno_id)));
         setAgendadosDaAula(new Map(pendentes.map(p => [p.aluno_id, p.id])));
-        // ILU-114: aluno com o plano pausado não entra como fixo da aula.
-        setAlunosFixosDaAula(fixosForaDePausa(fixosDaAula));
+        setFixosDaAula(fixosDaAulaData || []);
       } catch (err) {
         if (!ativo) return;
         showToast.error(tratarErro(err, {
@@ -303,7 +301,7 @@ export default function Presenca({ isAdmin = false }) {
     }
 
     // ILU-71: alunos de plano livre não têm meta semanal e ficam fora da média.
-    const frequenciaMedia = calcularFrequenciaMedia(alunosData, presencasPorAluno);
+    const frequenciaMedia = calcularFrequenciaMedia(alunosData, presencasPorAluno, hoje);
 
     const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const presencaPorDia = diasSemana.map((dia, idx) => ({
@@ -519,6 +517,21 @@ export default function Presenca({ isAdmin = false }) {
 
   // Aula em uso (automática ou selecionada manualmente)
   const aulaEmUso = aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null);
+  const modalidadeDaAula = aulaAtiva
+    ? aulaAtiva.modalidade_id
+    : todasAulas.find(a => a.id === aulaEmUso)?.modalidade_id;
+
+  // ILU-114/127: aluno com o plano pausado na modalidade da aula não entra como fixo.
+  // Derivado do estado, então acompanha a lista de alunos sem nova consulta.
+  const alunosFixosDaAula = useMemo(
+    () => fixosForaDePausa(
+      fixosDaAula,
+      new Map(alunos.map(a => [a.id, a])),
+      modalidadeDaAula,
+      hojeBrasilia()
+    ),
+    [fixosDaAula, alunos, modalidadeDaAula]
+  );
 
   const filtrarPorBusca = useCallback((lista) =>
     !buscaChamada
@@ -821,6 +834,7 @@ export default function Presenca({ isAdmin = false }) {
                         presente={false}
                         isDaAula={alunosFixosDaAula.has(aluno.id)}
                         aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
+                        modalidadeId={modalidadeDaAula}
                         loadingId={loadingCheckin}
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
@@ -846,6 +860,7 @@ export default function Presenca({ isAdmin = false }) {
                         presente={true}
                         isDaAula={alunosFixosDaAula.has(aluno.id)}
                         aulaId={aulaAtiva?.id ?? (aulaSelecionada ? Number(aulaSelecionada) : null)}
+                        modalidadeId={modalidadeDaAula}
                         loadingId={loadingCheckin}
                         onCheckin={(aluno, aulaId) => realizarCheckin(aluno, aulaId, aulaAtiva ? null : dataManual)}
                         onDesfazer={desfazerCheckin}
@@ -1016,9 +1031,7 @@ export default function Presenca({ isAdmin = false }) {
               <Surface variant="muted" padding="md" className="rounded-2xl">
                 <p className="text-xs font-black text-info uppercase mb-1">Frequência</p>
                 <p className="text-2xl font-black text-info">
-                  {ehPlanoLivre(alunoSelecionado.planos)
-                    ? 'Livre'
-                    : formatarFrequenciaSemanal(alunoSelecionado.planos?.frequencia_semanal) || '—'}
+                  {textoFrequencia(alunoSelecionado.planos_aluno, hojeBrasilia())}
                 </p>
               </Surface>
             </div>
@@ -1077,7 +1090,7 @@ export default function Presenca({ isAdmin = false }) {
  * - Presente: badge verde + botão discreto para desfazer + link histórico
  * - isAdmin: FIX 3.1 — controla se o botão "Desfazer" fica habilitado
  */
-function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, onDesfazer, onDetalhes, isAdmin }) {
+function BotaoAluno({ aluno, presente, isDaAula, aulaId, modalidadeId, loadingId, onCheckin, onDesfazer, onDetalhes, isAdmin }) {
   const carregando = loadingId === aluno.id;
 
   if (presente) {
@@ -1133,7 +1146,7 @@ function BotaoAluno({ aluno, presente, isDaAula, aulaId, loadingId, onCheckin, o
             {isDaAula && (
               <Badge tone="info" variant="soft" size="sm">Turma fixa</Badge>
             )}
-            {aluno.plano_pausado_desde && (
+            {pausadoNaAula(modalidadeId, aluno.alunos_modalidades, aluno.planos_aluno, hojeBrasilia()) && (
               <Badge tone="neutral" variant="soft" size="sm">Plano pausado</Badge>
             )}
           </div>

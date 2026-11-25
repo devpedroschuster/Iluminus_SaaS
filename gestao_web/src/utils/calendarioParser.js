@@ -88,8 +88,8 @@ export function buildFixosIndex(matriculasFixas) {
       map[m.aula_id].push({
         id: m.alunos.id,
         nome: m.alunos.nome_completo,
-        inicio: extrairDataLocal(m.alunos.data_inicio_plano),
-        fim: extrairDataLocal(m.alunos.data_fim_plano),
+        inicio: extrairDataLocal(m.alunos.periodo?.inicio),
+        fim: extrairDataLocal(m.alunos.periodo?.fim),
         pausas: m.alunos.pausas || []
       });
     }

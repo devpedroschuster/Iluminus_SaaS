@@ -75,19 +75,18 @@ export const financeiroService = {
 
 /**
  * Retorna as modalidades vinculadas a um aluno (para popular o select de
- * referência). Usa `modalidades_selecionadas` (array de IDs), não a lista
+ * referência). Usa os vínculos de `alunos_modalidades`, não a lista
  * completa da escola — só o que o aluno realmente está matriculado.
  */
 async listarModalidadesDoAluno(alunoId) {
   if (!alunoId) return [];
-  const { data: aluno, error: errAluno } = await supabase
-    .from('alunos')
-    .select('modalidades_selecionadas')
-    .eq('id', alunoId)
-    .single();
+  const { data: ligadas, error: errAluno } = await supabase
+    .from('alunos_modalidades')
+    .select('modalidade_id')
+    .eq('aluno_id', alunoId);
   if (errAluno) throw errAluno;
 
-  const ids = aluno?.modalidades_selecionadas ?? [];
+  const ids = [...new Set((ligadas ?? []).map((l) => l.modalidade_id))];
   if (ids.length === 0) return [];
 
   const { data: mods, error: errMods } = await supabase

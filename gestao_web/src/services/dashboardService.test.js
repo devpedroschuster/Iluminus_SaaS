@@ -60,3 +60,15 @@ describe('dashboardService.obterAlunosPlanosVencendo por plano (ILU-127)', () =>
     ]);
   });
 });
+
+describe('dashboardService.obterDistribuicaoPorArea (ILU-127 6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('lê as modalidades do aluno em alunos_modalidades', async () => {
+    const mods = criarQueryMock({ data: [{ id: 1, area: 'Dança' }], error: null });
+    const alunos = criarQueryMock({ data: [{ id: 1, bolsista: false, alunos_modalidades: [{ modalidade_id: 1 }] }], error: null });
+    supabase.from.mockReturnValueOnce(mods.query).mockReturnValueOnce(alunos.query);
+    await dashboardService.obterDistribuicaoPorArea();
+    expect(alunos.chamadas).toContainEqual(['select', 'id, bolsista, alunos_modalidades(modalidade_id)']);
+  });
+});

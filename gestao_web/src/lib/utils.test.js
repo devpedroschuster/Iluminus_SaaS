@@ -181,11 +181,11 @@ describe('contarAlunosPorArea', () => {
 
   it('conta Dança, Funcional e Combo como grupos exclusivos (combo não entra em D nem F)', () => {
     const alunos = [
-      { modalidades_selecionadas: ['d1'] },
-      { modalidades_selecionadas: ['d1', 'd2'] },
-      { modalidades_selecionadas: ['f1'] },
-      { modalidades_selecionadas: ['d1', 'f1'] },
-      { modalidades_selecionadas: ['d2', 'f1'] },
+      { alunos_modalidades: [{ modalidade_id: 'd1' }] },
+      { alunos_modalidades: [{ modalidade_id: 'd1' }, { modalidade_id: 'd2' }] },
+      { alunos_modalidades: [{ modalidade_id: 'f1' }] },
+      { alunos_modalidades: [{ modalidade_id: 'd1' }, { modalidade_id: 'f1' }] },
+      { alunos_modalidades: [{ modalidade_id: 'd2' }, { modalidade_id: 'f1' }] },
     ];
     expect(contarAlunosPorArea(alunos, areaById)).toEqual({
       danca: 2, funcional: 1, ambos: 2,
@@ -196,10 +196,10 @@ describe('contarAlunosPorArea', () => {
 
   it('conta alunos sem modalidade de Dança/Funcional e bolsistas como recortes separados', () => {
     const alunos = [
-      { modalidades_selecionadas: [] },
-      { modalidades_selecionadas: null },
-      { modalidades_selecionadas: ['x'] },
-      { modalidades_selecionadas: ['d1', 'f1'], bolsista: true },
+      { alunos_modalidades: [] },
+      { alunos_modalidades: [] },
+      { alunos_modalidades: [{ modalidade_id: 'x' }] },
+      { alunos_modalidades: [{ modalidade_id: 'd1' }, { modalidade_id: 'f1' }], bolsista: true },
     ];
     expect(contarAlunosPorArea(alunos, areaById)).toEqual({
       danca: 0, funcional: 0, ambos: 1,
@@ -266,34 +266,48 @@ describe('ehPlanoLivre (ILU-71)', () => {
 });
 
 describe('calcularFrequenciaMedia (ILU-71)', () => {
+  const HOJE = '2026-11-24';
   const presencas = (pares) => new Map(pares);
+  // Aluno com um plano válido (ILU-127 6: a meta vem de planos_aluno).
+  const aluno = (id, planos) => ({
+    id,
+    planos_aluno: planos === null ? [] : [{ id: `pa-${id}`, created_at: '2026-09-01T10:00:00Z', encerrado_em: null, planos }],
+  });
 
   it('ignora alunos de plano livre, que não têm meta semanal', () => {
     const alunos = [
-      { id: 1, planos: { frequencia_semanal: 2, is_plano_livre: false } },
-      { id: 2, planos: { frequencia_semanal: 30, is_plano_livre: true } },
+      aluno(1, { frequencia_semanal: 2, is_plano_livre: false }),
+      aluno(2, { frequencia_semanal: 30, is_plano_livre: true }),
     ];
     // Aluno 1: 1 de 2 aulas = 50%. Antes, o livre entrava como 0/30 e
     // derrubava a média para 25%.
-    expect(calcularFrequenciaMedia(alunos, presencas([[1, 1], [2, 3]]))).toBe('50.0');
+    expect(calcularFrequenciaMedia(alunos, presencas([[1, 1], [2, 3]]), HOJE)).toBe('50.0');
   });
 
   it('limita cada aluno a 100% da própria meta', () => {
-    const alunos = [{ id: 1, planos: { frequencia_semanal: 2 } }];
-    expect(calcularFrequenciaMedia(alunos, presencas([[1, 5]]))).toBe('100.0');
+    const alunos = [aluno(1, { frequencia_semanal: 2 })];
+    expect(calcularFrequenciaMedia(alunos, presencas([[1, 5]]), HOJE)).toBe('100.0');
   });
 
   it('mantém meta de 1 aula para aluno sem plano', () => {
-    const alunos = [
-      { id: 1, planos: null },
-      { id: 2, planos: { frequencia_semanal: 1 } },
-    ];
-    expect(calcularFrequenciaMedia(alunos, presencas([[2, 1]]))).toBe('50.0');
+    const alunos = [aluno(1, null), aluno(2, { frequencia_semanal: 1 })];
+    expect(calcularFrequenciaMedia(alunos, presencas([[2, 1]]), HOJE)).toBe('50.0');
   });
 
   it('retorna 0 quando nenhum aluno tem meta (todos livres ou lista vazia)', () => {
-    expect(calcularFrequenciaMedia([{ id: 1, planos: { frequencia_semanal: 999 } }], presencas([]))).toBe(0);
-    expect(calcularFrequenciaMedia([], presencas([]))).toBe(0);
+    expect(calcularFrequenciaMedia([aluno(1, { frequencia_semanal: 999 })], presencas([]), HOJE)).toBe(0);
+    expect(calcularFrequenciaMedia([], presencas([]), HOJE)).toBe(0);
+  });
+
+  it('MS2: com dois planos a meta é a soma', () => {
+    const doisPlanos = {
+      id: 1,
+      planos_aluno: [
+        { id: 'a', created_at: '2026-09-01T10:00:00Z', encerrado_em: null, planos: { frequencia_semanal: 2 } },
+        { id: 'b', created_at: '2026-10-01T10:00:00Z', encerrado_em: null, planos: { frequencia_semanal: 3 } },
+      ],
+    };
+    expect(calcularFrequenciaMedia([doisPlanos], presencas([[1, 4]]), HOJE)).toBe('80.0');
   });
 });
 

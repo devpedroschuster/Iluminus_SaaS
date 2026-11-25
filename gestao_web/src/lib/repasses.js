@@ -1,5 +1,6 @@
 // Helpers das telas de repasse por mês de referência (ILU-122).
 import { hojeBrasilia } from './utils';
+import { rotuloPlanoAluno } from './planosAluno';
 
 /** Mês atual 'AAAA-MM' no fuso de Brasília (não o do navegador). */
 export function mesAnoAtual() {
@@ -64,21 +65,57 @@ export function rotuloSituacao(s) {
   return ROTULOS_SITUACAO[s] ?? s;
 }
 
-/** Alunos que ficaram sem comissão no mês, com os motivos (sem repetição). */
-export function alunosSemComissao(linhas) {
+/**
+ * Alunos que ficaram sem comissão no mês, com os motivos (sem repetição).
+ * `nomePlano(linha)` dá o plano das linhas sem cobertura/pausadas (só quando o
+ * aluno tem mais de um); com nome, o motivo vira "Rótulo (nome)".
+ */
+export function alunosSemComissao(linhas, nomePlano = () => null) {
   const porAluno = new Map();
   for (const l of linhas ?? []) {
     if (SITUACOES_COM_COMISSAO.includes(l.situacao)) continue;
     if (!porAluno.has(l.aluno_id)) {
       porAluno.set(l.aluno_id, { aluno_id: l.aluno_id, aluno_nome: l.aluno_nome, motivos: [] });
     }
-    const motivo = rotuloSituacao(l.situacao);
+    const nome = l.situacao === 'sem_cobertura' || l.situacao === 'pausado' ? nomePlano(l) : null;
+    const motivo = nome ? `${rotuloSituacao(l.situacao)} (${nome})` : rotuloSituacao(l.situacao);
     const item = porAluno.get(l.aluno_id);
     if (!item.motivos.includes(motivo)) item.motivos.push(motivo);
   }
   return [...porAluno.values()].sort((a, b) =>
     String(a.aluno_nome).localeCompare(String(b.aluno_nome), 'pt-BR'),
   );
+}
+
+/** aluno_id das linhas sem cobertura/pausadas que trazem plano_aluno_id (sem repetir). */
+export function alunosComPlanoNaLinha(linhas) {
+  const ids = new Set();
+  for (const l of linhas ?? []) {
+    if ((l.situacao === 'sem_cobertura' || l.situacao === 'pausado') && l.plano_aluno_id != null) {
+      ids.add(l.aluno_id);
+    }
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/**
+ * Monta o `nomePlano` de alunosSemComissao: o rótulo do plano da linha, só
+ * quando o aluno tem mais de um plano (válido ou não). Sem plano_aluno_id na
+ * linha (apuração antiga) ou sem os planos carregados, devolve null.
+ */
+export function criarNomePlano(planos) {
+  const porAluno = new Map();
+  for (const p of planos ?? []) {
+    if (!porAluno.has(p.aluno_id)) porAluno.set(p.aluno_id, []);
+    porAluno.get(p.aluno_id).push(p);
+  }
+  return (linha) => {
+    if (linha.plano_aluno_id == null) return null;
+    const doAluno = porAluno.get(linha.aluno_id) ?? [];
+    if (doAluno.length < 2) return null;
+    const plano = doAluno.find((p) => p.id === linha.plano_aluno_id);
+    return plano ? rotuloPlanoAluno(plano, doAluno) : null;
+  };
 }
 
 /** 'AAAA-MM' -> 'Novembro de 2026'. */

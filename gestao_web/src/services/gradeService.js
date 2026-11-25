@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
 import { anexarPausas } from '../lib/pausaPlano';
+import { planoDaModalidade, periodoDoPlano } from '../lib/planosAluno';
 
 export const gradeService = {
   async listarProfessores() {
@@ -176,7 +177,7 @@ export const gradeService = {
   async listarMatriculasFixas(aulasIds = null) {
   let query = supabase
     .from('agenda_fixa')
-    .select('aula_id, alunos (id, nome_completo, data_inicio_plano, data_fim_plano)');
+    .select('aula_id, agenda(modalidade_id), alunos(id, nome_completo, planos_aluno(id, data_inicio, data_fim, encerrado_em, created_at), alunos_modalidades(modalidade_id, plano_aluno_id))');
 
   if (aulasIds !== null) {
     query = query.in('aula_id', aulasIds);
@@ -192,6 +193,19 @@ export const gradeService = {
   // pausado. Uma falha aqui não derruba a grade: os fixos só aparecem como antes.
   const { data: periodos, error: errPausas } = await supabase.rpc('listar_periodos_pausa');
   if (errPausas) console.error('Erro ao buscar pausas de plano:', errPausas);
-  return anexarPausas(data, periodos || []);
+  // ILU-127: o período de cada fixo é o do plano que a modalidade da aula segue.
+  const hoje = hojeBrasilia();
+  const comPeriodo = (data || []).map((m) => (m.alunos
+    ? {
+      ...m,
+      alunos: {
+        ...m.alunos,
+        periodo: periodoDoPlano(
+          planoDaModalidade(m.agenda?.modalidade_id, m.alunos.alunos_modalidades, m.alunos.planos_aluno, hoje)
+        ),
+      },
+    }
+    : m));
+  return anexarPausas(comPeriodo, periodos || []);
 },
 };

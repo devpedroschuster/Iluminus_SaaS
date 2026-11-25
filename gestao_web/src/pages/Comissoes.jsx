@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+import { alunosService } from '../services/alunosService';
 import { comissoesService } from '../services/comissoesService';
 import { gerarRepassesMensais, situacaoRepassesMes } from '../services/repasseService';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +17,8 @@ import {
   textoReferenteA,
   mesAntesDoCorte,
   alunosSemComissao,
+  alunosComPlanoNaLinha,
+  criarNomePlano,
   nomeDoMes,
   mesFuturo,
 } from '../lib/repasses';
@@ -718,6 +721,15 @@ function AlunosSemComissaoMes({ mesAno }) {
   });
   const [mostrarInativos, setMostrarInativos] = useState(false);
 
+  // Plano da linha "Mês não pago": só para quem tem mais de um plano (ILU-127).
+  const idsComPlano = useMemo(() => alunosComPlanoNaLinha(linhas), [linhas]);
+  const { data: planosDosAlunos } = useQuery({
+    queryKey: ['planos-de-alunos', idsComPlano],
+    queryFn: () => alunosService.listarPlanosDeAlunos(idsComPlano),
+    enabled: idsComPlano.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   if (!habilitado) return null;
 
   const titulo = `Alunos sem comissão em ${nomeDoMes(mesAno)}`;
@@ -740,7 +752,7 @@ function AlunosSemComissaoMes({ mesAno }) {
     );
   }
 
-  const todos = alunosSemComissao(linhas);
+  const todos = alunosSemComissao(linhas, criarNomePlano(planosDosAlunos));
   if (todos.length === 0) return null;
 
   const recolhidos = todos.filter(a =>

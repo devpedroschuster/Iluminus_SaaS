@@ -280,7 +280,16 @@ export default function NovoAluno() {
             bolsista:         aluno.bolsista           || false,
           });
           if (aluno.cpf) setCpfDisplay(formatarCPF(aluno.cpf));
-          setModalidadesSelecionadas(aluno.modalidades_selecionadas || []);
+          // ILU-127: as modalidades vêm dos vínculos dos planos, não da cópia em `alunos`.
+          try {
+            const ligadas = await alunosService.listarModalidadesLigadas(alunoParaEditar.id);
+            const ordenadas = [...(ligadas || [])].sort((x, y) => String(x.modalidade_id).localeCompare(String(y.modalidade_id)));
+            setModalidadesSelecionadas(
+              ordenadas.flatMap(l => Array(Math.max(Number(l.vezes) || 0, 0)).fill(l.modalidade_id))
+            );
+          } catch (err) {
+            console.error('[NovoAluno] Erro ao carregar modalidades ligadas:', err);
+          }
         }
       } else if (leadParaConversao) {
         reset({

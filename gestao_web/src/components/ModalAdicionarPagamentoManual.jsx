@@ -99,6 +99,9 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     ? planoSugerido(validosDoAluno, planoAlunoEscolhido || null)
     : null;
   const bloqueadoPorPlanos = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || erroPlanosDoAluno);
+  const linhaDoPlanoAluno = validosDoAluno.find(p => String(p.id) === String(planoAlunoId));
+  const planoIdDaLinha = linhaDoPlanoAluno?.plano_id ?? '';
+  const precoDaLinha = linhaDoPlanoAluno?.planos?.preco;
   const aguardandoPlano = cobrancaDePlano && !!alunoIdAtual && (carregandoPlanosDoAluno || (precisaEscolherPlano && !planoAlunoId));
 
   const cobrancaParaQuitar = form.tipo_aula === 'regular' && !isVisitante && !lancarEmAberto
@@ -128,6 +131,18 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
       });
     },
   });
+
+  // O plano da cobrança acompanha o plano do aluno enquanto a recepção não
+  // escolhe outro. O valor só é preenchido se estiver vazio: a cobrança em
+  // aberto, que chega depois, continua definindo o valor.
+  useEffect(() => {
+    if (!isOpen || planoAlunoEscolhido || !planoAlunoId || !planoIdDaLinha) return;
+    setForm(f => ({
+      ...f,
+      plano_id: planoIdDaLinha,
+      valor_pago: f.valor_pago === '' || f.valor_pago == null ? (precoDaLinha ?? '') : f.valor_pago,
+    }));
+  }, [isOpen, planoAlunoId, planoAlunoEscolhido, planoIdDaLinha, precoDaLinha]);
 
   useEffect(() => {
     if (isOpen) {
@@ -181,22 +196,17 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
     if (profs) setProfessores(profs);
 
     if (alunoFixo) {
-      // Aluno vem travado: não carrega a lista, só o plano padrão dele.
-      const { data: aluno } = await supabase.from('alunos').select('id, nome_completo, plano_id').eq('id', alunoFixo.id).maybeSingle();
-      const defaultPlano = aluno?.plano_id || '';
-      const planoObj = (p || []).find(pl => pl.id === defaultPlano);
+      // Aluno vem travado: não carrega a lista; o plano vem dos planos do aluno.
       setForm(f => ({
         ...f,
         aluno_id: alunoFixo.id,
-        plano_id: defaultPlano,
-        valor_pago: planoObj ? planoObj.preco : f.valor_pago,
         modalidade_id: '',
       }));
       setModalidadesDoAluno(await financeiroService.listarModalidadesDoAluno(alunoFixo.id));
       return;
     }
 
-    const { data: a } = await supabase.from('alunos').select('id, nome_completo, plano_id').order('nome_completo');
+    const { data: a } = await supabase.from('alunos').select('id, nome_completo').order('nome_completo');
     if (a) setAlunos(a);
   }
 
@@ -398,14 +408,12 @@ export default function ModalAdicionarPagamentoManual({ isOpen, onClose, onSuces
               value={form.aluno_id}
               onChange={async e => {
                 // O id vem como número da API e como texto do <select>.
-                const selectedAluno = alunos.find(a => String(a.id) === e.target.value);
-                const defaultPlano = selectedAluno?.plano_id || '';
-                const planoObj = planos.find(p => p.id === defaultPlano);
                 setForm({
                   ...form,
                   aluno_id: e.target.value,
-                  plano_id: defaultPlano,
-                  valor_pago: planoObj ? planoObj.preco : form.valor_pago,
+                  plano_id: '',
+                  // O plano do novo aluno define o valor; não herda o do anterior.
+                  valor_pago: cobrancaDePlano ? '' : form.valor_pago,
                   modalidade_id: '', // reseta referência ao trocar de aluno
                 });
                 setPlanoAlunoEscolhido('');

@@ -14,7 +14,7 @@ export const dashboardService = {
 
   /**
    * Retorna a distribuição de alunos ativos por área (Dança, Funcional, Ambos).
-   * Usa modalidades_selecionadas (array de IDs) cruzado com a tabela modalidades.
+   * Usa os vínculos de alunos_modalidades cruzado com a tabela modalidades.
    */
   async obterDistribuicaoPorArea() {
     // Busca todas as modalidades para montar o mapa id → area
@@ -31,7 +31,7 @@ export const dashboardService = {
     // é contado à parte, e não como um 5º grupo mutuamente exclusivo.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, modalidades_selecionadas, bolsista')
+      .select('id, bolsista, alunos_modalidades(modalidade_id)')
       .eq('ativo', true)
       .eq('role', 'aluno');
     if (errAlunos) throw errAlunos;

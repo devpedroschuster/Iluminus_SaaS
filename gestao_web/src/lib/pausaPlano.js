@@ -4,6 +4,7 @@
 // Datas são 'AAAA-MM-DD'.
 import { somarDias } from './agendaAluno';
 import { ehCobrancaIntegralDoCiclo } from './utils';
+import { pausadoNaAula } from './planosAluno';
 
 // Mesmo texto gravado em presencas.cancelado_motivo por pausar_plano_aluno.
 export const MOTIVO_CANCELAMENTO_PAUSA = 'Plano pausado';
@@ -53,9 +54,17 @@ export function removerFixosEmPausa(fixos, periodos, data) {
   );
 }
 
-// Chamada de hoje: basta a marca da pausa aberta, que já vem no aluno.
-export function fixosForaDePausa(fixos) {
-  return new Set((fixos || []).filter((f) => !f.alunos?.plano_pausado_desde).map((f) => f.aluno_id));
+// Chamada de hoje: tira os fixos cujo plano da modalidade da aula está pausado.
+// `alunosPorId` (Map ou objeto) traz de cada aluno `planos_aluno` e
+// `alunos_modalidades`; aluno ausente fica dentro.
+export function fixosForaDePausa(fixos, alunosPorId, modalidadeId, hoje) {
+  const buscar = (id) => (alunosPorId instanceof Map ? alunosPorId.get(id) : alunosPorId?.[id]);
+  return new Set((fixos || [])
+    .filter((f) => {
+      const aluno = buscar(f.aluno_id);
+      return !aluno || !pausadoNaAula(modalidadeId, aluno.alunos_modalidades, aluno.planos_aluno, hoje);
+    })
+    .map((f) => f.aluno_id));
 }
 
 // Previsão de volta é só um lembrete: quando chega, a gestão recebe o aviso para

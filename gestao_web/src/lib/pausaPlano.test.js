@@ -121,13 +121,35 @@ describe('removerFixosEmPausa', () => {
 });
 
 describe('fixosForaDePausa', () => {
-  it('monta o conjunto de fixos da aula sem quem está com o plano pausado', () => {
-    const conjunto = fixosForaDePausa([
-      { aluno_id: 7, alunos: { plano_pausado_desde: '2026-11-10' } },
-      { aluno_id: 8, alunos: { plano_pausado_desde: null } },
-      { aluno_id: 9, alunos: null },
+  const HOJE = '2026-11-24';
+  const pa = (id, extra = {}) => ({
+    id, created_at: `2026-09-0${id.length}T10:00:00Z`, encerrado_em: null, pausado_desde: null, ...extra,
+  });
+  const fixos = [{ aluno_id: 7 }, { aluno_id: 8 }, { aluno_id: 9 }];
+
+  it('PZ1P: aluno com um plano pausado sai em qualquer modalidade; ausente fica', () => {
+    const alunosPorId = new Map([
+      [7, { planos_aluno: [pa('A', { pausado_desde: '2026-11-10' })], alunos_modalidades: [] }],
+      [8, { planos_aluno: [pa('A')], alunos_modalidades: [] }],
     ]);
-    expect([...conjunto]).toEqual([8, 9]);
+    expect([...fixosForaDePausa(fixos, alunosPorId, 'x', HOJE)]).toEqual([8, 9]);
+  });
+
+  it('PZ2/PZ3: com dois planos, só sai quem tem o plano da modalidade da aula pausado', () => {
+    const A = pa('A');
+    const B = pa('BB', { created_at: '2026-10-01T10:00:00Z', pausado_desde: '2026-11-10' });
+    const alunosPorId = new Map([[7, {
+      planos_aluno: [A, B],
+      alunos_modalidades: [{ modalidade_id: 'x', plano_aluno_id: 'A' }, { modalidade_id: 'z', plano_aluno_id: 'BB' }],
+    }]]);
+    const um = [{ aluno_id: 7 }];
+    expect([...fixosForaDePausa(um, alunosPorId, 'x', HOJE)]).toEqual([7]);
+    expect([...fixosForaDePausa(um, alunosPorId, 'z', HOJE)]).toEqual([]);
+  });
+
+  it('aceita alunosPorId como objeto', () => {
+    const alunosPorId = { 7: { planos_aluno: [pa('A', { pausado_desde: '2026-11-10' })], alunos_modalidades: [] } };
+    expect([...fixosForaDePausa([{ aluno_id: 7 }], alunosPorId, 'x', HOJE)]).toEqual([]);
   });
 });
 

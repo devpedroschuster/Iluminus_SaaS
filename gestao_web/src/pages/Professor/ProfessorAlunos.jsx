@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
+import { agruparVinculosPorAluno } from '../../lib/planosAluno';
 import { showToast } from '../../components/shared/showToast';
 import Surface from '../../components/ui/Surface';
 import Input from '../../components/ui/Input';
@@ -110,20 +111,19 @@ export default function ProfessorAlunos() {
         setModalidades(todasModalidades);
         setModalidadesMap(modalidadesMap);
 
-        const { data: alunosFiltrados, error } = await supabase
-          .from('alunos')
+        const { data: vinculos, error } = await supabase
+          .from('alunos_modalidades')
           .select(
-            'id, nome_completo, email, telefone, ativo, planos(nome), modalidades_selecionadas'
+            'modalidade_id, vezes, alunos!inner(id, nome_completo, email, telefone, ativo, role), planos_aluno(planos(nome))'
           )
-          .eq('ativo', true)
-          .eq('role', 'aluno')
-          .overlaps('modalidades_selecionadas', idsModalidades)
-          .order('nome_completo');
+          .in('modalidade_id', idsModalidades)
+          .eq('alunos.ativo', true)
+          .eq('alunos.role', 'aluno');
         if (cancelado) return;
 
         if (error) throw error;
 
-        const listaAlunos = alunosFiltrados || [];
+        const listaAlunos = agruparVinculosPorAluno(vinculos);
         setAlunos(listaAlunos);
 
         // Busca última presença de cada aluno em paralelo (batch único)
@@ -170,8 +170,7 @@ export default function ProfessorAlunos() {
 
       const matchModalidade =
   !filtroModalidade ||
-  (Array.isArray(a.modalidades_selecionadas) &&
-    a.modalidades_selecionadas.includes(filtroModalidade));
+  a.modalidades.includes(filtroModalidade);
 
       return matchBusca && matchModalidade;
     });
@@ -285,18 +284,18 @@ export default function ProfessorAlunos() {
                       {/* T4 FIX: plano em Badge destacado */}
                       <td className="px-8 py-5">
                         <p className="text-sm font-bold text-foreground">
-                          {Array.isArray(aluno.modalidades_selecionadas) && aluno.modalidades_selecionadas.length > 0
-                            ? aluno.modalidades_selecionadas
+                          {aluno.modalidades.length > 0
+                            ? [...new Set(aluno.modalidades)]
                                 .map(id => modalidadesMap.get(id)?.nome)
                                 .filter(Boolean)
                                 .join(', ') || '—'
                             : '—'}
                         </p>
-                        {aluno.planos?.nome && (
-                          <Badge tone="info" variant="soft" className="mt-1 text-xs">
-                            {aluno.planos.nome}
+                        {aluno.planosNomes.map(nome => (
+                          <Badge key={nome} tone="info" variant="soft" className="mt-1 mr-1 text-xs">
+                            {nome}
                           </Badge>
-                        )}
+                        ))}
                       </td>
 
                       <td className="px-8 py-5">
@@ -389,17 +388,17 @@ export default function ProfessorAlunos() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    {Array.isArray(aluno.modalidades_selecionadas) && aluno.modalidades_selecionadas.length > 0 && (
+                    {aluno.modalidades.length > 0 && (
                       <span className="font-medium text-foreground">
-                        {aluno.modalidades_selecionadas
+                        {[...new Set(aluno.modalidades)]
                           .map(id => modalidadesMap.get(id)?.nome)
                           .filter(Boolean)
                           .join(', ')}
                       </span>
                     )}
-                    {aluno.planos?.nome && (
-                      <Badge tone="info" variant="soft">{aluno.planos.nome}</Badge>
-                    )}
+                    {aluno.planosNomes.map(nome => (
+                      <Badge key={nome} tone="info" variant="soft">{nome}</Badge>
+                    ))}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">

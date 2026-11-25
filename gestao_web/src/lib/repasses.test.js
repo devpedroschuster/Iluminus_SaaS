@@ -5,6 +5,8 @@ import {
   mesAntesDoCorte,
   rotuloSituacao,
   alunosSemComissao,
+  alunosComPlanoNaLinha,
+  criarNomePlano,
   nomeDoMes,
   resultadoReprocessar,
   mesesDoCiclo,
@@ -66,6 +68,25 @@ describe('alunosSemComissao', () => {
       { aluno_id: 1, aluno_nome: 'Ana', situacao: 'sem_cobertura' },
     ]);
     expect(r.map(a => a.aluno_nome)).toEqual(['Ana', 'Bia']);
+  });
+});
+
+describe('alunosSemComissao com nome do plano', () => {
+  const linhas = [{ aluno_id: 1, aluno_nome: 'Ana', situacao: 'sem_cobertura' }];
+
+  it('R1: com nomePlano, o motivo leva o nome do plano', () => {
+    const r = alunosSemComissao(linhas, () => '2x Treino');
+    expect(r[0].motivos).toEqual(['Mês não pago (2x Treino)']);
+  });
+
+  it('R1P: sem nomePlano, o motivo fica como hoje', () => {
+    expect(alunosSemComissao(linhas)[0].motivos).toEqual(['Mês não pago']);
+    expect(alunosSemComissao(linhas, () => null)[0].motivos).toEqual(['Mês não pago']);
+  });
+
+  it('só as situações sem_cobertura e pausado levam o nome', () => {
+    const r = alunosSemComissao([{ aluno_id: 1, aluno_nome: 'Ana', situacao: 'bolsista' }], () => '2x Treino');
+    expect(r[0].motivos).toEqual([rotuloSituacao('bolsista')]);
   });
 });
 
@@ -172,5 +193,38 @@ describe('previstosPorProfessor', () => {
   });
   it('lista vazia', () => {
     expect(previstosPorProfessor(undefined)).toEqual([]);
+  });
+});
+
+describe('criarNomePlano', () => {
+  const p = (id, nome, data_inicio = '2026-01-01') => ({ id, aluno_id: 1, data_inicio, planos: { nome } });
+  const linha = { aluno_id: 1, situacao: 'sem_cobertura', plano_aluno_id: 10 };
+  it('com um plano só, devolve null', () => {
+    expect(criarNomePlano([p(10, 'Mensal')])(linha)).toBeNull();
+  });
+  it('com dois planos, devolve o rótulo do plano da linha', () => {
+    expect(criarNomePlano([p(10, 'Mensal'), p(11, 'Trimestral')])(linha)).toBe('Mensal');
+  });
+  it('com dois planos de mesmo nome, inclui a data de início', () => {
+    const f = criarNomePlano([p(10, 'Mensal', '2026-01-05'), p(11, 'Mensal', '2026-03-05')]);
+    expect(f(linha)).toBe('Mensal (desde 05/01/26)');
+  });
+  it('linha sem plano_aluno_id ou planos não carregados, devolve null', () => {
+    const doisPlanos = [p(10, 'Mensal'), p(11, 'Trimestral')];
+    expect(criarNomePlano(doisPlanos)({ aluno_id: 1, situacao: 'pausado' })).toBeNull();
+    expect(criarNomePlano(undefined)(linha)).toBeNull();
+  });
+});
+
+describe('alunosComPlanoNaLinha', () => {
+  it('lista alunos sem repetir, só de linhas sem cobertura/pausadas com plano_aluno_id', () => {
+    expect(
+      alunosComPlanoNaLinha([
+        { aluno_id: 2, situacao: 'pausado', plano_aluno_id: 5 },
+        { aluno_id: 2, situacao: 'sem_cobertura', plano_aluno_id: 6 },
+        { aluno_id: 3, situacao: 'sem_cobertura' },
+        { aluno_id: 4, situacao: 'bolsista', plano_aluno_id: 7 },
+      ]),
+    ).toEqual([2]);
   });
 });

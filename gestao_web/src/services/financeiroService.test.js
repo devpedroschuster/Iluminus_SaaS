@@ -546,3 +546,18 @@ describe('financeiroService — por plano (ILU-127)', () => {
     expect(b.chamadas.some(([m, c]) => m === 'eq' && c === 'plano_aluno_id')).toBe(false);
   });
 });
+
+describe('financeiroService.listarModalidadesDoAluno (ILU-127 6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('lê alunos_modalidades, ids distintos, e busca os nomes', async () => {
+    const lig = criarQueryMock({ data: [{ modalidade_id: 2 }, { modalidade_id: 2 }, { modalidade_id: 3 }], error: null });
+    const nomes = criarQueryMock({ data: [{ id: 2, nome: 'Ballet' }, { id: 3, nome: 'Jazz' }], error: null });
+    supabase.from.mockReturnValueOnce(lig.query).mockReturnValueOnce(nomes.query);
+    const r = await financeiroService.listarModalidadesDoAluno(7);
+    expect(supabase.from).toHaveBeenNthCalledWith(1, 'alunos_modalidades');
+    expect(lig.chamadas).toContainEqual(['eq', 'aluno_id', 7]);
+    expect(nomes.chamadas).toContainEqual(['in', 'id', [2, 3]]);
+    expect(r).toHaveLength(2);
+  });
+});

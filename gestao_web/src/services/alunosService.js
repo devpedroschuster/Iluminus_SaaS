@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 import { hojeBrasilia } from '../lib/utils';
 import { MOTIVO_CANCELAMENTO_PAUSA } from '../lib/pausaPlano';
 import { gerarRepassesDaMensalidade } from './repasseService';
-import { montarItensModalidades } from '../lib/planosAluno';
+import { montarItensModalidades, planosValidos, faltasPendentesPorPlano } from '../lib/planosAluno';
 
 // ILU-24: `filtros.busca` (campo de busca livre) era interpolado direto na
 // string crua do filtro `.or()` do PostgREST — um termo contendo vírgula ou
@@ -180,11 +180,21 @@ export const alunosService = {
   async listarAniversariantes() {
     const { data, error } = await supabase
       .from('alunos')
-      .select('id, nome_completo, data_nascimento, telefone, planos(nome)')
+      .select('id, nome_completo, data_nascimento, telefone, planos_aluno(id, data_inicio, encerrado_em, encerramento_efetivado, created_at, planos(nome))')
       .not('data_nascimento', 'is', null);
 
     if (error) throw error;
-    return data;
+    // ILU-127: a tela segue mostrando um nome só: o do plano principal, e
+    // " +N" quando há outros planos válidos.
+    const hoje = hojeBrasilia();
+    return (data ?? []).map(({ planos_aluno: planos, ...aluno }) => {
+      const validos = planosValidos(planos, hoje);
+      const nome = validos[0]?.planos?.nome;
+      return {
+        ...aluno,
+        planos: nome ? { nome: nome + (validos.length > 1 ? ` +${validos.length - 1}` : '') } : null,
+      };
+    });
   },
 
   // ILU-120: página "Matrículas" — alunos cadastrados nos últimos `dias` dias
@@ -216,10 +226,7 @@ export const alunosService = {
   async buscarPerfilCompleto(alunoId) {
     const { data, error } = await supabase
       .from('alunos')
-      .select(`
-        *,
-        planos (nome, regras_acesso)
-      `)
+      .select('*')
       .eq('id', alunoId)
       .single();
 
@@ -370,23 +377,53 @@ export const alunosService = {
     return data;
   },
 
-  // Faltas (sem ou com aviso) do aluno, dentro do período do plano vigente,
+  // Faltas (sem ou com aviso) do aluno, dentro do período do plano de cada falta (com um só plano válido, o período desse plano),
   // que ainda não têm uma reposição vinculada. Usado para popular o seletor
   // "é reposição de qual falta" ao marcar presença numa aula avulsa.
   async listarFaltasPendentesReposicao(alunoId) {
-    const resumo = await this.buscarResumoFrequencia(alunoId);
-    if (!resumo?.periodo_inicio) return [];
+    const [planos, vinculos] = await Promise.all([
+      this.listarPlanosDoAluno(alunoId),
+      this.listarModalidadesLigadas(alunoId),
+    ]);
+    const validos = planosValidos(planos, hojeBrasilia());
 
-    const { data: faltas, error } = await supabase
+    let inicio;
+    let fim;
+    let periodos = null;
+    if (validos.length > 1) {
+      // ILU-127: um período por plano; a busca cobre todos e o filtro por plano
+      // tira as faltas que caem fora do período do plano da modalidade.
+      const resumos = await Promise.all(validos.map((p) => this.buscarResumoFrequencia(alunoId, p.id)));
+      periodos = new Map();
+      validos.forEach((p, i) => {
+        if (resumos[i]?.periodo_inicio) {
+          periodos.set(p.id, { inicio: resumos[i].periodo_inicio, fim: resumos[i].periodo_fim });
+        }
+      });
+      const lista = [...periodos.values()];
+      if (lista.length === 0) return [];
+      inicio = lista.map((x) => x.inicio).reduce((a, b) => (a < b ? a : b));
+      fim = lista.map((x) => x.fim).reduce((a, b) => (a > b ? a : b));
+    } else {
+      const resumo = await this.buscarResumoFrequencia(alunoId, validos[0]?.id);
+      if (!resumo?.periodo_inicio) return [];
+      inicio = resumo.periodo_inicio;
+      fim = resumo.periodo_fim;
+    }
+
+    const { data: faltasBrutas, error } = await supabase
       .from('presencas')
-      .select('id, data_aula, status, cancelado_motivo, agenda ( atividade )')
+      .select('id, data_aula, status, cancelado_motivo, agenda ( atividade, modalidade_id )')
       .eq('aluno_id', alunoId)
       .in('status', ['falta', 'cancelado'])
-      .gte('data_aula', resumo.periodo_inicio)
-      .lte('data_aula', resumo.periodo_fim)
+      .gte('data_aula', inicio)
+      .lte('data_aula', fim)
       .order('data_aula', { ascending: false });
 
     if (error) throw error;
+    const faltas = periodos
+      ? faltasPendentesPorPlano(faltasBrutas, periodos, vinculos, validos[0].id)
+      : faltasBrutas;
 
     // ILU-114: reserva cancelada pela pausa não foi falta: os dias já voltam na
     // retomada, e não há o que repor.
@@ -474,6 +511,18 @@ export const alunosService = {
       .from('planos_aluno')
       .select('id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome, regras_acesso, is_plano_livre, preco, duracao_meses)')
       .eq('aluno_id', alunoId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async listarPlanosDeAlunos(alunoIds) {
+    if (!alunoIds?.length) return [];
+    const { data, error } = await supabase
+      .from('planos_aluno')
+      .select('id, aluno_id, plano_id, data_inicio, data_fim, pausado_desde, encerrado_em, encerramento_efetivado, created_at, planos(nome, regras_acesso, is_plano_livre, preco, duracao_meses)')
+      .in('aluno_id', alunoIds)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true });
     if (error) throw error;

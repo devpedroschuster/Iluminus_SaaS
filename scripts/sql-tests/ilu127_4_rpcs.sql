@@ -2,23 +2,27 @@
 -- salvar_modalidades_aluno e recalcular_plano_aluno.
 --
 -- O que garante:
---   M1: salvar [X x2 -> A, Z x1 -> B] grava as linhas e o cadastro vira {X,X,Z}.
+--   M1: salvar [X x2 -> A, Z x1 -> B] grava as linhas; expandidas por vezes,
+--       as modalidades do aluno ficam {X,X,Z}.
 --   M2: salvar de novo [Z x1 -> A]: X sai, Z passa para A.
 --   M3: plano de outro aluno: recusa e nada muda.
 --   M4: plano encerrado e efetivado: mesma recusa.
 --   M5: plano nulo, vezes 0 e modalidade repetida: três mensagens, nada muda.
---   M6: [] apaga tudo e o array fica {}.
+--   M6: [] apaga tudo e o aluno fica sem modalidades ({}).
 --   M7: quem não é admin é recusado.
 --   R1: recalcular com ciclo vigente e ciclo seguinte agendado: início do
 --       vigente; plano e fim do agendado.
---   R2: recalcular B só mexe em B; o cadastro (cópia de A) fica igual.
+--   R2: recalcular B só mexe em B; o plano principal (A) fica igual.
 --   R3: ciclo que cobre hoje + ciclo mais antigo sem data de fim: vale o que
 --       cobre hoje (ciclo sem fim nunca "cobre hoje").
 --
 -- Dados [TESTE 4], e-mails teste-4-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-4-RPCS: PASSOU (n/n)" ou "... FALHOU (...)".
--- Como rodar: supabase db query --linked --project-ref mytmreoqysbxisszludl \
---   --output-format text -f scripts/sql-tests/ilu127_4_rpcs.sql
+-- Como rodar: concatene scripts/sql-tests/_fixtures.sql e este arquivo num
+-- arquivo FORA do repo e rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_4_rpcs.sql > /tmp/t.sql
+--   supabase db query --linked --project-ref mytmreoqysbxisszludl \
+--     --output-format text -f /tmp/t.sql
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
 DO $test$
@@ -51,17 +55,13 @@ BEGIN
   ---------------------------------------------------------------- M1 a M6: um aluno com A e B
   v_total := v_total + 6;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] M', 'teste-4-m@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 20)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] M', 'teste-4-m@iluminus.test', v_p1, v_hoje - 10, v_hoje + 20) t;
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje - 10, v_hoje + 20, now() + interval '1 second') RETURNING id INTO v_pb;
     -- plano de outro aluno
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] M2', 'teste-4-m2@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 20)
-    RETURNING id INTO v_al2;
-    v_pc := public._plano_aluno_principal(v_al2);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al2, v_pc
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] M2', 'teste-4-m2@iluminus.test', v_p1, v_hoje - 10, v_hoje + 20) t;
 
     -- M1
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -70,15 +70,18 @@ BEGIN
       jsonb_build_object('modalidade_id', m_x, 'vezes', 2, 'plano_aluno_id', v_pa),
       jsonb_build_object('modalidade_id', m_z, 'vezes', 1, 'plano_aluno_id', v_pb)));
     RESET ROLE;
-    SELECT modalidades_selecionadas INTO r FROM alunos WHERE id = v_al;
+    -- modalidades do aluno expandidas por vezes, em ordem de modalidade_id
+    SELECT coalesce(array_agg(am.modalidade_id ORDER BY am.modalidade_id), '{}'::uuid[]) AS modalidades INTO r
+      FROM alunos_modalidades am CROSS JOIN LATERAL generate_series(1, am.vezes)
+     WHERE am.aluno_id = v_al;
     IF v_n <> 2
        OR (SELECT count(*) FROM alunos_modalidades WHERE aluno_id = v_al) <> 2
        OR NOT EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al AND modalidade_id = m_x AND vezes = 2 AND plano_aluno_id = v_pa)
        OR NOT EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al AND modalidade_id = m_z AND vezes = 1 AND plano_aluno_id = v_pb)
-       OR r.modalidades_selecionadas IS DISTINCT FROM
+       OR r.modalidades IS DISTINCT FROM
           (SELECT array_agg(u ORDER BY u) FROM unnest(ARRAY[m_x, m_x, m_z]) u) THEN
       v_falhas := v_falhas || format('M1: retorno=%s linhas=%s array=%s', v_n,
-        (SELECT count(*) FROM alunos_modalidades WHERE aluno_id = v_al), r.modalidades_selecionadas);
+        (SELECT count(*) FROM alunos_modalidades WHERE aluno_id = v_al), r.modalidades);
     END IF;
 
     -- M2
@@ -90,7 +93,9 @@ BEGIN
     IF v_n <> 1
        OR (SELECT count(*) FROM alunos_modalidades WHERE aluno_id = v_al) <> 1
        OR NOT EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al AND modalidade_id = m_z AND vezes = 1 AND plano_aluno_id = v_pa)
-       OR (SELECT modalidades_selecionadas FROM alunos WHERE id = v_al) IS DISTINCT FROM ARRAY[m_z] THEN
+       OR (SELECT coalesce(array_agg(am.modalidade_id ORDER BY am.modalidade_id), '{}'::uuid[])
+             FROM alunos_modalidades am CROSS JOIN LATERAL generate_series(1, am.vezes)
+            WHERE am.aluno_id = v_al) IS DISTINCT FROM ARRAY[m_z] THEN
       v_falhas := v_falhas || 'M2: X não saiu ou Z não passou para A';
     END IF;
 
@@ -178,7 +183,9 @@ BEGIN
     v_n := public.salvar_modalidades_aluno(v_al, '[]'::jsonb);
     RESET ROLE;
     IF v_n <> 0 OR EXISTS (SELECT 1 FROM alunos_modalidades WHERE aluno_id = v_al)
-       OR (SELECT modalidades_selecionadas FROM alunos WHERE id = v_al) IS DISTINCT FROM '{}'::uuid[] THEN
+       OR (SELECT coalesce(array_agg(am.modalidade_id ORDER BY am.modalidade_id), '{}'::uuid[])
+             FROM alunos_modalidades am CROSS JOIN LATERAL generate_series(1, am.vezes)
+            WHERE am.aluno_id = v_al) IS DISTINCT FROM '{}'::uuid[] THEN
       v_falhas := v_falhas || 'M6: lista vazia não apagou tudo';
     END IF;
 
@@ -191,10 +198,8 @@ BEGIN
   ---------------------------------------------------------------- M7: não admin
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] M7', 'teste-4-m7@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 20)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] M7', 'teste-4-m7@iluminus.test', v_p1, v_hoje - 10, v_hoje + 20) t;
     v_txt := NULL;
     PERFORM set_config('request.jwt.claims', c_outro, true);
     SET LOCAL ROLE authenticated;
@@ -225,10 +230,8 @@ BEGIN
   ---------------------------------------------------------------- R1: vigente + agendado
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] R1', 'teste-4-r1@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 19)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] R1', 'teste-4-r1@iluminus.test', v_p1, v_hoje - 10, v_hoje + 19) t;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
     VALUES (v_al, v_p1, v_hoje - 10, v_hoje + 19, 'ativo', v_pa) RETURNING id INTO v_ciclo;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
@@ -252,27 +255,25 @@ BEGIN
   ---------------------------------------------------------------- R2: só o plano recalculado muda
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] R2', 'teste-4-r2@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 20)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] R2', 'teste-4-r2@iluminus.test', v_p1, v_hoje - 10, v_hoje + 20) t;
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje - 10, v_hoje + 20, now() + interval '1 second') RETURNING id INTO v_pb;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
     VALUES (v_al, v_p2, v_hoje - 10, v_hoje + 20, 'ativo', v_pb) RETURNING id INTO v_ciclo;
     UPDATE historico_planos SET data_fim = v_hoje + 40 WHERE id = v_ciclo;
-    SELECT * INTO r FROM alunos WHERE id = v_al;
+    SELECT * INTO r FROM planos_aluno WHERE id = public._plano_aluno_principal(v_al);
 
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     PERFORM public.recalcular_plano_aluno(v_pb);
     RESET ROLE;
-    SELECT * INTO r2 FROM alunos WHERE id = v_al;
+    SELECT * INTO r2 FROM planos_aluno WHERE id = public._plano_aluno_principal(v_al);
     IF (SELECT data_fim FROM planos_aluno WHERE id = v_pb) <> v_hoje + 40
        OR (SELECT data_fim FROM planos_aluno WHERE id = v_pa) <> v_hoje + 20
-       OR (r2.plano_id, r2.data_inicio_plano, r2.data_fim_plano) IS DISTINCT FROM (r.plano_id, r.data_inicio_plano, r.data_fim_plano) THEN
-      v_falhas := v_falhas || format('R2: fim B=%s fim A=%s cadastro fim=%s',
-        (SELECT data_fim FROM planos_aluno WHERE id = v_pb), (SELECT data_fim FROM planos_aluno WHERE id = v_pa), r2.data_fim_plano);
+       OR (r2.id, r2.plano_id, r2.data_inicio, r2.data_fim) IS DISTINCT FROM (r.id, r.plano_id, r.data_inicio, r.data_fim) THEN
+      v_falhas := v_falhas || format('R2: fim B=%s fim A=%s principal fim=%s',
+        (SELECT data_fim FROM planos_aluno WHERE id = v_pb), (SELECT data_fim FROM planos_aluno WHERE id = v_pa), r2.data_fim);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -283,10 +284,8 @@ BEGIN
   ---------------------------------------------------------------- R3: ciclo sem fim não vence o que cobre hoje
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 4] R3', 'teste-4-r3@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 5, v_hoje + 25)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 4] R3', 'teste-4-r3@iluminus.test', v_p1, v_hoje - 5, v_hoje + 25) t;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)
     VALUES (v_al, v_p1, v_hoje - 5, v_hoje + 25, 'ativo', v_pa);
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, plano_aluno_id)

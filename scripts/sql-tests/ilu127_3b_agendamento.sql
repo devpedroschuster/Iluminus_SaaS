@@ -24,8 +24,11 @@
 --
 -- Dados [TESTE 3B], e-mails teste-3b-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-3B-AGENDAMENTO: PASSOU (n/n)" ou "... FALHOU (...)".
--- Como rodar: supabase db query --linked --project-ref mytmreoqysbxisszludl \
---   --output-format text -f scripts/sql-tests/ilu127_3b_agendamento.sql
+-- Como rodar: concatene scripts/sql-tests/_fixtures.sql e este arquivo num
+-- arquivo FORA do repo e rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_3b_agendamento.sql > /tmp/t.sql
+--   supabase db query --linked --project-ref mytmreoqysbxisszludl \
+--     --output-format text -f /tmp/t.sql
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 --
 -- Datas: v_seg é a segunda-feira da semana que vem (entre hoje+1 e hoje+7):
@@ -159,9 +162,8 @@ BEGIN
        OR v_j->>'motivo' IS DISTINCT FROM 'Esta aula não faz parte da sua matrícula.' THEN
       v_f := v_f || ('fora: ' || v_j::text);
     END IF;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, modalidades_selecionadas)
-    VALUES ('[TESTE 3B] Sem plano', 'teste-3b-s@iluminus.test', 'aluno', true, false, ARRAY[m_x])
-    RETURNING id INTO v_id;
+    SELECT t.aluno_id INTO v_id
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3B] Sem plano', 'teste-3b-s@iluminus.test', NULL, NULL, NULL) t;
     v_j := public._avaliar_agendamento(v_id, ax_ter, v_seg + 1);
     IF v_j->>'codigo' IS DISTINCT FROM 'sem_plano'
        OR v_j->>'motivo' IS DISTINCT FROM 'Você não tem um plano ativo. Fale com a recepção.' THEN

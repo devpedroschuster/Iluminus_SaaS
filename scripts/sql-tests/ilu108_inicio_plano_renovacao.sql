@@ -1,7 +1,7 @@
 -- Teste do início do plano na renovação antecipada (ILU-108).
 --
--- Antes, renovar_plano_aluno gravava o início do ciclo novo em
--- alunos.data_inicio_plano na hora. Renovado antes de vencer (o "Renovar"
+-- Antes, renovar_plano_aluno gravava o início do ciclo novo no início do
+-- plano do aluno na hora. Renovado antes de vencer (o "Renovar"
 -- propõe o dia seguinte ao fim do plano), o aluno ficava com o início no
 -- futuro e saía da grade, da vaga, do app e da geração de presença no
 -- restante do ciclo que já pagou.
@@ -37,11 +37,14 @@
 -- Resultado: "RESULTADO INICIO-PLANO: PASSOU (n/n)" ou
 --            "RESULTADO INICIO-PLANO: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu108_inicio_plano_renovacao.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/ilu108_inicio_plano_renovacao.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
@@ -55,8 +58,8 @@ DECLARE
   v_plano int; v_plano_b int;
   v_aula bigint;
   v_dia date;
-  a_a bigint;
-  v_al alunos%ROWTYPE;
+  a_a bigint; v_pa uuid;
+  v_al planos_aluno%ROWTYPE;
   v_n int;
   v_falhas text[] := '{}';
   v_total int := 0;
@@ -88,11 +91,9 @@ BEGIN
   RETURNING id INTO v_aula;
 
   -- Aluna com o plano atual começado há 20 dias, vencendo em hoje+9.
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas,
-                      data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE INICIO-PLANO] Aluna', 'teste-inicioplano-a@iluminus.test', 'aluno', true, false, v_plano,
-          ARRAY[v_mod], v_hoje - 20, v_hoje + 9)
-  RETURNING id INTO a_a;
+  SELECT t.aluno_id, t.plano_aluno_id INTO a_a, v_pa
+    FROM pg_temp.teste_aluno_com_plano('[TESTE INICIO-PLANO] Aluna', 'teste-inicioplano-a@iluminus.test', v_plano,
+                                       v_hoje - 20, v_hoje + 9, ARRAY[v_mod]) t;
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
   VALUES (a_a, v_plano, v_hoje - 20, v_hoje + 9, 'ativo', 280, 'recorrente');
   INSERT INTO agenda_fixa (aluno_id, aula_id) VALUES (a_a, v_aula);
@@ -106,12 +107,12 @@ BEGIN
     PERFORM public.renovar_plano_aluno(a_a, v_plano_b, v_hoje + 10, v_hoje + 39);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 20 THEN
-      v_falhas := v_falhas || ('R1: início foi para ' || coalesce(v_al.data_inicio_plano::text, 'NULL')
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 20 THEN
+      v_falhas := v_falhas || ('R1: início foi para ' || coalesce(v_al.data_inicio::text, 'NULL')
                                || ' (esperado ' || (v_hoje - 20) || ')');
     END IF;
-    IF v_al.data_fim_plano IS DISTINCT FROM v_hoje + 39 OR v_al.plano_id IS DISTINCT FROM v_plano_b THEN
+    IF v_al.data_fim IS DISTINCT FROM v_hoje + 39 OR v_al.plano_id IS DISTINCT FROM v_plano_b THEN
       v_falhas := v_falhas || 'R1: plano e fim não são os do ciclo novo'::text;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM historico_planos WHERE aluno_id = a_a AND data_inicio = v_hoje + 10
@@ -131,9 +132,9 @@ BEGIN
     PERFORM public.renovar_plano_aluno(a_a, v_plano_b, v_hoje + 5, v_hoje + 34);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 20 OR v_al.data_fim_plano IS DISTINCT FROM v_hoje + 34 THEN
-      v_falhas := v_falhas || ('R2: aluno ficou ' || v_al.data_inicio_plano || ' a ' || v_al.data_fim_plano);
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 20 OR v_al.data_fim IS DISTINCT FROM v_hoje + 34 THEN
+      v_falhas := v_falhas || ('R2: aluno ficou ' || v_al.data_inicio || ' a ' || v_al.data_fim);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -143,16 +144,16 @@ BEGIN
   -- R3: vencida (o plano não vale hoje)
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_hoje - 60, data_fim_plano = v_hoje - 5 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_hoje - 60, data_fim = v_hoje - 5 WHERE id = v_pa;
 
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     PERFORM public.renovar_plano_aluno(a_a, v_plano, v_hoje + 3, v_hoje + 32);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje + 3 THEN
-      v_falhas := v_falhas || ('R3: início ficou ' || coalesce(v_al.data_inicio_plano::text, 'NULL')
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje + 3 THEN
+      v_falhas := v_falhas || ('R3: início ficou ' || coalesce(v_al.data_inicio::text, 'NULL')
                                || ' (esperado ' || (v_hoje + 3) || ')');
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
@@ -168,9 +169,9 @@ BEGIN
     PERFORM public.renovar_plano_aluno(a_a, v_plano_b, v_hoje, v_hoje + 29);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje THEN
-      v_falhas := v_falhas || ('R4: início ficou ' || coalesce(v_al.data_inicio_plano::text, 'NULL'));
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje THEN
+      v_falhas := v_falhas || ('R4: início ficou ' || coalesce(v_al.data_inicio::text, 'NULL'));
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -180,16 +181,16 @@ BEGIN
   -- R5: matrícula que ainda não começou
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_hoje + 5, data_fim_plano = v_hoje + 34 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_hoje + 5, data_fim = v_hoje + 34 WHERE id = v_pa;
 
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     PERFORM public.renovar_plano_aluno(a_a, v_plano_b, v_hoje + 35, v_hoje + 64);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje + 35 THEN
-      v_falhas := v_falhas || ('R5: início ficou ' || coalesce(v_al.data_inicio_plano::text, 'NULL'));
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje + 35 THEN
+      v_falhas := v_falhas || ('R5: início ficou ' || coalesce(v_al.data_inicio::text, 'NULL'));
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -204,9 +205,9 @@ BEGIN
     PERFORM public.renovar_plano_aluno(a_a, v_plano_b, v_hoje + 20, v_hoje + 49);
     RESET ROLE;
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 20 OR v_al.data_fim_plano IS DISTINCT FROM v_hoje + 49 THEN
-      v_falhas := v_falhas || ('R6: aluno ficou ' || v_al.data_inicio_plano || ' a ' || v_al.data_fim_plano);
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 20 OR v_al.data_fim IS DISTINCT FROM v_hoje + 49 THEN
+      v_falhas := v_falhas || ('R6: aluno ficou ' || v_al.data_inicio || ' a ' || v_al.data_fim);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -240,16 +241,16 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE historico_planos SET data_fim = v_hoje - 1, status = 'finalizado' WHERE aluno_id = a_a;
-    UPDATE alunos SET plano_id = v_plano_b, data_inicio_plano = v_hoje - 30, data_fim_plano = v_hoje + 29
-     WHERE id = a_a;
+    UPDATE planos_aluno SET plano_id = v_plano_b, data_inicio = v_hoje - 30, data_fim = v_hoje + 29
+     WHERE id = v_pa;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
     VALUES (a_a, v_plano_b, v_hoje, v_hoje + 29, 'agendado', 320, 'recorrente');
 
     v_n := public.avancar_inicio_plano();
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje THEN
-      v_falhas := v_falhas || ('A1: início ficou ' || coalesce(v_al.data_inicio_plano::text, 'NULL')
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje THEN
+      v_falhas := v_falhas || ('A1: início ficou ' || coalesce(v_al.data_inicio::text, 'NULL')
                                || ' (esperado ' || v_hoje || ')');
     END IF;
     IF v_n < 1 THEN
@@ -263,16 +264,16 @@ BEGIN
   -- A2: ciclo paralelo (fim diferente do do aluno)
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_hoje - 20, data_fim_plano = v_hoje + 150 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_hoje - 20, data_fim = v_hoje + 150 WHERE id = v_pa;
     UPDATE historico_planos SET data_fim = v_hoje + 150 WHERE aluno_id = a_a;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
     VALUES (a_a, v_plano, v_hoje - 1, v_hoje + 28, 'agendado', 280, 'recorrente');
 
     PERFORM public.avancar_inicio_plano();
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 20 THEN
-      v_falhas := v_falhas || ('A2: o ciclo paralelo mudou o início para ' || v_al.data_inicio_plano);
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 20 THEN
+      v_falhas := v_falhas || ('A2: o ciclo paralelo mudou o início para ' || v_al.data_inicio);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -289,9 +290,9 @@ BEGIN
 
     PERFORM public.avancar_inicio_plano();
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 20 THEN
-      v_falhas := v_falhas || ('A3: o início foi para ' || v_al.data_inicio_plano || ' antes de o ciclo começar');
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 20 THEN
+      v_falhas := v_falhas || ('A3: o início foi para ' || v_al.data_inicio || ' antes de o ciclo começar');
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -302,16 +303,16 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE historico_planos SET data_fim = v_hoje - 1, status = 'finalizado' WHERE aluno_id = a_a;
-    UPDATE alunos SET plano_id = v_plano_b, data_inicio_plano = v_hoje - 30, data_fim_plano = v_hoje + 29
-     WHERE id = a_a;
+    UPDATE planos_aluno SET plano_id = v_plano_b, data_inicio = v_hoje - 30, data_fim = v_hoje + 29
+     WHERE id = v_pa;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
     VALUES (a_a, v_plano_b, v_hoje, v_hoje + 29, 'cancelado', 320, 'recorrente');
 
     PERFORM public.avancar_inicio_plano();
 
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_inicio_plano IS DISTINCT FROM v_hoje - 30 THEN
-      v_falhas := v_falhas || ('A4: o ciclo cancelado mudou o início para ' || v_al.data_inicio_plano);
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_inicio IS DISTINCT FROM v_hoje - 30 THEN
+      v_falhas := v_falhas || ('A4: o ciclo cancelado mudou o início para ' || v_al.data_inicio);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;

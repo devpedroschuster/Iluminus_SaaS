@@ -2,7 +2,7 @@
 --
 -- O que garante:
 --   P1: aluno de um plano, chamadas antigas: igual a hoje (reserva cancelada,
---       dias devolvidos no plano, no ciclo e no cadastro, reserva restaurada).
+--       dias devolvidos no plano principal e no ciclo, reserva restaurada).
 --   P2: pausar o plano A não mexe no B: reservas e cobranças de B ficam; uma
 --       presença numa modalidade de B não impede a pausa de A.
 --   P3: os dois planos pausados ao mesmo tempo; retomar B estende só B e
@@ -14,8 +14,11 @@
 --
 -- Dados [TESTE 3A-P], e-mails teste-3ap-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-3A-PAUSA: PASSOU (n/n)" ou "... FALHOU (...)".
--- Como rodar: supabase db query --linked --project-ref mytmreoqysbxisszludl \
---   --output-format text -f scripts/sql-tests/ilu127_3a_pausa.sql
+-- Como rodar: concatene scripts/sql-tests/_fixtures.sql e este arquivo num
+-- arquivo FORA do repo e rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_3a_pausa.sql > /tmp/t.sql
+--   supabase db query --linked --project-ref mytmreoqysbxisszludl \
+--     --output-format text -f /tmp/t.sql
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
 DO $test$
@@ -50,10 +53,9 @@ BEGIN
   ---------------------------------------------------------------- P1: um plano, chamadas antigas
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano,
-                        modalidades_selecionadas)
-    VALUES ('[TESTE 3A-P] P1', 'teste-3ap-p1@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 29, ARRAY[m_x])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3A-P] P1', 'teste-3ap-p1@iluminus.test', v_p1,
+                                         v_hoje - 10, v_hoje + 29, ARRAY[m_x]) t;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status)
     VALUES (v_al, v_p1, v_hoje - 10, v_hoje + 29, 'ativo') RETURNING id INTO v_ha;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app)
@@ -64,13 +66,13 @@ BEGIN
     v_txt := (SELECT status FROM presencas WHERE id = v_rx);
     v_j := public.retomar_plano_aluno(v_al, v_hoje);
     RESET ROLE;
-    SELECT * INTO r FROM alunos WHERE id = v_al;
+    SELECT * INTO r FROM planos_aluno WHERE id = public._plano_aluno_principal(v_al);
     IF v_txt <> 'cancelado' OR EXISTS (SELECT 1 FROM presencas WHERE id = v_rx)
        OR (v_j->>'dias_devolvidos')::int <> 5
-       OR r.data_fim_plano <> v_hoje + 34 OR r.plano_pausado_desde IS NOT NULL
+       OR r.data_fim <> v_hoje + 34 OR r.pausado_desde IS NOT NULL
        OR (SELECT data_fim FROM historico_planos WHERE id = v_ha) <> v_hoje + 34 THEN
       v_falhas := v_falhas || format('P1: reserva=%s restaurada=%s dias=%s fim=%s pausa=%s', v_txt,
-        NOT EXISTS (SELECT 1 FROM presencas WHERE id = v_rx), v_j->>'dias_devolvidos', r.data_fim_plano, r.plano_pausado_desde);
+        NOT EXISTS (SELECT 1 FROM presencas WHERE id = v_rx), v_j->>'dias_devolvidos', r.data_fim, r.pausado_desde);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
@@ -81,11 +83,9 @@ BEGIN
   ---------------------------------------------------------------- P2 e P3: dois planos
   v_total := v_total + 2;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano,
-                        modalidades_selecionadas)
-    VALUES ('[TESTE 3A-P] P2', 'teste-3ap-p2@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 29, ARRAY[m_x])
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3A-P] P2', 'teste-3ap-p2@iluminus.test', v_p1,
+                                         v_hoje - 10, v_hoje + 29, ARRAY[m_x]) t;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status)
     VALUES (v_al, v_p1, v_hoje - 10, v_hoje + 29, 'ativo') RETURNING id INTO v_ha;
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
@@ -115,7 +115,7 @@ BEGIN
        OR NOT EXISTS (SELECT 1 FROM mensalidades WHERE id = v_mb)
        OR (SELECT pausado_desde FROM planos_aluno WHERE id = v_pa) IS DISTINCT FROM v_hoje - 5
        OR (SELECT pausado_desde FROM planos_aluno WHERE id = v_pb) IS NOT NULL
-       OR (SELECT plano_pausado_desde FROM alunos WHERE id = v_al) IS DISTINCT FROM v_hoje - 5 THEN
+       OR (SELECT pausado_desde FROM planos_aluno WHERE id = public._plano_aluno_principal(v_al)) IS DISTINCT FROM v_hoje - 5 THEN
       v_falhas := v_falhas || format('P2: reserva X=%s, Y=%s, cobrança A existe=%s, B existe=%s',
         (SELECT status FROM presencas WHERE id = v_rx), (SELECT status FROM presencas WHERE id = v_ry),
         EXISTS (SELECT 1 FROM mensalidades WHERE id = v_ma), EXISTS (SELECT 1 FROM mensalidades WHERE id = v_mb));
@@ -149,10 +149,9 @@ BEGIN
   ---------------------------------------------------------------- P4, P5 e P6
   v_total := v_total + 3;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE 3A-P] P4', 'teste-3ap-p4@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 29)
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3A-P] P4', 'teste-3ap-p4@iluminus.test', v_p1,
+                                         v_hoje - 10, v_hoje + 29) t;
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje - 10, v_hoje + 19, now() + interval '1 second') RETURNING id INTO v_pb;
     PERFORM set_config('request.jwt.claims', c_admin, true);

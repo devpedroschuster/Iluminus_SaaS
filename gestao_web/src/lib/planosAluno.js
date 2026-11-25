@@ -224,7 +224,8 @@ export function textoFrequencia(planos, hoje) {
 
 // `periodos`: Map<planoAlunoId, { inicio, fim }>. A falta fica se a data cai no
 // período do plano da modalidade dela (sem vínculo, o principal); plano sem
-// período, a falta sai.
+// período, a falta sai. Falta ligada a plano que não está em `periodos` (ex.: já
+// não é válido) também sai.
 export function faltasPendentesPorPlano(faltas, periodos, vinculos, principalId) {
   return (faltas || []).filter((f) => {
     const vinculo = (vinculos || []).find((v) => v.modalidade_id === f.agenda?.modalidade_id);

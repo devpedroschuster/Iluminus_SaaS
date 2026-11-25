@@ -33,6 +33,38 @@ describe('expandirRecorrencia com plano pausado', () => {
   });
 });
 
+// ILU-127 (entrega 6): as datas do fixo vêm de `periodo` (o plano da modalidade).
+describe('expandirRecorrencia com o período do plano', () => {
+  const aula = { id: 1, atividade: 'Ballet', dia_semana: 'segunda-feira', horario: '19:00', duracao_minutos: 60 };
+  const nomesNaSegunda = (dia, aluno) => {
+    const data = new Date(`${dia}T12:00:00`);
+    const indices = {
+      fixasMap: buildFixosIndex([{ aula_id: 1, alunos: { id: 7, nome_completo: 'Ana', ...aluno } }]),
+      presencasMap: {}, canceladosMap: {}, leadsMap: {},
+    };
+    return expandirRecorrencia(aula, data, data, [], indices)[0].alunosAgendados.map((a) => a.nome);
+  };
+  const periodo = { inicio: '2026-11-02', fim: '2026-11-23' };
+
+  it('antes do início do plano, o fixo não aparece', () => {
+    expect(nomesNaSegunda('2026-10-26', { periodo })).toEqual([]);
+  });
+
+  it('depois do fim do plano, o fixo aparece com aviso', () => {
+    expect(nomesNaSegunda('2026-11-30', { periodo })).toEqual(['⚠️ Ana']);
+  });
+
+  it('dentro do período, aparece normal', () => {
+    expect(nomesNaSegunda('2026-11-16', { periodo })).toEqual(['Ana']);
+  });
+
+  it('as colunas antigas da cópia não decidem mais', () => {
+    const antigo = { data_inicio_plano: '2026-11-02', data_fim_plano: '2026-11-23' };
+    expect(nomesNaSegunda('2026-10-26', antigo)).toEqual(['Ana']);
+    expect(nomesNaSegunda('2026-11-30', antigo)).toEqual(['Ana']);
+  });
+});
+
 describe('isFeriado', () => {
   it('retorna o feriado quando a data bate e bloqueia_agenda é true', () => {
     const feriados = [{ data: '2026-12-25', bloqueia_agenda: true, descricao: 'Natal' }];

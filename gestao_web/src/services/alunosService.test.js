@@ -404,7 +404,6 @@ describe('alunosService — por plano (ILU-127)', () => {
   });
 });
 
-
 // ILU-127 (entrega 6): serviços leem planos_aluno e alunos_modalidades.
 describe('alunosService — planos do aluno nas telas (ILU-127 6)', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -450,6 +449,14 @@ describe('alunosService — planos do aluno nas telas (ILU-127 6)', () => {
       { id: 'pa1', created_at: '2026-01-01T00:00:00Z', encerrado_em: null },
       { id: 'pa2', created_at: '2026-02-01T00:00:00Z', encerrado_em: null },
     ];
+
+    it('FL0: sem plano válido, chama a RPC sem p_plano_aluno_id', async () => {
+      supabase.rpc.mockReturnValue({ single: () => Promise.resolve({ data: null, error: null }) });
+      supabase.from.mockImplementation(() => criarQueryMock({ data: [], error: null }).query);
+      expect(await alunosService.listarFaltasPendentesReposicao(10)).toEqual([]);
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+      expect(supabase.rpc).toHaveBeenCalledWith('fn_resumo_frequencia_aluno', { p_aluno_id: 10 });
+    });
 
     it('FL1P: um plano, uma chamada com p_plano_aluno_id e as faltas como hoje', async () => {
       supabase.rpc.mockReturnValue({

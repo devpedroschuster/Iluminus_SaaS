@@ -63,6 +63,12 @@ gravam nas colunas antigas do cadastro (`alunos.plano_id`,
 Para ler o plano principal num teste, use
 `public._plano_aluno_principal(aluno_id)` (id em `planos_aluno`).
 
+Os testes da cópia no cadastro (`ilu127_planos_aluno_sincronizacao.sql`,
+`ilu127_3a_copia_inversa.sql` e `ilu127_4_guarda.sql`) saíram com ela (ILU-127
+fase 2); os casos deles que testam comportamento que continua (vínculos de
+ciclo, cobrança e pausa ao plano do aluno) estão em
+`ilu127_planos_aluno_vinculos.sql`.
+
 ## Convenção dos dados de teste
 
 - Nomes com um marcador entre colchetes do teste (`[TESTE X] ...`) e e-mails

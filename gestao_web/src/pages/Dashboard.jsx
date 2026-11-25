@@ -108,6 +108,48 @@ function CardAluno({ nome, info, acao, badge }) {
   );
 }
 
+// ── Distribuição dos alunos ativos por área ─────────────────────────────────
+// Grupos exclusivos (somam o total): quem faz Dança e Funcional conta só no
+// combo. Cores seguem as da agenda (amarelo = Funcional, roxo = Dança).
+const GRUPOS_AREA = [
+  { chave: 'funcional',     sigla: 'F',          nome: 'Só Funcional',    cor: 'bg-[#f59e0b]' },
+  { chave: 'danca',         sigla: 'D',          nome: 'Só Dança',        cor: 'bg-[#a855f7]' },
+  { chave: 'ambos',         sigla: 'C',          nome: 'Combo (Dança + Funcional)', cor: 'bg-gradient-to-r from-[#f59e0b] to-[#a855f7]' },
+  { chave: 'semModalidade', sigla: 's/ mod.',    nome: 'Sem modalidade',  cor: 'bg-muted-foreground/40' },
+];
+
+function DistribuicaoAlunos({ distribuicao }) {
+  const total = distribuicao.total || 0;
+  // "Sem modalidade" só aparece quando houver alguém nele.
+  const grupos = GRUPOS_AREA.filter(g => g.chave !== 'semModalidade' || distribuicao[g.chave] > 0);
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {total > 0 && (
+        <div className="flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          {grupos.map(g => distribuicao[g.chave] > 0 && (
+            <div
+              key={g.chave}
+              className={g.cor}
+              style={{ width: `${(distribuicao[g.chave] / total) * 100}%` }}
+            />
+          ))}
+        </div>
+      )}
+      <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] font-medium text-muted-foreground">
+        {grupos.map(g => (
+          <li key={g.chave} className="flex items-center gap-1" title={g.nome}>
+            <span className={`h-2 w-2 rounded-sm ${g.cor}`} aria-hidden="true" />
+            <span className="font-bold text-foreground tabular-nums">{distribuicao[g.chave]}</span>
+            <span aria-hidden="true">{g.sigla}</span>
+            <span className="sr-only">{g.nome}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Dashboard() {
   const modalInadimplencia = useModal();
@@ -125,7 +167,7 @@ export default function Dashboard() {
       listaInadimplentes = [],
       alunosPlanosVencendo = [],
       todosAlunos        = [],
-      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, dancaTotal: 0, funcionalTotal: 0, semModalidade: 0, bolsistas: 0 },
+      distribuicaoAreas  = { danca: 0, funcional: 0, ambos: 0, semModalidade: 0, bolsistas: 0, total: 0, pagantes: 0 },
     } = {},
     isLoading,
   } = useQuery({
@@ -215,29 +257,26 @@ export default function Dashboard() {
           <div className="w-11 h-11 rounded-2xl bg-brand-soft bg-primary-soft flex items-center justify-center shrink-0">
             <Users size={20} className="text-primary" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Alunos Ativos
             </p>
             {loadingAlunos
               ? <Skeleton className="h-6 w-16 mt-1" />
-              : <p className="text-lg font-black text-foreground">{totalAlunos}</p>
+              : (
+                <>
+                  <p className="text-lg font-black text-foreground">{totalAlunos}</p>
+                  {/* Pagantes + bolsistas = total. Bolsista (ILU-11) é um
+                      recorte à parte: também aparece na área dele abaixo. */}
+                  <p className="text-[13px] font-medium text-muted-foreground">
+                    <span className="font-bold text-foreground tabular-nums">{distribuicaoAreas.pagantes}</span> pagantes
+                    {' · '}
+                    <span className="font-bold text-foreground tabular-nums">{distribuicaoAreas.bolsistas}</span> bolsistas
+                  </p>
+                  <DistribuicaoAlunos distribuicao={distribuicaoAreas} />
+                </>
+              )
             }
-            {!loadingAlunos && (
-              <>
-                {/* F e D incluem os alunos de combo (quem faz as duas áreas
-                    conta em ambas); o combo continua exibido à parte. Por isso
-                    F + D + combo NÃO somam o total acima — o combo entra duas
-                    vezes. "B" (bolsistas) é um recorte à parte (ILU-11) — um
-                    bolsista pode estar em qualquer área. Só aparece quando
-                    houver pelo menos 1. */}
-                <p className="text-[14px] font-medium text-muted-foreground mt-0.5">
-                  {distribuicaoAreas.funcionalTotal}F · {distribuicaoAreas.dancaTotal}D · {distribuicaoAreas.ambos} combo
-                  {distribuicaoAreas.semModalidade > 0 && ` · ${distribuicaoAreas.semModalidade} s/ modalidade`}
-                  {distribuicaoAreas.bolsistas > 0 && ` · ${distribuicaoAreas.bolsistas} B`}
-                </p>
-              </>
-            )}
           </div>
         </Surface>
 

@@ -182,10 +182,10 @@ export const calcularFrequenciaMedia = (alunos, presencasPorAluno) => {
 /**
  * Distribuição de alunos por área (Dança, Funcional, Combo) a partir de
  * `modalidades_selecionadas` × mapa id → área da modalidade.
- * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos (somam
- * o total de alunos). `dancaTotal`/`funcionalTotal` incluem o combo — quem
- * faz as duas áreas conta tanto em Dança quanto em Funcional. `bolsistas` é
- * um recorte à parte (ILU-11): um bolsista pode estar em qualquer área.
+ * `danca`/`funcional`/`ambos`/`semModalidade` são grupos exclusivos: quem faz
+ * as duas áreas conta só no combo (`ambos`), não em Dança nem em Funcional,
+ * e os quatro somam `total`. `bolsistas` é um recorte à parte (ILU-11): um
+ * bolsista pode estar em qualquer área; `pagantes` = `total` − `bolsistas`.
  */
 export const contarAlunosPorArea = (alunos, areaById) => {
   let danca = 0, funcional = 0, ambos = 0, semModalidade = 0, bolsistas = 0;
@@ -204,10 +204,11 @@ export const contarAlunosPorArea = (alunos, areaById) => {
     if (aluno.bolsista) bolsistas++;
   }
 
+  const total = danca + funcional + ambos + semModalidade;
   return {
     danca, funcional, ambos, semModalidade, bolsistas,
-    dancaTotal: danca + ambos,
-    funcionalTotal: funcional + ambos,
+    total,
+    pagantes: total - bolsistas,
   };
 };
 

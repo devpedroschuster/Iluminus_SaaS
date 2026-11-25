@@ -179,7 +179,7 @@ describe('statusMensalidadeAluno (regressão ILU-96)', () => {
 describe('contarAlunosPorArea', () => {
   const areaById = { d1: 'Dança', d2: 'Dança', f1: 'Funcional', x: 'Outra' };
 
-  it('conta o combo à parte e também dentro dos totais de Dança e Funcional', () => {
+  it('conta Dança, Funcional e Combo como grupos exclusivos (combo não entra em D nem F)', () => {
     const alunos = [
       { modalidades_selecionadas: ['d1'] },
       { modalidades_selecionadas: ['d1', 'd2'] },
@@ -189,8 +189,8 @@ describe('contarAlunosPorArea', () => {
     ];
     expect(contarAlunosPorArea(alunos, areaById)).toEqual({
       danca: 2, funcional: 1, ambos: 2,
-      dancaTotal: 4, funcionalTotal: 3,
       semModalidade: 0, bolsistas: 0,
+      total: 5, pagantes: 5,
     });
   });
 
@@ -203,8 +203,8 @@ describe('contarAlunosPorArea', () => {
     ];
     expect(contarAlunosPorArea(alunos, areaById)).toEqual({
       danca: 0, funcional: 0, ambos: 1,
-      dancaTotal: 1, funcionalTotal: 1,
       semModalidade: 3, bolsistas: 1,
+      total: 4, pagantes: 3,
     });
   });
 });

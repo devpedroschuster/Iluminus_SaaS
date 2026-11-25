@@ -20,12 +20,14 @@
 -- Resultado: "RESULTADO COMISSAO-DANCAS: PASSOU (n/n)" ou
 --            "RESULTADO COMISSAO-DANCAS: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/comissao_valor_dancas.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     --output-format text -f scripts/sql-tests/comissao_valor_dancas.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) num arquivo FORA do repo e rode o resultado:
--- o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 
 -- Resumo da apuração (simulação) de um aluno num mês: "Nome=situacao:valor",
 -- uma por modalidade, em ordem de nome.
@@ -100,9 +102,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D1', 'teste-dancas-d1@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D1', 'teste-dancas-d1@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -125,9 +126,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D2', 'teste-dancas-d2@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_d2])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D2', 'teste-dancas-d2@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_d2]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -144,9 +144,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D3', 'teste-dancas-d3@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_d2, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D3', 'teste-dancas-d3@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_d2, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -163,9 +162,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D4', 'teste-dancas-d4@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_dsp])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D4', 'teste-dancas-d4@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_dsp]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -183,9 +181,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_p1;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D5', 'teste-dancas-d5@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D5', 'teste-dancas-d5@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje),
            (v_al, v_plano, v_p1, 'pago', 'regular', 300, 'pix', v_hoje);
@@ -206,9 +203,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = NULL';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D6', 'teste-dancas-d6@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d1, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D6', 'teste-dancas-d6@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d1, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -225,9 +221,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D7', 'teste-dancas-d7@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D7', 'teste-dancas-d7@iluminus.test', v_plano, NULL, NULL, ARRAY[v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);
@@ -248,9 +243,8 @@ BEGIN
     EXECUTE 'UPDATE configuracoes_repasse SET regra_danca_desde = $1' USING v_mes;
     UPDATE modalidades SET area = NULL WHERE id = v_d2;
     UPDATE modalidades SET area = 'Livre/Todos', professor_id = v_prof_c WHERE id = v_dsp;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE DANCAS] D8', 'teste-dancas-d8@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_d2, v_dsp, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE DANCAS] D8', 'teste-dancas-d8@iluminus.test', v_plano, NULL, NULL, ARRAY[v_d2, v_dsp, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes, 'pago', 'regular', 300, 'pix', v_hoje);
     v_got := pg_temp.resumo_dancas(v_mes, v_al);

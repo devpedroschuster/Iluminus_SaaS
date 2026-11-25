@@ -34,12 +34,14 @@
 -- Resultado: "RESULTADO ILU127-3C-REPASSES: PASSOU (n/n)" ou
 --            "RESULTADO ILU127-3C-REPASSES: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_3c_repasses.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     --output-format text -f scripts/sql-tests/ilu127_3c_repasses.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) num arquivo FORA do repo e rode o resultado:
--- o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging),
 -- para renovar_plano_aluno e pausar_plano_aluno.
 --
@@ -137,12 +139,11 @@ BEGIN
   VALUES ('[TESTE 3C] L', 300, 1, '[]', true) RETURNING id INTO p_l;
 
   ---------------------------------------------------------------- U1: um plano só
-  -- Pelo cadastro (gatilhos criam o plano e as ligações), como hoje.
+  -- Um plano só, com as duas modalidades ligadas a ele.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE 3C] U1', 'teste-3c-u1@iluminus.test', 'aluno', true, false, p_r1, ARRAY[v_d1, v_tr])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3C] U1', 'teste-3c-u1@iluminus.test', p_r1, NULL, NULL, ARRAY[v_d1, v_tr]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, p_r1, v_ant + 9, 'pago', 'regular', 300, 'pix', v_ant + 9);
     v_got := pg_temp.resumo_3c(v_ant, v_al);

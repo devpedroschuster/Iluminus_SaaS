@@ -25,11 +25,14 @@
 -- Resultado: "RESULTADO ILU125: PASSOU (n/n)" ou
 --            "RESULTADO ILU125: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu125_a_vista_no_recebimento.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/ilu125_a_vista_no_recebimento.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
@@ -85,16 +88,12 @@ BEGIN
   VALUES ('[TESTE ILU125] Trimestral', 190, 3, 1, '[{"modalidade":"Dança","limite":1}]') RETURNING id INTO v_plano_tri;
 
   -- A: Dança (professora Ana). B: Treino (professora Bia).
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas,
-                      data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU125] Aluna A', 'teste-ilu125-a@iluminus.test', 'aluno', true, false, v_plano_tri, ARRAY[v_mod],
-          v_mes, (v_m3 - 1))
-  RETURNING id INTO a_a;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas,
-                      data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU125] Aluna B', 'teste-ilu125-b@iluminus.test', 'aluno', true, false, v_plano_tri, ARRAY[v_mod2],
-          v_mes, (v_m3 - 1))
-  RETURNING id INTO a_b;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU125] Aluna A', 'teste-ilu125-a@iluminus.test', v_plano_tri,
+                                       v_mes, (v_m3 - 1), ARRAY[v_mod]) t;
+  SELECT t.aluno_id INTO a_b
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU125] Aluna B', 'teste-ilu125-b@iluminus.test', v_plano_tri,
+                                       v_mes, (v_m3 - 1), ARRAY[v_mod2]) t;
 
   -- Ciclo trimestral da A, do dia 1º do mês corrente ao fim do 3º mês.
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)

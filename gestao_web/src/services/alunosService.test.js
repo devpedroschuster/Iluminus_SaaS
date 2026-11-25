@@ -68,7 +68,7 @@ describe('alunosService — pausa do plano (ILU-114)', () => {
       { id: 2, status: 'cancelado', cancelado_motivo: 'Plano pausado' },
       { id: 3, status: 'cancelado', cancelado_motivo: 'avisou que está doente' },
     ];
-    const respostas = [{ data: faltas, error: null }, { data: [], error: null }];
+    const respostas = [{ data: [], error: null }, { data: [], error: null }, { data: faltas, error: null }, { data: [], error: null }];
     supabase.from.mockImplementation(() => criarQueryMock(respostas.shift()).query);
     const resultado = await alunosService.listarFaltasPendentesReposicao(10);
     expect(resultado.map((f) => f.id)).toEqual([1, 3]);
@@ -400,6 +400,97 @@ describe('alunosService — por plano (ILU-127)', () => {
       supabase.rpc.mockResolvedValue({ data: { mensalidade_id: 9, plano_aluno_id: 'pa9' }, error: null });
       await alunosService.criarPrimeiroPlano(10, { ...dados, modalidades: {} });
       expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+
+// ILU-127 (entrega 6): serviços leem planos_aluno e alunos_modalidades.
+describe('alunosService — planos do aluno nas telas (ILU-127 6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const plano = (id, nome, extra = {}) => ({
+    id, data_inicio: '2026-01-01', encerrado_em: null, created_at: `2026-01-0${id.slice(-1)}T00:00:00Z`, planos: { nome }, ...extra,
+  });
+
+  it('AN1P: aniversariante com um plano mostra o nome; com dois, "Nome +1"', async () => {
+    const { query } = criarQueryMock({
+      data: [
+        { id: 1, nome_completo: 'Ana', planos_aluno: [plano('p1', 'Mensal')] },
+        { id: 2, nome_completo: 'Bia', planos_aluno: [plano('p1', 'Mensal'), plano('p2', 'Funcional')] },
+        { id: 3, nome_completo: 'Cris', planos_aluno: [] },
+      ],
+      error: null,
+    });
+    supabase.from.mockReturnValue(query);
+    const r = await alunosService.listarAniversariantes();
+    expect(r.map((a) => a.planos)).toEqual([{ nome: 'Mensal' }, { nome: 'Mensal +1' }, null]);
+    expect(r[0].planos_aluno).toBeUndefined();
+  });
+
+  it('buscarPerfilCompleto lê só o aluno, sem embed de planos', async () => {
+    const { query, chamadas } = criarQueryMock({ data: { id: 1 }, error: null });
+    supabase.from.mockReturnValue(query);
+    await alunosService.buscarPerfilCompleto(1);
+    expect(chamadas).toContainEqual(['select', '*']);
+  });
+
+  it('listarPlanosDeAlunos([]) não consulta; com ids filtra por aluno_id', async () => {
+    expect(await alunosService.listarPlanosDeAlunos([])).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 'pa1' }], error: null });
+    supabase.from.mockReturnValue(query);
+    expect(await alunosService.listarPlanosDeAlunos([1, 2])).toEqual([{ id: 'pa1' }]);
+    expect(supabase.from).toHaveBeenCalledWith('planos_aluno');
+    expect(chamadas).toContainEqual(['in', 'aluno_id', [1, 2]]);
+  });
+
+  describe('listarFaltasPendentesReposicao', () => {
+    const planos = [
+      { id: 'pa1', created_at: '2026-01-01T00:00:00Z', encerrado_em: null },
+      { id: 'pa2', created_at: '2026-02-01T00:00:00Z', encerrado_em: null },
+    ];
+
+    it('FL1P: um plano, uma chamada com p_plano_aluno_id e as faltas como hoje', async () => {
+      supabase.rpc.mockReturnValue({
+        single: () => Promise.resolve({ data: { periodo_inicio: '2026-10-01', periodo_fim: '2026-11-04' }, error: null }),
+      });
+      const faltas = [{ id: 1, status: 'falta', cancelado_motivo: null }];
+      const respostas = [
+        { data: [planos[0]], error: null }, { data: [], error: null },
+        { data: faltas, error: null }, { data: [], error: null },
+      ];
+      supabase.from.mockImplementation(() => criarQueryMock(respostas.shift()).query);
+      const r = await alunosService.listarFaltasPendentesReposicao(10);
+      expect(supabase.rpc).toHaveBeenCalledTimes(1);
+      expect(supabase.rpc).toHaveBeenCalledWith('fn_resumo_frequencia_aluno', { p_aluno_id: 10, p_plano_aluno_id: 'pa1' });
+      expect(r.map((f) => f.id)).toEqual([1]);
+    });
+
+    it('FL2: dois planos, duas chamadas e cada falta fica só no período do plano da modalidade', async () => {
+      const resumos = {
+        pa1: { periodo_inicio: '2026-10-01', periodo_fim: '2026-10-31' },
+        pa2: { periodo_inicio: '2026-11-01', periodo_fim: '2026-11-30' },
+      };
+      supabase.rpc.mockImplementation((_, args) => ({
+        single: () => Promise.resolve({ data: resumos[args.p_plano_aluno_id], error: null }),
+      }));
+      const faltas = [
+        { id: 1, data_aula: '2026-10-10', status: 'falta', cancelado_motivo: null, agenda: { modalidade_id: 5 } },
+        { id: 2, data_aula: '2026-11-10', status: 'falta', cancelado_motivo: null, agenda: { modalidade_id: 5 } },
+        { id: 3, data_aula: '2026-11-10', status: 'falta', cancelado_motivo: null, agenda: { modalidade_id: 6 } },
+      ];
+      const respostas = [
+        { data: planos, error: null },
+        { data: [{ modalidade_id: 5, plano_aluno_id: 'pa1' }, { modalidade_id: 6, plano_aluno_id: 'pa2' }], error: null },
+        { data: faltas, error: null }, { data: [], error: null },
+      ];
+      supabase.from.mockImplementation(() => criarQueryMock(respostas.shift()).query);
+      const r = await alunosService.listarFaltasPendentesReposicao(10);
+      expect(supabase.rpc).toHaveBeenCalledTimes(2);
+      expect(supabase.rpc).toHaveBeenCalledWith('fn_resumo_frequencia_aluno', { p_aluno_id: 10, p_plano_aluno_id: 'pa1' });
+      expect(supabase.rpc).toHaveBeenCalledWith('fn_resumo_frequencia_aluno', { p_aluno_id: 10, p_plano_aluno_id: 'pa2' });
+      expect(r.map((f) => f.id)).toEqual([1, 3]);
     });
   });
 });

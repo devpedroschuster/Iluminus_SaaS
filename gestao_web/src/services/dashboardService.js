@@ -31,7 +31,7 @@ export const dashboardService = {
     // é contado à parte, e não como um 5º grupo mutuamente exclusivo.
     const { data: alunos, error: errAlunos } = await supabase
       .from('alunos')
-      .select('id, modalidades_selecionadas, bolsista')
+      .select('id, bolsista, alunos_modalidades(modalidade_id)')
       .eq('ativo', true)
       .eq('role', 'aluno');
     if (errAlunos) throw errAlunos;

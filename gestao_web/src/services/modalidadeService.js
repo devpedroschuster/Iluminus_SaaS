@@ -25,15 +25,24 @@ async buscarPerfil(id) {
   if (errHorarios) throw errHorarios;
 
   // ✅ busca por ID
-  const { data: alunos, error: errAlunos } = await supabase
-    .from('alunos')
-    .select('id, nome_completo, planos(nome)')
-    .eq('ativo', true)
-    .contains('modalidades_selecionadas', [id])
-    .order('nome_completo');
+  // ILU-127: quem está na modalidade vem de alunos_modalidades, com o plano
+  // a que ela está ligada.
+  const { data: ligacoes, error: errAlunos } = await supabase
+    .from('alunos_modalidades')
+    .select('alunos!inner(id, nome_completo, ativo), planos_aluno(planos(nome))')
+    .eq('modalidade_id', id)
+    .eq('alunos.ativo', true);
 
   if (errAlunos) throw errAlunos;
-  return { horarios: horarios || [], alunos: alunos || [] };
+  const alunos = (ligacoes || [])
+    .filter((l) => l.alunos)
+    .map((l) => ({
+      id: l.alunos.id,
+      nome_completo: l.alunos.nome_completo,
+      planos: l.planos_aluno?.planos?.nome ? { nome: l.planos_aluno.planos.nome } : null,
+    }))
+    .sort((a, b) => String(a.nome_completo).localeCompare(String(b.nome_completo), 'pt-BR'));
+  return { horarios: horarios || [], alunos };
 },
 
   async salvar(modalidade) {

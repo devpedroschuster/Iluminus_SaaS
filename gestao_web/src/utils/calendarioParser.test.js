@@ -7,7 +7,7 @@ import { isFeriado, buildFixosIndex, expandirRecorrencia } from './calendarioPar
 describe('expandirRecorrencia com plano pausado', () => {
   const aula = { id: 1, atividade: 'Ballet', dia_semana: 'segunda-feira', horario: '19:00', duracao_minutos: 60 };
   const indices = (pausas) => ({
-    fixasMap: buildFixosIndex([{ aula_id: 1, alunos: { id: 7, nome_completo: 'Ana', data_inicio_plano: '2026-01-01', data_fim_plano: '2026-12-31', pausas } }]),
+    fixasMap: buildFixosIndex([{ aula_id: 1, alunos: { id: 7, nome_completo: 'Ana', periodo: { inicio: '2026-01-01', fim: '2026-12-31' }, pausas } }]),
     presencasMap: {},
     canceladosMap: {},
     leadsMap: {},

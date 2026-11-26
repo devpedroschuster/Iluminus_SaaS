@@ -214,3 +214,24 @@ describe('agendamentoService.listarChamadaCompleta', () => {
     expect(lista).toEqual([expect.objectContaining({ id_relacao: 1, via_app: true, status: 'presente' })]);
   });
 });
+
+// Busca de aluno na Agenda: próximas aulas agendadas da aluna no painel.
+describe('agendamentoService.listarProximasAgendadas', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('filtra aluno, status agendado e a partir de hoje', async () => {
+    const { query, chamadas } = criarQueryMock({ data: [{ id: 1 }], error: null });
+    supabase.from.mockReturnValue(query);
+    expect(await agendamentoService.listarProximasAgendadas(7, '2026-11-26')).toEqual([{ id: 1 }]);
+    expect(supabase.from).toHaveBeenCalledWith('presencas');
+    expect(chamadas).toContainEqual(['eq', 'aluno_id', 7]);
+    expect(chamadas).toContainEqual(['eq', 'status', 'agendado']);
+    expect(chamadas).toContainEqual(['gte', 'data_aula', '2026-11-26']);
+  });
+
+  it('erro do banco sobe', async () => {
+    const { query } = criarQueryMock({ data: null, error: { message: 'falhou' } });
+    supabase.from.mockReturnValue(query);
+    await expect(agendamentoService.listarProximasAgendadas(7, '2026-11-26')).rejects.toEqual({ message: 'falhou' });
+  });
+});

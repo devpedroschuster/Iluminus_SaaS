@@ -208,4 +208,23 @@ export const gradeService = {
     : m));
   return anexarPausas(comPeriodo, periodos || []);
 },
+
+  // Busca de aluno na Agenda: troca a turma fixa da aluna. Entra na nova
+  // antes de sair da antiga — se algo falhar no meio, ela fica nas duas
+  // (e a mensagem diz isso), nunca sem turma.
+  async trocarTurmaFixa({ alunoId, aulaAntigaId, aulaNovaId }) {
+    const { error: errEntrada } = await supabase
+      .from('agenda_fixa')
+      .insert({ aluno_id: alunoId, aula_id: aulaNovaId });
+    if (errEntrada) throw errEntrada;
+
+    const { error: errSaida } = await supabase
+      .from('agenda_fixa')
+      .delete()
+      .match({ aluno_id: alunoId, aula_id: aulaAntigaId });
+    if (errSaida) {
+      console.error('[gradeService.trocarTurmaFixa] saída da turma antiga:', errSaida);
+      throw new Error('A aluna entrou na nova turma, mas não saiu da antiga. Remova a antiga pelo perfil dela.');
+    }
+  },
 };

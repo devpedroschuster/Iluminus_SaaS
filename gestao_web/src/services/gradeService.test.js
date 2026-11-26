@@ -75,3 +75,36 @@ describe('gradeService.listarMatriculasFixas — período por plano (ILU-127 6)'
     expect(r[0].alunos.periodo).toEqual({ inicio: '2026-07-01', fim: '2026-12-31' });
   });
 });
+
+// Busca de aluno na Agenda: trocar a turma fixa sem a aluna ficar sem turma.
+describe('gradeService.trocarTurmaFixa', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function filaDeQueries(...resultados) {
+    const mocks = resultados.map((r) => criarQueryMock(r));
+    let i = 0;
+    supabase.from.mockImplementation(() => mocks[i++].query);
+    return mocks.map((m) => m.chamadas);
+  }
+
+  it('entra na nova antes de sair da antiga', async () => {
+    const [primeira, segunda] = filaDeQueries({ data: null, error: null }, { data: null, error: null });
+    await gradeService.trocarTurmaFixa({ alunoId: 7, aulaAntigaId: 10, aulaNovaId: 11 });
+    expect(primeira).toContainEqual(['insert', { aluno_id: 7, aula_id: 11 }]);
+    expect(segunda).toContainEqual(['delete']);
+    expect(segunda).toContainEqual(['match', { aluno_id: 7, aula_id: 10 }]);
+  });
+
+  it('se não consegue entrar na nova, não sai da antiga', async () => {
+    filaDeQueries({ data: null, error: { message: 'cheia' } });
+    await expect(gradeService.trocarTurmaFixa({ alunoId: 7, aulaAntigaId: 10, aulaNovaId: 11 }))
+      .rejects.toEqual({ message: 'cheia' });
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('se entrou mas não saiu, avisa que ficou nas duas', async () => {
+    filaDeQueries({ data: null, error: null }, { data: null, error: { message: 'rls' } });
+    await expect(gradeService.trocarTurmaFixa({ alunoId: 7, aulaAntigaId: 10, aulaNovaId: 11 }))
+      .rejects.toThrow('A aluna entrou na nova turma, mas não saiu da antiga');
+  });
+});

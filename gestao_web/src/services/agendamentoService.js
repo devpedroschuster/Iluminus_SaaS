@@ -167,6 +167,20 @@ async agendarAulaAdmin(dados) {
     return data;
   },
 
+  // Busca de aluno na Agenda: próximas aulas agendadas (status 'agendado')
+  // da aluna, a partir de hoje, para o painel dela.
+  async listarProximasAgendadas(alunoId, hoje) {
+    const { data, error } = await supabase
+      .from('presencas')
+      .select('id, aula_id, data_aula, agenda ( atividade, horario )')
+      .eq('aluno_id', alunoId)
+      .eq('status', 'agendado')
+      .gte('data_aula', hoje)
+      .order('data_aula', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
+
   // professorId (opcional): quando informado, filtra no servidor só pelas
   // presenças de aulas daquele professor (join via agenda.professor_id) —
   // evita mandar pro cliente nomes/presença de alunos de outros professores

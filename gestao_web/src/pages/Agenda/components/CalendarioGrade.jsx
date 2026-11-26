@@ -156,15 +156,20 @@ const CustomEventCard = ({ event }) => {
 // anula a memoização interna do react-big-calendar (ver ILU-47).
 const CALENDAR_COMPONENTS = { toolbar: CustomToolbar, event: CustomEventCard };
 
-function eventPropGetter(event) {
+// Busca de aluno na Agenda: "Ver na agenda" destaca a aula (idUnico =
+// `${aula.id}-${yyyy-MM-dd}`) por alguns segundos.
+const CLASSE_DESTAQUE = 'ring-4 ring-primary ring-offset-2 z-10';
+
+function estiloDoEvento(event, idDestacado) {
   const corDB = event.dadosOriginais?.cor || 'laranja';
   const corTema = PALETA_CORES.find((c) => c.id === corDB) || PALETA_CORES[0];
   const agendados = event.alunosAgendados?.length || 0;
   const capacidade = event.dadosOriginais?.capacidade || 15;
   const isLotado = agendados >= capacidade;
+  const destacado = !!idDestacado && event.idUnico === idDestacado;
 
   return {
-    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}`,
+    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}${destacado ? ` ${CLASSE_DESTAQUE}` : ''}`,
     style: {
       backgroundColor: corTema.bg,
       color: corTema.text,
@@ -188,7 +193,13 @@ const CalendarioGrade = React.memo(function CalendarioGrade({
   handleSelectSlot,
   handleSelectEvent,
   isAdmin = false,
+  idDestacado = null,
 }) {
+  const eventPropGetter = React.useCallback(
+    (event) => estiloDoEvento(event, idDestacado),
+    [idDestacado],
+  );
+
   return (
     <div className="h-full style-calendar-wrapper">
       <Calendar

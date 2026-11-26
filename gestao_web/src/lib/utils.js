@@ -85,6 +85,26 @@ export const hojeBrasilia = () => {
 };
 
 /**
+ * Dias de calendário entre duas datas 'AAAA-MM-DD' (positivo se `ate` vem
+ * depois). É a mesma conta das Notificações; o Dashboard contava horas até
+ * o meio-dia do vencimento e arredondava para cima, mostrando um dia a mais.
+ */
+export const diasEntre = (de, ate) =>
+  Math.round((new Date(`${ate}T12:00:00Z`) - new Date(`${de}T12:00:00Z`)) / 86400000);
+
+/**
+ * Dias até o próximo aniversário a partir de `hojeIso` ('AAAA-MM-DD'): 0 no
+ * dia, e um aniversário que já passou neste ano conta para o ano seguinte
+ * (no fim de dezembro, um aniversário em janeiro não fica negativo).
+ */
+export const diasAteAniversario = (dataNascimento, hojeIso) => {
+  const [, mes, dia] = dataNascimento.split('-');
+  const ano = Number(hojeIso.slice(0, 4));
+  const dias = diasEntre(hojeIso, `${ano}-${mes}-${dia}`);
+  return dias >= 0 ? dias : diasEntre(hojeIso, `${ano + 1}-${mes}-${dia}`);
+};
+
+/**
  * Texto do status de uma mensalidade na Área do Aluno: "Pago", "Atrasado"
  * (vencimento antes de hoje em Brasília) ou "Pendente" — mesma regra do
  * Financeiro (ILU-96). Compara datas 'AAAA-MM-DD', não instantes:

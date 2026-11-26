@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { addDays, format, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatarMoeda, hojeBrasilia } from '../lib/utils';
+import { formatarMoeda, hojeBrasilia, diasEntre, diasAteAniversario } from '../lib/utils';
 import Surface from '../components/ui/Surface';
 import Skeleton from '../components/ui/Skeleton';
 import Badge from '../components/ui/Badge';
@@ -41,21 +41,14 @@ function aniversariantesDoDia(alunos) {
   });
 }
 
-function aniversariantesProximos(alunos, dias = 7) {
-  const hoje = new Date();
-  return (alunos || []).filter(a => {
-    if (!a.data_nascimento) return false;
-    for (let i = 1; i <= dias; i++) {
-      const d = addDays(hoje, i);
-      const [, m, day] = a.data_nascimento.split('-').map(Number);
-      if (m === d.getMonth() + 1 && day === d.getDate()) return true;
-    }
-    return false;
-  }).sort((a, b) => {
-    const [, ma, da] = a.data_nascimento.split('-').map(Number);
-    const [, mb, db] = b.data_nascimento.split('-').map(Number);
-    return ma !== mb ? ma - mb : da - db;
-  });
+// Aniversários de amanhã até `dias` à frente, do mais próximo ao mais distante
+// (na virada do ano, 30/12 vem antes de 02/01), com os dias que faltam.
+function aniversariantesProximos(alunos, hojeIso, dias = 7) {
+  return (alunos || [])
+    .filter(a => a.data_nascimento)
+    .map(a => ({ ...a, diasAte: diasAteAniversario(a.data_nascimento, hojeIso) }))
+    .filter(a => a.diasAte >= 1 && a.diasAte <= dias)
+    .sort((a, b) => a.diasAte - b.diasAte);
 }
 
 function gerarLinkWhatsApp(telefone, mensagem) {
@@ -194,7 +187,15 @@ export default function Dashboard() {
   );
 
   const aniversariantesHoje     = useMemo(() => aniversariantesDoDia(todosAlunos), [todosAlunos]);
-  const aniversariantesEmBreve  = useMemo(() => aniversariantesProximos(todosAlunos, 7), [todosAlunos]);
+  // "Hoje" é lido dentro do cálculo: a query já recarrega quando o dia muda.
+  const aniversariantesEmBreve  = useMemo(
+    () => aniversariantesProximos(todosAlunos, hojeBrasilia(), 7),
+    [todosAlunos]
+  );
+  const planosVencendo = useMemo(() => {
+    const hoje = hojeBrasilia();
+    return alunosPlanosVencendo.map(a => ({ ...a, dias: diasEntre(hoje, a.data_fim_plano) }));
+  }, [alunosPlanosVencendo]);
 
   const nomesMes = format(agora, 'MMMM', { locale: ptBR });
   const nomesMesCapitalizado = nomesMes.charAt(0).toUpperCase() + nomesMes.slice(1);
@@ -357,23 +358,21 @@ export default function Dashboard() {
           {/* Planos vencendo em 7 dias */}
           {loadingVencendo ? (
             <Skeleton.Card />
-          ) : alunosPlanosVencendo.length > 0 ? (
+          ) : planosVencendo.length > 0 ? (
             <SecaoAviso
               tipo="warning"
               icone={<Clock size={18} />}
-              titulo={`${alunosPlanosVencendo.length} plano${alunosPlanosVencendo.length > 1 ? 's' : ''} vencendo nos próximos 7 dias`}
+              titulo={`${planosVencendo.length} plano${planosVencendo.length > 1 ? 's' : ''} vencendo nos próximos 7 dias`}
             >
               <div className="space-y-1">
-                {alunosPlanosVencendo.map(a => (
+                {planosVencendo.map(a => (
                   <CardAluno
                     key={`${a.id}-${a.plano_nome ?? ''}-${a.data_fim_plano}`}
                     nome={a.plano_nome ? `${a.nome_completo} · ${a.plano_nome}` : a.nome_completo}
                     info={`Vence em ${format(new Date(a.data_fim_plano + 'T12:00:00'), 'dd/MM/yyyy')}`}
                     badge={
                       <Badge tone="warning">
-                        {Math.ceil(
-                          (new Date(a.data_fim_plano + 'T12:00:00') - agora) / (1000 * 60 * 60 * 24)
-                        )}d
+                        {a.dias}d
                       </Badge>
                     }
                   />
@@ -446,7 +445,7 @@ export default function Dashboard() {
                       info={format(dataAniv, "dd 'de' MMMM", { locale: ptBR })}
                       badge={
                         <Badge tone="info">
-                          {Math.ceil((dataAniv - agora) / (1000 * 60 * 60 * 24))}d
+                          {a.diasAte}d
                         </Badge>
                       }
                       acao={

@@ -156,15 +156,28 @@ const CustomEventCard = ({ event }) => {
 // anula a memoização interna do react-big-calendar (ver ILU-47).
 const CALENDAR_COMPONENTS = { toolbar: CustomToolbar, event: CustomEventCard };
 
-function eventPropGetter(event) {
+// Busca de aluno na Agenda: "Ver na agenda" destaca a aula (idUnico =
+// `${aula.id}-${yyyy-MM-dd}`) por alguns segundos. O contorno vai no estilo
+// inline (outline): um `ring` do Tailwind usa box-shadow e seria sobrescrito
+// pelo boxShadow inline abaixo. A classe `aula-destacada` só marca o evento
+// para a Agenda rolar até ele.
+const CLASSE_AULA_DESTACADA = 'aula-destacada';
+const ESTILO_DESTAQUE = {
+  outline: '3px solid hsl(var(--primary))',
+  outlineOffset: '2px',
+  zIndex: 10,
+};
+
+function estiloDoEvento(event, idDestacado) {
   const corDB = event.dadosOriginais?.cor || 'laranja';
   const corTema = PALETA_CORES.find((c) => c.id === corDB) || PALETA_CORES[0];
   const agendados = event.alunosAgendados?.length || 0;
   const capacidade = event.dadosOriginais?.capacidade || 15;
   const isLotado = agendados >= capacidade;
+  const destacado = !!idDestacado && event.idUnico === idDestacado;
 
   return {
-    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}`,
+    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}${destacado ? ` ${CLASSE_AULA_DESTACADA}` : ''}`,
     style: {
       backgroundColor: corTema.bg,
       color: corTema.text,
@@ -172,6 +185,7 @@ function eventPropGetter(event) {
       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
       cursor: 'pointer',
       overflow: 'hidden',
+      ...(destacado ? ESTILO_DESTAQUE : {}),
     },
   };
 }
@@ -188,7 +202,13 @@ const CalendarioGrade = React.memo(function CalendarioGrade({
   handleSelectSlot,
   handleSelectEvent,
   isAdmin = false,
+  idDestacado = null,
 }) {
+  const eventPropGetter = React.useCallback(
+    (event) => estiloDoEvento(event, idDestacado),
+    [idDestacado],
+  );
+
   return (
     <div className="h-full style-calendar-wrapper">
       <Calendar

@@ -4,8 +4,40 @@ import {
   contarAlunosPorArea,
   FREQUENCIA_LIVRE, formatarFrequenciaSemanal, ehCobrancaIntegralDoCiclo,
   ehPlanoLivre, calcularFrequenciaMedia, statusAcessoApp, STATUS_ACESSO_APP, montarInstrucoesAcesso,
-  statusMensalidadeAluno,
+  statusMensalidadeAluno, diasEntre, diasAteAniversario,
 } from './utils';
+import { notificacoesDeVencimento } from './planosAluno';
+
+describe('diasEntre', () => {
+  it('conta dias de calendário, como as Notificações', () => {
+    expect(diasEntre('2026-11-26', '2026-11-29')).toBe(3);
+    expect(diasEntre('2026-11-26', '2026-11-26')).toBe(0);
+    expect(diasEntre('2026-11-26', '2026-11-20')).toBe(-6);
+    expect(diasEntre('2026-12-30', '2027-01-02')).toBe(3);
+  });
+
+  it('dá o mesmo número que a notificação de vencimento do mesmo plano', () => {
+    const linha = {
+      id: 'p1', plano_id: 1, data_inicio: '2026-11-01', data_fim: '2026-11-29',
+      pausado_desde: null, encerrado_em: null, encerramento_efetivado: false,
+      created_at: '2026-11-01T00:00:00Z', planos: { nome: 'Mensal' },
+      alunos: { id: 7, nome_completo: 'Aluno Teste', telefone: null, data_nascimento: null, ativo: true },
+    };
+    const [n] = notificacoesDeVencimento([linha], '2026-11-26');
+    expect(diasEntre('2026-11-26', '2026-11-29')).toBe(n.diasFaltando);
+  });
+});
+
+describe('diasAteAniversario', () => {
+  it('conta os dias até o aniversário deste ano', () => {
+    expect(diasAteAniversario('1990-11-29', '2026-11-26')).toBe(3);
+    expect(diasAteAniversario('1990-11-26', '2026-11-26')).toBe(0);
+  });
+
+  it('na virada do ano, conta até o aniversário do ano seguinte', () => {
+    expect(diasAteAniversario('1990-01-02', '2026-12-30')).toBe(3);
+  });
+});
 
 describe('valorDevidoMensalidade', () => {
   it('usa valor_pago quando a mensalidade está paga', () => {

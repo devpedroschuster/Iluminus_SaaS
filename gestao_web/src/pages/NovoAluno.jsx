@@ -293,8 +293,8 @@ export default function NovoAluno() {
         }
       } else if (leadParaConversao) {
         reset({
-          nome_completo: leadParaConversao.nome_visitante     || '',
-          telefone:      leadParaConversao.telefone_visitante || '',
+          nome_completo: leadParaConversao.nome     || '',
+          telefone:      leadParaConversao.telefone || '',
           role:          'aluno',
           bolsista:      false,
           forma_recebimento: 'recorrente',

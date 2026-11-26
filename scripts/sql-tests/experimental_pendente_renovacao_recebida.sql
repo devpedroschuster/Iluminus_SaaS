@@ -21,11 +21,14 @@
 -- Resultado: "RESULTADO MENS: PASSOU (n/n)" ou
 --            "RESULTADO MENS: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/experimental_pendente_renovacao_recebida.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/experimental_pendente_renovacao_recebida.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
@@ -64,9 +67,8 @@ BEGIN
   INSERT INTO planos (nome, preco, duracao_meses, is_plano_livre) VALUES ('[TESTE MENS] Livre', 200, 1, true) RETURNING id INTO v_plano_livre;
   INSERT INTO planos (nome, preco, duracao_meses) VALUES ('[TESTE MENS] Trimestral', 90, 3) RETURNING id INTO v_plano_tri;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE MENS] Aluna', 'teste-mens-a@iluminus.test', 'aluno', true, false, v_plano, v_hoje - 30, v_hoje)
-  RETURNING id INTO a_r;
+  SELECT t.aluno_id INTO a_r
+    FROM pg_temp.teste_aluno_com_plano('[TESTE MENS] Aluna', 'teste-mens-a@iluminus.test', v_plano, v_hoje - 30, v_hoje) t;
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
   VALUES (a_r, v_plano, v_hoje - 30, v_hoje, 'ativo', 100, 'recorrente');
 

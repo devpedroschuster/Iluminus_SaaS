@@ -11,8 +11,11 @@
 --
 -- Dados [TESTE 6], e-mails teste-6-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-6-PROFESSOR: PASSOU (n/n)" ou "... FALHOU (...)".
--- Como rodar: supabase db query --linked --project-ref mytmreoqysbxisszludl \
---   --output-format text -f scripts/sql-tests/ilu127_6_professor_leitura.sql
+-- Como rodar: concatene scripts/sql-tests/_fixtures.sql e este arquivo num
+-- arquivo FORA do repo e rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_6_professor_leitura.sql > /tmp/t.sql
+--   supabase db query --linked --project-ref mytmreoqysbxisszludl \
+--     --output-format text -f /tmp/t.sql
 
 DO $test$
 DECLARE
@@ -38,15 +41,11 @@ BEGIN
   INSERT INTO planos (nome, preco, duracao_meses, frequencia_semanal) VALUES ('[TESTE 6] P1', 200, 1, 1) RETURNING id INTO v_p1;
 
   -- Aluno A (com login e comissão do professor X) e aluno B (sem comissão com X).
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE 6] A', 'teste-6-a@iluminus.test', 'aluno', true, false, u_a, v_p1, v_hoje - 5, v_hoje + 25)
-  RETURNING id INTO v_al_a;
-  UPDATE alunos SET auth_id = u_a WHERE id = v_al_a;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE 6] B', 'teste-6-b@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 5, v_hoje + 25)
-  RETURNING id INTO v_al_b;
-  v_pa_a := public._plano_aluno_principal(v_al_a);
-  v_pa_b := public._plano_aluno_principal(v_al_b);
+  SELECT t.aluno_id, t.plano_aluno_id INTO v_al_a, v_pa_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE 6] A', 'teste-6-a@iluminus.test', v_p1, v_hoje - 5, v_hoje + 25,
+                                       p_auth_id => u_a) t;
+  SELECT t.aluno_id, t.plano_aluno_id INTO v_al_b, v_pa_b
+    FROM pg_temp.teste_aluno_com_plano('[TESTE 6] B', 'teste-6-b@iluminus.test', v_p1, v_hoje - 5, v_hoje + 25) t;
   INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id) VALUES (v_al_a, m_x, 1, v_pa_a);
   INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id) VALUES (v_al_b, m_x, 1, v_pa_b);
   INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, plano_aluno_id)

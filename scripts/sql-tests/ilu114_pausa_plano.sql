@@ -5,7 +5,7 @@
 --      tabela sem escrita direta).
 --   P: pausar — validações, ciclo registrado, cobranças em aberto da pausa
 --      removidas (só as permitidas), reservas canceladas.
---   R: retomar — dias devolvidos no aluno e no ciclo, sem gerar cobrança (o que
+--   R: retomar — dias devolvidos no plano e no ciclo, sem gerar cobrança (o que
 --      precisar é lançado à mão), cobranças que venceram na pausa removidas.
 --   A: agenda e app — fixo some e libera a vaga nas datas da pausa, aluno não
 --      agenda, resumo de frequência sem falta nem aula prevista da pausa,
@@ -19,11 +19,14 @@
 -- Resultado: "RESULTADO ILU-114: PASSOU (n/n)" ou
 --            "RESULTADO ILU-114: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu114_pausa_plano.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/ilu114_pausa_plano.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 --
@@ -49,7 +52,7 @@ DECLARE
   v_total int := 0;
   v_j jsonb;
   v_p pausas_plano%ROWTYPE;
-  v_al alunos%ROWTYPE;
+  v_al planos_aluno%ROWTYPE;
   v_n int; v_id bigint; v_id2 bigint; v_id3 bigint; v_txt text; v_recusado boolean;
 BEGIN
   SELECT auth_id INTO v_admin FROM alunos WHERE role = 'admin' AND auth_id IS NOT NULL ORDER BY id LIMIT 1;
@@ -84,29 +87,27 @@ BEGIN
   VALUES ('[TESTE ILU-114] Mensal', 100, 1, 2, '[{"modalidade":"Dança","limite":2}]') RETURNING id INTO v_plano;
 
   -- Início em hoje-90: as pausas retroativas dos casos cabem sempre dentro do ciclo.
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-114] Aluna A', 'teste-ilu114-a@iluminus.test', 'aluno', true, false, u_a, v_plano,
-          ARRAY[v_mod], v_hoje - 90, v_hoje + 60) RETURNING id INTO a_a;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-114] Aluna A', 'teste-ilu114-a@iluminus.test', v_plano,
+                                       v_hoje - 90, v_hoje + 60, ARRAY[v_mod], p_auth_id => u_a) t;
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
   VALUES (a_a, v_plano, v_hoje - 90, v_hoje + 60, 'ativo', 120, 'recorrente') RETURNING id INTO v_ciclo;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-114] Aluno B', 'teste-ilu114-b@iluminus.test', 'aluno', true, false, v_plano,
-          ARRAY[v_mod], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_b;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-114] Vencido V', 'teste-ilu114-v@iluminus.test', 'aluno', true, false, v_plano, v_hoje - 40, v_hoje - 1)
-  RETURNING id INTO a_v;
+  SELECT t.aluno_id INTO a_b
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-114] Aluno B', 'teste-ilu114-b@iluminus.test', v_plano,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_mod]) t;
+  SELECT t.aluno_id INTO a_v
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-114] Vencido V', 'teste-ilu114-v@iluminus.test', v_plano,
+                                       v_hoje - 40, v_hoje - 1) t;
   INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso)
   VALUES ('[TESTE ILU-114] Sem plano N', 'teste-ilu114-n@iluminus.test', 'aluno', true, false)
   RETURNING id INTO a_n;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano)
-  VALUES ('[TESTE ILU-114] Sem vencimento S', 'teste-ilu114-s@iluminus.test', 'aluno', true, false, v_plano, v_hoje - 10)
-  RETURNING id INTO a_s;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-114] Inativo I', 'teste-ilu114-i@iluminus.test', 'aluno', false, false, v_plano, v_hoje - 10, v_hoje + 20)
-  RETURNING id INTO a_i;
+  SELECT t.aluno_id INTO a_s
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-114] Sem vencimento S', 'teste-ilu114-s@iluminus.test', v_plano,
+                                       v_hoje - 10, NULL) t;
+  SELECT t.aluno_id INTO a_i
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-114] Inativo I', 'teste-ilu114-i@iluminus.test', v_plano,
+                                       v_hoje - 10, v_hoje + 20, p_ativo => false) t;
 
   INSERT INTO agenda (atividade, dia_semana, horario, capacidade, eh_recorrente, modalidade_id, professor_id)
   VALUES ('[TESTE ILU-114] Dança Seg', 'segunda-feira', '19:00', 10, true, v_mod, v_prof) RETURNING id INTO v_aula;
@@ -160,7 +161,7 @@ BEGIN
   END IF;
 
   ---------------------------------------------------------------- P: pausar
-  -- P1: pausa hoje grava o histórico, liga o aluno e não mexe no vencimento
+  -- P1: pausa hoje grava o histórico, marca o plano e não mexe no vencimento
   v_total := v_total + 1;
   BEGIN
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -168,14 +169,14 @@ BEGIN
     v_j := public.pausar_plano_aluno(a_a, v_hoje, v_hoje + 20, 'Atestado [TESTE ILU-114]');
     RESET ROLE;
     SELECT * INTO v_p FROM pausas_plano WHERE aluno_id = a_a;
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
     IF v_p.data_inicio IS DISTINCT FROM v_hoje OR v_p.data_prevista_volta IS DISTINCT FROM v_hoje + 20
        OR v_p.data_retorno IS NOT NULL OR v_p.motivo IS DISTINCT FROM 'Atestado [TESTE ILU-114]'
        OR v_p.historico_plano_id IS DISTINCT FROM v_ciclo OR v_p.criado_por IS DISTINCT FROM v_admin THEN
       v_falhas := v_falhas || ('P1: pausa diferente do esperado: ' || row_to_json(v_p)::text);
     END IF;
-    IF v_al.plano_pausado_desde IS DISTINCT FROM v_hoje OR v_al.data_fim_plano IS DISTINCT FROM v_hoje + 60
-       OR v_al.ativo IS DISTINCT FROM true THEN
+    IF v_al.pausado_desde IS DISTINCT FROM v_hoje OR v_al.data_fim IS DISTINCT FROM v_hoje + 60
+       OR (SELECT ativo FROM alunos WHERE id = a_a) IS DISTINCT FROM true THEN
       v_falhas := v_falhas || 'P1: aluno diferente do esperado'::text;
     END IF;
     IF (v_j->>'pausa_id')::uuid IS DISTINCT FROM v_p.id THEN
@@ -270,7 +271,7 @@ BEGIN
     SET LOCAL ROLE authenticated;
     v_j := public.pausar_plano_aluno(a_v, v_hoje - 3, v_hoje + 20, 'Atestado');
     RESET ROLE;
-    IF (SELECT plano_pausado_desde FROM alunos WHERE id = a_v) IS DISTINCT FROM v_hoje - 3 THEN
+    IF (SELECT pausado_desde FROM planos_aluno WHERE id = public._plano_aluno_principal(a_v)) IS DISTINCT FROM v_hoje - 3 THEN
       v_falhas := v_falhas || 'P7: pausa retroativa não ficou registrada'::text;
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
@@ -432,7 +433,7 @@ BEGIN
   END;
 
   ---------------------------------------------------------------- R: retomar
-  -- R1: os dias pausados voltam no aluno e no ciclo; horários fixos continuam
+  -- R1: os dias pausados voltam no plano e no ciclo; horários fixos continuam
   v_total := v_total + 1;
   BEGIN
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -441,9 +442,9 @@ BEGIN
     v_j := public.retomar_plano_aluno(a_a);
     RESET ROLE;
     SELECT * INTO v_p FROM pausas_plano WHERE aluno_id = a_a;
-    SELECT * INTO v_al FROM alunos WHERE id = a_a;
-    IF v_al.data_fim_plano IS DISTINCT FROM v_hoje + 80 OR v_al.plano_pausado_desde IS NOT NULL THEN
-      v_falhas := v_falhas || ('R1: aluno errado: fim=' || v_al.data_fim_plano || ' pausado=' || coalesce(v_al.plano_pausado_desde::text, 'null'));
+    SELECT * INTO v_al FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a);
+    IF v_al.data_fim IS DISTINCT FROM v_hoje + 80 OR v_al.pausado_desde IS NOT NULL THEN
+      v_falhas := v_falhas || ('R1: plano errado: fim=' || v_al.data_fim || ' pausado=' || coalesce(v_al.pausado_desde::text, 'null'));
     END IF;
     IF (SELECT data_fim FROM historico_planos WHERE id = v_ciclo) IS DISTINCT FROM v_hoje + 80 THEN
       v_falhas := v_falhas || 'R1: o ciclo do histórico não recebeu os dias'::text;
@@ -473,7 +474,7 @@ BEGIN
     v_j := public.pausar_plano_aluno(a_a, v_hoje, v_hoje + 20, 'Engano');
     v_j := public.retomar_plano_aluno(a_a, v_hoje);
     RESET ROLE;
-    IF (SELECT data_fim_plano FROM alunos WHERE id = a_a) IS DISTINCT FROM v_hoje + 60
+    IF (SELECT data_fim FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a)) IS DISTINCT FROM v_hoje + 60
        OR (v_j->>'dias_devolvidos')::int IS DISTINCT FROM 0 THEN
       v_falhas := v_falhas || ('R2: devolveu dias: ' || v_j::text);
     END IF;
@@ -555,14 +556,14 @@ BEGIN
   -- R6: só contam os dias pausados dentro do ciclo (renovação antecipada)
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_hoje - 5 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_hoje - 5 WHERE id = public._plano_aluno_principal(a_a);
     PERFORM set_config('request.jwt.claims', c_admin, true);
     SET LOCAL ROLE authenticated;
     v_j := public.pausar_plano_aluno(a_a, v_hoje - 15, v_hoje, 'Atestado');
     v_j := public.retomar_plano_aluno(a_a);
     RESET ROLE;
     IF (v_j->>'dias_devolvidos')::int IS DISTINCT FROM 5
-       OR (SELECT data_fim_plano FROM alunos WHERE id = a_a) IS DISTINCT FROM v_hoje + 65 THEN
+       OR (SELECT data_fim FROM planos_aluno WHERE id = public._plano_aluno_principal(a_a)) IS DISTINCT FROM v_hoje + 65 THEN
       v_falhas := v_falhas || ('R6: esperava 5 dias: ' || v_j::text);
     END IF;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
@@ -864,7 +865,7 @@ BEGIN
   -- pausa não vira falta; falta de antes continua contando
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_hoje - 30 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_hoje - 30 WHERE id = public._plano_aluno_principal(a_a);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem) VALUES (a_a, v_aula, v_hoje - 3, 'agendado', 'fixo');
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem) VALUES (a_a, v_aula, v_hoje - 10, 'falta', 'fixo');
     PERFORM set_config('request.jwt.claims', c_admin, true);
@@ -941,19 +942,19 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('A10: ' || SQLERRM);
   END;
 
-  -- A11: o aluno não mexe em plano_pausado_desde pela API
+  -- A11: o aluno não mexe na pausa do plano (planos_aluno.pausado_desde) pela API
   v_total := v_total + 1;
   v_recusado := false;
   BEGIN
     PERFORM set_config('request.jwt.claims', c_aluno, true);
     SET LOCAL ROLE authenticated;
-    UPDATE alunos SET plano_pausado_desde = v_hoje WHERE id = a_a;
+    UPDATE planos_aluno SET pausado_desde = v_hoje WHERE aluno_id = a_a;
     RAISE EXCEPTION 'desfaz' USING ERRCODE = 'TR001';
   EXCEPTION WHEN SQLSTATE 'TR001' THEN NULL;
   WHEN OTHERS THEN v_recusado := SQLSTATE = '42501';
   END;
   IF NOT v_recusado THEN
-    v_falhas := v_falhas || 'A11: aluno alterou plano_pausado_desde'::text;
+    v_falhas := v_falhas || 'A11: aluno alterou a pausa do plano'::text;
   END IF;
 
   -- A12: ajustar a previsão — só com pausa aberta, data válida e admin

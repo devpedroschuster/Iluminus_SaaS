@@ -14,8 +14,11 @@
 --
 -- Dados [TESTE 3B-E], e-mails teste-3be-*@iluminus.test; SEMPRE termina em RAISE.
 -- Resultado: "RESULTADO ILU127-3B-ENCERRAMENTO: PASSOU (n/n)" ou "... FALHOU (...)".
--- Como rodar: supabase db query --linked --project-ref mytmreoqysbxisszludl \
---   --output-format text -f scripts/sql-tests/ilu127_3b_encerramento.sql
+-- Como rodar: concatene scripts/sql-tests/_fixtures.sql e este arquivo num
+-- arquivo FORA do repo e rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu127_3b_encerramento.sql > /tmp/t.sql
+--   supabase db query --linked --project-ref mytmreoqysbxisszludl \
+--     --output-format text -f /tmp/t.sql
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
 DO $test$
@@ -49,11 +52,9 @@ BEGIN
   ---------------------------------------------------------------- X1 e X2: dois planos, B encerrado
   v_total := v_total + 2;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano,
-                        modalidades_selecionadas)
-    VALUES ('[TESTE 3B-E] T', 'teste-3be-t@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 29, ARRAY[m_x])
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3B-E] T', 'teste-3be-t@iluminus.test', v_p1,
+                                         v_hoje - 10, v_hoje + 29, ARRAY[m_x]) t;
     INSERT INTO planos_aluno (aluno_id, plano_id, data_inicio, data_fim, created_at)
     VALUES (v_al, v_p2, v_hoje - 10, v_hoje + 20, now() + interval '1 second') RETURNING id INTO v_pb;
     INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id) VALUES (v_al, m_z, 1, v_pb);
@@ -111,11 +112,9 @@ BEGIN
   ---------------------------------------------------------------- X3: um plano só
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano,
-                        modalidades_selecionadas)
-    VALUES ('[TESTE 3B-E] U', 'teste-3be-u@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 10, v_hoje + 29, ARRAY[m_x])
-    RETURNING id INTO v_al;
-    v_pa := public._plano_aluno_principal(v_al);
+    SELECT t.aluno_id, t.plano_aluno_id INTO v_al, v_pa
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3B-E] U', 'teste-3be-u@iluminus.test', v_p1,
+                                         v_hoje - 10, v_hoje + 29, ARRAY[m_x]) t;
     INSERT INTO alunos_modalidades (aluno_id, modalidade_id, vezes, plano_aluno_id)
     SELECT v_al, m_x, 1, v_pa
      WHERE NOT EXISTS (SELECT 1 FROM alunos_modalidades WHERE plano_aluno_id = v_pa AND modalidade_id = m_x);
@@ -143,10 +142,9 @@ BEGIN
   ---------------------------------------------------------------- X4: venceu, mas sem "Encerrar plano"
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, data_inicio_plano, data_fim_plano,
-                        modalidades_selecionadas)
-    VALUES ('[TESTE 3B-E] V', 'teste-3be-v@iluminus.test', 'aluno', true, false, v_p1, v_hoje - 40, v_hoje - 2, ARRAY[m_x])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE 3B-E] V', 'teste-3be-v@iluminus.test', v_p1,
+                                         v_hoje - 40, v_hoje - 2, ARRAY[m_x]) t;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, agendado_pelo_app)
     VALUES (v_al, a_x, v_hoje + 1, 'agendado', 'avulso', true) RETURNING id INTO r_x1;
     v_n := public.efetivar_encerramentos();

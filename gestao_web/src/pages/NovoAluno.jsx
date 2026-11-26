@@ -514,10 +514,11 @@ export default function NovoAluno() {
       const planoFinal = (roleSanitizado === 'aluno' && data.plano_id) ? data.plano_id : null;
       let planoInfos = null;
 
-      // ILU-127: o cadastro não grava plano nem modalidades em `alunos`
-      // (plano_id, data_inicio_plano, data_fim_plano, modalidades_selecionadas
-      // são cópias mantidas pelo banco). Na criação, o primeiro plano passa
-      // por criarPrimeiroPlano; na edição, pelo perfil do aluno.
+      // ILU-127: `alunos` não tem mais plano nem modalidades (as colunas
+      // plano_id, data_inicio_plano, data_fim_plano, modalidades_selecionadas
+      // saíram); os planos moram em planos_aluno e as modalidades em
+      // alunos_modalidades. Na criação, o primeiro plano passa por
+      // criarPrimeiroPlano; na edição, pelo perfil do aluno.
       const payloadBase = {
         cpf:                       data.cpf               || null,
         data_nascimento:           data.data_nascimento   || null,

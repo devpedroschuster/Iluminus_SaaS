@@ -31,7 +31,7 @@
 -- Como rodar (staging, a partir da raiz do repo): concatene as migrations da
 -- ILU-122 ainda não aplicadas, em ordem (20261116120000_repasses_competencia_schema,
 -- 20261116121000_apurar_repasses, 20261116122000_repasses_portas_e_vinculos),
--- e depois este arquivo, num arquivo
+-- e depois scripts/sql-tests/_fixtures.sql e este arquivo, num arquivo
 -- temporário FORA do repo, e rode
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
 --     --output-format text -f <arquivo temporário>
@@ -82,9 +82,8 @@ BEGIN
   INSERT INTO planos (nome, preco, duracao_meses, frequencia_semanal, regras_acesso)
   VALUES ('[TESTE REPASSE-COMP] Mensal', 280, 1, 2, '[{"modalidade":"Dança","limite":2}]') RETURNING id INTO v_plano;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-  VALUES ('[TESTE REPASSE-COMP] Aluna', 'teste-repcomp-a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-  RETURNING id INTO a_a;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] Aluna', 'teste-repcomp-a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
 
   INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
   VALUES (a_a, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9) RETURNING id INTO m1;
@@ -282,9 +281,8 @@ BEGIN
   -- R1: recorrente, 1 modalidade, cobrança paga vencendo em M
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R1', 'teste-repcomp-r1@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R1', 'teste-repcomp-r1@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9) RETURNING id INTO v_m;
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.valor) AS valor, max(x.competencia) AS comp,
@@ -312,9 +310,8 @@ BEGIN
   -- R2: mesma montagem de R1, chamada duas vezes: a segunda vê "já existia"
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R2', 'teste-repcomp-r2@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R2', 'teste-repcomp-r2@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     PERFORM * FROM apurar_repasses(v_mes, v_al, false);
@@ -334,9 +331,8 @@ BEGIN
   -- R3: recorrente, 2 modalidades com professor: valor_multi_modalidade cada
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R3', 'teste-repcomp-r3@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod, v_mod2])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R3', 'teste-repcomp-r3@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod, v_mod2]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     SELECT count(*), count(*) FILTER (WHERE x.situacao = 'gerada' AND x.valor = v_vm)
@@ -356,9 +352,8 @@ BEGIN
   -- R4: cobrança de M em aberto: sem cobertura, nada gravado
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R4', 'teste-repcomp-r4@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R4', 'teste-repcomp-r4@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula)
     VALUES (v_al, v_plano, v_mes + 9, 'pendente', 'regular');
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, bool_and(x.modalidade_id IS NULL) AS sem_mod
@@ -379,9 +374,8 @@ BEGIN
   -- M-2, M-1 e M geradas, todas na integral; M+1 ainda não começou
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R5', 'teste-repcomp-r5@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R5', 'teste-repcomp-r5@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -418,9 +412,8 @@ BEGIN
   -- M pausado, nada gravado; a prévia (simular) de M-1 mostra gerada sem gravar
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R6', 'teste-repcomp-r6@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R6', 'teste-repcomp-r6@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -449,9 +442,8 @@ BEGIN
   -- R7: bolsista com cobrança paga em M: fica de fora
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas, bolsista)
-    VALUES ('[TESTE REPASSE-COMP] R7', 'teste-repcomp-r7@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod], true)
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R7', 'teste-repcomp-r7@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod], p_bolsista => true) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 140, 'pix', v_mes + 9);
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, bool_and(x.modalidade_id IS NULL) AS sem_mod
@@ -472,9 +464,8 @@ BEGIN
   -- em M-1 o pagamento prova o mês e gera
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R8', 'teste-repcomp-r8@iluminus.test', 'aluno', false, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R8', 'teste-repcomp-r8@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod], p_ativo => false) t;
     v_ini := v_m1 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -498,9 +489,8 @@ BEGIN
   -- valor de uma modalidade
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R9', 'teste-repcomp-r9@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod_sem, v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R9', 'teste-repcomp-r9@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod_sem, v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     SELECT count(*),
@@ -520,9 +510,8 @@ BEGIN
   -- valor de uma modalidade; X sem cobertura
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R10', 'teste-repcomp-r10@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod, v_mod2])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R10', 'teste-repcomp-r10@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod, v_mod2]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento, modalidade_id)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 150, 'pix', v_mes + 9, v_mod2);
     SELECT count(*),
@@ -546,9 +535,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     INSERT INTO fechamento_comissoes (professor_id, mes_referencia, valor_total) VALUES (v_prof, v_m1, 0);
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R11', 'teste-repcomp-r11@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R11', 'teste-repcomp-r11@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.competencia) AS comp, max(x.data_referencia) AS ref
@@ -570,9 +558,8 @@ BEGIN
   -- R12: linha antiga (sem modalidade_id/competencia) com o mesmo nome em M
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R12', 'teste-repcomp-r12@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R12', 'teste-repcomp-r12@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -593,9 +580,8 @@ BEGIN
   -- R13: comissão removida pela gestão não volta
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R13', 'teste-repcomp-r13@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R13', 'teste-repcomp-r13@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     INSERT INTO repasses_removidos (aluno_id, modalidade_id, competencia) VALUES (v_al, v_mod, v_mes);
@@ -619,9 +605,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R14', 'teste-repcomp-r14@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R14', 'teste-repcomp-r14@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, DATE '2025-01-31', 'pago', 'regular', 750, 750, 'pix', DATE '2025-01-31', 'Pagamento integral do plano')
     RETURNING id INTO v_mi;
@@ -643,12 +628,11 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('R14: ' || SQLERRM);
   END;
 
-  -- R15: a mesma modalidade repetida em modalidades_selecionadas conta uma vez
+  -- R15: a mesma modalidade com 3 vezes por semana (vezes = 3) conta uma vez
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R15', 'teste-repcomp-r15@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod, v_mod, v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R15', 'teste-repcomp-r15@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod, v_mod, v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.valor) AS valor
@@ -665,9 +649,8 @@ BEGIN
   -- vínculo: o ciclo é coberto pelo vínculo, não pela coincidência de datas
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R16', 'teste-repcomp-r16@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R16', 'teste-repcomp-r16@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 24;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini + 10, 'pago', 'regular', 750, 750, 'pix', v_ini + 10, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -688,9 +671,8 @@ BEGIN
   -- R17: à vista cobrindo M + cobrança mensal do dia 10 de M em aberto: gerada
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R17', 'teste-repcomp-r17@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R17', 'teste-repcomp-r17@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -713,9 +695,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R18', 'teste-repcomp-r18@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R18', 'teste-repcomp-r18@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
     v_recusado := false;
@@ -782,9 +763,8 @@ BEGIN
   -- 25 de M-2, início 5 de M-1): senão o trimestral pagaria quatro meses.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R20', 'teste-repcomp-r20@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R20', 'teste-repcomp-r20@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_m2 + 24, 'pago', 'regular', 750, 750, 'pix', v_m2 + 24, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -809,9 +789,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R21', 'teste-repcomp-r21@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R21', 'teste-repcomp-r21@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
     RETURNING id INTO v_mi;
@@ -845,9 +824,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R22', 'teste-repcomp-r22@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R22', 'teste-repcomp-r22@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
     RETURNING id INTO v_mi;
@@ -881,9 +859,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R23', 'teste-repcomp-r23@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R23', 'teste-repcomp-r23@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano, DATE '2025-03-18', 'pago', 'regular', 1680, 1680, 'pix', DATE '2025-03-18', 'Pagamento integral do plano')
     RETURNING id INTO v_mi;
@@ -913,17 +890,14 @@ BEGIN
   -- aparece como sem_cobertura. Filtrado aos alunos deste caso.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R24 inativo pago', 'teste-repcomp-r24a@iluminus.test', 'aluno', false, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R24 inativo pago', 'teste-repcomp-r24a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod], p_ativo => false) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R24 inativo sem cobertura', 'teste-repcomp-r24b@iluminus.test', 'aluno', false, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] R24 ativo sem cobertura', 'teste-repcomp-r24c@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al3;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R24 inativo sem cobertura', 'teste-repcomp-r24b@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod], p_ativo => false) t;
+    SELECT t.aluno_id INTO v_al3
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] R24 ativo sem cobertura', 'teste-repcomp-r24c@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     SELECT count(*) FILTER (WHERE x.aluno_id = v_al) AS n_a,
            max(x.situacao) FILTER (WHERE x.aluno_id = v_al) AS sit_a,
            count(*) FILTER (WHERE x.aluno_id = v_al2) AS n_b,
@@ -983,9 +957,8 @@ BEGIN
   -- (01h UTC do dia 1 de M): conta em M-1.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L1', 'teste-repcomp-l1@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L1', 'teste-repcomp-l1@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9) RETURNING id INTO v_m;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1020,9 +993,8 @@ BEGIN
   -- Tem também uma cobrança regular paga em M-1: com as duas, vale o plano livre.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L2', 'teste-repcomp-l2@iluminus.test', 'aluno', true, false, v_pl100, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L2', 'teste-repcomp-l2@iluminus.test', v_pl100, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl100, v_m1 + 9, 'pago', 'plano_livre', 100, 'pix', v_m1 + 9);
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
@@ -1052,9 +1024,8 @@ BEGIN
   -- integral — o preço mensal, não o valor pago.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L3', 'teste-repcomp-l3@iluminus.test', 'aluno', true, false, v_pl375, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L3', 'teste-repcomp-l3@iluminus.test', v_pl375, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_pl375, v_ini, 'pago', 'regular', 2250, 2250, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1084,9 +1055,8 @@ BEGIN
   -- plano_livre_mes_em_andamento, nada gravado
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L4', 'teste-repcomp-l4@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L4', 'teste-repcomp-l4@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_mes + 9, 'pago', 'plano_livre', 300, 'pix', v_mes);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin)
@@ -1111,9 +1081,8 @@ BEGIN
   -- presente sem aula. Uma linha plano_livre_sem_presenca, nada gravado.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L5', 'teste-repcomp-l5@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L5', 'teste-repcomp-l5@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1140,9 +1109,8 @@ BEGIN
   -- sem_professor; Dança gerada com a parte inteira (300 × 50% = 150.00)
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L6', 'teste-repcomp-l6@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L6', 'teste-repcomp-l6@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1171,9 +1139,8 @@ BEGIN
   -- e o preço vem do plano que é de plano livre. 1 modalidade: 187.50.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L7', 'teste-repcomp-l7@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L7', 'teste-repcomp-l7@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_pl375, v_ini, 'pago', 'regular', 2250, 2250, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1194,13 +1161,12 @@ BEGIN
   WHEN OTHERS THEN v_falhas := v_falhas || ('L7: ' || SQLERRM);
   END;
 
-  -- L8 (extra): aluno de plano livre sem modalidades_selecionadas, coberto e
+  -- L8 (extra): aluno de plano livre sem modalidades no plano, coberto e
   -- com presença em M-1: é avaliado (as modalidades vêm das presenças)
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L8', 'teste-repcomp-l8@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[]::uuid[])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L8', 'teste-repcomp-l8@iluminus.test', v_pl300, NULL, NULL, ARRAY[]::uuid[]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin)
@@ -1220,9 +1186,8 @@ BEGIN
   -- sem_cobertura e nada é gravado.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L9', 'teste-repcomp-l9@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L9', 'teste-repcomp-l9@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, NULL, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin)
@@ -1249,9 +1214,8 @@ BEGIN
   BEGIN
     INSERT INTO planos (nome, preco, duracao_meses, regras_acesso, is_plano_livre)
     VALUES ('[TESTE REPASSE-COMP] Livre 0', 0, 1, '[]', true) RETURNING id INTO v_pl0;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L10', 'teste-repcomp-l10@iluminus.test', 'aluno', true, false, v_pl0, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L10', 'teste-repcomp-l10@iluminus.test', v_pl0, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl0, v_m1 + 9, 'pago', 'plano_livre', 0, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1264,9 +1228,8 @@ BEGIN
       v_falhas := v_falhas || format('L10: recorrente esperava 2 sem_cobertura plano_livre, veio n=%s (%s)', r.n, r.det);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L10 à vista', 'teste-repcomp-l10b@iluminus.test', 'aluno', true, false, v_pl0, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L10 à vista', 'teste-repcomp-l10b@iluminus.test', v_pl0, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al2, v_pl0, v_ini, 'pago', 'regular', 0, 0, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1295,9 +1258,8 @@ BEGIN
   -- grava nada (senão os professores receberiam 150 + 50).
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L11', 'teste-repcomp-l11@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L11', 'teste-repcomp-l11@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1333,9 +1295,8 @@ BEGIN
   -- Nada gravado nos três.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L12 parcial', 'teste-repcomp-l12a@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L12 parcial', 'teste-repcomp-l12a@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_mes + 1) RETURNING id INTO v_m;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -1348,9 +1309,8 @@ BEGIN
       v_falhas := v_falhas || format('L12a: linha antiga parcial deveria dar 2 ja_existia, veio %s linha(s) %s', v_n, coalesce(v_txt, '(nada)'));
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L12 removida', 'teste-repcomp-l12b@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L12 removida', 'teste-repcomp-l12b@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al2, v_pl300, v_m1 + 9, 'pago', 'plano_livre', 300, 'pix', v_m1 + 9);
     INSERT INTO repasses_removidos (aluno_id, modalidade_id, competencia) VALUES (v_al2, v_mod, v_m1);
@@ -1362,9 +1322,8 @@ BEGIN
       v_falhas := v_falhas || format('L12b: marca em Dança deveria dar 2 removida_pela_gestao, veio %s linha(s) %s', v_n, coalesce(v_txt, '(nada)'));
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L12 regular', 'teste-repcomp-l12c@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod3])
-    RETURNING id INTO v_al3;
+    SELECT t.aluno_id INTO v_al3
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L12 regular', 'teste-repcomp-l12c@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod3]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al3, v_pl300, v_m1 + 9, 'pago', 'regular', 300, 'pix', v_m1 + 9) RETURNING id INTO v_mi;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -1390,9 +1349,8 @@ BEGIN
   -- frequentadas (Dança e Pilates, 75.00 cada) na própria cobrança.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] L13', 'teste-repcomp-l13@iluminus.test', 'aluno', true, false, v_pl300, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] L13', 'teste-repcomp-l13@iluminus.test', v_pl300, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_pl300, v_m1 + 9, 'pago', 'regular', 300, 'pix', v_m1 + 9) RETURNING id INTO v_m;
     INSERT INTO presencas (aluno_id, aula_id, data_aula, status, origem, data_checkin) VALUES
@@ -1424,9 +1382,8 @@ BEGIN
   -- reaproveita a integral em aberto de um ciclo à vista desliga esse ciclo.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C1', 'teste-repcomp-c1@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C1', 'teste-repcomp-c1@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     v_j := renovar_plano_aluno(v_al, v_plano3, v_mes, (v_mes + interval '3 months')::date - 1, 750, 'a_vista', true, 'pix');
     v_mi := (v_j ->> 'mensalidade_id')::bigint;
     SELECT count(*) INTO v_n
@@ -1444,9 +1401,8 @@ BEGIN
                                      r.n, r.sit, r.comp, r.mens);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C1 recorrente', 'teste-repcomp-c1b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C1 recorrente', 'teste-repcomp-c1b@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     v_j := renovar_plano_aluno(v_al2, v_plano, v_mes, (v_mes + interval '1 month')::date - 1, 280, 'recorrente', true, 'pix');
     SELECT count(*) INTO v_n FROM historico_planos
      WHERE aluno_id = v_al2 AND forma_recebimento = 'recorrente' AND cobranca_integral_id IS NULL;
@@ -1458,9 +1414,8 @@ BEGIN
     -- depois recorrente no mesmo plano e início: a renovação reaproveita P como
     -- a mensal e a recebe. O ciclo à vista, agora finalizado, perde o vínculo:
     -- P paga cobre só o mês do vencimento, não os três aniversários.
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C1 reaproveitada', 'teste-repcomp-c1c@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al3;
+    SELECT t.aluno_id INTO v_al3
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C1 reaproveitada', 'teste-repcomp-c1c@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     v_j := renovar_plano_aluno(v_al3, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 0, 'a_vista');
     v_mi2 := (v_j ->> 'mensalidade_id')::bigint;
@@ -1485,9 +1440,8 @@ BEGIN
   -- começou). Uma segunda chamada dá ja_existia e não duplica.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C2', 'teste-repcomp-c2@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C2', 'teste-repcomp-c2@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1523,9 +1477,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C3', 'teste-repcomp-c3@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C3', 'teste-repcomp-c3@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 1) RETURNING id INTO v_m;
     SELECT count(*) AS n, string_agg(x.situacao, ',') AS sit, max(x.competencia) AS comp, max(x.data_referencia) AS ref,
@@ -1555,9 +1508,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     v_ini := v_m1 + 4;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C4', 'teste-repcomp-c4@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C4', 'teste-repcomp-c4@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini + 10, 'pago', 'regular', 750, 750, 'pix', v_ini + 10, 'Pagamento integral do plano') RETURNING id INTO v_mi;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
@@ -1578,9 +1530,8 @@ BEGIN
       v_falhas := v_falhas || format('C4: ciclo já ligado deveria devolver %s sem mudar, devolveu %s', v_mi, v_bi);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C4 recorrente', 'teste-repcomp-c4b@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C4 recorrente', 'teste-repcomp-c4b@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al2, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano');
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
@@ -1590,9 +1541,8 @@ BEGIN
       v_falhas := v_falhas || ('C4: ciclo recorrente deveria devolver NULL sem ligar, devolveu ' || coalesce(v_bi::text, 'NULL'));
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C4 fora', 'teste-repcomp-c4c@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al3;
+    SELECT t.aluno_id INTO v_al3
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C4 fora', 'teste-repcomp-c4c@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al3, v_plano3, v_ini - 16, 'pago', 'regular', 750, 750, 'pix', v_ini - 16, 'Pagamento integral do plano');
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
@@ -1604,9 +1554,8 @@ BEGIN
       v_falhas := v_falhas || ('C4: fora da janela ou sem a descrição da integral não deveria ligar, ligou ' || v_bi);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C4 já ligada', 'teste-repcomp-c4d@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al4;
+    SELECT t.aluno_id INTO v_al4
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C4 já ligada', 'teste-repcomp-c4d@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al4, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi2;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
@@ -1631,9 +1580,8 @@ BEGIN
   -- recusa.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C5', 'teste-repcomp-c5@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C5', 'teste-repcomp-c5@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
     PERFORM * FROM apurar_repasses(v_mes, v_al, false);
@@ -1669,9 +1617,8 @@ BEGIN
       v_falhas := v_falhas || ('C5: avulsa deveria ser apagada sem marca, marcas do aluno: ' || v_n);
     END IF;
     -- Mês fechado: recusa e não mexe em nada.
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C5 fechado', 'teste-repcomp-c5b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C5 fechado', 'teste-repcomp-c5b@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al2, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
     PERFORM * FROM apurar_repasses(v_m1, v_al2, false);
@@ -1705,9 +1652,8 @@ BEGIN
   -- certo — M-1 fechado para o professor depois da apuração.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C6', 'teste-repcomp-c6@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C6', 'teste-repcomp-c6@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1734,9 +1680,8 @@ BEGIN
   -- vincular_cobranca_integral, dá ja_existia em M e nos 3 meses do pagamento.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C7', 'teste-repcomp-c7@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C7', 'teste-repcomp-c7@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1777,14 +1722,12 @@ BEGIN
   -- são conferidos.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C8 M', 'teste-repcomp-c8a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C8 M', 'teste-repcomp-c8a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_mes + 9, 'pago', 'regular', 280, 'pix', v_mes + 9);
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C8 M-1', 'teste-repcomp-c8b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C8 M-1', 'teste-repcomp-c8b@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al2, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9);
 
@@ -1883,9 +1826,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = DATE '2024-01-01';
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C10 teto', 'teste-repcomp-c10a@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C10 teto', 'teste-repcomp-c10a@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, DATE '2025-01-31', 'pago', 'regular', 750, 750, 'pix', DATE '2025-01-31', 'Pagamento integral do plano')
     RETURNING id INTO v_mi;
@@ -1897,9 +1839,8 @@ BEGIN
       v_falhas := v_falhas || ('C10: trimestral 31/01 deveria apurar jan a mar, veio ' || coalesce(v_txt, '(nada)'));
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C10 pausa', 'teste-repcomp-c10b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C10 pausa', 'teste-repcomp-c10b@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al2, v_plano6, DATE '2025-01-04', 'pago', 'regular', 1440, 1440, 'pix', DATE '2025-01-04', 'Pagamento integral do plano')
     RETURNING id INTO v_mi2;
@@ -1926,9 +1867,8 @@ BEGIN
   -- aberto, avulsa paga, cobrança de visitante (sem aluno) ou id inexistente.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C11', 'teste-repcomp-c11@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C11', 'teste-repcomp-c11@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula)
     VALUES (v_al, v_plano, v_mes + 9, 'pendente', 'regular') RETURNING id INTO v_m;
     INSERT INTO mensalidades (aluno_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
@@ -1956,9 +1896,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C12 recorrente', 'teste-repcomp-c12a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C12 recorrente', 'teste-repcomp-c12a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_m1 + 9) RETURNING id INTO v_m;
     SELECT count(*) INTO v_n FROM apurar_repasses_da_cobranca(v_m) x;
@@ -1967,9 +1906,8 @@ BEGIN
       v_falhas := v_falhas || format('C12: recorrente de M-1 paga antes do corte não deveria apurar, veio %s linha(s), %s gravada(s)', v_n, v_n2);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C12 à vista', 'teste-repcomp-c12b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C12 à vista', 'teste-repcomp-c12b@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m2 + 3;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al2, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -1995,9 +1933,8 @@ BEGIN
   -- gerada e M ja_existia.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C13 mensal', 'teste-repcomp-c13a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C13 mensal', 'teste-repcomp-c13a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 2) RETURNING id INTO v_m;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -2010,9 +1947,8 @@ BEGIN
                                      coalesce(v_txt, '(nada)'), v_n);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C13 integral', 'teste-repcomp-c13b@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C13 integral', 'teste-repcomp-c13b@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     v_ini := v_m1 + 4;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al2, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_mes + 1, 'Pagamento integral do plano') RETURNING id INTO v_mi;
@@ -2040,9 +1976,8 @@ BEGIN
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
     v_ini := v_m2 + 3;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C14', 'teste-repcomp-c14a@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C14', 'teste-repcomp-c14a@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano6, v_ini, 'pago', 'regular', 1440, 1440, 'pix', v_mes + 1, 'Pagamento integral do plano') RETURNING id INTO v_mi;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
@@ -2056,9 +1991,8 @@ BEGIN
       v_falhas := v_falhas || format('C14: esperava 3 comissões em M mantidas e desligadas, veio %s antes, %s, %s desligada(s)', v_n, v_j, v_n2);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C14 lote', 'teste-repcomp-c14b@iluminus.test', 'aluno', true, false, v_plano6, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C14 lote', 'teste-repcomp-c14b@iluminus.test', v_plano6, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
     VALUES (v_prof, v_al2, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_mes);
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
@@ -2086,9 +2020,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C15', 'teste-repcomp-c15@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C15', 'teste-repcomp-c15@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 2) RETURNING id INTO v_m;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -2124,9 +2057,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     v_ini := v_m1 + 4;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C16', 'teste-repcomp-c16a@iluminus.test', 'aluno', true, false, v_plano3, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C16', 'teste-repcomp-c16a@iluminus.test', v_plano3, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, valor_esperado, forma_pagamento, data_pagamento, descricao)
     VALUES (v_al, v_plano3, v_ini, 'pago', 'regular', 750, 750, 'pix', v_ini, 'Pagamento integral do plano') RETURNING id INTO v_mi;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
@@ -2142,9 +2074,8 @@ BEGIN
       v_falhas := v_falhas || 'C16: ligar a mesma integral a dois ciclos deveria dar unique_violation'::text;
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C16 duas', 'teste-repcomp-c16b@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al2;
+    SELECT t.aluno_id INTO v_al2
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C16 duas', 'teste-repcomp-c16b@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     v_j := renovar_plano_aluno(v_al2, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 0, 'a_vista');
     SELECT id INTO v_h2 FROM historico_planos WHERE aluno_id = v_al2 AND cobranca_integral_id = (v_j ->> 'mensalidade_id')::bigint;
     v_j := renovar_plano_aluno(v_al2, v_plano3, v_ini, (v_ini + interval '3 months')::date - 1, 750, 'a_vista', true, 'pix');
@@ -2157,9 +2088,8 @@ BEGIN
                                      v_j ->> 'mensalidade_id', v_n);
     END IF;
 
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C16 reaproveitada', 'teste-repcomp-c16c@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al3;
+    SELECT t.aluno_id INTO v_al3
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C16 reaproveitada', 'teste-repcomp-c16c@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_esperado, descricao)
     VALUES (v_al3, v_plano3, v_ini, 'cancelado', 'regular', 750, 'Pagamento integral do plano') RETURNING id INTO v_mi2;
     INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento, cobranca_integral_id)
@@ -2182,9 +2112,8 @@ BEGIN
   -- cobrança de M paga, M gera.
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C17', 'teste-repcomp-c17@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C17', 'teste-repcomp-c17@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)
     VALUES (v_al, v_plano, v_m1 + 9, 'pago', 'regular', 280, 'pix', v_mes + 2) RETURNING id INTO v_m;
     INSERT INTO repasses_lancamentos (mensalidade_id, professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
@@ -2210,9 +2139,8 @@ BEGIN
   v_total := v_total + 1;
   BEGIN
     UPDATE configuracoes_repasse SET corte_competencia = v_mes;
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-    VALUES ('[TESTE REPASSE-COMP] C18', 'teste-repcomp-c18@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-    RETURNING id INTO v_al;
+    SELECT t.aluno_id INTO v_al
+      FROM pg_temp.teste_aluno_com_plano('[TESTE REPASSE-COMP] C18', 'teste-repcomp-c18@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
     INSERT INTO repasses_lancamentos (professor_id, aluno_id, tipo_aula, modalidade, valor, data_referencia)
     VALUES (v_prof, v_al, 'regular', '[TESTE REPASSE-COMP] Dança', 100, v_m1);
     INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)

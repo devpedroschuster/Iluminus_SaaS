@@ -31,11 +31,14 @@
 -- Resultado: "RESULTADO COMISSAO-MANTIDA: PASSOU (n/n)" ou
 --            "RESULTADO COMISSAO-MANTIDA: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu117_comissao_mantida.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/ilu117_comissao_mantida.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 
@@ -76,11 +79,9 @@ BEGIN
   INSERT INTO planos (nome, preco, duracao_meses, frequencia_semanal, regras_acesso)
   VALUES ('[TESTE COM-MANTIDA] Trimestral', 250, 3, 2, '[{"modalidade":"Dança","limite":2}]') RETURNING id INTO v_plano_tri;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas,
-                      data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE COM-MANTIDA] Aluna', 'teste-commantida-a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod],
-          v_hoje - 30, v_hoje + 60)
-  RETURNING id INTO a_a;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE COM-MANTIDA] Aluna', 'teste-commantida-a@iluminus.test', v_plano,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_mod]) t;
   INSERT INTO historico_planos (aluno_id, plano_id, data_inicio, data_fim, status, valor_pago, forma_recebimento)
   VALUES (a_a, v_plano, v_hoje - 30, v_hoje + 60, 'ativo', 280, 'recorrente');
 

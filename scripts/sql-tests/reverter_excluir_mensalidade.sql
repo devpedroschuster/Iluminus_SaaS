@@ -24,11 +24,14 @@
 -- Resultado: "RESULTADO REVERTER-EXCLUIR: PASSOU (n/n)" ou
 --            "RESULTADO REVERTER-EXCLUIR: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/reverter_excluir_mensalidade.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/reverter_excluir_mensalidade.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Pré-requisito: um aluno com role 'admin' e auth_id (a conta E2E de staging).
 --
@@ -81,9 +84,8 @@ BEGIN
   INSERT INTO planos (nome, preco, duracao_meses, frequencia_semanal, regras_acesso)
   VALUES ('[TESTE FIN-ALUNO] Mensal', 280, 1, 2, '[{"modalidade":"Dança","limite":2}]') RETURNING id INTO v_plano;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, plano_id, modalidades_selecionadas)
-  VALUES ('[TESTE FIN-ALUNO] Aluna', 'teste-finaluno-a@iluminus.test', 'aluno', true, false, v_plano, ARRAY[v_mod])
-  RETURNING id INTO a_a;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE FIN-ALUNO] Aluna', 'teste-finaluno-a@iluminus.test', v_plano, NULL, NULL, ARRAY[v_mod]) t;
 
   -- M1: regular paga, sem valor_esperado (como um lançamento manual pago).
   INSERT INTO mensalidades (aluno_id, plano_id, data_vencimento, status, tipo_aula, valor_pago, forma_pagamento, data_pagamento)

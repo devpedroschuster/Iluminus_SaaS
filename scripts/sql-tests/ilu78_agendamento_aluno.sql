@@ -10,11 +10,14 @@
 -- Resultado: "RESULTADO ILU-78: PASSOU (n/n)" ou
 --            "RESULTADO ILU-78: FALHOU (k falha(s) em n casos): ...".
 --
--- Como rodar (staging, a partir da raiz do repo):
+-- Como rodar (staging, a partir da raiz do repo): concatene
+-- scripts/sql-tests/_fixtures.sql e este arquivo num arquivo FORA do repo e
+-- rode o resultado (ver scripts/sql-tests/README.md):
+--   cat scripts/sql-tests/_fixtures.sql scripts/sql-tests/ilu78_agendamento_aluno.sql > /tmp/t.sql
 --   supabase db query --linked --project-ref mytmreoqysbxisszludl \
---     -f scripts/sql-tests/ilu78_agendamento_aluno.sql
--- Para testar a migration antes de aplicá-la, concatene a migration e este
--- arquivo (migration primeiro) e rode o resultado: o RAISE final desfaz tudo.
+--     --output-format text -f /tmp/t.sql
+-- Para testar a migration antes de aplicá-la, ponha a migration antes das
+-- fixtures, tudo entre BEGIN; e ROLLBACK;. O RAISE final desfaz tudo.
 --
 -- Datas: v_seg é a segunda-feira da semana que vem (sempre entre hoje+1 e
 -- hoje+7), então seg..dom dessa semana ficam no futuro e dentro da janela de
@@ -70,30 +73,24 @@ BEGIN
   INSERT INTO planos (nome, preco, regras_acesso)
   VALUES ('[TESTE ILU-78] Sem regras', 50, '[]') RETURNING id INTO v_plano_vazio;
 
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Aluna A', 'teste-ilu78-a@iluminus.test', 'aluno', true, false, u_a, v_plano,
-          ARRAY[v_md, v_mf], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_a;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Aluno B', 'teste-ilu78-b@iluminus.test', 'aluno', true, false, NULL, v_plano,
-          ARRAY[v_md], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_b;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Livre L', 'teste-ilu78-l@iluminus.test', 'aluno', true, false, u_l, v_plano_livre,
-          ARRAY[v_md], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_l;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Sem plano N', 'teste-ilu78-n@iluminus.test', 'aluno', true, false, u_n, NULL,
-          ARRAY[v_md], NULL, NULL) RETURNING id INTO a_n;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Inativo I', 'teste-ilu78-i@iluminus.test', 'aluno', false, false, u_i, v_plano,
-          ARRAY[v_md], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_i;
-  INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                      modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-  VALUES ('[TESTE ILU-78] Plano vazio V', 'teste-ilu78-v@iluminus.test', 'aluno', true, false, NULL, v_plano_vazio,
-          ARRAY[v_md], v_hoje - 30, v_hoje + 60) RETURNING id INTO a_v;
+  SELECT t.aluno_id INTO a_a
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Aluna A', 'teste-ilu78-a@iluminus.test', v_plano,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_md, v_mf], p_auth_id => u_a) t;
+  SELECT t.aluno_id INTO a_b
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Aluno B', 'teste-ilu78-b@iluminus.test', v_plano,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_md]) t;
+  SELECT t.aluno_id INTO a_l
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Livre L', 'teste-ilu78-l@iluminus.test', v_plano_livre,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_md], p_auth_id => u_l) t;
+  SELECT t.aluno_id INTO a_n
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Sem plano N', 'teste-ilu78-n@iluminus.test', NULL,
+                                       NULL, NULL, p_auth_id => u_n) t;
+  SELECT t.aluno_id INTO a_i
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Inativo I', 'teste-ilu78-i@iluminus.test', v_plano,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_md], p_auth_id => u_i, p_ativo => false) t;
+  SELECT t.aluno_id INTO a_v
+    FROM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Plano vazio V', 'teste-ilu78-v@iluminus.test', v_plano_vazio,
+                                       v_hoje - 30, v_hoje + 60, ARRAY[v_md]) t;
 
   INSERT INTO agenda (atividade, dia_semana, horario, capacidade, eh_recorrente, modalidade_id, professor_id)
   VALUES ('[TESTE ILU-78] Dança Seg', v_dias[1], '19:00', 10, true, v_md, v_prof) RETURNING id INTO c_dan_seg;
@@ -375,13 +372,13 @@ BEGIN
   BEGIN
     v_ref := ((v_seg - 3) + time '12:00') AT TIME ZONE 'America/Sao_Paulo';
     -- (a) aula no 4º dia de vencido: passa
-    UPDATE alunos SET data_fim_plano = v_seg - 3 WHERE id = a_a;
+    UPDATE planos_aluno SET data_fim = v_seg - 3 WHERE id = public._plano_aluno_principal(a_a);
     v_j := public._avaliar_agendamento(a_a, c_dan_ter, v_seg + 1, v_ref);
     IF NOT (v_j->>'pode')::boolean THEN
       v_falhas := v_falhas || ('AV5a: 4º dia de vencido deveria passar: ' || v_j::text);
     END IF;
     -- (b) aula no 5º dia, plano já vencido: "venceu em"
-    UPDATE alunos SET data_fim_plano = v_seg - 4 WHERE id = a_a;
+    UPDATE planos_aluno SET data_fim = v_seg - 4 WHERE id = public._plano_aluno_principal(a_a);
     v_j := public._avaliar_agendamento(a_a, c_dan_ter, v_seg + 1, v_ref);
     IF v_j->>'codigo' IS DISTINCT FROM 'plano_vencido'
        OR v_j->>'motivo' IS DISTINCT FROM ('Seu plano venceu em ' || to_char(v_seg - 4, 'DD/MM') || '. Renove para agendar.') THEN
@@ -400,7 +397,7 @@ BEGIN
   -- AV6
   v_total := v_total + 1;
   BEGIN
-    UPDATE alunos SET data_inicio_plano = v_seg + 2 WHERE id = a_a;
+    UPDATE planos_aluno SET data_inicio = v_seg + 2 WHERE id = public._plano_aluno_principal(a_a);
     v_j := public._avaliar_agendamento(a_a, c_dan_ter, v_seg + 1);
     IF v_j->>'codigo' IS DISTINCT FROM 'plano_nao_iniciado'
        OR v_j->>'motivo' IS DISTINCT FROM ('Seu plano começa em ' || to_char(v_seg + 2, 'DD/MM') || '.') THEN
@@ -830,10 +827,8 @@ BEGIN
   -- R8: login ligado a mais de um cadastro é recusado (não agenda no cadastro errado)
   v_total := v_total + 1;
   BEGIN
-    INSERT INTO alunos (nome_completo, email, role, ativo, primeiro_acesso, auth_id, plano_id,
-                        modalidades_selecionadas, data_inicio_plano, data_fim_plano)
-    VALUES ('[TESTE ILU-78] Homônimo', 'teste-ilu78-h@iluminus.test', 'aluno', true, false, u_a, v_plano,
-            ARRAY[v_md], v_hoje - 30, v_hoje + 60);
+    PERFORM pg_temp.teste_aluno_com_plano('[TESTE ILU-78] Homônimo', 'teste-ilu78-h@iluminus.test', v_plano,
+                                          v_hoje - 30, v_hoje + 60, ARRAY[v_md], p_auth_id => u_a);
     PERFORM set_config('request.jwt.claims', json_build_object('role', 'authenticated', 'sub', u_a)::text, true);
     SET LOCAL ROLE authenticated;
     v_txt := NULL;

@@ -9,8 +9,8 @@ export const DIAS_CANONICOS = [
 ];
 
 // Remove acentos e deixa minúsculo, para comparação tolerante
-export function semAcento(str = '') {
-  return str.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+export function semAcento(str) {
+  return String(str ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 // Todas as variações conhecidas (nome completo, abreviação, com/sem hífen,

@@ -13,6 +13,11 @@ describe('diaSemana', () => {
     expect(normalizarDiaSemana(entrada)).toBe(saida);
   });
 
+  it('dia nulo (aula de data específica) não quebra', () => {
+    expect(ordemDiaSemana(null)).toBe(99);
+    expect(normalizarDiaSemana(null)).toBe('Dia não definido');
+  });
+
   it('ordemDiaSemana: segunda=1, desconhecido=99', () => {
     expect(ordemDiaSemana('Segunda-feira')).toBe(1);
     expect(ordemDiaSemana('xyz')).toBe(99);

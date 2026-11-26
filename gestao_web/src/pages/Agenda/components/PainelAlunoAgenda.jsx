@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, CalendarSearch, ArrowLeftRight, CalendarX2, ChevronLeft } from 'lucide-react';
 
@@ -46,6 +46,24 @@ export default function PainelAlunoAgenda({ aluno, aulas, matriculasFixas, onVer
   const [turmaTrocando, setTurmaTrocando] = useState(null);
   const [destinoTroca, setDestinoTroca] = useState(null);
   const [aulaDesmarcando, setAulaDesmarcando] = useState(null);
+  // Trava o botão de confirmar enquanto grava: um segundo clique em
+  // "Desmarcar" cairia no caminho de apagar de cancelarAgendamento e
+  // sumiria com a aula em haver. O ref vale na hora (dois cliques no mesmo
+  // instante); o estado desabilita o botão na tela.
+  const [gravando, setGravando] = useState(false);
+  const gravandoRef = useRef(false);
+
+  async function gravarUmaVez(acao) {
+    if (gravandoRef.current) return;
+    gravandoRef.current = true;
+    setGravando(true);
+    try {
+      await acao();
+    } finally {
+      gravandoRef.current = false;
+      setGravando(false);
+    }
+  }
 
   const { data: agendadas = [], isLoading: carregandoAgendadas } = useQuery({
     queryKey: chaveProximasAgendadas(aluno.id),
@@ -67,34 +85,36 @@ export default function PainelAlunoAgenda({ aluno, aulas, matriculasFixas, onVer
     [aulas, turmaTrocando, matriculasFixas, aluno.id, hoje],
   );
 
-  async function confirmarTroca() {
+  const confirmarTroca = () => gravarUmaVez(async () => {
     try {
       await gradeService.trocarTurmaFixa({
         alunoId: aluno.id, aulaAntigaId: turmaTrocando.id, aulaNovaId: destinoTroca.id,
       });
       showToast.success('Horário trocado!');
-      setTurmaTrocando(null);
-      onAlterado();
     } catch (err) {
       console.error('[PainelAlunoAgenda] trocarTurmaFixa:', err);
       showToast.error(err?.message || 'Erro ao trocar o horário.');
     } finally {
+      // Mesmo com falha pela metade (entrou na nova, não saiu da antiga) o
+      // banco mudou: recarrega e volta para a lista de turmas da aluna.
+      setTurmaTrocando(null);
       setDestinoTroca(null);
+      onAlterado();
     }
-  }
+  });
 
-  async function confirmarDesmarcar() {
+  const confirmarDesmarcar = () => gravarUmaVez(async () => {
     try {
       await agendamentoService.cancelarAgendamento(aulaDesmarcando.id);
       showToast.success('Aula desmarcada. Ela fica como aula em haver.');
-      onAlterado();
     } catch (err) {
       console.error('[PainelAlunoAgenda] cancelarAgendamento:', err);
       showToast.error('Erro ao desmarcar a aula.');
     } finally {
       setAulaDesmarcando(null);
+      onAlterado();
     }
-  }
+  });
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -212,6 +232,7 @@ export default function PainelAlunoAgenda({ aluno, aulas, matriculasFixas, onVer
           : ''}
         textoConfirmar="Trocar"
         tipo={destinoTroca?.lotada ? 'warning' : 'info'}
+        loading={gravando}
       />
       <ModalConfirmacao
         isOpen={!!aulaDesmarcando}
@@ -223,6 +244,7 @@ export default function PainelAlunoAgenda({ aluno, aulas, matriculasFixas, onVer
           : ''}
         textoConfirmar="Desmarcar"
         tipo="warning"
+        loading={gravando}
       />
     </div>
   );

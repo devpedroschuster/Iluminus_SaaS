@@ -5,6 +5,10 @@ import { ordemDiaSemana, semAcento } from './diaSemana';
 
 const MIN_LETRAS_BUSCA = 2;
 
+// Chaves do React Query do painel da aluna (usadas também para invalidar).
+export const chaveProximasAgendadas = (alunoId) => ['agenda', 'proximas-agendadas', alunoId];
+export const chaveAulasEmHaver = (alunoId) => ['aluno', alunoId, 'faltas-pendentes-reposicao'];
+
 export function filtrarAlunosPorNome(alunos, termo, limite = 8) {
   const busca = semAcento(termo ?? '');
   if (busca.length < MIN_LETRAS_BUSCA) return [];

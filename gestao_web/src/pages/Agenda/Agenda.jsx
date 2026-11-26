@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Ban, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { gradeService } from '../../services/gradeService';
 import { alunosService } from '../../services/alunosService';
@@ -29,6 +29,9 @@ import ModalNovaAula from './components/ModalNovaAula';
 import ModalListaPresenca from './components/ModalListaPresenca';
 import ModalFeriados from './components/ModalFeriados';
 import ModalAcoesEvento from './components/ModalAcoesEvento';
+import BuscaAlunoAgenda from './components/BuscaAlunoAgenda';
+import PainelAlunoAgenda from './components/PainelAlunoAgenda';
+import { chaveProximasAgendadas, chaveAulasEmHaver } from '../../lib/buscaAlunoAgenda';
 import EmptyState from '../../components/ui/EmptyState';
 import { Dumbbell, Music, CalendarX } from 'lucide-react';
 import { useMemo } from 'react';
@@ -97,6 +100,42 @@ export default function Agenda() {
   const dadosIniciais = { professores, modalidades, matriculasFixas };
 
   const pageState = useAgendaPage();
+  const queryClient = useQueryClient();
+
+  // Busca de aluno na Agenda: aluna aberta no painel e aula destacada no calendário.
+  const [alunaSelecionada, setAlunaSelecionada] = useState(null);
+  const [idDestacado, setIdDestacado] = useState(null);
+  const timerDestaque = useRef(null);
+  useEffect(() => () => clearTimeout(timerDestaque.current), []);
+  // A aula destacada pode estar fora da área visível do calendário (ex.: 19h).
+  useEffect(() => {
+    if (!idDestacado) return undefined;
+    const quadro = requestAnimationFrame(() => {
+      document.querySelector('.rbc-event.aula-destacada')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(quadro);
+  }, [idDestacado]);
+
+  const { setFiltroProf, setFiltroEspaco, setCurrentView, setCurrentDate } = pageState;
+  const verNaAgenda = useCallback(({ aulaId, data }) => {
+    if (!data) return;
+    setFiltroProf('todos');
+    setFiltroEspaco('todos');
+    setCurrentView('week');
+    setCurrentDate(new Date(`${data}T12:00:00`));
+    setAlunaSelecionada(null);
+    setIdDestacado(`${aulaId}-${data}`);
+    clearTimeout(timerDestaque.current);
+    timerDestaque.current = setTimeout(() => setIdDestacado(null), 4000);
+  }, [setFiltroProf, setFiltroEspaco, setCurrentView, setCurrentDate]);
+
+  const alunaAlterada = useCallback(() => {
+    if (!alunaSelecionada) return;
+    queryClient.invalidateQueries({ queryKey: ['matriculas-fixas'] });
+    queryClient.invalidateQueries({ queryKey: ['agenda', 'dadosMes'] });
+    queryClient.invalidateQueries({ queryKey: chaveProximasAgendadas(alunaSelecionada.id) });
+    queryClient.invalidateQueries({ queryKey: chaveAulasEmHaver(alunaSelecionada.id) });
+  }, [queryClient, alunaSelecionada]);
 
 const espacosDisponiveis = useMemo(() => {
   if (isAdmin || !aulas?.length) return undefined;
@@ -167,7 +206,10 @@ const emptyStateEspaco = useMemo(() => {
           <h1 className="text-3xl font-black text-foreground tracking-tight">Grade de Aulas</h1>
           <p className="text-muted-foreground font-medium">Visualize e organize a agenda do estúdio.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <BuscaAlunoAgenda alunos={listaAlunos} onSelecionar={setAlunaSelecionada} />
+          )}
           {isAdmin && (
             <button onClick={modais.feriados.abrir} className={btnSecondary}>
               <Ban size={20} /> Bloqueios ({feriados.length})
@@ -250,6 +292,7 @@ const emptyStateEspaco = useMemo(() => {
       setCurrentView={pageState.setCurrentView}
       handleSelectSlot={handleSelectSlot}
       isAdmin={isAdmin}
+      idDestacado={idDestacado}
       handleSelectEvent={(ev) => {
         ev.isFeriado
           ? showToast.error(`Dia bloqueado: ${ev.dadosOriginais.descricao}`)
@@ -258,6 +301,17 @@ const emptyStateEspaco = useMemo(() => {
     />
   )}
 </div>
+
+      {isAdmin && alunaSelecionada && (
+        <PainelAlunoAgenda
+          aluno={alunaSelecionada}
+          aulas={aulas}
+          matriculasFixas={dadosIniciais.matriculasFixas}
+          onVerNaAgenda={verNaAgenda}
+          onFechar={() => setAlunaSelecionada(null)}
+          onAlterado={alunaAlterada}
+        />
+      )}
 
       <Modal isOpen={modais.agendamento.isOpen} onClose={modais.agendamento.fechar} titulo="Agendamento">
         <ModalAgendamento {...hookAgendamento} aulas={aulas} listaAlunos={listaAlunos} />

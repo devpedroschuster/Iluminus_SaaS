@@ -157,8 +157,16 @@ const CustomEventCard = ({ event }) => {
 const CALENDAR_COMPONENTS = { toolbar: CustomToolbar, event: CustomEventCard };
 
 // Busca de aluno na Agenda: "Ver na agenda" destaca a aula (idUnico =
-// `${aula.id}-${yyyy-MM-dd}`) por alguns segundos.
-const CLASSE_DESTAQUE = 'ring-4 ring-primary ring-offset-2 z-10';
+// `${aula.id}-${yyyy-MM-dd}`) por alguns segundos. O contorno vai no estilo
+// inline (outline): um `ring` do Tailwind usa box-shadow e seria sobrescrito
+// pelo boxShadow inline abaixo. A classe `aula-destacada` só marca o evento
+// para a Agenda rolar até ele.
+const CLASSE_AULA_DESTACADA = 'aula-destacada';
+const ESTILO_DESTAQUE = {
+  outline: '3px solid hsl(var(--primary))',
+  outlineOffset: '2px',
+  zIndex: 10,
+};
 
 function estiloDoEvento(event, idDestacado) {
   const corDB = event.dadosOriginais?.cor || 'laranja';
@@ -169,7 +177,7 @@ function estiloDoEvento(event, idDestacado) {
   const destacado = !!idDestacado && event.idUnico === idDestacado;
 
   return {
-    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}${destacado ? ` ${CLASSE_DESTAQUE}` : ''}`,
+    className: `!rounded-xl transition-all duration-200 border border-white/10 ${isLotado ? 'opacity-85 grayscale-[15%]' : ''}${destacado ? ` ${CLASSE_AULA_DESTACADA}` : ''}`,
     style: {
       backgroundColor: corTema.bg,
       color: corTema.text,
@@ -177,6 +185,7 @@ function estiloDoEvento(event, idDestacado) {
       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
       cursor: 'pointer',
       overflow: 'hidden',
+      ...(destacado ? ESTILO_DESTAQUE : {}),
     },
   };
 }
